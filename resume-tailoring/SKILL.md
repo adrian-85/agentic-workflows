@@ -27,33 +27,21 @@ subtractive: cut from the oldest roles, never the most recent.
 
 ## Assets
 
-Two user-supplied personal assets stay local (`*.docx` / `*.pdf` gitignored);
-drop them into the skill root:
+User-supplied personal assets (`*.docx` / `*.pdf`, gitignored) live in the skill root:
 
-- `<userName> Master Resume.docx` — the master resume: the comprehensive
-  data pool (all LinkedIn detail, expanded). Targeted scripts read this by name
-  from the skill root and subtract from it. **Real experience belongs here**,
-  not in per-target scripts — if a tailoring session authors a bullet for real
-  work the user confirms they did, fold it into the master (via `clone_after`)
+- `<userName> Master Resume.docx` — the comprehensive data pool. Targeted scripts read it
+  by name from the skill root and subtract from it. **Real experience belongs here** — if a
+  session authors a bullet the user confirms, fold it into the master (via `clone_after`)
   so every future tailored resume can pull from it.
-- `Profile.pdf` — a LinkedIn profile PDF export, useful as a cross-reference
-  for content the resume may be missing (the LinkedIn data export CSVs are an
-  even richer source when available).
-- `scripts/tailor_resume.py` — the reference template for per-target tailoring scripts (see below).
-- `scripts/docx_edit.py` — the in-place editor library (see Helper library).
-- `scripts/render_pdf.sh` — renders the .docx to PDF, verifies page count against
-  `TARGET_PAGES` (default 2). Compact by default; `--verbose` adds a page-boundary
-  map and spilled-content dump (Steps 8 & 11).
-- `scripts/measure_resume.py` — the **budgeting layer**: renders once, reports per-role
-  line cost and the exact reclaim gap to a target page count, so cuts are planned as a
-  batch (Step 8). Format constants at the top adapt to a different resume layout
-  (README → Resume format assumptions).
-- `scripts/diff_resume.py` — diffs a user-edited docx against a fresh regenerate so
-  manual edits surface as text; `--tailor <script>` auto-regenerates in one command
-  (Token-spend practices).
-- `scripts/read_profile.sh` — extracts text from `Profile.pdf` (Step 1).
-- `scripts/test_docx_edit.py` / `scripts/test_measure_resume.py` — unit tests; run from
-  `scripts/` with `python3 -m unittest test_docx_edit test_measure_resume`.
+- `Profile.pdf` — richer than the resume for content to enrich/merge (Step 1). The LinkedIn
+  data-export CSVs are an even richer source when available.
+
+`scripts/` (each tool's docstring / usage is the reference; the steps below point at them):
+`docx_edit.py` (Helper library) · `tailor_resume.py` (template) · `render_pdf.sh` (Steps 8, 11) ·
+`measure_resume.py` (Step 8) · `validate_resume.py` (Steps 3, 11; `--master` auto-detects the
+`* Master Resume.docx` next to the input) · `diff_resume.py` (Token-spend) · `read_profile.sh` (Step 1) ·
+`test_*.py` unit tests (`python3 -m unittest test_docx_edit test_measure_resume test_validate_resume`,
+from `scripts/`).
 
 Run scripts from the skill root so the relative `SRC` path resolves:
 
@@ -63,19 +51,22 @@ cd ~/.pi/agent/skills/resume-tailoring && python3 scripts/tailor_resume.py
 
 ## Helper library
 
-`scripts/docx_edit.py` is a reusable, importable editor — open a .docx,
-mutate its XML in place, save. Full docstrings live in the file; essentials:
+`scripts/docx_edit.py` edits the .docx XML in place so formatting survives; full
+signatures and docstrings live in the file — the CLI is the reference. The rules that
+matter while authoring (non-obvious from the names):
 
-- `load(path)` → `(root, body, names, data, W)`; `save(path, root, names, data)` — open / persist edits
-- `paras(body)` / `text_of(p)` — iterate paragraphs / read their text
-- `find_p(paras, startswith)` — find a paragraph by unique text prefix; returns `None` (stderr warning) if missing or ambiguous, so edits skip safely. Matches each paragraph's **original master text**, so a script's own earlier edits can't collide mid-run. Use `prefixes()` for guaranteed-unique prefixes
-- `set_text(p, text)` — rewrite text, **preserving the first run's formatting**. **Not for `"Label: values"` lines** (collapses to all-bold) — use `set_labeled`
-- `set_labeled(p, label, value)` — rewrite a proficiency line keeping the bold label / non-bold values split; on a `clone_after` line it derives the value formatting from the label run (font/size/color preserved)
-- `clone_after(body, ref_p, text)` — add a new bullet inheriting an existing bullet's numbering/style
-- `remove(body, p)` / `remove_empty(body, startswith=None)` — drop a paragraph / blank spacers (optionally after a given point) to reclaim space
-- `paragraph_map(body)` / `prefixes(body)` — structure inspection / copy-pasteable, uniqueness-checked `find_p` prefixes for authoring scripts
+- `set_text` preserves the **first run's rPr** — NOT for `"Label: values"` lines
+  (collapses to all-bold); use `set_labeled` (keeps bold label / non-bold values).
+- `find_p` matches each paragraph's **original master text**, so a script's own edits can't
+  collide mid-run; missing/ambiguous → `None` + stderr warning (the edit skips safely).
+  Use `prefixes()` for guaranteed-unique prefixes.
+- `merge_into(body, target, source, text)` — merge in ONE op (rewrite `target`, remove
+  `source`), so a merge can't leave near-dup residue.
+- `save(..., expect_edits=N)` asserts the applied-edit count (mismatch → warning;
+  exit 2 under `DOCX_EDIT_STRICT=1`).
+- `clone_after(body, ref_p, text)` — add a NEW bullet to the master, inheriting numbering.
 
-CLI for inspection:
+Inspect/author with:
 
 ```bash
 python3 scripts/docx_edit.py "<userName> Master Resume.docx" [--prefixes]
@@ -83,53 +74,35 @@ python3 scripts/docx_edit.py "<userName> Master Resume.docx" [--prefixes]
 
 ## The reference template
 
-The subtractive pattern is demonstrated in `scripts/tailor_resume.py`
-(bundled with this skill) — a **generic template** with placeholder content,
-no company names or recruiter details. Read it before tailoring a new role;
-it shows each primitive in order (summary → proficiencies → role re-anchor →
-per-role compression → tools trims → spacers → PDF iteration), which the
-Workflow steps below cover in detail.
+`scripts/tailor_resume.py` is a **generic template** (placeholder content, no company or
+recruiter detail) showing the subtractive pattern in order: summary → proficiencies →
+role re-anchor → per-role compression → tools trims → spacers → PDF iteration (the
+Workflow steps below cover the same pattern in detail).
 
-### Do you need to write a per-target script?
+### Do you need a per-target script?
 
-Not always. A saved script is an **artifact of iteration**, not a requirement.
-For a one-shot tailoring you will never touch again, making the edits as
-one-off commands against the docx is fine — the `.docx` and `.pdf` are the only
-deliverables. A script earns its keep when you expect to **iterate** (page-count
-tuning, accuracy fixes, user edits) or re-tailor later when the master changes:
-it is re-runnable from the untouched master in one shot, and it is a readable,
-diff-able record of every edit. If you do write one, name it
-`scripts/tailor_<target>.py` and read `SRC`/`DST` from the skill root.
-
-**Caveat:** a per-target script pins to the master's bullet text prefixes
-(`find_p(ps, "…")`). When the master is rewritten, those prefixes may no
-longer exist — the `docx_edit` mutation helpers skip missing targets with a
-stderr warning rather than crashing, so the script still runs and renders.
-Skipped edits mean that bullet wasn't tailored this run — review the
-warnings (run with `DOCX_EDIT_STRICT=1` to make any skipped edit fail with
-exit 2) and update the prefixes (or accept the untailored bullet). Delete
+A saved script is an **artifact of iteration**, not a requirement — one-shot tailoring can
+be one-off commands; the `.docx`/`.pdf` are the only deliverables. Write
+`scripts/tailor_<target>.py` when you'll **iterate** (page-count tuning, accuracy fixes,
+user edits) or re-tailor later: it re-runs from the untouched master and is a readable,
+diff-able record of every edit. **Caveat:** it pins to the master's bullet-text prefixes;
+when the master is rewritten, `find_p` prefixes may drift and edits skip with a stderr
+warning (review warnings, or run with `DOCX_EDIT_STRICT=1` to fail on any skip). Delete
 stale scripts that no longer apply enough edits to be worth keeping.
 
 ## Token-spend practices
 
-The tailoring loop is render-and-measure heavy. These habits cut tokens per
-session; the deterministic parts are enforced by the tools, not by
-instruction:
+The loop is render-and-measure heavy. The deterministic parts are tool-enforced; the
+manual habits are:
 
-1. **Author scripts from `--prefixes` alone.** It prints every paragraph's
-   full text, uniqueness-checked. The paragraph map only adds style/numId
-   and is needed for rare layout checks — skip it when authoring.
-2. **Before reusing a tailor script when the user edited the .docx, run
-   `diff_resume.py --tailor` first** — one command surfaces manual edits
-   (wording, dropped claims, added terms) that a blind re-run would wipe.
+1. **Author scripts from `--prefixes` alone** (uniqueness-checked copy-paste; the paragraph
+   map adds style/numId — only for rare layout checks).
+2. **Before reusing a tailor script after the user edited the .docx, run `diff_resume.py --tailor`**
+   first — one command surfaces manual edits a blind re-run would wipe.
 
-Tool-enforced (no instruction needed):
-
-- `render_pdf.sh` prints compact output by default (page count, last-page
-  check, overflow count, reclaim hint); run it with `--verbose` for the
-  final verification render (page map, spilled content, last-page tail).
-- `measure_resume.py`'s reclaim plan includes a +1-bullet wrapping-variance
-  buffer — cut one bullet past the stated gap when planning the batch.
+Tool-enforced (no instruction needed): `render_pdf.sh` refuses broken or unapproved-elimination
+docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN and flags page
+widows / underfilled pages (Step 8).
 
 ## Workflow
 
@@ -171,6 +144,41 @@ later edit shows where each was used.
   room. Done right, the resume gets *shorter* while the important part gets
   stronger. Decide the target page count now (Step 8 measures it before
   cutting).
+
+**Seniority alignment — when the JD specifies fewer years than the candidate
+has** (this session's case: a mid-level "Software Test Engineer" JD asking
+"5+ years" against a 15-year Staff-engineer background). This is a distinct
+decision, presented **up front and to the user** — not discovered mid-
+compression when the page budget forces it:
+
+1. **Compare the candidate's total years to the JD's ask.** `measure_resume.py`
+   prints the resume's visible TIMELINE span; that — not the candidate's full
+   history — is what a recruiter/screener compares against the JD line.
+2. **Eliminate older work experience in contiguous blocks.** Remove *entire*
+   oldest roles (header, job title, bullets, Tools line) so the visible
+   timeline stays gapless and lands at roughly the JD's ask plus a buffer
+   (e.g. "5+ years" → show ~7–8 years). Deleting a few bullets from a
+   15-year span does not align the resume — the *years shown* are what a
+   screener sees. The structural validator catches any orphaned title/bullets
+   after each whole-role removal.
+3. **Reduce number-of-years statements** to match the visible span ("15 years"
+   → "7+ years" in the Summary; any other "N years" claim). The validator
+   enforces this mechanically for the Summary and every paragraph.
+4. **Check the JD for a degree/education substitution clause.** Many JDs accept
+   "X years OR equivalent degree/education" when the applicant has less
+   experience. With such a clause, compressing experience is low-risk and
+   **Education becomes the substitute evidence — keep it prominent, never cut
+   it** under this option. Without a clause, the degree doesn't replace
+   experience: still compressible on a title basis, but flag to the user that
+   a screener may notice the gap between stated years and the fuller
+   background.
+5. **Raise it to the user before acting.** Dropping whole roles changes the
+   narrative materially. Present the choice with the numbers (JD asks N+,
+   candidate has Y, propose showing ~Z contiguous years), get a yes/no.
+   **Enforced, not a habit:** `validate_resume.py` detects whole-role elimination
+   (visible span ≥2 years shorter than the master) and `render_pdf.sh` blocks the
+   PDF until you record the approval with `--seniority-approved` (Step 11) — you
+   cannot ship a PDF from a shortened timeline without the approval token.
 
 ### 4. Rewrite the Summary to lead with JD-aligned value
 The Summary is the first thing read. Rewrite it so its first sentence hits the
@@ -219,7 +227,12 @@ master, not per-target scripts).
 reports the per-role line cost and the **exact reclaim gap** to the target page
 count, so you plan the oldest-role cuts as a batch instead of discovering them
 through a cut-render-cut-render loop. (Its reclaim plan includes a
-+1-bullet wrapping-variance buffer.)
++1-bullet wrapping-variance buffer.) Use its **BATCH RECLAIM PLAN** (measured
+lines-per-bullet from the actual render, oldest roles first) rather than
+estimating savings, and read its **page-fill table**: an underfilled page or a
+role header stranded as the last line of a page ("WIDOW") will not be fixed by
+a line-count budget alone — trim earlier content or merge bullets so the next
+role starts cleanly at the top of a page.
 
 Then use `remove` to drop the weakest bullets from roles 5+ years back; keep
 the 2–3 bullets with hard numbers or framework-ownership signal, and drop
@@ -246,24 +259,46 @@ is the permanent artifact; tailored copies are temp files scoped to the
 session that created them.
 
 ### 11. Render the final PDF and verify
-The `.docx` is the editing format; **the `.pdf` is the deliverable** — it is
-what you submit to employers. Render and verify with:
+The `.docx` is the editing format; **the `.pdf` is the deliverable** — render and
+verify with `render_pdf.sh` (compact by default; `--verbose` for the final
+verification render: validation report, page map, spilled content, last-page tail):
 
 ```bash
-./scripts/render_pdf.sh "<output>.docx"
+./scripts/render_pdf.sh "<output>.docx"          # compact
+./scripts/render_pdf.sh --verbose "<output>.docx"  # final verification
 ```
 
-`render_pdf.sh` is compact by default (page count, last-page check, overflow
-count, reclaim hint) so re-renders during compression are cheap. Add
-`--verbose` for the final verification render to see the page-boundary map,
-the spilled-content dump, and the last-page tail. It renders via LibreOffice
-headless and checks page count against `TARGET_PAGES` (env, default 2); when
-over target it prints what spilled and a "drop ~N lines / ≈M bullets" hint.
+`render_pdf.sh` **validates first** (runs `validate_resume.py`): it refuses to
+render on blocking errors — an orphan job title, a company without a title,
+content orphaned after a Tools line, or **unapproved whole-role elimination**.
+Fix the errors, then render.
+
+**When the JD specifies years of experience** (Step 3), confirm alignment and
+record approval in one command:
+
+```bash
+RESUME_VALIDATE_ARGS="--jd-years <N> --seniority-approved" \
+  ./scripts/render_pdf.sh "<output>.docx"
+```
+
+`--jd-years <N>` reports the visible span vs the JD's ask ("~7.4 years vs the
+JD's 5+ — aligned"), warns if under (underqualified), and notes a large
+overshoot — the signal to offer Step 3's gapless oldest-role elimination.
+`--seniority-approved` is the gate token: REQUIRED only when whole roles were
+eliminated — without it the render is blocked, so the user-approved decision is
+recorded, not assumed. The two flags are independent: `--jd-years` is an
+optional advisory; the gate reads only the approval token.
+
+**Final human review (what the tools can't judge).** After the last render,
+re-read the full `--prefixes` dump top-to-bottom once: every kept bullet still
+serves the JD, whole-role removals still read as a coherent timeline, and the
+Summary's claims still match what the reader sees. Years-vs-timeline is
+automated (`validate_resume.py`); JD-fit judgment of kept bullets is not — that
+stays human.
 
 If it overshoots the target, **compress one more older-role bullet** and
-re-render until the last page is full. The `.pdf` is what you submit; the
-tailored `.docx` is its editable source. Both are session-temp and deleted
-once the resume is submitted — only the master resume is kept.
+re-render until the last page is full (the `.pdf` is the deliverable; the `.docx` is
+session-temp source — see Step 10).
 
 ## When NOT to use this skill
 
@@ -292,21 +327,16 @@ interview, and a made-up tool usage is the easiest thing to catch.
 
 ## Common mistakes
 
+The tools and workflow steps above already enforce most failure modes (validators,
+`merge_into`, `expect_edits`; Steps 8 & 11). What's left is judgment:
+
 | Mistake | Fix |
 |---|---|
-| Rebuilding the .docx from scratch | Edit XML in place — `python-docx` drops styles, numbering, and hyperlinks |
-| Using `set_text` on a `"Label: values"` line | It collapses to all-bold. Use `set_labeled` (Helper library) |
+| Rebuilding the .docx from scratch | Edit XML in place — `python-docx` drops styles, numbering, hyperlinks |
+| Using `set_text` on a `"Label: values"` line | Collapses to all-bold — use `set_labeled` (Helper library) |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
-| Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave required skills into role bullets as in-role evidence (Step 5) |
-| Appending bullets when content overlaps an existing one | Merge into the existing bullet to respect the page budget (Step 6) |
-| Bloating the top to "add content" | Reallocate: expand the senior role AND compress the oldest roles (Step 3) |
-| Keeping stale per-target scripts that no longer apply edits | Mutation helpers skip missing targets with a stderr warning — review warnings, update prefixes where the bullet still exists, or delete the script (see "Do you need to write a per-target script?") |
-| Authoring real-experience bullets in a per-target script via `clone_after` | Fold them into the master instead — the master is the comprehensive data pool (Assets) |
-| Syncing per-target scripts to each other or to master changes | Don't. Each is an artifact of its own session; if the master changes, prefixes may drift and the defensive helpers skip broken edits with a warning |
-| Ignoring stderr warnings from `docx_edit` helpers | A "target paragraph not found" warning means a `find_p` prefix drifted — the edit was silently skipped. Check stderr and the `save()` applied-vs-skipped summary; run with `DOCX_EDIT_STRICT=1` to make any skipped edit fail the run (exit 2) |
-| A script's own earlier edits cause a mid-run `find_p` collision | `find_p` resolves against each paragraph's original master text, so edit order can't collide; a collision now means the ORIGINAL texts share the prefix — lengthen it (via `--prefixes`) or capture targets up front |
-| Overwriting the master resume | Write to `<userName> Resume - <Target>.docx` — never the master filename |
-| Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. |
-| A few lines spilling onto a sparse last page | Drop a weak older-role bullet; trim oldest-roles Tools lines to one line each; or remove blank inter-role spacers with `remove_empty` (Step 8) |
-| Transcribing `find_p` prefixes by eye from the truncated paragraph map | Get exact, uniqueness-checked prefixes: `python3 scripts/docx_edit.py <docx> --prefixes` and paste them straight into the script |
-| Skipping the PDF render check | Always verify page count and last-page overflow with `render_pdf.sh` (Step 11) |
+| Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 5) |
+| Appending bullets when content overlaps an existing one | Merge (`merge_into`) — appending blows the page budget (Step 6) |
+| Overwriting the master resume | Write to `<userName> Resume - <Target>.docx` — never the master filename (Step 10) |
+| Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 9) |
+| JD asks for fewer years than the candidate has | Offer Step 3 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it |

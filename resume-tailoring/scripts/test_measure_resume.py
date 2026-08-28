@@ -176,5 +176,92 @@ class RolesTests(unittest.TestCase):
         self.assertFalse(r["has_tools"])
 
 
+class LayoutAndReclaimTests(unittest.TestCase):
+    """New page-fill / measured-cost / batch-plan helpers."""
+
+    def test_measured_lines_per_bullet(self):
+        # A: 8 rendered lines, 2 bullets, no tools -> (8-2)/2 = 3 each
+        # B: 5 rendered lines, 1 bullet, tools -> (5-2-1)/1 = 2
+        # avg = (6+2)/3 = 8/3
+        matched = [
+            ({"key": "A", "bullets": 2, "has_tools": False}, 1, 1, 8),
+            ({"key": "B", "bullets": 1, "has_tools": True}, 1, 2, 5),
+        ]
+        per = mr._measured_lines_per_bullet(matched)
+        self.assertAlmostEqual(per, 8 / 3, places=6)
+
+    def test_reclaim_batch_oldest_first_whole_role(self):
+        # gap=5: oldest role has 1 bullet -> recommend dropping the whole
+        # role (header+tools+bullet ~6 lines) before touching newer roles.
+        matched = [
+            {"key": "GEICO", "bullets": 8, "has_tools": True},
+            {"key": "Oldest", "bullets": 1, "has_tools": True},
+        ]
+        # Match the (r, sp, ep, rendered) tuple shape used by main().
+        wrapped = [(d, 1, 1, 26 if d["key"] == "GEICO" else 6) for d in matched]
+        plan, remaining = mr._reclaim_batch(wrapped, 2.5, 5)
+        self.assertEqual(plan[0][0], "Oldest")
+        self.assertIn("whole role", plan[0][1])
+        self.assertLessEqual(remaining, 0)
+
+    def test_reclaim_batch_single_bullet_cuts_in_order(self):
+        matched = [
+            {"key": "Newer", "bullets": 3, "has_tools": True},
+            {"key": "Middle", "bullets": 2, "has_tools": True},
+            {"key": "Old", "bullets": 1, "has_tools": True},
+        ]
+        wrapped = [
+            (d, i, i, 5) for i, d in enumerate(matched, start=1)
+        ]
+        plan, _ = mr._reclaim_batch(wrapped, 2.5, 6)
+        # Oldest first: Old (whole role, 5), then Middle (1 bullet, 2.5).
+        self.assertEqual([p[0] for p in plan], ["Old", "Middle"])
+        self.assertIn("drop 1 bullet", plan[1][1])
+
+    def test_layout_hints_detects_widow_header(self):
+        # Role header is the LAST line of page 1; its body starts page 2.
+        pages = ["Header line\nRole B, City\n", "bullet one\nbullet two\n"]
+        matched = [({"key": "Role B, City", "bullets": 2, "has_tools": False}, 2, 2, 2)]
+        hints = mr._layout_hints(matched, pages, capacity=2)
+        self.assertTrue(any("WIDOW" in h for h in hints))
+
+    def test_layout_hints_flags_underfilled_page(self):
+        # page 1 holds 1 line (very underfilled); page 2 starts a role.
+        pages = ["only line\n", "Role C, City\nbullet\n"]
+        matched = [({"key": "Role C, City", "bullets": 1, "has_tools": False}, 2, 2, 2)]
+        hints = mr._layout_hints(matched, pages, capacity=5)
+        self.assertTrue(any("underfilled" in h for h in hints))
+
+
+class VisibleSpanTests(unittest.TestCase):
+    """_visible_span parses company-header date ranges into a span."""
+
+    def test_mm_yyyy_dates(self):
+        first, last = mr._visible_span([
+            "GEICO, MD (Remote)06/2025 – 07/2026",
+            "Republic, AZ02/2019 – 04/2020",
+        ])
+        self.assertAlmostEqual(first, 2019 + 1 / 12, places=2)
+        self.assertAlmostEqual(last, 2026 + 6 / 12, places=2)
+
+    def test_iso_dates(self):
+        saved = mr.DATE_RE
+        try:
+            mr.DATE_RE = re.compile(r"\d{4}-\d{2}")
+            first, last = mr._visible_span([
+                "Widgets Inc2024-03 – 2025-01",
+            ])
+        finally:
+            mr.DATE_RE = saved
+        self.assertAlmostEqual(first, 2024 + 2 / 12, places=2)
+        self.assertAlmostEqual(last, 2025, places=2)
+
+    def test_no_dates_none(self):
+        self.assertEqual(mr._visible_span(["no date here"]), (None, None))
+
+    def test_empty_headers_none(self):
+        self.assertEqual(mr._visible_span([]), (None, None))
+
+
 if __name__ == "__main__":
     unittest.main()

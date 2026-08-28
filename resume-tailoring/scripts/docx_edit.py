@@ -40,8 +40,16 @@ Usage as a library::
     # clone_after adds a NEW bullet to the MASTER (real experience belongs in
     # the master, not in per-target scripts); preserve bullet styling:
     # clone_after(body, ref_bullet, "A new bullet in the master.")
+    # Merging overlapping content into an existing bullet: merge_into
+    # rewrites the target AND removes the source in one op, so a merge can
+    # never leave the source's old text as near-duplicate residue:
+    # merge_into(body, find_p(ps, "<keep>"), find_p(ps, "<absorb>"), "merged")
     remove_empty(body, startswith="<text prefix at/after which to drop spacers>")
-    save("out.docx", root, names, data)
+    # Assert the edit count: set expect_edits to the "applied N edits" count
+    # from the first clean run, and keep it in sync when the script's edits
+    # change. A mismatch (under DOCX_EDIT_STRICT=1: exit 2) means an edit
+    # silently disappeared from the script or no longer matched.
+    save("out.docx", root, names, data, expect_edits=<N>)
 
 CLI (inspect structure before editing)::
 
@@ -138,13 +146,22 @@ def load(path):
     return root, body, names, data, W
 
 
-def save(path, root, names, data):
+def save(path, root, names, data, expect_edits=None):
     """Serialize mutated root back into the .docx zip at `path`.
 
     After writing, prints an applied-vs-skipped summary so a silently
     skipped edit (a find_p prefix that drifted or is ambiguous) cannot go
     unnoticed. With ``DOCX_EDIT_STRICT=1``, exits with status 2 if any edit
     was skipped instead of merely reporting it.
+
+    ``expect_edits`` asserts the total number of edits this run SHOULD
+    apply (the applied count, not counting ``remove_empty``, which is not a
+    targeted edit). Pass the count from the first clean run
+    ("applied N edits") and keep it in sync when you add or remove an
+    edit in the script: a mismatch means a targeted edit silently
+    disappeared from the script or landed differently than intended. Under
+    ``DOCX_EDIT_STRICT=1`` a mismatch exits with status 2; otherwise it is
+    a prominent warning.
     """
     global _APPLIED
     data["word/document.xml"] = ET.tostring(
@@ -157,6 +174,7 @@ def save(path, root, names, data):
     skipped = list(_SKIPS)
     _APPLIED = 0
     _SKIPS.clear()
+    strict = os.environ.get("DOCX_EDIT_STRICT", "").strip().lower() == "1"
     if skipped:
         print(
             f"NOTICE: {applied} edits applied, {len(skipped)} skipped "
@@ -166,7 +184,18 @@ def save(path, root, names, data):
         )
     else:
         print(f"applied {applied} edits, 0 skipped")
-    if os.environ.get("DOCX_EDIT_STRICT", "").strip().lower() == "1" and skipped:
+    if expect_edits is not None and applied != expect_edits:
+        print(
+            f"WARNING: expected {expect_edits} edits but applied {applied} "
+            f"({len(skipped)} skipped). The expected count drifted — an edit "
+            f"may have been added to or removed from the script, or a target "
+            f"no longer matched. Update save(expect_edits=...) to match, or "
+            f"review the script's edits.",
+            file=sys.stderr,
+        )
+        if strict:
+            raise SystemExit(2)
+    if strict and skipped:
         raise SystemExit(2)
 
 
@@ -237,6 +266,7 @@ def set_text(p, text):
     No-op with a stderr warning if ``p`` is ``None`` (target paragraph not
     found in the master) so a script still runs when the master changed.
     """
+    global _APPLIED
     if p is None:
         _warn_missing(text[:40])
         return
@@ -246,6 +276,7 @@ def set_text(p, text):
         t = ET.SubElement(r, W + "t")
         t.text = text
         t.set(SPACE, "preserve")
+        _APPLIED += 1
         return
     first = rs[0]
     rPr = first.find(W + "rPr")
@@ -259,7 +290,6 @@ def set_text(p, text):
     if rPr is not None:
         first.remove(rPr)
         first.insert(0, rPr)
-    global _APPLIED
     _APPLIED += 1
 
 
@@ -434,6 +464,45 @@ def remove(body, p):
     body.remove(p)
     global _APPLIED
     _APPLIED += 1
+
+
+def merge_into(body, target, source, text):
+    """Merge ``source`` into ``target`` in ONE op: rewrite ``target`` with
+    ``text`` and remove ``source``.
+
+    Use this for "merge, don't append" edits (Skill workflow Step 6) where
+    new content overlaps an existing bullet: the source's old text is
+    removed in the same op, so a merge can never leave the source's original
+    text sitting next to the rewritten target as a near-duplicate residue
+    (the failure mode of doing `set_text` + a separate `remove`).
+
+    Resolve both paragraphs via :func:`find_p` at the call site:
+
+        target = find_p(ps, "<prefix of the bullet to keep>")
+        source = find_p(ps, "<prefix of the bullet to absorb>")
+        merge_into(body, target, source, "<merged text>")
+
+    Defensive when the master changed: if ``target`` is ``None`` the merge
+    is a no-op with a warning; if ``source`` is ``None`` the target is
+    still rewritten (the merged content lands) but nothing is removed; if
+    ``target is source`` the merge is skipped so the only paragraph is not
+    deleted. Counts as 2 applied edits (one rewrite + one removal) when
+    both paragraphs resolve.
+    """
+    if target is None:
+        _warn_missing(text[:40])
+        return
+    if target is source:
+        print(
+            f"WARNING: merge_into target is the same paragraph as source "
+            f"({text[:40]!r}); skipping to avoid deleting the only "
+            f"paragraph.",
+            file=sys.stderr,
+        )
+        return
+    set_text(target, text)
+    if source is not None:
+        remove(body, source)
 
 
 def style_and_numid(p):

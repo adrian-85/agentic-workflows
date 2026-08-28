@@ -41,6 +41,32 @@ if [ ! -f "$INPUT" ]; then
     exit 1
 fi
 
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Structural/claim lint gate (A: validate_resume.py). Aborts the render on
+# structural errors (orphan job titles, company blocks without titles,
+# orphaned role content) or an unapproved whole-role elimination (Step 3
+# seniority gate). Near-duplicate and claim warnings are shown under
+# --verbose and otherwise pass. This makes the "applied vs intended" check
+# mechanical: a dangling-title doc cannot reach the PDF step, and neither can
+# a shortened timeline whose user approval was not recorded.
+#
+# Extra args for the validator come from RESUME_VALIDATE_ARGS (space-
+# separated). The seniority gate needs only the approval token:
+#   RESUME_VALIDATE_ARGS="--seniority-approved" ./scripts/render_pdf.sh "<out>.docx"
+# Add --jd-years <N> for optional span-vs-JD feedback (independent of the gate).
+VALIDATE_OUT="$(python3 "$SELF_DIR/validate_resume.py" "$INPUT" \
+    ${RESUME_VALIDATE_ARGS:-} 2>&1)" \
+    && VALIDATE_RC=0 \
+    || VALIDATE_RC=$?
+if [ "$VALIDATE_RC" -ne 0 ]; then
+    echo "Error: resume validation failed (exit $VALIDATE_RC). Fix the issues " >&2
+    echo "before rendering:" >&2
+    printf '%s\n' "$VALIDATE_OUT" >&2
+    exit 1
+fi
+[ "$VERBOSE" -eq 1 ] && printf '%s\n' "$VALIDATE_OUT"
+
 BASENAME=$(basename "$INPUT" .docx)
 OUTPUT="${2:-/tmp/${BASENAME}.pdf}"
 OUTDIR="${3:-/tmp}"

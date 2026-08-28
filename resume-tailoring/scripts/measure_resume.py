@@ -29,6 +29,7 @@ BEFORE the compression cuts, to plan them. Re-run render_pdf.sh after cutting
 to verify.
 """
 
+import math
 import os
 import re
 import subprocess
@@ -124,6 +125,7 @@ def _roles(body):
     dict:
 
         key      – normalized company-portion (PDF match key)
+        raw      – the full company header text, dates included
         bullets  – count of numbered bullets (cuttable items)
         has_tools– whether a Tools & Technologies line is present
     """
@@ -151,7 +153,7 @@ def _roles(body):
         if style == COMPANY_STYLE and txt.strip():
             if cur:
                 roles.append(cur)
-            cur = {"key": _company_key(txt),
+            cur = {"key": _company_key(txt), "raw": txt,
                    "bullets": 0, "has_tools": False}
         elif cur is not None:
             # Count numbered bullets (numId not None and not "0", or a
@@ -204,7 +206,7 @@ def _match_roles_to_pages(roles, pages_text):
     for i, r in enumerate(roles):
         s = role_starts[i]
         if s is None:
-            results.append((r, None, 0))
+            results.append((r, None, None, 0))
             continue
         # End = next matched role start, else Education heading, else EOF.
         e = find_education_line(s)
@@ -213,7 +215,8 @@ def _match_roles_to_pages(roles, pages_text):
                 e = nxt
                 break
         rendered = e - s
-        results.append((r, flat[s][0], rendered))
+        end_page = flat[e - 1][0] if e > 0 else flat[s][0]
+        results.append((r, flat[s][0], end_page, rendered))
     return results
 
 
@@ -247,6 +250,151 @@ def _education_cost(pages_text):
     return n
 
 
+def _visible_span(company_headers):
+    """(start_year_float, end_year_float) across company header date ranges.
+
+    ``company_headers`` are full role-header texts (dates included, e.g.
+    "GEICO, MD (Remote)06/2025 – 07/2026"). This is the number behind Step
+    3's seniority-alignment decision: the resume's visible years, which a
+    recruiter compares against the JD's "N+ years" ask — NOT the
+    candidate's total career. Returns (None, None) when no headers have
+    parseable dates.
+    """
+    first = last = None
+    for text in company_headers:
+        dates = DATE_RE.findall(text)
+        if not dates:
+            continue
+
+        def ymd(s):
+            if "/" in s:
+                mo, yr = s.split("/")
+            else:
+                yr, mo = s.split("-")
+            return int(yr) + (int(mo) - 1) / 12.0
+
+        vals = [ymd(d) for d in dates]
+        if first is None or vals[0] < first:
+            first = vals[0]
+        if last is None or vals[-1] > last:
+            last = vals[-1]
+    return first, last
+
+
+def _flat_lines(pages_text):
+    """Flatten (page_1based, norm_line, raw_line) in document order."""
+    flat = []
+    for pi, ptext in enumerate(pages_text, start=1):
+        for l in _page_lines(ptext):
+            flat.append((pi, _norm(l), l))
+    return flat
+
+
+def _page_fill(pages_text):
+    """Rendered line count per page; capacity = the fullest page."""
+    return [len(_page_lines(p)) for p in pages_text]
+
+
+def _role_header_flat(flat, key):
+    """Flat-index of a role's header line in the rendered text, else None."""
+    for k, (_, norm, _) in enumerate(flat):
+        if norm.startswith(key):
+            return k
+    return None
+
+
+def _layout_hints(matched, pages_text, capacity):
+    """Page-fill table plus widow/underfill notes.
+
+    A widow in the render is a role header that is the LAST line of a page
+    while its body starts the next page — the exact failure mode of a
+    "role header stranded at the bottom" that a line-count budget cannot
+    see. An underfilled page whose next page starts with a role header is
+    usually the same keep-with/heading-pagination effect; report it with a
+    concrete line-cut suggestion so the fix is a batch action, not a
+    cut-render-cut loop.
+    """
+    fills = _page_fill(pages_text)
+    out = []
+    for i, f in enumerate(fills, start=1):
+        pct = (100 * f // capacity) if capacity else 0
+        out.append(f"  page {i}: {f:3} lines ({pct}% of max {capacity})")
+    if capacity and len(fills) > 1:
+        for i, f in enumerate(fills[:-1], start=1):
+            if f < 0.85 * capacity:
+                nxt = _page_lines(pages_text[i])  # first line of page i+1
+                nxt_first = nxt[0][:60] if nxt else "(blank)"
+                out.append(
+                    f"  NOTE: page {i} underfilled — holds {f} of ~{int(capacity)} lines "
+                    f"({(100 * f // capacity)}% of max); page {i + 1} starts "
+                    f"with: {nxt_first} — likely a keep-with/widow break; "
+                    f"trimming ~{max(1, int(0.85 * capacity - f))} earlier "
+                    f"line(s) may pull it up"
+                )
+    flat = _flat_lines(pages_text)
+    for r, sp, ep, rendered in matched:
+        idx = _role_header_flat(flat, r["key"])
+        if idx is not None and idx + 1 < len(flat):
+            if flat[idx][0] != flat[idx + 1][0] and (idx == 0 or flat[idx][0] == flat[idx - 1][0]):
+                out.append(
+                    f"  WIDOW: {r['key'][:44]} header is the last line of page "
+                    f"{flat[idx][0]}; its body starts page {flat[idx + 1][0]} — "
+                    f"trim earlier content or merge bullets"
+                )
+    return out
+
+
+def _measured_lines_per_bullet(matched):
+    """Average rendered lines per bullet, measured from THIS render.
+
+    Attributes each role's rendered lines to bullets by subtracting a
+    2-line header block (company + job title) and ~1 line for the Tools
+    line (tailored tools lines are trimmed to one line; wrapping adds on
+    average well under a line). Honest reclaim math: the old hardcoded
+    "~2 lines per bullet" budget undercounted dense bullets, which is why
+    compression turned into cut-render-cut cycles.
+    """
+    total_bullet_lines = 0.0
+    bullet_count = 0
+    for r, sp, ep, rendered in matched:
+        n = r["bullets"]
+        if not n:
+            continue
+        tools_len = 1.0 if r["has_tools"] else 0.0
+        bullet_lines = max(1, rendered - 2.0 - tools_len)
+        total_bullet_lines += bullet_lines
+        bullet_count += n
+    return total_bullet_lines / bullet_count if bullet_count else 2.0
+
+
+def _reclaim_batch(matched, per_bullet, gap):
+    """Oldest-first concrete cut list sized to `gap` (lines).
+
+    The skill rule is: cut the OLDEST roles first. For each oldest role with
+    2+ bullets, take as many bullet cuts as the budget needs (keeping at
+    least one bullet per role); a 1-bullet role is cheaper to drop whole
+    (header + tools + bullets) once it is the oldest — that is the cleanest
+    page math and also compresses the timeline. Returns (plan, remaining)
+    where plan is [(role_key, action, saved_lines)].
+    """
+    plan = []
+    remaining = gap
+    for r, sp, ep, rendered in reversed(matched):
+        if remaining <= 0:
+            break
+        n = r["bullets"]
+        key = r["key"]
+        if n >= 2:
+            take = min(n - 1, max(1, math.ceil(remaining / per_bullet)))
+            saved = take * per_bullet
+            plan.append((key, f"drop {take} bullet(s) (saves ~{saved:.0f} lines)", saved))
+            remaining -= saved
+        else:
+            plan.append((key, f"consider dropping the whole role (saves ~{rendered:.0f} lines)", rendered))
+            remaining -= rendered
+    return plan, remaining
+
+
 def main():
     if len(sys.argv) < 2:
         print("usage: measure_resume.py <resume.docx> [TARGET_PAGES]",
@@ -270,7 +418,8 @@ def main():
     matched = _match_roles_to_pages(roles, pages_text)
     fixed_top = _fixed_top_cost(pages_text, roles)
     edu = _education_cost(pages_text)
-    role_lines = sum(m[2] for m in matched)
+    capacity = max(_page_fill(pages_text)) if pages_text else 0
+    role_lines = sum(m[3] for m in matched)
 
     print(f"PAGES: {total_pages}  (target: {target})")
     over = total_pages - target
@@ -283,39 +432,56 @@ def main():
     else:
         print("ON target.")
 
+    # Visible timeline span — the number behind Step 3's seniority-alignment
+    # decision (compare against the JD's "N+ years" ask, NOT the candidate's
+    # total career).
+    first, last = _visible_span([r["raw"] for r in roles])
+    if first is not None:
+        print(f"TIMELINE: roles span {first:.0f} – {last:.0f} "
+              f"(~{last - first:.1f} years shown)")
+
     print()
     print(f"Fixed top block (Summary+Proficiencies+Certifications+chrome): "
           f"{fixed_top} rendered lines (not where compression cuts happen)")
     print()
     print("Per-role rendered cost (oldest roles LAST — cut from the bottom):")
-    print(f"  {'Role':<34} {'pg':>3} {'lines':>5} {'bullets':>7} {'tools':>5}")
-    for r, pg, lines in matched:
+    print(f"  {'Role':<34} {'pg':>4} {'lines':>5} {'bullets':>7} {'tools':>5}")
+    for r, sp, ep, lines in matched:
         name = r["key"]
         if len(name) > 33:
             name = name[:30] + "..."
-        print(f"  {name:<34} {pg!s:>3} {lines:>5} {r['bullets']:>7} "
+        pg_s = f"{sp}-{ep}" if (sp and ep and ep != sp) else (str(sp) if sp is not None else "?")
+        print(f"  {name:<34} {pg_s:>4} {lines:>5} {r['bullets']:>7} "
               f"{'Y' if r['has_tools'] else '-':>5}")
-    print(f"  {'Education (tail)':<34} {'':>3} {edu:>5}")
-    print(f"  {'TOTAL':<34} {'':>3} {fixed_top + role_lines + edu:>5}")
+    print(f"  {'Education (tail)':<34} {'':>4} {edu:>5}")
+    print(f"  {'TOTAL':<34} {'':>4} {fixed_top + role_lines + edu:>5}")
 
     # Reclaim suggestion: size cuts to the overflow gap, from oldest roles.
     if over > 0:
         print()
         print(f"RECLAIM PLAN: drop ~{overflow_lines} rendered line(s) to reach "
               f"{target} page(s).")
-        # Lines wrap, so the budget undercounts: cut one extra bullet.
-        print("  (wrapping variance: plan on cutting one extra bullet beyond "
-              "the line budget so the shrink lands in one pass)")
-        # Each bullet wraps to ~1-3 rendered lines (assume avg 2). Tools line ~1-2.
-        print("Cheapest compression targets (oldest roles, then trim Tools):")
-        cuttable = [(r["key"], r["bullets"]) for r, _, _ in matched
-                   if r["bullets"] > 1]
-        for name, bullets in reversed(cuttable):
-            print(f"  - {name}: has {bullets} bullets; dropping 1 saves ~2 lines")
-        if any(r["has_tools"] for r, _, _ in matched):
-            print("  - trim any 2-line Tools list to one line: saves ~1 line each")
-        print("  - drop blank inter-role spacer paragraphs (remove_empty): "
-              "saves ~1 line each")
+
+        # Measured math + concrete batch (replaces an earlier hardcoded
+        # "~2 lines per bullet" estimate that undercounted dense bullets).
+        per = _measured_lines_per_bullet(matched)
+        plan, remaining = _reclaim_batch(matched, per, overflow_lines + per)
+        print()
+        print(f"MEASURED: ~{per:.1f} rendered lines per bullet (this render)")
+        print("BATCH RECLAIM PLAN (oldest roles first; +1-bullet buffer):")
+        for key, action, saved in plan:
+            print(f"  - {key}: {action}")
+        if remaining > 0:
+            print(f"  (still ~{remaining:.0f} line(s) over plan — cut past the "
+                  f"listed bullet(s) or trim Tools lines)")
+        print("  Generic savings: trim any 2-line Tools list to one line "
+              "(~1 line each); drop blank inter-role spacers via remove_empty "
+              "(~1 line each)")
+
+    print()
+    print("Page fill (capacity = fullest page from this render):")
+    for line in _layout_hints(matched, pages_text, capacity):
+        print(line)
 
 
 if __name__ == "__main__":

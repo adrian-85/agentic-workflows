@@ -32,6 +32,23 @@ Re-runnable from the untouched master (after replacing the placeholders):
 
     cd ~/.pi/agent/skills/resume-tailoring && python3 scripts/tailor_<target>.py
 
+Verification is mechanical, not a habit:
+- render_pdf.sh runs scripts/validate_resume.py on the output and REFUSES to
+  render a structurally broken docx (orphan job titles, company blocks
+  without titles, orphaned content after a Tools line).
+- save(..., expect_edits=N) asserts this script's applied-edit count at
+  runtime (set N to the "applied N edits" count from the first clean run;
+  bump it when you add/remove an edit). Under DOCX_EDIT_STRICT=1 a mismatch
+  exits 2, so an edit that silently disappeared from the script fails the
+  run instead of waiting for a review pass.
+- validate_resume.py also cross-checks quantified claims against the master
+  and the Summary's "N+ years" claim against the visible role-date span.
+- When the JD specifies fewer years than the candidate has, apply Step 3
+  seniority alignment (SKILL.md): eliminate entire oldest roles in contiguous
+  gapless blocks, reduce "N years" statements, confirm with the user, and
+  record approval with RESUME_VALIDATE_ARGS="--jd-years <N> --seniority-approved"
+  — the render is blocked without it.
+
 Accuracy: mirror the JD's verbs, but never overclaim. "Designed from scratch"
 is for greenfield work; a refactor is "refactored" or "re-architected". Never
 fabricate a bullet for a tool the user hasn't used — omit it and flag it to
@@ -42,7 +59,7 @@ import shutil
 
 from docx_edit import (
     load, save, paras, find_p, set_text, set_labeled, replace_text,
-    remove, remove_empty,
+    merge_into, remove, remove_empty,
 )
 
 SRC = "<userName> Master Resume.docx"
@@ -73,6 +90,24 @@ def main():
     )
 
     # ------------------------------------------------------------------ #
+    # 1b. SENIORITY ALIGNMENT — ONLY when the JD years are BELOW the
+    #     candidate's (else skip this block entirely). Full rules:
+    #     SKILL.md Step 3. Shorthand: drop ENTIRE oldest roles in contiguous
+    #     gapless blocks; reduce "N years" statements to the visible span;
+    #     keep Education when the JD has an "OR degree" clause; confirm with
+    #     the user first. Enforcement: validate_resume.py blocks the render
+    #     on unapproved role elimination — record approval via
+    #     RESUME_VALIDATE_ARGS="--seniority-approved" (--jd-years optional).
+    # ------------------------------------------------------------------ #
+    # _drop(body, ps, [
+    #     "<oldest-role company header>...",
+    #     "<oldest-role job title>",
+    #     "<oldest-role bullet prefixes>",
+    #     "<oldest-role Tools & Technologies line>",
+    # ])
+    # set_text(find_p(ps, "<Summary>"), "...N+ years...")
+
+    # ------------------------------------------------------------------ #
     # 2. TECHNICAL PROFICIENCIES — lead with the JD's deep-proficiency
     #    languages; retrim each line so JD-relevant tools lead. Use
     #    set_labeled (NOT set_text) on these "Label: values" lines, or the
@@ -88,6 +123,13 @@ def main():
     # 3. MOST-RECENT / SENIOR ROLE — carries the most weight. Re-anchor its
     #    intro around ownership and the JD's selling points. Where new
     #    content overlaps an existing bullet, MERGE rather than append.
+    #    Use merge_into (rewrites the target AND removes the source in one
+    #    op) so a merge can never leave the source's old text as
+    #    near-duplicate residue:
+    #
+    #    keep = find_p(ps, "<prefix of the bullet to keep>")
+    #    absorb = find_p(ps, "<prefix of the overlapping bullet>")
+    #    merge_into(body, keep, absorb, "<merged text>")
     # ------------------------------------------------------------------ #
     set_text(
         find_p(ps, "<prefix of the senior-role intro bullet>"),
@@ -135,7 +177,14 @@ def main():
     # Drop blank inter-role spacer paragraphs to reclaim vertical space.
     remove_empty(body)
 
-    save(DST, root, names, data)
+    # expect_edits asserts the applied-edit count at runtime: set it to the
+    # "applied N edits" count from the first clean run and keep it in sync
+    # when you add/remove edits in this script. A mismatch (under
+    # DOCX_EDIT_STRICT=1: exit 2) means an edit silently disappeared from
+    # the script or no longer matched. render_pdf.sh also runs
+    # validate_resume.py on the output and refuses to render a docx with
+    # structural errors (orphan job titles, company blocks without titles).
+    save(DST, root, names, data, expect_edits=0)  # <N>: set to the "applied N edits" count from the first clean run
     print("WROTE", DST)
 
 

@@ -420,5 +420,127 @@ class SaveReportTests(unittest.TestCase):
             os.unlink(path)
 
 
+class MergeIntoTests(unittest.TestCase):
+    """merge_into rewrites the target and removes the source in one op,
+    so a merge can't leave the source's old text as near-dup residue."""
+
+    def _mk_body(self):
+        body = ET.Element(W + "body")
+        t = ET.SubElement(body, W + "p")
+        r = ET.SubElement(t, W + "r")
+        x = ET.SubElement(r, W + "t"); x.text = "old target"
+        s = ET.SubElement(body, W + "p")
+        r = ET.SubElement(s, W + "r")
+        x = ET.SubElement(r, W + "t"); x.text = "old source"
+        de._ORIG[id(t)] = (t, "old target")
+        de._ORIG[id(s)] = (s, "old source")
+        return body, t, s
+
+    def test_rewrites_target_and_removes_source(self):
+        body, t, s = self._mk_body()
+        de._APPLIED = 0
+        de.merge_into(body, t, s, "combined text")
+        self.assertEqual(de.text_of(t), "combined text")
+        self.assertNotIn(s, list(body))
+        self.assertEqual(de._APPLIED, 2, "counts as a rewrite + a removal")
+
+    def test_target_none_warns_and_no_ops(self):
+        body, t, s = self._mk_body()
+        err = io.StringIO()
+        de._APPLIED = 0
+        with contextlib.redirect_stderr(err):
+            de.merge_into(body, None, s, "x")
+        self.assertIn("target paragraph not found", err.getvalue())
+        self.assertEqual(de._APPLIED, 0)
+        self.assertIn(t, list(body))
+        self.assertIn(s, list(body))
+
+    def test_source_none_still_rewrites_target(self):
+        body, t, s = self._mk_body()
+        err = io.StringIO()
+        de._APPLIED = 0
+        with contextlib.redirect_stderr(err):
+            de.merge_into(body, t, None, "merged")
+        self.assertEqual(de.text_of(t), "merged")
+        self.assertEqual(de._APPLIED, 1, "rewrite lands, no removal")
+        self.assertIn(s, list(body))
+
+    def test_target_is_source_skipped(self):
+        body = ET.Element(W + "body")
+        p = ET.SubElement(body, W + "p")
+        r = ET.SubElement(p, W + "r")
+        x = ET.SubElement(r, W + "t"); x.text = "solo"
+        err = io.StringIO()
+        de._APPLIED = 0
+        with contextlib.redirect_stderr(err):
+            de.merge_into(body, p, p, "y")
+        self.assertIn("same paragraph", err.getvalue())
+        self.assertEqual(de._APPLIED, 0)
+        self.assertIn(p, list(body))
+
+
+class SaveExpectEditsTests(SaveReportTests):
+    """save(expect_edits=...) asserts the applied edit count at runtime."""
+
+    def _run(self, path, expect, strict=False):
+        self._reset_stats()
+        self._empty_docx(path)
+        root, body, names, data, _ = de.load(path)
+        # Mirror a real paragraph: text lives in a run, so set_text counts
+        # as the normal (1-run) applied edit.
+        p = ET.SubElement(body, de.W + "p")
+        r = ET.SubElement(p, de.W + "r")
+        t = ET.SubElement(r, de.W + "t"); t.text = "x"
+        de.set_text(p, "hello")  # 1 applied edit
+        out = io.StringIO()
+        err = io.StringIO()
+        old = os.environ.get("DOCX_EDIT_STRICT")
+        if strict:
+            os.environ["DOCX_EDIT_STRICT"] = "1"
+        try:
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                cm = None
+                if strict:
+                    with self.assertRaises(SystemExit) as cm:
+                        de.save(path, root, names, data, expect_edits=expect)
+                else:
+                    de.save(path, root, names, data, expect_edits=expect)
+        finally:
+            if old is None:
+                os.environ.pop("DOCX_EDIT_STRICT", None)
+            else:
+                os.environ["DOCX_EDIT_STRICT"] = old
+        return out.getvalue(), err.getvalue(), cm
+
+    def test_exact_match_no_warning(self):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            out, err, _ = self._run(path, expect=1)
+        finally:
+            os.unlink(path)
+        self.assertIn("applied 1 edits", out)
+        self.assertNotIn("expected", err)
+
+    def test_mismatch_warns_without_strict(self):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            out, err, _ = self._run(path, expect=5)
+        finally:
+            os.unlink(path)
+        self.assertIn("expected 5 edits but applied 1", err)
+
+    def test_mismatch_exits_2_under_strict(self):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            out, err, cm = self._run(path, expect=5, strict=True)
+            self.assertEqual(cm.exception.code, 2)
+            self.assertIn("expected 5 edits but applied 1", err)
+        finally:
+            os.unlink(path)
+
+
 if __name__ == "__main__":
     unittest.main()
