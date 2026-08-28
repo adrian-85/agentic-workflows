@@ -272,6 +272,12 @@ def set_labeled(p, label, value):
     as two runs — a bold label and a non-bold value — but `set_text` collapses
     all text into the first (bold) run, making the whole line bold.
 
+    If the paragraph has no non-bold run to borrow from (a new line built via
+    `clone_after`, which collapses to a single bold run), the value run's
+    formatting is derived from the label run — same font/size/color, with the
+    bold/style dropped — so the value never falls back to document defaults
+    (wrong font/color).
+
     No-op with a stderr warning if ``p`` is ``None`` (target paragraph not
     found in the master) so a script still runs when the master changed.
     """
@@ -293,6 +299,17 @@ def set_labeled(p, label, value):
         if b is not None and b.get(W + "val") in ("0", "false"):
             val_rPr = copy.deepcopy(rPr)
             break
+    if val_rPr is None and bold_rPr is not None:
+        # No visible non-bold value run (clone_after collapses a "Label:
+        # values" line to one bold run). Derive the value formatting from
+        # the label run — drop the label style and the bold flag, keep
+        # font/size/color — instead of leaving the value run with no rPr,
+        # which falls back to document defaults (the "OS & Scripting" bug).
+        val_rPr = copy.deepcopy(bold_rPr)
+        for tag in (W + "rStyle", W + "b", W + "bCs"):
+            el = val_rPr.find(tag)
+            if el is not None:
+                val_rPr.remove(el)
     for r in rs:
         p.remove(r)
     rlab = ET.SubElement(p, W + "r")

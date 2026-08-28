@@ -303,6 +303,9 @@ def main():
         print()
         print(f"RECLAIM PLAN: drop ~{overflow_lines} rendered line(s) to reach "
               f"{target} page(s).")
+        # Lines wrap, so the budget undercounts: cut one extra bullet.
+        print("  (wrapping variance: plan on cutting one extra bullet beyond "
+              "the line budget so the shrink lands in one pass)")
         # Each bullet wraps to ~1-3 rendered lines (assume avg 2). Tools line ~1-2.
         print("Cheapest compression targets (oldest roles, then trim Tools):")
         cuttable = [(r["key"], r["bullets"]) for r, _, _ in matched

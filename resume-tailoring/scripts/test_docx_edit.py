@@ -158,6 +158,42 @@ class SetLabeledTests(unittest.TestCase):
         self.assertTrue(runs[0][1], "label run should be bold")
         self.assertFalse(runs[1][1], "value run should be non-bold")
 
+    def test_clone_shaped_single_run_label_derives_value_formatting(self):
+        # clone_after collapses a "Label: values" line to ONE run carrying
+        # the label's rPr, so set_labeled has no non-bold value run to copy.
+        # It must derive the value run's rPr from the label run (drop the
+        # style + bold, keep font/color) rather than leave it with no rPr —
+        # the "OS & Scripting" line rendered with default font/color.
+        p = ET.Element(W + "p")
+        r = ET.SubElement(p, W + "r")
+        rPr = ET.SubElement(r, W + "rPr")
+        ET.SubElement(rPr, W + "rStyle").set(W + "val", "Strong")
+        ET.SubElement(rPr, W + "rFonts")
+        ET.SubElement(rPr, W + "b")
+        color = ET.SubElement(rPr, W + "color")
+        color.set(W + "val", "3465A4")
+        sz = ET.SubElement(rPr, W + "sz")
+        sz.set(W + "val", "20")
+        t = ET.SubElement(r, W + "t")
+        t.text = "OS & Scripting: "
+        t.set(SPACE, "preserve")
+
+        de.set_labeled(p, "OS & Scripting: ", "Linux, Bash, WSL, Powershell")
+
+        runs = p.findall(W + "r")
+        self.assertEqual(len(runs), 2)
+        self.assertIsNotNone(runs[0].find(W + "rPr/" + W + "b"),
+                             "label run keeps bold")
+        vrPr = runs[1].find(W + "rPr")
+        self.assertIsNotNone(vrPr, "value run must not be left without rPr")
+        self.assertIsNone(vrPr.find(W + "b"), "value run must not be bold")
+        self.assertIsNone(vrPr.find(W + "rStyle"),
+                          "value run must not carry the label style")
+        self.assertEqual(vrPr.find(W + "color").get(W + "val"), "3465A4",
+                         "value run keeps the label color")
+        self.assertEqual(vrPr.find(W + "sz").get(W + "val"), "20",
+                         "value run keeps the label size")
+
     def test_none_warns_and_no_crash(self):
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
