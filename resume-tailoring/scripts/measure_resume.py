@@ -40,7 +40,20 @@ import docx_edit as de  # noqa: E402
 
 W = de.W
 
-DATE_RE = re.compile(r"\d{1,2}/\d{4}")
+# ---------------------------------------------------------------------- #
+# Resume-format assumptions — EDIT THESE to match your own master resume. #
+#                                                                         #
+# Measurement keys off your resume's structure. If yours uses different   #
+# section headings, a different role-header style name, a different date  #
+# format, or bullet paragraphs whose numbering lives on the paragraph     #
+# STYLE rather than on the paragraph, change the values here — the        #
+# logic below stays the same.                                             #
+# ---------------------------------------------------------------------- #
+SECTION_CAREER = "Career Experience"
+SECTION_EDUCATION = "Education"
+COMPANY_STYLE = "CompanyBlock"
+DATE_RE = re.compile(r"\d{1,2}/\d{4}")  # dates on role headers, e.g. 02/2019
+BULLET_STYLES = ("ListBullet",)  # styles whose bullets carry no paragraph numId
 
 
 def _render_pdf(docx_path, outdir):
@@ -92,7 +105,7 @@ def _page_lines(page_text):
 
 
 def _company_key(text):
-    """The matchable company-portion of a CompanyBlock line (dates stripped).
+    """The matchable company-portion of a role-header line (dates stripped).
 
     The master concatenates the company line and the date range with no
     separator (e.g. 'Company ABC, Phoenix, AZ02/2019 – 04/2020'); the
@@ -106,8 +119,9 @@ def _company_key(text):
 
 
 def _roles(body):
-    """Ordered list of roles between the Career Experience and Education
-    section headings. Each role is a dict:
+    """Ordered list of roles between the career and education section
+    headings (names from SECTION_CAREER / SECTION_EDUCATION). Each role is a
+    dict:
 
         key      – normalized company-portion (PDF match key)
         bullets  – count of numbered bullets (cuttable items)
@@ -120,8 +134,8 @@ def _roles(body):
             if de.text_of(p).strip() == name:
                 return i
         return None
-    start = find_section("Career Experience")
-    end = find_section("Education")
+    start = find_section(SECTION_CAREER)
+    end = find_section(SECTION_EDUCATION)
     if start is None:
         start = 0
     if end is None:
@@ -134,14 +148,16 @@ def _roles(body):
     for j, p in enumerate(region):
         style, numId = de.style_and_numid(p)
         txt = texts_r[j]
-        if style == "CompanyBlock" and txt.strip():
+        if style == COMPANY_STYLE and txt.strip():
             if cur:
                 roles.append(cur)
             cur = {"key": _company_key(txt),
                    "bullets": 0, "has_tools": False}
         elif cur is not None:
-            # Count numbered bullets (numId not None and not "0"); flag tools.
-            if numId is not None and numId != "0":
+            # Count numbered bullets (numId not None and not "0", or a
+            # paragraph style whose numbering lives on the style, e.g.
+            # Word's built-in List Bullet); flag tools lines.
+            if (numId is not None and numId != "0") or style in BULLET_STYLES:
                 cur["bullets"] += 1
             elif txt.strip().lower().startswith("tool") and "technolog" in txt.lower():
                 cur["has_tools"] = True
@@ -177,10 +193,10 @@ def _match_roles_to_pages(roles, pages_text):
         role_starts.append(found)
         search_from = found + 1
 
-    # Bound each role at the next role's header, or the Education heading, or end.
+    # Bound each role at the next role's header, or the education heading, or end.
     def find_education_line(from_idx):
         for k in range(from_idx, len(flat)):
-            if flat[k][1] == "Education":
+            if flat[k][1] == SECTION_EDUCATION:
                 return k
         return len(flat)
 
@@ -224,7 +240,7 @@ def _education_cost(pages_text):
     started = False
     for ptext in pages_text:
         for l in _page_lines(ptext):
-            if not started and _norm(l) == "Education":
+            if not started and _norm(l) == SECTION_EDUCATION:
                 started = True
             if started:
                 n += 1

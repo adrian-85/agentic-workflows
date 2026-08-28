@@ -50,7 +50,15 @@ only, and the user drops their own files into the skill root:
   reports the per-role rendered-line cost and the exact reclaim gap to a
   target page count. Run it after the content edits but *before* the
   compression cuts to plan them as a batch, so cuts are measured rather than
-  iterated.
+  iterated. If your master resume uses different section headings, a
+  different role-header style, a different date format, or bullet styles
+  whose numbering lives on the paragraph style (not the paragraph), edit
+  the format constants at the top of the file (see README → Resume format
+  assumptions) instead of forking the script. The unit tests build their
+  fixtures from the current constants, so the suite stays green after a
+  constants re-config.
+- `scripts/test_measure_resume.py` — unit tests pinning `measure_resume.py`'s
+  format defaults and proving the constants adapt to a different resume.
 - `scripts/diff_resume.py` — diffs a user-edited tailored .docx against a
   fresh regenerate from the tailor script, so manual edits (grammar
   tweaks, a dropped overclaim, a JD-required term only the user knows

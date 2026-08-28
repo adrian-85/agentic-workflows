@@ -67,7 +67,7 @@ def main():
     #    sentences. Use set_text (preserves the first run's formatting).
     # ------------------------------------------------------------------ #
     set_text(
-        find_p(ps, "Results-driven Staff engineer specializing"),
+        find_p(ps, "<prefix of the Summary paragraph>"),
         "<Summary that leads with the JD's core ask, mirroring its language. "
         "Keep verbs truthful — see SKILL.md Accuracy section.>",
     )

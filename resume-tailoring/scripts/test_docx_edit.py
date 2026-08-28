@@ -274,29 +274,30 @@ class OriginalTextResolutionTests(unittest.TestCase):
             de._ORIG[id(p)] = (p, de.text_of(p))
 
     def test_earlier_rewrite_cannot_collide_with_anothers_prefix(self):
-        # Exact collision from the NFCU run: two tools lines with DIFFERENT
-        # original texts, where an earlier edit trims one so its CURRENT text
-        # starts with the other's prefix. find_p must resolve by ORIGINAL
-        # text. Data-driven over both list orders (the only thing that
-        # varies) to prove resolution is keyed to original text, not position.
-        cvs = mkp(("Tools & Technologies: C#, .NET, Angular, REST, SQL, MSMQ", True))
-        caremetx = mkp(("Tools & Technologies: MVC, C#, .NET, Angular, REST", True))
-        self._register(cvs, caremetx)
-        # Earlier edit: trim caremetx so its CURRENT text starts like cvs's.
+        # Exact collision from an earlier tailoring run: two tools lines with
+        # DIFFERENT original texts, where an earlier edit trims one so its
+        # CURRENT text starts with the other's prefix. find_p must resolve by
+        # ORIGINAL text. Data-driven over both list orders (the only thing
+        # that varies) to prove resolution is keyed to original text, not
+        # position.
+        tools_a = mkp(("Tools & Technologies: C#, .NET, Angular, REST, SQL, MSMQ", True))
+        tools_b = mkp(("Tools & Technologies: MVC, C#, .NET, Angular, REST", True))
+        self._register(tools_a, tools_b)
+        # Earlier edit: trim tools_b so its CURRENT text starts like tools_a's.
         de.set_labeled(
-            caremetx,
+            tools_b,
             "Tools & Technologies: ",
             "C#, .NET, Angular, REST, GraphQL, SQL, Oracle, Kafka, Kubernetes",
         )
         self.assertTrue(
-            de.text_of(caremetx).startswith("Tools & Technologies: C#, .NET")
+            de.text_of(tools_b).startswith("Tools & Technologies: C#, .NET")
         )
-        for i, ordered_ps in enumerate(([cvs, caremetx], [caremetx, cvs])):
+        for i, ordered_ps in enumerate(([tools_a, tools_b], [tools_b, tools_a])):
             with self.subTest(order=i):
                 err = io.StringIO()
                 with contextlib.redirect_stderr(err):
                     found = de.find_p(ordered_ps, "Tools & Technologies: C#, .NET")
-                self.assertIs(found, cvs, "resolve by ORIGINAL text, not collide")
+                self.assertIs(found, tools_a, "resolve by ORIGINAL text, not collide")
                 self.assertNotIn("matches multiple", err.getvalue())
         de._ORIG.clear()
 
