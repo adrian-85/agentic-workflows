@@ -9,3 +9,6 @@ __pycache__/
 # AI Judge reports (local transcript analyses — never publish)
 */findings/*
 */judgments/*
+
+# Local git identity file — do not commit
+.gitconfig
