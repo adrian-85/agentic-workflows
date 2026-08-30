@@ -57,19 +57,30 @@ matter while authoring (non-obvious from the names):
 
 - `set_text` preserves the **first run's rPr** — NOT for `"Label: values"` lines
   (collapses to all-bold); use `set_labeled` (keeps bold label / non-bold values).
-- `find_p` matches each paragraph's **original master text**, so a script's own edits can't
-  collide mid-run; missing/ambiguous → `None` + stderr warning (the edit skips safely).
-  Use `prefixes()` for guaranteed-unique prefixes.
+- `find_p` matches each paragraph's **original master text** (so a script's own edits
+  can't collide mid-run); missing/ambiguous → `None` + stderr warning (edit skips safely).
+  Smart punctuation is collapsed (curly `'`/`"`/`–`/`—` match ASCII), so a hand-typed
+  prefix finds the curly-punctuated master without inspecting XML. For duplicate job
+  titles (two roles, same title text), use `after=<company-header-paragraph>` or
+  `nth=N` — no hand-rolled positional search. Use `prefixes()` for guaranteed-unique
+  prefixes.
 - `merge_into(body, target, source, text)` — merge in ONE op (rewrite `target`, remove
   `source`), so a merge can't leave near-dup residue.
-- `save(..., expect_edits=N)` asserts the applied-edit count (mismatch → warning;
-  exit 2 under `DOCX_EDIT_STRICT=1`).
+- `save(...)` auto-maintains **`<dst>.drift.json`** keyed by the calling script: the
+  first run records the applied-edit count, later runs warn (`DRIFT:`) if the count
+  changed — an edit was added/removed or stopped matching the master. Warn-once,
+  rebaseline; the blocking gate for a stopped-matching edit is the skipped-edit check
+  (exit 2 under `DOCX_EDIT_STRICT=1`). The drift sidecar auto-detects
+  an edit count that changed between runs.
 - `clone_after(body, ref_p, text)` — add a NEW bullet to the master, inheriting numbering.
 
 Inspect/author with:
 
 ```bash
 python3 scripts/docx_edit.py "<userName> Master Resume.docx" [--prefixes]
+# Fold NEW confirmed bullets into the master without writing a bespoke script:
+python3 scripts/docx_edit.py "<userName> Master Resume.docx" \
+    --append-after "<ref prefix>" --with "<new bullet text>"
 ```
 
 ## The reference template
@@ -96,13 +107,16 @@ The loop is render-and-measure heavy. The deterministic parts are tool-enforced;
 manual habits are:
 
 1. **Author scripts from `--prefixes` alone** (uniqueness-checked copy-paste; the paragraph
-   map adds style/numId — only for rare layout checks).
+   map adds style/numId — only for rare layout checks). For CUT decisions, take the DROP
+   PLAN's `find_p` lines directly (Step 8) — the prefixes are already emitted,
+   uniqueness-checked against the document.
 2. **Before reusing a tailor script after the user edited the .docx, run `diff_resume.py --tailor`**
-   first — one command surfaces manual edits a blind re-run would wipe.
+   first — one command surfaces manual edits a blind re-run would wipe. (The drift sidecar
+   is the tripwire; diff_resume is the review.)
 
 Tool-enforced (no instruction needed): `render_pdf.sh` refuses broken or unapproved-elimination
-docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN and flags page
-widows / underfilled pages (Step 8).
+docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN, its DROP PLAN with
+copy-pasteable `find_p` cut lines, and flags page widows / underfilled pages (Step 8).
 
 ## Workflow
 
@@ -172,6 +186,34 @@ compression when the page budget forces it:
    experience: still compressible on a title basis, but flag to the user that
    a screener may notice the gap between stated years and the fuller
    background.
+
+   **Drop Education entirely when the degree is not evidence for the role.**
+   Education is three rendered lines at the tail of the document — exactly the
+   cost of the last-page spills that cost real iterations. Decide by
+   observable predicates, not habit:
+
+   - **DROP** when ALL hold: the JD states *no* degree requirement, the degree
+     does not evidence the role's core asks (e.g. a Bachelor of Arts against a
+     Software Test Engineer JD demanding test-automation/CI/tooling skill), and
+     no education-substitution clause is in play (this JD's ask is met by
+     experience alone).
+   - **KEEP** when ANY hold: the JD requires a degree or has an
+     education-substitution clause, the role is in a credential-sensitive
+     field (FDA/HIPAA/academic/regulated), the candidate is early-career (the
+     degree is primary evidence), or the degree is the strongest available
+     evidence for a JD ask (e.g. a CS degree for an engineering role).
+   - If the resume's jd-fit verdict is "keep but it's weak", prefer dropping
+     it when its 3 lines are the difference between a full last page and a
+     page 3 spill — that's a clean card-for-lines trade.
+   - Removing Education is a structural change (the Education section heading
+     and entries are removed together; `validate_resume.py` treats a resume
+     ending at the last role's Tools line as clean). Remind yourself this is
+     reversible: the master still has it, and a later JD that needs the degree
+     just regenerates from the master.
+
+   This is distinct from Step 3's keep-under-substitution-clause rule: that
+   rule is about making a *shorter experience timeline* defensible; this one is
+   about whether the degree is evidence at all for THIS JD.
 5. **Raise it to the user before acting.** Dropping whole roles changes the
    narrative materially. Present the choice with the numbers (JD asks N+,
    candidate has Y, propose showing ~Z contiguous years), get a yes/no.
@@ -234,12 +276,37 @@ role header stranded as the last line of a page ("WIDOW") will not be fixed by
 a line-count budget alone — trim earlier content or merge bullets so the next
 role starts cleanly at the top of a page.
 
-Then use `remove` to drop the weakest bullets from roles 5+ years back; keep
-the 2–3 bullets with hard numbers or framework-ownership signal, and drop
-generic process bullets ("established meetings", "enhanced documentation",
-"coordinated across teams") before quantified ones. Still a few lines over?
-Trim the oldest roles' Tools lines to one line each (keep the 6–8 most
-JD-relevant tools) and drop blank inter-role spacers with `remove_empty`.
+**Apply the DROP PLAN, not your own instinct.** The BATCH RECLAIM PLAN says
+*how many* bullets to cut per role; the **DROP PLAN** section names *which*, as
+copy-pasteable `find_p(ps, "…")` lines — ranked weakest-first by a deterministic
+scorer (generic/no-number bullets first; quantified ones last; ties toward
+longer text since it saves more lines). Pass `--protect "<JD-critical
+phrase>"` (repeatable) for anything the scorer can't know is valuable — e.g.
+`--protect "partner integrations" --protect "sandbox"` — so JD-critical
+bullets never land on the cut list:
+
+```bash
+python3 scripts/measure_resume.py "<Target>.docx" 2 \
+    --protect "partner integrations" --protect "sandbox"
+```
+
+Paste the DROP PLAN's `find_p` lines into the tailor script's `remove` calls
+(wrapped in the same `for prefix in [...]: remove(body, find_p(ps, prefix))`
+pattern), re-run the tailor script, re-measure once to confirm the gap closed,
+then render to verify. This replaces the cut-render-cut guesswork.
+
+**Human rule still applies on top:** keep (or protect) the 2–3 bullets with hard
+numbers or framework-ownership signal; drop generic process bullets
+("established meetings", "enhanced documentation", "coordinated across teams")
+before quantified ones. The scorer only ranks — you confirm against the JD.
+
+The reclaim plan may also suggest **dropping a whole oldest role** (cleanest
+page math). That is Step 3 seniority-alignment territory: confirm with the
+user and record `--seniority-approved` at render time.
+
+Still a few lines over? Trim the oldest roles' Tools lines to one line each
+(keep the 6–8 most JD-relevant tools) and drop blank inter-role spacers with
+`remove_empty`.
 
 Re-run `render_pdf.sh` (compact) to verify — measuring replaces iteration, it
 does not replace the final verification render.
@@ -328,15 +395,18 @@ interview, and a made-up tool usage is the easiest thing to catch.
 ## Common mistakes
 
 The tools and workflow steps above already enforce most failure modes (validators,
-`merge_into`, `expect_edits`; Steps 8 & 11). What's left is judgment:
+the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 
 | Mistake | Fix |
 |---|---|
 | Rebuilding the .docx from scratch | Edit XML in place — `python-docx` drops styles, numbering, hyperlinks |
 | Using `set_text` on a `"Label: values"` line | Collapses to all-bold — use `set_labeled` (Helper library) |
+| Hand-counting an edit budget (`expect_edits=N`) | Never count — `save()`'s drift sidecar records the baseline and warns on change |
+| Guessing WHICH bullets to cut from the reclaim gap | Use measure's DROP PLAN + `--protect "<JD ask>"`; paste its `find_p` lines (Step 8) |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 5) |
 | Appending bullets when content overlaps an existing one | Merge (`merge_into`) — appending blows the page budget (Step 6) |
 | Overwriting the master resume | Write to `<userName> Resume - <Target>.docx` — never the master filename (Step 10) |
+| Keeping Education when the degree isn't evidence for the JD | Evaluate the drop/keep predicates (Step 3.4) — a BA vs an engineering JD is a 3-line drop |
 | Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 9) |
 | JD asks for fewer years than the candidate has | Offer Step 3 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it |

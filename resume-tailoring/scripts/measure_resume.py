@@ -127,6 +127,9 @@ def _roles(body):
         key      – normalized company-portion (PDF match key)
         raw      – the full company header text, dates included
         bullets  – count of numbered bullets (cuttable items)
+        bullet_texts – the bullets' texts, in document order (powers the
+                       DROP PLAN's weakest-first ranking and copy-pasteable
+                       find_p lines)
         has_tools– whether a Tools & Technologies line is present
     """
     ps = de.paras(body)
@@ -154,13 +157,14 @@ def _roles(body):
             if cur:
                 roles.append(cur)
             cur = {"key": _company_key(txt), "raw": txt,
-                   "bullets": 0, "has_tools": False}
+                   "bullets": 0, "bullet_texts": [], "has_tools": False}
         elif cur is not None:
             # Count numbered bullets (numId not None and not "0", or a
             # paragraph style whose numbering lives on the style, e.g.
             # Word's built-in List Bullet); flag tools lines.
             if (numId is not None and numId != "0") or style in BULLET_STYLES:
                 cur["bullets"] += 1
+                cur["bullet_texts"].append(txt)
             elif txt.strip().lower().startswith("tool") and "technolog" in txt.lower():
                 cur["has_tools"] = True
     if cur:
@@ -281,15 +285,6 @@ def _visible_span(company_headers):
     return first, last
 
 
-def _flat_lines(pages_text):
-    """Flatten (page_1based, norm_line, raw_line) in document order."""
-    flat = []
-    for pi, ptext in enumerate(pages_text, start=1):
-        for l in _page_lines(ptext):
-            flat.append((pi, _norm(l), l))
-    return flat
-
-
 def _page_fill(pages_text):
     """Rendered line count per page; capacity = the fullest page."""
     return [len(_page_lines(p)) for p in pages_text]
@@ -301,6 +296,107 @@ def _role_header_flat(flat, key):
         if norm.startswith(key):
             return k
     return None
+
+
+# Process-y phrasing that signals a generic bullet (weakest to cut). A
+# bullet with any such phrase and NO hard number ranks weakest; hard
+# numbers/percentages (quantified evidence) always rank strongest.
+GENERIC_PHRASES = (
+    "established", "coordinated", "enhanced", "presented", "mentored",
+    "assisted", "advocated", "organized", "scheduled", "attended",
+    "facilitated", "streamlined", "ensured", "participated",
+)
+_NUMBER = re.compile(r"\d|%")
+
+
+def _weakness_key(text, protect=()):
+    """Deterministic weakness sort key for a bullet: weakest first.
+
+    Order: (1) no hard number + generic phrasing (clearest drop), (2) no
+    hard number, (3) hard number present (strongest — keep). Ties break
+    toward LONGER text (cutting it saves more rendered lines). ``protect``
+    phrases are JD-critical content the scorer cannot know about: any
+    bullet containing one ranks strongest (never suggested), e.g.
+    ``--protect "partner integrations"``.
+    """
+    low = text.lower()
+    has_number = bool(_NUMBER.search(text))
+    generic = any(phrase in low for phrase in GENERIC_PHRASES)
+    protected = any(phrase.lower() in low for phrase in protect)
+    return (1 if has_number or protected else 0,
+            0 if generic else 1,
+            -len(text) if not protected else 0)
+
+
+def _suggest_drops(bullet_texts, budget, protect=()):
+    """The `budget` weakest bullets (weakest first), deterministically.
+
+    Returns [] when budget <= 0 or a bullet list is empty; never suggests
+    more bullets than exist. Bullets containing a ``protect`` phrase are
+    never suggested.
+    """
+    if budget <= 0 or not bullet_texts:
+        return []
+    ranked = sorted(bullet_texts, key=lambda t: _weakness_key(t, protect))
+    return ranked[:budget]
+
+
+def _drop_plan_lines(bullet_texts, budget, all_texts=None, protect=()):
+    """Copy-pasteable find_p lines for the `budget` weakest bullets.
+
+    Each line is ``find_p(ps, "<unique prefix>")  # <full bullet>`` so the
+    agent can paste the exact cut into the tailor script with zero
+    render-measure iterations. Uniqueness is checked against ``all_texts``
+    (pass the FULL document's paragraph texts so the emitted prefix stays
+    unique document-wide), falling back to the role's own bullets.
+    ``protect`` phrases keep JD-critical bullets out of the suggestions.
+    """
+    out = []
+    unique_against = all_texts if all_texts else bullet_texts
+    for text in _suggest_drops(bullet_texts, budget, protect=protect):
+        try:
+            idx = unique_against.index(text)
+        except ValueError:
+            continue
+        prefix = de.shortest_unique_prefix(unique_against, idx, min_len=6)
+        if prefix is None:
+            continue
+        out.append(f'find_p(ps, "{prefix}")  # {text}')
+    return out
+
+
+_DROP_ACTION = re.compile(r"^drop (\d+) bullet\(s\)")
+
+
+def _drop_sections(plan, roles, all_texts=None, protect=()):
+    """Turn a BATCH RECLAIM PLAN into per-role DROP PLAN sections.
+
+    Each "drop N bullet(s)" plan entry (keyed by role key) becomes a
+    section listing the N weakest bullets as copy-pasteable ``find_p(ps, ...)``
+    lines. "consider dropping the whole role" entries produce no section —
+    the header/tools lines save more than any single bullet, and the
+    seniority decision is the user's, not the ranker's.
+    """
+    sections = []
+    for key, action, _saved in plan:
+        m = _DROP_ACTION.match(action)
+        if not m:
+            continue
+        role = next((r for r in roles if r["key"] == key), None)
+        if not role:
+            continue
+        n = int(m.group(1))
+        bullets = role.get("bullet_texts") or []
+        lines = _drop_plan_lines(bullets, n, all_texts=all_texts, protect=protect)
+        if not lines:
+            continue
+        section = [f"DROP PLAN ({key}): drop {n} of {len(bullets)} bullets"]
+        section.append("  weakest-first (generic/no-number first — review each")
+        section.append("  against the JD before cutting):")
+        for line in lines:
+            section.append(f"    {line}")
+        sections.append("\n".join(section))
+    return sections
 
 
 def _layout_hints(matched, pages_text, capacity):
@@ -331,7 +427,9 @@ def _layout_hints(matched, pages_text, capacity):
                     f"trimming ~{max(1, int(0.85 * capacity - f))} earlier "
                     f"line(s) may pull it up"
                 )
-    flat = _flat_lines(pages_text)
+    flat = [(pi, _norm(l), l) for pi, ptext in
+            enumerate(pages_text, start=1)
+            for l in _page_lines(ptext)]
     for r, sp, ep, rendered in matched:
         idx = _role_header_flat(flat, r["key"])
         if idx is not None and idx + 1 < len(flat):
@@ -396,15 +494,32 @@ def _reclaim_batch(matched, per_bullet, gap):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("usage: measure_resume.py <resume.docx> [TARGET_PAGES]",
+    argv = [a for a in sys.argv[1:]]
+    protect = []
+    kept = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--protect":
+            protect.append(argv[i + 1])
+            i += 2
+        else:
+            kept.append(a)
+            i += 1
+    if len(kept) < 1:
+        print("usage: measure_resume.py <resume.docx> [TARGET_PAGES] "
+              "[--protect \"<JD-critical phrase>\"]",
               file=sys.stderr)
         print("  Renders the docx, reports per-role rendered line costs and "
               "the reclaim gap to TARGET_PAGES (default 2, or env).",
               file=sys.stderr)
+        print("  --protect: pass repeatedly; bullets containing the phrase "
+              "are never suggested for cutting (JD-critical content the "
+              "weakness scorer cannot know about).",
+              file=sys.stderr)
         sys.exit(2)
-    docx = sys.argv[1]
-    target = int(sys.argv[2]) if len(sys.argv) > 2 else int(
+    docx = kept[0]
+    target = int(kept[1]) if len(kept) > 1 else int(
         os.environ.get("TARGET_PAGES", "2"))
 
     root, body, _, _, _ = de.load(docx)
@@ -477,6 +592,19 @@ def main():
         print("  Generic savings: trim any 2-line Tools list to one line "
               "(~1 line each); drop blank inter-role spacers via remove_empty "
               "(~1 line each)")
+
+        # The DROP PLAN: name the exact bullets each "drop N bullet(s)"
+        # entry refers to, weakest-first, as copy-pasteable find_p lines
+        # (uniqueness checked against the full document). No more deciding
+        # WHICH of a role's bullets to cut.
+        all_texts = [de.text_of(p) for p in de.paras(body)]
+        sections = _drop_sections(plan, roles, all_texts=all_texts,
+                                  protect=protect)
+        if sections:
+            print()
+            for section in sections:
+                print(section)
+                print()
 
     print()
     print("Page fill (capacity = fullest page from this render):")

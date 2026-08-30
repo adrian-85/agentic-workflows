@@ -24,9 +24,15 @@ The pattern (see SKILL.md for the full workflow):
 Editing order is safe: `find_p` resolves prefixes against each paragraph's
 ORIGINAL master text (captured at load), so an earlier edit cannot rewrite
 one paragraph's text to start with another target's prefix and collide
-mid-run. `save()` prints an applied-vs-skipped summary — verify every edit
-applied by running with `DOCX_EDIT_STRICT=1` (exit 2 on any skipped edit)
-before rendering.
+mid-run. `find_p` also collapses smart punctuation (curly quotes/dashes)
+and supports `after=<paragraph>` / `nth=N` for duplicate job titles (see
+docstring). `save()` prints an applied-vs-skipped summary — verify every
+edit applied by running with `DOCX_EDIT_STRICT=1` (exit 2 on any skipped
+edit) before rendering. It also auto-maintains a <DST>.drift.json baseline
+keyed by this script's name: if a re-run's applied-edit count differs from
+the last run (an edit was added/removed or stopped matching the master),
+it warns (rebaseline so it fires once per change) — the blocking gate
+for a stopped-matching edit is the skipped-edit check (exit 2 under strict).
 
 Re-runnable from the untouched master (after replacing the placeholders):
 
@@ -36,11 +42,13 @@ Verification is mechanical, not a habit:
 - render_pdf.sh runs scripts/validate_resume.py on the output and REFUSES to
   render a structurally broken docx (orphan job titles, company blocks
   without titles, orphaned content after a Tools line).
-- save(..., expect_edits=N) asserts this script's applied-edit count at
-  runtime (set N to the "applied N edits" count from the first clean run;
-  bump it when you add/remove an edit). Under DOCX_EDIT_STRICT=1 a mismatch
-  exits 2, so an edit that silently disappeared from the script fails the
-  run instead of waiting for a review pass.
+- The noise-free cut loop is driven by the tools, not extra renders:
+  1. `scripts/measure_resume.py <DST> 2 --protect "<JD-critical phrase>"`
+     (repeat --protect for every JD ask that must never be cut). Its DROP
+     PLAN names the EXACT bullets to drop as copy-pasteable find_p lines
+     (weakest-first; quantified/theme-protected bullets excluded).
+  2. Paste those lines into this script's remove() calls, re-run script,
+     re-measure once to confirm, render once to verify. No cut-render-cut.
 - validate_resume.py also cross-checks quantified claims against the master
   and the Summary's "N+ years" claim against the visible role-date span.
 - When the JD specifies fewer years than the candidate has, apply Step 3
@@ -177,14 +185,14 @@ def main():
     # Drop blank inter-role spacer paragraphs to reclaim vertical space.
     remove_empty(body)
 
-    # expect_edits asserts the applied-edit count at runtime: set it to the
-    # "applied N edits" count from the first clean run and keep it in sync
-    # when you add/remove edits in this script. A mismatch (under
-    # DOCX_EDIT_STRICT=1: exit 2) means an edit silently disappeared from
-    # the script or no longer matched. render_pdf.sh also runs
-    # validate_resume.py on the output and refuses to render a docx with
-    # structural errors (orphan job titles, company blocks without titles).
-    save(DST, root, names, data, expect_edits=0)  # <N>: set to the "applied N edits" count from the first clean run
+    # save() records an applied-edit baseline in <DST>.drift.json keyed by
+    # this script's name — the first run establishes it, later runs warn
+    # if the count drifts (an edit was added/removed or stopped matching
+    # the master). The blocking gate for a stopped-matching edit is the
+    # skipped-edit check (exit 2 under strict). No literal to maintain. render_pdf.sh also runs validate_resume.py on the output
+    # and refuses to render a docx with structural errors (orphan job
+    # titles, company blocks without titles).
+    save(DST, root, names, data)
     print("WROTE", DST)
 
 

@@ -112,6 +112,18 @@ class RolesTests(unittest.TestCase):
         self.assertEqual(r["bullets"], 2)
         self.assertTrue(r["has_tools"])
 
+    def test_roles_capture_bullet_texts_in_order(self):
+        # The DROP PLAN needs the actual bullet texts (not just a count) to
+        # rank weakest-first and emit copy-pasteable find_p prefixes.
+        roles = mr._roles(self._default_body())
+        self.assertEqual(roles[0]["bullet_texts"], ["Bullet one", "Bullet two"])
+
+    def test_bullet_texts_excludes_tools_line(self):
+        # A Tools line is not a cuttable bullet and must not be ranked.
+        roles = mr._roles(self._default_body())
+        self.assertNotIn("Tools & Technologies: Java, SQL",
+                         roles[0]["bullet_texts"])
+
     def test_counts_bullets_with_style_level_numbering(self):
         # A resume whose bullets are numbered by the PARAGRAPH STYLE (e.g.
         # Word built-in "List Bullet": <w:numPr> lives in styles.xml, not on
@@ -231,6 +243,133 @@ class LayoutAndReclaimTests(unittest.TestCase):
         matched = [({"key": "Role C, City", "bullets": 1, "has_tools": False}, 2, 2, 2)]
         hints = mr._layout_hints(matched, pages, capacity=5)
         self.assertTrue(any("underfilled" in h for h in hints))
+
+
+class DropPlanTests(unittest.TestCase):
+    """The DROP PLAN turns each "drop N bullet(s)" reclaim line into the
+    ACTUAL bullets to cut — ranked weakest-first by a deterministic scorer,
+    emitted as copy-pasteable find_p(ps, "...") lines. The session's
+    cut-render-cut loop existed because the batch plan said how many to
+    drop but never which."""
+
+    def test_weakest_are_generic_phrases_without_numbers(self):
+        # Quantified bullets are the strongest (hard numbers); generic
+        # process phrasing without numbers is the weakest.
+        bullets = [
+            "Established weekly cross-team meetings",
+            "Drove a 50% reduction in pipeline errors",
+            "Coordinated across engineering teams",
+            "Reduced open backlog by over 90%",
+        ]
+        drops = mr._suggest_drops(bullets, 2)
+        self.assertEqual(drops, ["Established weekly cross-team meetings",
+                                 "Coordinated across engineering teams"])
+
+    def test_tie_breaks_toward_longer_text(self):
+        # Within the same weakness bucket, dropping the longer bullet saves
+        # more rendered lines per cut.
+        bullets = [
+            "Enhanced documentation quality",
+            "Enhanced documentation quality and clarified the review process "
+            "across all three teams",
+        ]
+        drops = mr._suggest_drops(bullets, 1)
+        self.assertEqual(drops, [bullets[1]])
+
+    def test_quantified_bullets_never_suggested_while_weak_remain(self):
+        bullets = [
+            "Implemented a native Go integration test measurement tool that "
+            "ran during CI to measure exercised code",
+            "Decreased run times by 50% across the department",
+            "Created automated weekly report reducing lead time by over 90%",
+        ]
+        # Budget 1: only the non-quantified bullet exists to suggest — the
+        # quantified ones rank stronger and stay out of the cut list.
+        drops = mr._suggest_drops(bullets, 1)
+        self.assertEqual(drops, [bullets[0]])
+
+    def test_drop_plan_lines_resolve_to_the_weakest_bullet(self):
+        # The emitted line is copy-pasteable: its find_p prefix, run against
+        # the role's paragraphs, resolves to the suggested bullet.
+        weak = "Established weekly cross-team meetings"
+        strong = "Drove a 50% reduction in pipeline errors"
+        lines = mr._drop_plan_lines([weak, strong], 1)
+        self.assertEqual(len(lines), 1)
+        prefix = lines[0].split('"')[1]
+        body = _body([
+            _para(weak, numId=1),
+            _para(strong, numId=1),
+        ])
+        found = de.find_p(de.paras(body), prefix)
+        self.assertEqual(de.text_of(found), weak)
+
+    def test_empty_suggestion_returns_no_lines(self):
+        self.assertEqual(mr._drop_plan_lines([], 2), [])
+        self.assertEqual(mr._suggest_drops([], 3), [])
+
+    def test_protected_phrases_never_suggested(self):
+        # The scorer cannot know the JD — a --protect phrase (e.g. "partner
+        # integrations") keeps JD-critical bullets out of the cut list no
+        # matter how generic they score. Without it, the weakest-first rank
+        # would suggest the user's best JD evidence.
+        bullets = [
+            "Tested American Express partner integrations against their sandbox",
+            "Established bi-monthly interdepartmental QA meetings",
+        ]
+        drops = mr._suggest_drops(bullets, 1, protect=("partner integrations",))
+        self.assertEqual(drops, [bullets[1]])
+
+    def test_protect_matches_without_protection(self):
+        bullets = ["Established weekly meetings"]
+        self.assertEqual(mr._suggest_drops(bullets, 1), bullets)
+
+    def test_weakness_ranking_covers_generic_phrases(self):
+        """GENERIC_PHRASES is the live code path; assert it classifies all
+        entries as weak (lower score than quantified text of equal length).
+        A single test that every phrase triggers the generic branch is
+        cheaper than 14 separate tests and catches typos in the list."""
+        quantified = "Drove 49% reduction in pipeline errors"
+        q_key = mr._weakness_key(quantified)
+        for phrase in mr.GENERIC_PHRASES:
+            with self.subTest(phrase=phrase):
+                weak_text = f"{phrase.capitalize()} weekly cross-team status"
+                self.assertLess(
+                    mr._weakness_key(weak_text), q_key,
+                    f"'{phrase}' should rank weaker than a quantified bullet",
+                )
+
+    def test_drop_plan_lines_respect_protect(self):
+        bullets = ["Explored partner integrations in sandbox", "Some generic bullet"]
+        lines = mr._drop_plan_lines(bullets, 1, protect=("partner integrations",))
+        self.assertEqual(len(lines), 1)
+        self.assertIn("Some generic bullet", lines[0])
+
+    def test_drop_sections_map_plan_to_role_bullets(self):
+        # Each "drop N bullet(s)" plan entry becomes a DROP PLAN section
+        # naming the exact bullets; "consider dropping the whole role"
+        # entries yield no per-bullet lines.
+        plan = [
+            ("Company B, City", "drop 1 bullet(s) (saves ~2 lines)", 2.0),
+            ("Company C, City", "consider dropping the whole role (saves ~9 lines)", 9.0),
+        ]
+        roles = [
+            {"key": "Company B, City", "bullet_texts": [
+                "Established weekly cross-team meetings",
+                "Drove a 50% reduction in pipeline errors"]},
+            {"key": "Company C, City", "bullet_texts": ["Only bullet"]},
+        ]
+        sections = mr._drop_sections(plan, roles)
+        self.assertEqual(len(sections), 1)
+        self.assertIn("Company B, City", sections[0])
+        self.assertIn("find_p(ps,", sections[0])
+        self.assertNotIn("Company C, City", sections[0])
+
+    def test_drop_sections_respect_whole_role_entries(self):
+        # A plan entry that removes the whole role does NOT suggest bullets
+        # (the header/tools save more than any single bullet).
+        plan = [("Company A", "consider dropping the whole role (saves ~10 lines)", 10.0)]
+        roles = [{"key": "Company A", "bullet_texts": ["Some bullet"]}]
+        self.assertEqual(mr._drop_sections(plan, roles), [])
 
 
 class VisibleSpanTests(unittest.TestCase):

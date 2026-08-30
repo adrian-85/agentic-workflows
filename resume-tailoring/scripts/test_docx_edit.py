@@ -31,6 +31,18 @@ W = de.W
 SPACE = de.SPACE
 
 
+# Shared fixtures used by multiple test classes.
+def _empty_docx(path):
+    """Minimal valid .docx with an empty body — fast, no real content."""
+    doc = (
+        '<?xml version="1.0"?>'
+        '<w:document xmlns:w="' + de.XMLNS + '"><w:body/></w:document>'
+    )
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("word/document.xml", doc)
+        z.writestr("[Content_Types].xml", "<Types/>")
+
+
 def mkp(*runs):
     """Build a <w:p> from (text, bold) run tuples.
 
@@ -77,54 +89,60 @@ def fmt(p):
 class ReplaceTextTests(unittest.TestCase):
     """replace_text: per-run substring replacement preserving formatting."""
 
-    def test_per_run_replaces_in_single_run(self):
-        p = mkp(("hello world foo", False), ("bar", True))
-        de.replace_text(p, "world", "WORLD")
-        self.assertEqual(de.text_of(p), "hello WORLD foobar")
-
-    def test_per_run_preserves_other_runs_formatting(self):
-        p = mkp(("hello world foo", False), ("bar", True))
-        de.replace_text(p, "world", "WORLD")
-        self.assertEqual(fmt(p), [("hello WORLD foo", False), ("bar", True)])
-
-    def test_multiple_occurrences_within_single_run(self):
-        p = mkp(("foo and foo", False))
-        de.replace_text(p, "foo", "FOO")
-        self.assertEqual(de.text_of(p), "FOO and FOO")
-
-    def test_occurrences_across_runs_replaced_per_run(self):
-        # "foo" sits fully within each run that contains it; the run that
-        # only holds "fo" (no trailing "o") is untouched.
-        p = mkp(("foo and foo", False), (" plus fo", True), ("o again", False))
-        de.replace_text(p, "foo", "FOO")
-        self.assertEqual(de.text_of(p), "FOO and FOO plus foo again")
-
-    def test_spanning_occurrence_left_in_place(self):
-        # "world" is split as "wo" + "rld" across two runs. Per-run-only
-        # replacement does not touch it (documented YAGNI behavior).
-        p = mkp(("hello wo", False), ("rld end", True))
-        de.replace_text(p, "world", "WORLD")
-        self.assertEqual(de.text_of(p), "hello world end")
-
-    def test_old_in_new_is_safe(self):
-        # str.replace per run handles "AI" -> "AIx" without looping.
-        p = mkp(("AI AI", False))
-        de.replace_text(p, "AI", "AIx")
-        self.assertEqual(de.text_of(p), "AIx AIx")
+    def test_replaces_and_preserves_formatting(self):
+        """The core behavior: replace per-run and check result text and
+        each run's formatting (bold preserved where expected)."""
+        cases = [
+            # (name, runs, old, new, want_text, want_fmt)
+            ("single run",
+             [("hello world foo", False), ("bar", True)],
+             "world", "WORLD",
+             "hello WORLD foobar",
+             [("hello WORLD foo", False), ("bar", True)]),
+            ("multi occurrences",
+             [("foo and foo", False)],
+             "foo", "FOO",
+             "FOO and FOO",
+             [("FOO and FOO", False)]),
+            ("across runs",
+             [("foo and foo", False), (" plus fo", True), ("o again", False)],
+             "foo", "FOO",
+             "FOO and FOO plus foo again",
+             [("FOO and FOO", False), (" plus fo", True), ("o again", False)]),
+            ("spanning untouched",
+             [("hello wo", False), ("rld end", True)],
+             "world", "WORLD",
+             "hello world end",
+             [("hello wo", False), ("rld end", True)]),
+            ("old-in-new safe",
+             [("AI AI", False)],
+             "AI", "AIx",
+             "AIx AIx",
+             [("AIx AIx", False)]),
+        ]
+        for name, runs, old, new, want_text, want_fmt in cases:
+            with self.subTest(name=name):
+                p = mkp(*runs)
+                de.replace_text(p, old, new)
+                self.assertEqual(de.text_of(p), want_text)
+                self.assertEqual(fmt(p), want_fmt)
 
     def test_not_found_warns_and_no_crash(self):
-        p = mkp(("nothing here", False))
-        err = io.StringIO()
-        with contextlib.redirect_stderr(err):
-            de.replace_text(p, "MISSING", "X")
-        self.assertIn("target paragraph not found", err.getvalue())
-        self.assertEqual(de.text_of(p), "nothing here")
-
-    def test_none_paragraph_warns_and_no_crash(self):
-        err = io.StringIO()
-        with contextlib.redirect_stderr(err):
-            de.replace_text(None, "x", "y")
-        self.assertIn("target paragraph not found", err.getvalue())
+        """Both missing-text and None-paragraph cases produce a warning
+        and leave state unchanged — grouped here rather than split into
+        two nearly identical methods."""
+        cases = [
+            ("missing text", mkp(("nothing here", False)), "MISSING", "X"),
+            ("None paragraph", None, "x", "y"),
+        ]
+        for name, p, old, new in cases:
+            with self.subTest(name=name):
+                err = io.StringIO()
+                with contextlib.redirect_stderr(err):
+                    de.replace_text(p, old, new)
+                self.assertIn("target paragraph not found", err.getvalue())
+                if p is not None:
+                    self.assertEqual(de.text_of(p), "nothing here")
 
 
 class SetTextTests(unittest.TestCase):
@@ -224,6 +242,105 @@ class FindPTests(unittest.TestCase):
         self.assertIsNone(result, "ambiguous prefix must skip, not clobber")
         self.assertIn("matches multiple paragraphs", err.getvalue())
         self.assertIn("not unique", err.getvalue())
+
+    def test_finds_curly_apostrophe_prefix_typed_ascii(self):
+        # Master text uses U+2019 (curly apostrophe); the script prefix is
+        # typed with an ASCII quote. find_p must normalize both sides.
+        ps = [mkp(("The company\u2019s goal is quality", False)),
+              mkp(("Other paragraph", False))]
+        self.assertIs(de.find_p(ps, "The company's goal"), ps[0])
+
+    def test_finds_en_dash_date_typed_ascii_hyphen(self):
+        # Company headers use an en dash in the date range (06/2025 – 07/2026).
+        ps = [mkp(("06/2025 \u2013 07/2026", False)),
+              mkp(("04/2023 \u2013 01/2025", False))]
+        self.assertIs(de.find_p(ps, "06/2025 - 07/2026"), ps[0])
+        self.assertIs(de.find_p(ps, "04/2023 - 01/2025"), ps[1])
+
+    def test_finds_em_dash_bullet_typed_ascii_hyphen(self):
+        # Bullets use em dashes (—) as separators.
+        ps = [mkp(("Designed the release process \u2014 authored docs", False)),
+              mkp(("Other", False))]
+        self.assertIs(de.find_p(ps, "Designed the release process - authored docs"), ps[0])
+
+    def test_finds_curly_quotes_typed_ascii_quotes(self):
+        ps = [mkp(("He said \u201cyes\u201d today", False))]
+        self.assertIs(de.find_p(ps, 'He said "yes" today'), ps[0])
+
+    def test_ascii_prefix_still_matches_ascii_master_text(self):
+        # Regression: normalization must not break the all-ASCII case.
+        ps = [mkp(("Results-driven Staff engineer ", True))]
+        self.assertIs(de.find_p(ps, "Results-driven Staff engineer "), ps[0])
+
+    def test_after_anchors_search_to_later_paragraphs(self):
+        # Two roles share an identical job title paragraph. Plain find_p is
+        # ambiguous; anchored after the SECOND company header it must resolve
+        # to that role's title (the Rakuten-vs-Republic case: anchor on the
+        # role's OWN header to find its title below it).
+        a = mkp(("Company A", False))
+        t1 = mkp(("Senior Quality Assurance Engineer", True))
+        b = mkp(("Company B", False))
+        t2 = mkp(("Senior Quality Assurance Engineer", True))
+        ps = [a, t1, b, t2]
+        self.assertIsNone(de.find_p(ps, "Senior Quality Assurance Engineer"))
+        self.assertIs(de.find_p(ps, "Senior Quality Assurance Engineer",
+                                 after=b), t2)
+        # After a, BOTH titles are strictly later — still ambiguous.
+        self.assertIsNone(de.find_p(ps, "Senior Quality Assurance Engineer",
+                                    after=a))
+
+    def test_after_keeps_window_ambiguity(self):
+        # Both duplicates sit after the anchor: still ambiguous, still None.
+        a = mkp(("Company A", False))
+        t1 = mkp(("Title", True))
+        t2 = mkp(("Title", True))
+        ps = [a, t1, t2]
+        self.assertIsNone(de.find_p(ps, "Title", after=a))
+
+    def test_after_missing_anchor_ignored(self):
+        # An unresolvable anchor falls back to a plain (unanchored) lookup.
+        ps = [mkp(("alpha", False)), mkp(("beta", True))]
+        self.assertIs(de.find_p(ps, "beta", after=None), ps[1])
+
+    def test_nth_selects_positional_duplicate(self):
+        ps = [mkp(("Title", True)), mkp(("Title", True)), mkp(("Title", True))]
+        self.assertIs(de.find_p(ps, "Title", nth=2), ps[1])
+        self.assertIs(de.find_p(ps, "Title", nth=3), ps[2])
+
+    def test_nth_beyond_count_returns_none(self):
+        ps = [mkp(("Title", True)), mkp(("Title", True))]
+        self.assertIsNone(de.find_p(ps, "Title", nth=5))
+
+
+class ShortestUniquePrefixTests(unittest.TestCase):
+    """shortest_unique_prefix returns the shortest prefix that uniquely
+    identifies a paragraph among all paragraphs — the copy-pasteable
+    find_p(ps, "...") argument. Powers measure_resume's DROP PLAN so the
+    agent applies the exact listed bullet drops instead of re-reading the
+    --prefixes dump."""
+
+    def test_shortest_unique_prefix(self):
+        texts = ["alpha one thing", "alpha two another", "beta whatever"]
+        # Shortest prefix unique against ALL texts (min_len=1 contract):
+        self.assertEqual(de.shortest_unique_prefix(texts, 0), "alpha o")
+        self.assertEqual(de.shortest_unique_prefix(texts, 1), "alpha t")
+        self.assertEqual(de.shortest_unique_prefix(texts, 2), "b")
+
+    def test_none_when_duplicated_text(self):
+        texts = ["identical title", "identical title", "other"]
+        self.assertIsNone(de.shortest_unique_prefix(texts, 0))
+        self.assertIsNone(de.shortest_unique_prefix(texts, 1))
+        self.assertEqual(de.shortest_unique_prefix(texts, 2), "o")
+
+    def test_full_text_prefix_is_unique(self):
+        # A paragraph whose own text is a prefix of another's cannot be
+        # addressed by ANY prefix (find_p would always be ambiguous) — the
+        # helper returns None rather than a colliding prefix. The longer
+        # paragraph resolves past the shorter text.
+        texts = ["Lead the team", "Lead the team and built the framework"]
+        self.assertIsNone(de.shortest_unique_prefix(texts, 0))
+        self.assertEqual(de.shortest_unique_prefix(texts, 1),
+                         "Lead the team ")
 
 
 class RemoveEmptyTests(unittest.TestCase):
@@ -361,16 +478,6 @@ class OriginalTextResolutionTests(unittest.TestCase):
 class SaveReportTests(unittest.TestCase):
     """save() reports skipped edits and can fail under strict mode."""
 
-    @staticmethod
-    def _empty_docx(path):
-        doc = (
-            '<?xml version="1.0"?>'
-            '<w:document xmlns:w="' + de.XMLNS + '"><w:body/></w:document>'
-        )
-        with zipfile.ZipFile(path, "w") as z:
-            z.writestr("word/document.xml", doc)
-            z.writestr("[Content_Types].xml", "<Types/>")
-
     def _reset_stats(self):
         de._APPLIED = 0
         de._SKIPS.clear()
@@ -380,7 +487,7 @@ class SaveReportTests(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         try:
-            self._empty_docx(path)
+            _empty_docx(path)
             root, body, names, data, _ = de.load(path)
             p = ET.SubElement(body, de.W + "p")
             t = ET.SubElement(p, de.W + "t"); t.text = "x"
@@ -399,7 +506,7 @@ class SaveReportTests(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         try:
-            self._empty_docx(path)
+            _empty_docx(path)
             root, body, names, data, _ = de.load(path)
             de.remove(body, None)  # skipped edit -> recorded
             old = os.environ.get("DOCX_EDIT_STRICT")
@@ -416,6 +523,208 @@ class SaveReportTests(unittest.TestCase):
                     del os.environ["DOCX_EDIT_STRICT"]
                 else:
                     os.environ["DOCX_EDIT_STRICT"] = old
+        finally:
+            os.unlink(path)
+
+
+class SaveDriftTests(unittest.TestCase):
+    """save() drift sidecar records an applied-edit-count baseline."""
+
+    def _one_edit(self, path):
+        root, body, names, data, _ = de.load(path)
+        p = ET.SubElement(body, de.W + "p")
+        t = ET.SubElement(p, de.W + "t"); t.text = "x"
+        de.set_text(p, "hello")
+        return root, body, names, data
+
+    def _two_edits(self, path):
+        root, body, names, data, _ = de.load(path)
+        p1 = ET.SubElement(body, de.W + "p")
+        t1 = ET.SubElement(p1, de.W + "t"); t1.text = "x"
+        p2 = ET.SubElement(body, de.W + "p")
+        t2 = ET.SubElement(p2, de.W + "t"); t2.text = "y"
+        de.set_text(p1, "hello")
+        de.set_text(p2, "world")
+        return root, body, names, data
+
+    def _run(self, path, builder, strict=False, key="tailor_x.py",
+             expect_exit=False):
+        de._APPLIED = 0
+        root, body, names, data = builder(path)
+        out = io.StringIO()
+        err = io.StringIO()
+        old = os.environ.get("DOCX_EDIT_STRICT")
+        if strict:
+            os.environ["DOCX_EDIT_STRICT"] = "1"
+        try:
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                cm = None
+                if strict and expect_exit:
+                    with self.assertRaises(SystemExit) as cm:
+                        de.save(path, root, names, data, drift_key=key)
+                else:
+                    de.save(path, root, names, data, drift_key=key)
+        finally:
+            if old is None:
+                os.environ.pop("DOCX_EDIT_STRICT", None)
+            else:
+                os.environ["DOCX_EDIT_STRICT"] = old
+        return out.getvalue(), err.getvalue(), cm
+
+    def test_first_run_records_baseline_without_warning(self):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _empty_docx(path)
+            out, err, _ = self._run(path, self._one_edit)
+            self.assertNotIn("drift", err)
+            self.assertTrue(os.path.exists(path + ".drift.json"))
+        finally:
+            os.unlink(path)
+            if os.path.exists(path + ".drift.json"):
+                os.unlink(path + ".drift.json")
+
+    def test_unchanged_rerun_is_clean(self):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _empty_docx(path)
+            self._run(path, self._one_edit)
+            out, err, _ = self._run(path, self._one_edit)
+            self.assertNotIn("drift", err)
+        finally:
+            os.unlink(path)
+            if os.path.exists(path + ".drift.json"):
+                os.unlink(path + ".drift.json")
+
+    def test_drift_detected_when_applied_count_changes(self):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _empty_docx(path)
+            self._run(path, self._one_edit)
+            out, err, _ = self._run(path, self._two_edits)
+            self.assertIn("DRIFT", err)
+            self.assertIn("expected 1", err)
+            self.assertIn("applied 2", err)
+        finally:
+            os.unlink(path)
+            if os.path.exists(path + ".drift.json"):
+                os.unlink(path + ".drift.json")
+
+    def test_drift_rebaselines_so_next_run_is_clean(self):
+        # A count change is a REVIEW signal, not a permanent gate: after the
+        # warning fires once, the new count becomes the baseline. An agent
+        # that intentionally adds an edit gets one warning, not an infinite
+        # exit-2 trap that would block every render of a revised script.
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _empty_docx(path)
+            self._run(path, self._one_edit)
+            out, err, _ = self._run(path, self._two_edits)  # DRIFT warning
+            self.assertIn("DRIFT", err)
+            out, err, _ = self._run(path, self._two_edits)  # now clean
+            self.assertNotIn("DRIFT", err)
+        finally:
+            os.unlink(path)
+            if os.path.exists(path + ".drift.json"):
+                os.unlink(path + ".drift.json")
+
+    def test_drift_is_warning_not_gate_even_under_strict(self):
+        # The blocking gate for "edit stopped matching" is the skipped-edit
+        # check (separate). A pure count change (intentional add/remove)
+        # must not trap the run under strict.
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _empty_docx(path)
+            self._run(path, self._one_edit)
+            out, err, cm = self._run(path, self._two_edits, strict=True)
+            self.assertIsNone(cm, "drift alone must not exit under strict")
+            self.assertIn("DRIFT", err)
+        finally:
+            os.unlink(path)
+            if os.path.exists(path + ".drift.json"):
+                os.unlink(path + ".drift.json")
+
+
+class AppendCLITests(unittest.TestCase):
+    """docx_edit.py --append-after — the reusable replacement for the
+    bespoke fold_master_confirmed.py script: clone a NEW bullet after a
+    reference paragraph located by prefix, in place. A one-shot CLI call
+    must not silently no-op: a missing/ambiguous ref exits 2."""
+
+    def _docx_with(self, *texts):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        doc = (
+            '<?xml version="1.0"?>'
+            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
+        )
+        for t in texts:
+            doc += (
+                f'<w:p><w:r><w:t xml:space="preserve">{t}</w:t></w:r></w:p>'
+            )
+        doc += '</w:body></w:document>'
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr("word/document.xml", doc)
+            z.writestr("[Content_Types].xml", "<Types/>")
+        return path
+
+    def _texts(self, path):
+        root, body, names, data, _ = de.load(path)
+        return [de.text_of(p) for p in de.paras(body)]
+
+    def test_appends_after_ref_by_prefix(self):
+        path = self._docx_with("Ref paragraph", "Other paragraph")
+        try:
+            de._APPLIED = 0
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = de.cli(["docx_edit.py", path, "--append-after",
+                             "Ref paragraph", "--with", "New bullet"])
+            self.assertEqual(rc, 0)
+            self.assertEqual(self._texts(path),
+                             ["Ref paragraph", "New bullet", "Other paragraph"])
+        finally:
+            os.unlink(path)
+
+    def test_missing_ref_exits_2(self):
+        path = self._docx_with("Ref paragraph")
+        err = io.StringIO()
+        try:
+            de._APPLIED = 0
+            with contextlib.redirect_stderr(err):
+                rc = de.cli(["docx_edit.py", path, "--append-after", "No such para", "--with",
+                             "New bullet"])
+            self.assertEqual(rc, 2)
+            self.assertIn("not found", err.getvalue())
+            self.assertEqual(self._texts(path), ["Ref paragraph"],
+                             "missing ref must not mutate the doc")
+        finally:
+            os.unlink(path)
+
+    def test_curly_apostrophe_ref_matches_ascii_prefix(self):
+        path = self._docx_with("The company\u2019s goal", "Other")
+        try:
+            de._APPLIED = 0
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = de.cli(["docx_edit.py", path, "--append-after",
+                             "The company's goal", "--with", "New bullet"])
+            self.assertEqual(rc, 0)
+            self.assertEqual(self._texts(path),
+                             ["The company\u2019s goal", "New bullet", "Other"])
+        finally:
+            os.unlink(path)
+
+    def test_invalid_usage_exits_2(self):
+        path = self._docx_with("Ref")
+        try:
+            rc = de.cli(["docx_edit.py", path, "--append-after", "Ref"])  # missing --with
+            self.assertEqual(rc, 2)
+            self.assertEqual(self._texts(path), ["Ref"])
         finally:
             os.unlink(path)
 
@@ -478,68 +787,6 @@ class MergeIntoTests(unittest.TestCase):
         self.assertEqual(de._APPLIED, 0)
         self.assertIn(p, list(body))
 
-
-class SaveExpectEditsTests(SaveReportTests):
-    """save(expect_edits=...) asserts the applied edit count at runtime."""
-
-    def _run(self, path, expect, strict=False):
-        self._reset_stats()
-        self._empty_docx(path)
-        root, body, names, data, _ = de.load(path)
-        # Mirror a real paragraph: text lives in a run, so set_text counts
-        # as the normal (1-run) applied edit.
-        p = ET.SubElement(body, de.W + "p")
-        r = ET.SubElement(p, de.W + "r")
-        t = ET.SubElement(r, de.W + "t"); t.text = "x"
-        de.set_text(p, "hello")  # 1 applied edit
-        out = io.StringIO()
-        err = io.StringIO()
-        old = os.environ.get("DOCX_EDIT_STRICT")
-        if strict:
-            os.environ["DOCX_EDIT_STRICT"] = "1"
-        try:
-            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                cm = None
-                if strict:
-                    with self.assertRaises(SystemExit) as cm:
-                        de.save(path, root, names, data, expect_edits=expect)
-                else:
-                    de.save(path, root, names, data, expect_edits=expect)
-        finally:
-            if old is None:
-                os.environ.pop("DOCX_EDIT_STRICT", None)
-            else:
-                os.environ["DOCX_EDIT_STRICT"] = old
-        return out.getvalue(), err.getvalue(), cm
-
-    def test_exact_match_no_warning(self):
-        fd, path = tempfile.mkstemp(suffix=".docx")
-        os.close(fd)
-        try:
-            out, err, _ = self._run(path, expect=1)
-        finally:
-            os.unlink(path)
-        self.assertIn("applied 1 edits", out)
-        self.assertNotIn("expected", err)
-
-    def test_mismatch_warns_without_strict(self):
-        fd, path = tempfile.mkstemp(suffix=".docx")
-        os.close(fd)
-        try:
-            out, err, _ = self._run(path, expect=5)
-        finally:
-            os.unlink(path)
-        self.assertIn("expected 5 edits but applied 1", err)
-
-    def test_mismatch_exits_2_under_strict(self):
-        fd, path = tempfile.mkstemp(suffix=".docx")
-        os.close(fd)
-        try:
-            out, err, cm = self._run(path, expect=5, strict=True)
-            self.assertEqual(cm.exception.code, 2)
-            self.assertIn("expected 5 edits but applied 1", err)
-        finally:
-            os.unlink(path)
 
 
 if __name__ == "__main__":

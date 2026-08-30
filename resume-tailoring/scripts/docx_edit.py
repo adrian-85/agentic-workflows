@@ -45,11 +45,8 @@ Usage as a library::
     # never leave the source's old text as near-duplicate residue:
     # merge_into(body, find_p(ps, "<keep>"), find_p(ps, "<absorb>"), "merged")
     remove_empty(body, startswith="<text prefix at/after which to drop spacers>")
-    # Assert the edit count: set expect_edits to the "applied N edits" count
-    # from the first clean run, and keep it in sync when the script's edits
-    # change. A mismatch (under DOCX_EDIT_STRICT=1: exit 2) means an edit
-    # silently disappeared from the script or no longer matched.
-    save("out.docx", root, names, data, expect_edits=<N>)
+    # save() records a per-script drift sidecar (no hand-counting needed;
+    # the baseline is established on the first run).
 
 CLI (inspect structure before editing)::
 
@@ -60,6 +57,7 @@ CLI (inspect structure before editing)::
 """
 
 import copy
+import json
 import os
 import sys
 import zipfile
@@ -146,7 +144,7 @@ def load(path):
     return root, body, names, data, W
 
 
-def save(path, root, names, data, expect_edits=None):
+def save(path, root, names, data, drift_key=None):
     """Serialize mutated root back into the .docx zip at `path`.
 
     After writing, prints an applied-vs-skipped summary so a silently
@@ -154,14 +152,12 @@ def save(path, root, names, data, expect_edits=None):
     unnoticed. With ``DOCX_EDIT_STRICT=1``, exits with status 2 if any edit
     was skipped instead of merely reporting it.
 
-    ``expect_edits`` asserts the total number of edits this run SHOULD
-    apply (the applied count, not counting ``remove_empty``, which is not a
-    targeted edit). Pass the count from the first clean run
-    ("applied N edits") and keep it in sync when you add or remove an
-    edit in the script: a mismatch means a targeted edit silently
-    disappeared from the script or landed differently than intended. Under
-    ``DOCX_EDIT_STRICT=1`` a mismatch exits with status 2; otherwise it is
-    a prominent warning.
+    It also auto-maintains a ``<path>.drift.json`` sidecar keyed by the
+    calling script: the first run records the applied count as the baseline,
+    and every later run warns when the count changed — i.e. an edit was
+    added, removed, or stopped matching the master. Warn-once, rebaseline;
+    the blocking gate for a stopped-matching edit is the skipped-edit check
+    (exit 2 under strict).
     """
     global _APPLIED
     data["word/document.xml"] = ET.tostring(
@@ -184,17 +180,35 @@ def save(path, root, names, data, expect_edits=None):
         )
     else:
         print(f"applied {applied} edits, 0 skipped")
-    if expect_edits is not None and applied != expect_edits:
+    if drift_key is None:
+        drift_key = os.path.basename(sys.argv[0]).rsplit(".", 1)[0]
+    drift_path = path + ".drift.json"
+    baseline = {}
+    if os.path.exists(drift_path):
+        try:
+            with open(drift_path) as f:
+                baseline = json.load(f)
+        except (ValueError, OSError):
+            baseline = {}
+    prev = baseline.get(drift_key)
+    if prev is not None and prev != applied:
         print(
-            f"WARNING: expected {expect_edits} edits but applied {applied} "
-            f"({len(skipped)} skipped). The expected count drifted — an edit "
-            f"may have been added to or removed from the script, or a target "
-            f"no longer matched. Update save(expect_edits=...) to match, or "
-            f"review the script's edits.",
+            f"DRIFT: {drift_key} expected {prev} edits (last recorded run) "
+            f"but applied {applied} — an edit was added, removed, or stopped "
+            f"matching the master. Review before rendering.",
             file=sys.stderr,
         )
-        if strict:
-            raise SystemExit(2)
+        # A count change is a review signal, not a gate: rebaseline so the
+        # warning fires ONCE per change (an intentional add/remove must not
+        # trap every later run). The blocking gate for "an edit stopped
+        # matching" is the skipped-edit check above, which exits 2 under
+        # strict.
+    baseline[drift_key] = applied
+    try:
+        with open(drift_path, "w") as f:
+            json.dump(baseline, f, indent=1)
+    except OSError:
+        pass  # sidecar is best-effort; never fails the save
     if strict and skipped:
         raise SystemExit(2)
 
@@ -209,11 +223,32 @@ def text_of(p):
     return "".join(t.text or "" for t in p.iter(W + "t"))
 
 
-def find_p(paragraphs, startswith):
+def _matchkey(s):
+    """Normalize smart punctuation for prefix MATCHING only (never display).
+
+    find_p matches against master text that may use curly apostrophes/quotes
+    (\u2018\u2019\u201c\u201d) or en/em dashes (\u2013\u2014) while a hand-typed
+    script prefix uses the ASCII equivalents. Normalize both sides so
+    `find_p(ps, "company's goal")` finds "company\u2019s goal" without a round
+    trip to inspect the XML.
+    """
+    return (s or "").translate(_SMART)
+
+
+_SMART = str.maketrans({
+    "\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"',
+    "\u2013": "-", "\u2014": "-",
+})
+
+
+def find_p(paragraphs, startswith, *, after=None, nth=None):
     """The unique paragraph whose text starts with `startswith`, else None.
 
     Match on .startswith() so it is robust to minor trailing differences
-    (trailing punctuation, whitespace).
+    (trailing punctuation, whitespace). Smart punctuation is collapsed
+    before matching (\u2018\u2019->', \u201c\u201d->", \u2013\u2014->-), so a
+    script prefix typed with ASCII quotes/dashes finds a curly-punctuated
+    master.
 
     Resolution is order-independent: the prefix is matched against each
     paragraph's ORIGINAL master text (captured at load() time) first, so a
@@ -222,35 +257,58 @@ def find_p(paragraphs, startswith):
     matching current text when no original matches (e.g. targeting a
     paragraph the script itself just created or rewrote).
 
+    `after=<paragraph>` restricts the search to paragraphs strictly AFTER
+    that one in document order — the disambiguator for duplicate job
+    titles. Two roles can textually share a title (e.g. two "Senior Quality
+    Assurance Engineer" paragraphs); anchor on the role's company header
+    and locate the title inside it:
+
+        find_p(ps, "Senior Quality Assurance Engineer",
+               after=find_p(ps, "Republic Services"))
+
+    `nth=N` returns the N-th matching paragraph (1-based) instead of
+    requiring uniqueness — for repeated text where position is the only
+    disambiguator.
+
     Returns None (stderr warning naming the candidates) if the prefix is
-    missing or matches more than one paragraph — an ambiguous prefix could
-    match the wrong paragraph, so callers skip rather than mutate. Use a
-    unique prefix (see `prefixes()`).
+    missing or matches more than one paragraph (without an `nth`) — an
+    ambiguous prefix could match the wrong paragraph, so callers skip
+    rather than mutate. Use a unique prefix (see `prefixes()`).
     """
+    pref = _matchkey(startswith)
+    after_idx = None
+    if after is not None:
+        for i, p in enumerate(paragraphs):
+            if p is after:
+                after_idx = i
+                break
+
     orig = [
-        (i, p)
-        for i, p in enumerate(paragraphs)
-        if (_orig_text(p) or "").startswith(startswith)
+        p for i, p in enumerate(paragraphs)
+        if (after_idx is None or i > after_idx)
+        and _matchkey(_orig_text(p) or "").startswith(pref)
     ]
-    if len(orig) == 1:
-        return orig[0][1]
-    if len(orig) > 1:
+    cur = orig or [
+        p for i, p in enumerate(paragraphs)
+        if (after_idx is None or i > after_idx)
+        and _matchkey(text_of(p)).startswith(pref)
+    ]
+    if nth is not None:
+        if len(cur) < nth:
+            _warn_missing(f"{startswith} (nth={nth})", record=False)
+            return None
+        return cur[nth - 1]
+    if len(cur) == 1:
+        return cur[0]
+    if len(cur) > 1:
         _warn_ambiguous(
-            startswith, [(i, (_orig_text(p) or "")[:80]) for i, p in orig]
+            startswith,
+            [(i, (_orig_text(p) or text_of(p) or "")[:80])
+             for i, p in enumerate(paragraphs) if p in cur],
         )
         return None
-    # No original match — fall back to current text.
-    cur = [
-        (i, p) for i, p in enumerate(paragraphs)
-        if text_of(p).startswith(startswith)
-    ]
-    if not cur:
-        _warn_missing(startswith, record=False)
-        return None
-    if len(cur) > 1:
-        _warn_ambiguous(startswith, [(i, text_of(p)[:80]) for i, p in cur])
-        return None
-    return cur[0][1]
+    _warn_missing(startswith, record=False)
+    return None
 
 
 def _runs(p):
@@ -539,6 +597,30 @@ def paragraph_map(body, width=90):
     return out
 
 
+def shortest_unique_prefix(texts, idx, min_len=1):
+    """Shortest prefix of ``texts[idx]`` that no other text starts with.
+
+    Returns None when the paragraph's text is duplicated (no prefix can
+    uniquely identify it) or the index is out of range. This is the
+    copy-pasteable argument for :func:`find_p` — powers measure_resume's
+    DROP PLAN so suggested bullet cuts ship as working ``find_p(ps, ...)``
+    lines, not as a re-reading chore.
+    """
+    if idx < 0 or idx >= len(texts):
+        return None
+    target = texts[idx]
+    others_match = [
+        i for i, t in enumerate(texts) if t.startswith(target)
+    ]
+    if len(others_match) > 1:
+        return None  # another text starts with the WHOLE target
+    for n in range(min_len, len(target) + 1):
+        cand = target[:n]
+        if sum(1 for t in texts if t.startswith(cand)) == 1:
+            return cand
+    return target if target else None
+
+
 def prefixes(body, min_len=30, max_len=70):
     """Return copy-pasteable ``find_p(ps, "…")`` prefixes for every paragraph.
 
@@ -580,18 +662,56 @@ def prefixes(body, min_len=30, max_len=70):
     return out
 
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("usage: docx_edit.py <path.docx> [range] [--full] [--prefixes]", file=sys.stderr)
+def cli(argv):
+    """docx_edit.py command line. Returns a process exit code.
+
+    Modes:
+      docx_edit.py <path.docx> [range] [--full] [--prefixes]
+          inspect paragraphs / print copy-pasteable find_p prefixes
+      docx_edit.py <path.docx> --append-after "<ref prefix>" \
+          --with "<new bullet text>"
+          clone a new bullet AFTER the paragraph whose text starts with the
+          ref prefix (inherits ref's numbering/bullet style), in place.
+          The ref prefix is resolved with find_p — smart punctuation is
+          tolerated, and a missing/ambiguous ref exits 2 so a one-shot
+          fold cannot silently no-op.
+    """
+    if len(argv) < 2:
+        print("usage: docx_edit.py <path.docx> [range] [--full]", file=sys.stderr)
+        print("                  [--prefixes]", file=sys.stderr)
+        print("       docx_edit.py <path.docx> --append-after \"<ref prefix>\"",
+              file=sys.stderr)
+        print("                      --with \"<new bullet text>\"", file=sys.stderr)
         print("  range: N-M (paragraphs N..M inclusive) or N (just paragraph N)",
               file=sys.stderr)
         print("  --full: show full text instead of truncating at 90 chars",
               file=sys.stderr)
         print("  --prefixes: print copy-pasteable, uniqueness-checked "
               "find_p(ps, \"\u2026\") prefixes", file=sys.stderr)
-        sys.exit(2)
-    path = sys.argv[1]
-    args = sys.argv[2:]
+        return 2
+    path = argv[1]
+    args = argv[2:]
+    if "--append-after" in args:
+        try:
+            i = args.index("--append-after")
+            ref_prefix = args[i + 1]
+            if args[i + 2] != "--with":
+                raise IndexError
+            text = args[i + 3]
+        except IndexError:
+            print("usage: docx_edit.py <path.docx> --append-after \"<ref>\" "
+                  "--with \"<text>\"", file=sys.stderr)
+            return 2
+        root, body, names, data, _ = load(path)
+        ps = paras(body)
+        ref_p = find_p(ps, ref_prefix)
+        if ref_p is None:
+            print(f"target paragraph {ref_prefix[:40]!r} not found; "
+                  f"no changes written", file=sys.stderr)
+            return 2
+        clone_after(body, ref_p, text)
+        save(path, root, names, data)
+        return 0
     full = "--full" in args
     want_prefixes = "--prefixes" in args
     args = [a for a in args if a not in ("--full", "--prefixes")]
@@ -615,3 +735,8 @@ if __name__ == "__main__":
         lines = lines[lo:hi + 1]
     for line in lines:
         print(line)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(cli(sys.argv))
