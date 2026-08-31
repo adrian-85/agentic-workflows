@@ -174,6 +174,144 @@ def _write_docx(path, company_dates):
         de.save(path, root, names, data)  # silent: no edits applied
 
 
+class PunctuationTests(unittest.TestCase):
+    """Step 9 punctuation rule: periods and commas only in the Summary and
+    job-history prose. Banned: em dashes, double hyphens (--), semicolons,
+    and non-date en dashes. Exempt: single hyphens in compound words, en
+    dashes inside date ranges, and structural lines (company headers, job
+    titles) plus out-of-region sections (proficiencies, certifications)."""
+
+    @staticmethod
+    def _docx(path, summary_text=None, bullet_text="A clean bullet.",
+              title_text="Staff Engineer", cert_text=None):
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr(
+                "word/document.xml",
+                '<?xml version="1.0"?><w:document xmlns:w="'
+                + de.XMLNS + '"><w:body/></w:document>',
+            )
+            z.writestr("[Content_Types].xml", "<Types/>")
+        root, body, names, data, _ = de.load(path)
+        ps = []
+        if summary_text is not None:
+            ps.append(mk("Summary", style="SectionHeading"))
+            ps.append(mk(summary_text, style=vr.SUMMARY_STYLE))
+        ps.append(mk("Career Experience", style="SectionHeading"))
+        ps.append(mk("GEICO, MD (Remote)01/2020 – 12/2026",
+                     style=mr.COMPANY_STYLE))
+        ps.append(mk(title_text, style=vr.TITLE_STYLE))
+        ps.append(mk(bullet_text, numId=4))
+        ps.append(mk("Education", style="SectionHeading"))
+        if cert_text is not None:
+            ps.append(mk("Certifications", style="SectionHeading"))
+            ps.append(mk(cert_text))
+        for p in ps:
+            body.append(p)
+        with contextlib.redirect_stdout(io.StringIO()):
+            de.save(path, root, names, data)
+
+    @classmethod
+    def _run(cls, path):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = vr.main([path])
+        return rc, out.getvalue()
+
+    # --- function-level: _punctuation_errors(region, summary) ---
+
+    def test_clean_prose_passes(self):
+        region = [
+            mk("GEICO, MD (Remote)01/2020 – 12/2026", style=mr.COMPANY_STYLE),
+            mk("Staff Engineer – Quality Automation & Engineering Enablement",
+               style=vr.TITLE_STYLE),
+            mk("Sole quality resource for the Payments department.", numId=4),
+            mk("Tools & Technologies: Go, Python, Jenkins"),
+        ]
+        self.assertEqual(vr._punctuation_errors(region, None), [])
+
+    def test_compound_and_date_exemptions(self):
+        region = [
+            mk("Re-architected test-automation and end-to-end CI/CD pipelines.",
+               numId=4),
+            mk("Co-presented with a fellow Staff Engineer.", numId=4),
+            mk("Covered releases 06/2025 – 07/2026 while on call.", numId=4),
+        ]
+        self.assertEqual(vr._punctuation_errors(region, None), [])
+
+    def test_em_dash_flagged(self):
+        region = [mk("Cut release lead time — by over 90%.", numId=4)]
+        errs = vr._punctuation_errors(region, None)
+        self.assertTrue(any("em dash" in e for e in errs), errs)
+
+    def test_double_hyphen_flagged(self):
+        region = [mk("Built the pipeline -- twice as fast.", numId=4)]
+        errs = vr._punctuation_errors(region, None)
+        self.assertTrue(any("double hyphen" in e for e in errs), errs)
+
+    def test_semicolon_flagged(self):
+        region = [mk("Ran workshops; documented best practices.", numId=4)]
+        errs = vr._punctuation_errors(region, None)
+        self.assertTrue(any("semicolon" in e for e in errs), errs)
+
+    def test_non_date_en_dash_flagged(self):
+        region = [mk("Owned quality – then speed of releases.", numId=4)]
+        errs = vr._punctuation_errors(region, None)
+        self.assertTrue(any("en dash" in e for e in errs), errs)
+
+    def test_summary_scanned(self):
+        s = mk("Leads quality end-to-end — no compromise.",
+               style=vr.SUMMARY_STYLE)
+        errs = vr._punctuation_errors([], s)
+        self.assertTrue(any("em dash" in e for e in errs), errs)
+
+    def test_structural_lines_not_scanned(self):
+        # Job titles and company date lines are structural separators, not
+        # prose — the title en dash and the date range must NOT flag.
+        region = [
+            mk("GEICO, MD (Remote)01/2020 – 12/2026", style=mr.COMPANY_STYLE),
+            mk("Staff Engineer – Quality Automation & Engineering Enablement",
+               style=vr.TITLE_STYLE),
+            mk("A clean bullet.", numId=4),
+        ]
+        self.assertEqual(vr._punctuation_errors(region, None), [])
+
+    # --- blocking behavior through vr.main ---
+
+    def test_em_dash_in_bullet_blocks_render(self):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            self._docx(path, bullet_text="Cut release lead time — by over 90%.")
+            rc, out = self._run(path)
+        finally:
+            os.unlink(path)
+        self.assertEqual(rc, 2)
+        self.assertIn("PUNCTUATION", out)
+        self.assertIn("em dash", out)
+
+    def test_semicolon_in_summary_blocks_render(self):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            self._docx(path, summary_text="Leads quality; owns testing.")
+            rc, out = self._run(path)
+        finally:
+            os.unlink(path)
+        self.assertEqual(rc, 2)
+        self.assertIn("semicolon", out)
+
+    def test_out_of_scope_dashes_do_not_block(self):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            self._docx(path, cert_text="Glenbrook Partners – Issued 03/2026")
+            rc, out = self._run(path)
+        finally:
+            os.unlink(path)
+        self.assertEqual(rc, 0)
+        self.assertIn("ok (periods and commas", out)
+
+
 class JdYearsTests(unittest.TestCase):
     """--jd-years N compares the visible span against the JD's years ask:
     under -> warn (underqualified), far over -> advisory note."""

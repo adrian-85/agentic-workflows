@@ -1,6 +1,6 @@
 ---
 name: resume-tailoring
-description: Use when the user wants to customize their resume to match a specific job posting or recruiter screening message — tailoring a .docx master resume for a target role, JD, or employer. Also use when producing a submission-ready PDF from an existing .docx resume.
+description: Use when the user wants to customize their resume to match a specific job posting or recruiter screening message, or needs an ATS-friendly tailored copy from a master .docx. Also use when producing a submission-ready PDF from an existing .docx resume.
 ---
 
 # Resume Tailoring
@@ -24,6 +24,22 @@ subtractive: cut from the oldest roles, never the most recent.
   bullets") and wants the resume aligned to it
 - User has a master `.docx` resume and needs a per-target customized copy
 - User needs a submission-ready PDF from an existing `.docx` resume
+
+## Quick Reference
+
+| Step | Action | Tool |
+|---|---|---|
+| 1 | Read inputs (JD, master, LinkedIn) | `read_profile.sh` |
+| 2 | Extract employer selling points | — |
+| 3 | Decide length + seniority alignment | `measure_resume.py` (TIMELINE) |
+| 4 | Rewrite Summary to lead with JD value | `set_text` |
+| 5 | No sections between Summary & Proficiencies | — |
+| 6 | Re-anchor senior role (merge, don't append) | `set_text`, `merge_into` |
+| 7 | Expand role adjacent to JD industry/stage | `set_text` |
+| 8 | Compress oldest roles (measure first) | `measure_resume.py` (DROP PLAN) |
+| 9 | Fix grammar, typos, punctuation | grep + `validate_resume.py` |
+| 10 | Save tailored copy (never overwrite master) | `save()` |
+| 11 | Render + verify PDF | `render_pdf.sh` |
 
 ## Assets
 
@@ -52,27 +68,27 @@ cd ~/.pi/agent/skills/resume-tailoring && python3 scripts/tailor_resume.py
 ## Helper library
 
 `scripts/docx_edit.py` edits the .docx XML in place so formatting survives; full
-signatures and docstrings live in the file — the CLI is the reference. The rules that
-matter while authoring (non-obvious from the names):
+signatures, docstrings, and CLI usage live in the file — the CLI is the
+reference. The non-obvious rules while authoring:
 
-- `set_text` preserves the **first run's rPr** — NOT for `"Label: values"` lines
-  (collapses to all-bold); use `set_labeled` (keeps bold label / non-bold values).
-- `find_p` matches each paragraph's **original master text** (so a script's own edits
-  can't collide mid-run); missing/ambiguous → `None` + stderr warning (edit skips safely).
-  Smart punctuation is collapsed (curly `'`/`"`/`–`/`—` match ASCII), so a hand-typed
-  prefix finds the curly-punctuated master without inspecting XML. For duplicate job
-  titles (two roles, same title text), use `after=<company-header-paragraph>` or
-  `nth=N` — no hand-rolled positional search. Use `prefixes()` for guaranteed-unique
-  prefixes.
-- `merge_into(body, target, source, text)` — merge in ONE op (rewrite `target`, remove
-  `source`), so a merge can't leave near-dup residue.
-- `save(...)` auto-maintains **`<dst>.drift.json`** keyed by the calling script: the
-  first run records the applied-edit count, later runs warn (`DRIFT:`) if the count
-  changed — an edit was added/removed or stopped matching the master. Warn-once,
-  rebaseline; the blocking gate for a stopped-matching edit is the skipped-edit check
-  (exit 2 under `DOCX_EDIT_STRICT=1`). The drift sidecar auto-detects
-  an edit count that changed between runs.
-- `clone_after(body, ref_p, text)` — add a NEW bullet to the master, inheriting numbering.
+- **`set_text` vs `set_labeled`**: `set_text` collapses all text into the first
+  (bold) run — never use it on "Label: values" proficiency lines (e.g.
+  `Programming Languages: Java, Python`). Use `set_labeled` to preserve the
+  bold-label / non-bold-value split.
+- **`find_p` resolves by original text**: prefixes match each paragraph's text
+  as of `load()` time, so a script's own earlier edits can't collide mid-run.
+  Smart punctuation is collapsed (curly quotes/dashes match ASCII). For
+  duplicate job titles, use `after=<company-header>` or `nth=N`.
+- **`save()` drift sidecar**: auto-maintains `<dst>.drift.json` keyed by the
+  calling script. First run records the baseline; later runs warn (`DRIFT:`) if
+  the applied-edit count changed. Warn-once, rebaseline; the blocking gate for
+  a stopped-matching edit is the skipped-edit check (exit 2 under
+  `DOCX_EDIT_STRICT=1`).
+- **`clone_after(body, ref_p, text)`**: add a NEW bullet to the master,
+  inheriting numbering.
+- **`merge_into(body, target, source, text)`**: rewrite `target` AND remove
+  `source` in one op — prevents near-dup residue from a two-step
+  `set_text` + `remove`.
 
 Inspect/author with:
 
@@ -92,14 +108,13 @@ Workflow steps below cover the same pattern in detail).
 
 ### Do you need a per-target script?
 
-A saved script is an **artifact of iteration**, not a requirement — one-shot tailoring can
-be one-off commands; the `.docx`/`.pdf` are the only deliverables. Write
-`scripts/tailor_<target>.py` when you'll **iterate** (page-count tuning, accuracy fixes,
-user edits) or re-tailor later: it re-runs from the untouched master and is a readable,
-diff-able record of every edit. **Caveat:** it pins to the master's bullet-text prefixes;
-when the master is rewritten, `find_p` prefixes may drift and edits skip with a stderr
-warning (review warnings, or run with `DOCX_EDIT_STRICT=1` to fail on any skip). Delete
-stale scripts that no longer apply enough edits to be worth keeping.
+One-shot tailoring can be one-off commands — the `.docx`/`.pdf` are the only
+deliverables. Write `scripts/tailor_<target>.py` when you'll **iterate**
+(page-count tuning, accuracy fixes, user edits) or re-tailor later: it
+re-runs from the untouched master and is a diff-able record of every edit.
+**Caveat:** it pins to the master's bullet-text prefixes; when the master is
+rewritten, `find_p` prefixes may drift (review warnings, or run with
+`DOCX_EDIT_STRICT=1` to fail on any skip).
 
 ## Token-spend practices
 
@@ -317,6 +332,16 @@ Common catches: `to improving` → `improving` (infinitive),
 `evangelist`, `testzing` → `testing`, `Github` → `GitHub` (official casing).
 Don't rely on spellcheck for these — grep the text.
 
+**Punctuation rule — periods and commas only.** In the Summary and the
+job-history prose, never use em dashes (`—`), double hyphens (`--`), or
+semicolons (`;`). Rejoin with a period (split into a new sentence) or a
+comma instead. **Exempt:** single hyphens inside compound words
+(`test-automation`, `end-to-end`, `CI/CD`) and en dashes in date ranges
+(`06/2025 – 07/2026`); structural lines (company headers, job titles) and
+non-role sections (Technical Proficiencies, Certifications, Education) are
+not subject to the rule. `validate_resume.py` enforces this on the Summary
+and job-history prose — a violation blocks the PDF render (Step 11).
+
 ### 10. Save the tailored copy (as .docx, the working format)
 Write to `<userName> Resume - <Target>.docx` (drop "Master" from the
 master's name). Never overwrite the master.
@@ -409,4 +434,5 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Overwriting the master resume | Write to `<userName> Resume - <Target>.docx` — never the master filename (Step 10) |
 | Keeping Education when the degree isn't evidence for the JD | Evaluate the drop/keep predicates (Step 3.4) — a BA vs an engineering JD is a 3-line drop |
 | Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 9) |
+| Em dash / double dash / semicolon in rewritten Summary or bullet prose | Periods and commas only — split into a new sentence or use a comma; exempt compound hyphens and date-range en dashes (Step 9). `validate_resume.py` blocks the render |
 | JD asks for fewer years than the candidate has | Offer Step 3 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it |

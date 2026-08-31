@@ -29,8 +29,16 @@ Catches the error classes tailoring sessions actually hit:
      Step 3 "ask the user first" rule a gate: render_pdf.sh will not
      produce a PDF from a shortened timeline without the approval token.
 
-Structural errors and the seniority gate exit 2 — render_pdf.sh refuses to
-render. Near-duplicate and claim warnings exit 0 unless --strict (exit 1).
+3. PUNCTUATION — periods and commas only. Enforced on the Summary and the
+   job-history prose (role intros, bullets, tools lines): no em dashes,
+   double hyphens (--), semicolons, or non-date en dashes. Single hyphens
+   in compound words and date-range en dashes are exempt; structural lines
+   (company headers, job titles) and out-of-region sections
+   (proficiencies, certifications, education) are not scanned.
+
+Structural, punctuation, and seniority-gate errors exit 2 — render_pdf.sh
+refuses to render. Near-duplicate and claim warnings exit 0 unless
+--strict (exit 1).
 
 The master file is auto-detected as the "X Master Resume.docx" next to the
 input; override with --master <path>.
@@ -58,6 +66,7 @@ DUP_K = 20                      # shared substring length that flags near-dups
 SENIORITY_GATE_YEARS = 2.0      # visible-span shrink (vs master) that requires approval
 NUM_CLAIM = re.compile(r"\d+(?:\.\d+)?\s*(?:%|hours?|minutes?)", re.I)
 YEARS_RE = re.compile(r"(\d{1,2})\s*(?:\+)?\s*(?:years|yrs)", re.I)
+DATE_RANGE = re.compile(r"\d{1,2}/\d{4}\s*[–\-]\s*\d{1,2}/\d{4}")
 
 
 def _is_bullet(p):
@@ -187,6 +196,41 @@ def _claim_years(text):
     return int(m.group(1)) if m else None
 
 
+def _punctuation_errors(region, summary):
+    """Step 9 punctuation rule: periods and commas only. The Summary and
+    the job-history prose (role intros, bullets, tools lines) must contain
+    no em dash (—), double hyphen (--), semicolon (;), or non-date en dash
+    (–). Exempt: single hyphens inside compound words, en dashes inside
+    date ranges, and structural lines (company headers, job titles) — plus
+    anything outside the Summary and the career region (proficiencies,
+    certifications, education)."""
+    errors = []
+    candidates = ([summary] if summary is not None else []) + [
+        p for p in region
+        if de.style_and_numid(p)[0] not in (mr.COMPANY_STYLE, TITLE_STYLE)
+    ]
+    for p in candidates:
+        text = de.text_of(p)
+        if not text.strip():
+            continue
+        probe = DATE_RANGE.sub(" ", text)  # date ranges are exempt
+        for pat, name in (
+            (re.compile(r"—"), "em dash"),
+            (re.compile(r"–"), "en dash"),
+            (re.compile(r";"), "semicolon"),
+            (re.compile(r"-{2,}"), "double hyphen"),
+        ):
+            m = pat.search(probe)
+            if m is not None:
+                s = max(0, m.start() - 30)
+                e = min(len(probe), m.end() + 30)
+                errors.append(
+                    f"{name} in prose — use periods and commas: "
+                    f"...{probe[s:e]}..."
+                )
+    return errors
+
+
 def _find_master(docx_path):
     d = os.path.dirname(os.path.abspath(docx_path))
     cands = [f for f in os.listdir(d) if f.endswith(" Master Resume.docx")]
@@ -242,8 +286,10 @@ def main(argv=None):
 
     root, body, names, data, _ = de.load(path)
     region = _region(body)
+    summary = _summary_paragraph(body)
 
     errors = _structural_errors(region)
+    punct_errors = _punctuation_errors(region, summary)
     dups = list(_near_duplicates(region))
 
     # Visible timeline span (shared with measure_resume.py): the number a
@@ -317,7 +363,6 @@ def main(argv=None):
     # timeline. Step 3's seniority alignment reduces years claims when work
     # is eliminated; this makes that mechanical for the Summary AND any
     # other paragraph.
-    summary = _summary_paragraph(body)
     if summary is not None:
         claim = _claim_years(de.text_of(summary))
         if claim is not None and span is not None:
@@ -382,6 +427,12 @@ def main(argv=None):
         print(f"  ERROR: {e}")
     if not errors:
         print("  ok (all roles have a company + job title; no orphan content)")
+    print("== PUNCTUATION ==")
+    for e in punct_errors:
+        print(f"  ERROR: {e}")
+    if not punct_errors:
+        print("  ok (periods and commas only — no em dashes, double hyphens, "
+              "or semicolons in Summary/job-history prose)")
     print("== SENIORITY ==")
     for e in seniority_errors:
         print(f"  ERROR: {e}")
@@ -405,7 +456,7 @@ def main(argv=None):
         len(dups)
         + sum(1 for lvl, _ in claim_notes if lvl == "warn")
     )
-    blocking = len(errors) + len(seniority_errors)
+    blocking = len(errors) + len(punct_errors) + len(seniority_errors)
     if blocking:
         print(f"RESULT: {blocking} blocking error(s) — fix before rendering (exit 2)")
         return 2
