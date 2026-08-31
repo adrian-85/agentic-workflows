@@ -332,12 +332,14 @@ Common catches: `to improving` → `improving` (infinitive),
 `evangelist`, `testzing` → `testing`, `Github` → `GitHub` (official casing).
 Don't rely on spellcheck for these — grep the text.
 
-**Punctuation rule — periods and commas only.** In the Summary and the
-job-history prose, never use em dashes (`—`), double hyphens (`--`), or
-semicolons (`;`). Rejoin with a period (split into a new sentence) or a
-comma instead. **Exempt:** single hyphens inside compound words
-(`test-automation`, `end-to-end`, `CI/CD`) and en dashes in date ranges
-(`06/2025 – 07/2026`); structural lines (company headers, job titles) and
+**Punctuation rule — no em dashes, double hyphens, or semicolons.** In the
+Summary and job-history prose, never use em dashes (`—`), double hyphens
+(`--`), or semicolons (`;`). Rejoin with a period (split into a new
+sentence) or a comma instead. **Single hyphens are fine** — they appear in
+compound words (`test-automation`, `end-to-end`, `CI/CD`) and are never
+flagged by the validator. En dashes are only allowed in date ranges
+(`06/2025 – 07/2026`); in prose, treat them like em dashes (replace with a
+period or comma). Structural lines (company headers, job titles) and
 non-role sections (Technical Proficiencies, Certifications, Education) are
 not subject to the rule. `validate_resume.py` enforces this on the Summary
 and job-history prose — a violation blocks the PDF render (Step 11).
@@ -434,5 +436,5 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Overwriting the master resume | Write to `<userName> Resume - <Target>.docx` — never the master filename (Step 10) |
 | Keeping Education when the degree isn't evidence for the JD | Evaluate the drop/keep predicates (Step 3.4) — a BA vs an engineering JD is a 3-line drop |
 | Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 9) |
-| Em dash / double dash / semicolon in rewritten Summary or bullet prose | Periods and commas only — split into a new sentence or use a comma; exempt compound hyphens and date-range en dashes (Step 9). `validate_resume.py` blocks the render |
+| Em dash / double dash / semicolon in rewritten Summary or bullet prose | No em dashes, double hyphens, or semicolons — split into a new sentence or use a comma; single hyphens in compound words are fine (Step 9). `validate_resume.py` blocks the render |
 | JD asks for fewer years than the candidate has | Offer Step 3 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it |
