@@ -20,15 +20,28 @@
 set -euo pipefail
 
 VERBOSE=0
-if [ "${1:-}" = "--verbose" ]; then
-    VERBOSE=1
-    shift
-fi
+TARGET_PAGES_ARG=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --verbose)
+            VERBOSE=1
+            shift
+            ;;
+        --target-pages)
+            TARGET_PAGES_ARG="$2"
+            shift 2
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
 if [ "$#" -lt 1 ]; then
-    echo "Usage: $0 [--verbose] <input.docx> [output.pdf] [outdir]" >&2
+    echo "Usage: $0 [--verbose] [--target-pages N] <input.docx> [output.pdf] [outdir]" >&2
     echo "  Renders the .docx to PDF, prints page count, and reports" >&2
-    echo "  overflow vs TARGET_PAGES (env, default 2)." >&2
+    echo "  overflow vs TARGET_PAGES (env, default 2). --target-pages" >&2
+    echo "  overrides the env var for a single run." >&2
     echo "  Compact by default (page count, last-page check, overflow" >&2
     echo "  count, reclaim hint). --verbose adds the page-boundary map," >&2
     echo "  the spilled-content dump, and the last-page tail." >&2
@@ -70,7 +83,7 @@ fi
 BASENAME=$(basename "$INPUT" .docx)
 OUTPUT="${2:-/tmp/${BASENAME}.pdf}"
 OUTDIR="${3:-/tmp}"
-TARGET="${TARGET_PAGES:-2}"
+TARGET="${TARGET_PAGES_ARG:-${TARGET_PAGES:-2}}"
 
 log() { if [ "$VERBOSE" -eq 1 ]; then echo "$@"; fi; }
 

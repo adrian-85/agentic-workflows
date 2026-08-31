@@ -676,18 +676,19 @@ def cli(argv):
           tolerated, and a missing/ambiguous ref exits 2 so a one-shot
           fold cannot silently no-op.
     """
-    if len(argv) < 2:
-        print("usage: docx_edit.py <path.docx> [range] [--full]", file=sys.stderr)
-        print("                  [--prefixes]", file=sys.stderr)
-        print("       docx_edit.py <path.docx> --append-after \"<ref prefix>\"",
+    if len(argv) < 2 or argv[1] in ("--help", "-h"):
+        print("usage: docx_edit.py <path.docx> [range] [--full] [--prefixes]",
               file=sys.stderr)
-        print("                      --with \"<new bullet text>\"", file=sys.stderr)
+        print("       docx_edit.py <path.docx> --append-after \"<ref prefix>\" --with \"<text>\"",
+              file=sys.stderr)
+        print("  Inspect paragraphs, print find_p prefixes, or clone a bullet.",
+              file=sys.stderr)
         print("  range: N-M (paragraphs N..M inclusive) or N (just paragraph N)",
               file=sys.stderr)
-        print("  --full: show full text instead of truncating at 90 chars",
+        print("  --full:     show full text instead of truncating at 90 chars",
               file=sys.stderr)
-        print("  --prefixes: print copy-pasteable, uniqueness-checked "
-              "find_p(ps, \"\u2026\") prefixes", file=sys.stderr)
+        print("  --prefixes: print uniqueness-checked find_p(ps, \"\u2026\") prefixes",
+              file=sys.stderr)
         return 2
     path = argv[1]
     args = argv[2:]

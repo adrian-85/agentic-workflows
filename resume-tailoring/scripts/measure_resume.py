@@ -105,6 +105,15 @@ def _page_lines(page_text):
     ]
 
 
+def _flat_from_pages(pages_text):
+    """Flatten pages to (page_1based, norm_line, raw_line) preserving order."""
+    flat = []
+    for pi, ptext in enumerate(pages_text, start=1):
+        for l in _page_lines(ptext):
+            flat.append((pi, _norm(l), l))
+    return flat
+
+
 def _company_key(text):
     """The matchable company-portion of a role-header line (dates stripped).
 
@@ -174,13 +183,10 @@ def _roles(body):
 
 def _match_roles_to_pages(roles, pages_text):
     """Attribute rendered lines to each role by locating its header in the
-    PDF text. Returns list of (role, start_page_1based, rendered_lines).
+    PDF text. Returns list of (role, start_page_1based, end_page,
+    rendered_lines).
     """
-    # Flatten pages to (page_idx, line) preserving order, for region counting.
-    flat = []  # (page_1based, norm_line, raw_line)
-    for pi, ptext in enumerate(pages_text, start=1):
-        for l in _page_lines(ptext):
-            flat.append((pi, _norm(l), l))
+    flat = _flat_from_pages(pages_text)
 
     # Find the line index where each role's header appears (in order).
     role_starts = []  # flat-index of each role header
@@ -221,6 +227,37 @@ def _match_roles_to_pages(roles, pages_text):
         rendered = e - s
         end_page = flat[e - 1][0] if e > 0 else flat[s][0]
         results.append((r, flat[s][0], end_page, rendered))
+    return results
+
+
+def _wrapped_tools(flat, matched):
+    """Roles whose Tools & Technologies line wraps past one rendered line.
+
+    The validator guarantees a Tools line is the last content of its role
+    (nothing legit follows it), so a wrap is exactly: the line AFTER the
+    tools line is not the next role/section boundary.
+    """
+    others = {r["key"] for r, *_ in matched}
+
+    def is_boundary(line):
+        return (line in (SECTION_EDUCATION, SECTION_CAREER)
+                or any(line.startswith(k) for k in others))
+
+    results = []
+    for r, *_ in matched:
+        if not r.get("has_tools"):
+            continue
+        idx = _role_header_flat(flat, r["key"])
+        if idx is None:
+            continue
+        for k in range(idx + 1, len(flat)):
+            line = flat[k][1]
+            if is_boundary(line):
+                break  # no tools line in this role's region
+            if "tools" in line.lower() and "technolog" in line.lower():
+                if k + 1 < len(flat) and not is_boundary(flat[k + 1][1]):
+                    results.append((r["key"], flat[k][2][:80]))
+                break
     return results
 
 
@@ -309,35 +346,39 @@ GENERIC_PHRASES = (
 _NUMBER = re.compile(r"\d|%")
 
 
-def _weakness_key(text, protect=()):
+def _weakness_key(text):
     """Deterministic weakness sort key for a bullet: weakest first.
 
     Order: (1) no hard number + generic phrasing (clearest drop), (2) no
     hard number, (3) hard number present (strongest — keep). Ties break
-    toward LONGER text (cutting it saves more rendered lines). ``protect``
-    phrases are JD-critical content the scorer cannot know about: any
-    bullet containing one ranks strongest (never suggested), e.g.
-    ``--protect "partner integrations"``.
+    toward LONGER text (cutting it saves more rendered lines).
     """
     low = text.lower()
     has_number = bool(_NUMBER.search(text))
     generic = any(phrase in low for phrase in GENERIC_PHRASES)
-    protected = any(phrase.lower() in low for phrase in protect)
-    return (1 if has_number or protected else 0,
+    return (1 if has_number else 0,
             0 if generic else 1,
-            -len(text) if not protected else 0)
+            -len(text))
+
+
+def _is_protected(text, protect):
+    """True if ``text`` contains any ``protect`` phrase (case-insensitive)."""
+    low = text.lower()
+    return any(p.lower() in low for p in protect)
 
 
 def _suggest_drops(bullet_texts, budget, protect=()):
     """The `budget` weakest bullets (weakest first), deterministically.
 
-    Returns [] when budget <= 0 or a bullet list is empty; never suggests
-    more bullets than exist. Bullets containing a ``protect`` phrase are
-    never suggested.
+    Bullets containing a ``protect`` phrase are **never** suggested — the
+    budget is filled exclusively from unprotected bullets.  When the budget
+    exceeds the unprotected supply, returns only what is available (a short
+    list); callers should surface the shortfall to the user.
     """
     if budget <= 0 or not bullet_texts:
         return []
-    ranked = sorted(bullet_texts, key=lambda t: _weakness_key(t, protect))
+    unprotected = [t for t in bullet_texts if not _is_protected(t, protect)]
+    ranked = sorted(unprotected, key=_weakness_key)
     return ranked[:budget]
 
 
@@ -388,13 +429,25 @@ def _drop_sections(plan, roles, all_texts=None, protect=()):
         n = int(m.group(1))
         bullets = role.get("bullet_texts") or []
         lines = _drop_plan_lines(bullets, n, all_texts=all_texts, protect=protect)
-        if not lines:
-            continue
+        protected_count = sum(1 for b in bullets if _is_protected(b, protect))
+        unprotected_count = len(bullets) - protected_count
         section = [f"DROP PLAN ({key}): drop {n} of {len(bullets)} bullets"]
-        section.append("  weakest-first (generic/no-number first — review each")
-        section.append("  against the JD before cutting):")
-        for line in lines:
-            section.append(f"    {line}")
+        if n > unprotected_count and protected_count > 0:
+            if not lines:
+                section.append(
+                    f"  ALL {len(bullets)} bullet(s) protected — budget={n} cannot"
+                    f" be met without cutting protected content."
+                )
+            else:
+                section.append(
+                    f"  NOTE: budget={n} but only {unprotected_count} unprotected "
+                    f"bullet(s) — {protected_count} protected bullet(s) excluded."
+                )
+        if lines:
+            section.append("  weakest-first (generic/no-number first — review each")
+            section.append("  against the JD before cutting):")
+            for line in lines:
+                section.append(f"    {line}")
         sections.append("\n".join(section))
     return sections
 
@@ -571,6 +624,16 @@ def main():
     print(f"  {'Education (tail)':<34} {'':>4} {edu:>5}")
     print(f"  {'TOTAL':<34} {'':>4} {fixed_top + role_lines + edu:>5}")
 
+    # Tools lines that wrap — each costs ~1 extra rendered line; name the
+    # roles so the agent can trim them without re-measuring.
+    flat = _flat_from_pages(pages_text)
+    wrapped = _wrapped_tools(flat, matched)
+    if wrapped:
+        print()
+        print("TOOLS LINES THAT WRAP (trim to 1 line to save ~1 line each):")
+        for key, preview in wrapped:
+            print(f"  {key} — \"{preview}\"")
+
     # Reclaim suggestion: size cuts to the overflow gap, from oldest roles.
     if over > 0:
         print()
@@ -589,9 +652,8 @@ def main():
         if remaining > 0:
             print(f"  (still ~{remaining:.0f} line(s) over plan — cut past the "
                   f"listed bullet(s) or trim Tools lines)")
-        print("  Generic savings: trim any 2-line Tools list to one line "
-              "(~1 line each); drop blank inter-role spacers via remove_empty "
-              "(~1 line each)")
+        print("  Generic savings: drop blank inter-role spacers via "
+              "remove_empty (~1 line each)")
 
         # The DROP PLAN: name the exact bullets each "drop N bullet(s)"
         # entry refers to, weakest-first, as copy-pasteable find_p lines
