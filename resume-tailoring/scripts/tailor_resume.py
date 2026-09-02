@@ -47,7 +47,7 @@ Verification is mechanical, not a habit:
      (repeat --protect for every JD ask that must never be cut). Its DROP
      PLAN names the EXACT bullets to drop as copy-pasteable find_p lines
      (weakest-first; quantified/theme-protected bullets excluded).
-  2. Paste those lines into this script's remove() calls, re-run script,
+  2. Paste those prefixes into a `drop(body, [...])` call, re-run script,
      re-measure once to confirm, render once to verify. No cut-render-cut.
 - validate_resume.py also cross-checks quantified claims against the master
   and the Summary's "N+ years" claim against the visible role-date span.
@@ -67,7 +67,7 @@ import shutil
 
 from docx_edit import (
     load, save, paras, find_p, set_text, set_labeled, replace_text,
-    merge_into, drop, remove, remove_empty,
+    merge_into, drop, remove_empty,
 )
 
 SRC = "<userName> Master Resume.docx"

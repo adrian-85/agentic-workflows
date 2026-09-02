@@ -158,8 +158,7 @@ def save(path, root, names, data, drift_key=None, src=None):
     and every later run warns when the count changed — i.e. an edit was
     added, removed, or stopped matching the master. Warn-once, rebaseline;
     the blocking gate for a stopped-matching edit is the skipped-edit check
-    (exit 2 under strict). Set ``DOCX_EDIT_REBASELINE=1`` to rebaseline an
-    intentional count change silently (authoring-time iteration).
+    (exit 2 under strict).
 
     When ``src`` (the master the script copied from) is passed, the sidecar
     also records the master's sha256 and warns ``MASTER CHANGED`` when it
@@ -204,33 +203,24 @@ def save(path, root, names, data, drift_key=None, src=None):
             baseline = {}
     master_sha = None
     if src:
-        try:
-            with open(src, "rb") as f:
-                master_sha = hashlib.sha256(f.read()).hexdigest()
-        except OSError:
-            master_sha = None
+        with open(src, "rb") as f:
+            master_sha = hashlib.sha256(f.read()).hexdigest()
     prev = baseline.get(drift_key)
     prev_edits = prev.get("edits") if isinstance(prev, dict) else prev
     prev_sha = prev.get("master_sha") if isinstance(prev, dict) else None
-    rebaseline = (
-        os.environ.get("DOCX_EDIT_REBASELINE", "").strip().lower() == "1"
-    )
     if prev is not None and prev_edits != applied:
-        if rebaseline:
-            pass  # intentional change; rebaseline silently (authoring-time)
-        else:
-            print(
-                f"DRIFT: {drift_key} expected {prev_edits} edits (last "
-                f"recorded run) but applied {applied} — an edit was added, "
-                f"removed, or stopped matching the master. Review before "
-                f"rendering.",
-                file=sys.stderr,
-            )
-            # A count change is a review signal, not a gate: rebaseline so
-            # the warning fires ONCE per change (an intentional add/remove
-            # must not trap every later run). The blocking gate for "an edit
-            # stopped matching" is the skipped-edit check above, which exits
-            # 2 under strict.
+        print(
+            f"DRIFT: {drift_key} expected {prev_edits} edits (last "
+            f"recorded run) but applied {applied} — an edit was added, "
+            f"removed, or stopped matching the master. Review before "
+            f"rendering.",
+            file=sys.stderr,
+        )
+        # A count change is a review signal, not a gate: rebaseline so the
+        # warning fires ONCE per change (an intentional add/remove must not
+        # trap every later run). The blocking gate for "an edit stopped
+        # matching" is the skipped-edit check above, which exits 2 under
+        # strict.
     if prev_sha and master_sha and prev_sha != master_sha:
         print(
             f"MASTER CHANGED: {src} differs from the master of the last "

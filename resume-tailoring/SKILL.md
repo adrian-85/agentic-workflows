@@ -83,25 +83,19 @@ reference. The non-obvious rules while authoring:
   Smart punctuation is collapsed (curly quotes/dashes match ASCII). For
   duplicate job titles, use `after=<company-header>` or `nth=N`.
 - **`drop(body, prefixes)`**: removes by prefix and returns the refreshed
-  list — `ps = drop(body, ["prefix one", "prefix two"])`. The library
-  replacement for per-script `_drop` helpers: it resolves every prefix
-  against a fresh `paras(body)`, so it can never "find" a paragraph an
-  earlier call already detached (a `ps` list threaded across calls goes
-  stale — the caller's copy keeps removed paragraphs — producing false
-  ambiguity on short prefixes, or silent edits applied to detached
-  elements). A skipped prefix is named in the warning, not reported as a
-  generic `(remove)`.
+  list — `ps = drop(body, [...])`. Library replacement for per-script
+  `_drop` helpers: every prefix resolves against a fresh `paras(body)`, so
+  it can never "find" a paragraph an earlier call already detached (a `ps`
+  list threaded across calls goes stale → false ambiguity on short
+  prefixes, or silent edits on detached elements). Skipped prefixes are
+  named in the warning, not a generic `(remove)`.
 - **`save()` drift sidecar**: auto-maintains `<dst>.drift.json` keyed by the
   calling script. First run records the baseline; later runs warn (`DRIFT:`) if
   the applied-edit count changed. Warn-once, rebaseline; the blocking gate for
   a stopped-matching edit is the skipped-edit check (exit 2 under
-  `DOCX_EDIT_STRICT=1`); `DOCX_EDIT_REBASELINE=1` rebaselines an intentional
-  count change silently (authoring-time iteration). Pass `src=SRC` to
-  `save()` and the sidecar also records the master's sha256, warning
-  (`MASTER CHANGED:`) when the master differs from the script's last run —
-  a master edited mid-session can leave a prefix matching while the text
-  underneath changed, and a `set_text` rewrite would silently land on the
-  new text with no skip fired.
+  `DOCX_EDIT_STRICT=1`). Pass `src=SRC` and the sidecar also records the
+  master's sha256, warning (`MASTER CHANGED:`) when the master differs from
+  the script's last run — see `save()`'s docstring for why that matters.
 - **`clone_after(body, ref_p, text)`**: add a NEW bullet to the master,
   inheriting numbering.
 - **`merge_into(body, target, source, text)`**: rewrite `target` AND remove
