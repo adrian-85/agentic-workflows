@@ -1,27 +1,50 @@
 #!/bin/sh
-# Extract readable text from the bundled LinkedIn Profile.pdf (binary — a
-# plain file read returns garbage). Resume tailoring cross-references this
+# Dump the LinkedIn data-export folder (CSVs — plain text) as one readable
+# stream for the tailoring workflow. Resume tailoring cross-references this
 # for content the master resume may have compressed away (sub-roles, extra
-# bullets).
+# bullets). The CSVs are plain text, so no pdftotext is needed.
 #
 # Usage:
-#   ./scripts/read_profile.sh                  # print to stdout
+#   ./scripts/read_profile.sh                      # the default export folder
+#   ./scripts/read_profile.sh <export-dir>         # a specific export folder
 #   ./scripts/read_profile.sh > /tmp/profile.txt
 #
-# Requires `pdftotext` (poppler-utils). Prints a hint if it's missing.
+# The default resolves the newest `Basic_LinkedInDataExport_*` folder in the
+# skill root. Pass an explicit directory to target another export.
 
 set -e
-cd "$(dirname "$0")/.."   # skill root, where Profile.pdf lives
+cd "$(dirname "$0")/.."   # skill root, where the LinkedIn export folder lives
 
-if ! command -v pdftotext >/dev/null 2>&1; then
-  echo "error: pdftotext not found. Install poppler-utils (Debian/Ubuntu:" \
-       "sudo apt install poppler-utils)." >&2
+EXPORT_DIR="${1:-}"
+if [ -z "$EXPORT_DIR" ]; then
+  # Prefer the exact folder the workflow is built around; fall back to the
+  # newest Basic_LinkedInDataExport_* if only the date renamed.
+  if [ -d "Basic_LinkedInDataExport_09-02-2026" ]; then
+    EXPORT_DIR="Basic_LinkedInDataExport_09-02-2026"
+  elif ls -d Basic_LinkedInDataExport_* >/dev/null 2>&1; then
+    EXPORT_DIR="$(ls -d Basic_LinkedInDataExport_* | sort | tail -1)"
+  else
+    echo "error: no LinkedIn export folder found in $(pwd)." >&2
+    echo "Expected a Basic_LinkedInDataExport_* directory, or pass one as an argument." >&2
+    exit 1
+  fi
+fi
+
+if [ ! -d "$EXPORT_DIR" ]; then
+  echo "error: not a directory: $EXPORT_DIR" >&2
   exit 1
 fi
 
-if [ ! -f "Profile.pdf" ]; then
-  echo "error: Profile.pdf not found in $(pwd)." >&2
+FOUND=0
+for csv in "$EXPORT_DIR"/*.csv; do
+  [ -f "$csv" ] || continue
+  FOUND=1
+  echo ""
+  echo "===== $(basename "$csv" .csv) ($(basename "$EXPORT_DIR")) ====="
+  cat "$csv"
+done
+
+if [ "$FOUND" -eq 0 ]; then
+  echo "error: no .csv files found in $EXPORT_DIR" >&2
   exit 1
 fi
-
-exec pdftotext -layout "Profile.pdf" -

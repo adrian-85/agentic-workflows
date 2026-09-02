@@ -6,6 +6,9 @@ __pycache__/
 *.docx
 *.pdf
 
+# LinkedIn data exports (personal — stay local)
+resume-tailoring/Basic_LinkedInDataExport_*/
+
 # AI Judge reports (local transcript analyses — never publish)
 */findings/*
 */judgments/*

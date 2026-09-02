@@ -55,8 +55,8 @@ User-supplied personal assets (`*.docx` / `*.pdf`, gitignored) live in the skill
   changed master (`MASTER CHANGED:`) and runs auto-strict: skipped edits exit 2 without
   needing `DOCX_EDIT_STRICT=1`. If the master change was the USER's, respect it — re-dump
   `--prefixes`, fix drifted prefixes in the tailor script, never re-fold over their text.
-- `Profile.pdf` — richer than the resume for content to enrich/merge (Step 1). The LinkedIn
-  data-export CSVs are an even richer source when available.
+- `Basic_LinkedInDataExport_09-02-2026/` — the LinkedIn data export (CSVs), the richer source than
+  the resume for content to enrich/merge (Step 1).
 
 `scripts/` (each tool's docstring / usage is the reference; the steps below point at them):
 `docx_edit.py` (Helper library) · `tailor_resume.py` (template) · `render_pdf.sh` (Steps 8, 11) ·
@@ -202,13 +202,15 @@ with copy-pasteable `find_p` cut lines, and flags page widows / underfilled page
   only a PDF is available, ask for the `.docx` source — PDFs can be read but
   not edited precisely.
 - **Read the LinkedIn source before editing.** The resume is a compressed
-  view; the LinkedIn export / profile PDF has the richer detail that lets you
-  enrich and merge bullets. If a **LinkedIn data export** is available, read
-  `Skills.csv`, `Positions.csv`, `Profile.csv`,
-  `Endorsement_Received_Info.csv`, `Recommendations_Received.csv`. Otherwise
-  read the bundled `Profile.pdf` (a LinkedIn profile PDF export) — it lists
-  bullets and sub-roles the resume may have compressed away. `Profile.pdf` is
-  binary; extract its text with the wrapper script:
+  view; the LinkedIn data export has the richer detail that lets you enrich
+  and merge bullets. Read the export folder `Basic_LinkedInDataExport_09-02-2026/`:
+  - `Positions.csv` — the full role history with description bullets: the
+    richest source for restoring sub-roles and extra bullets the resume
+    compressed away.
+  - `Profile.csv` — headline and career summary.
+  - `Skills.csv` / `Certifications.csv` / `Education.csv` — skills, certs, degrees.
+  The CSVs are plain text. If you want them as one readable stream, dump the
+  folder with the wrapper script:
 
   ```bash
   ./scripts/read_profile.sh            # print to stdout
