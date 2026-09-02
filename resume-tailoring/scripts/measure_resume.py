@@ -915,8 +915,7 @@ def _apply_simulate(docx_path, drop_prefixes, out_path):
     return out_path, dropped
 
 
-def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=(),
-                   header_template="DROP PLAN ({key})"):
+def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):
     """Turn a BATCH RECLAIM PLAN into per-role DROP PLAN sections.
 
     Each "drop N bullet(s)" plan entry (keyed by role key) becomes a
@@ -924,8 +923,6 @@ def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=(),
     lines. "consider dropping the whole role" entries produce no section —
     the header/tools lines save more than any single bullet, and the
     seniority decision is the user's, not the ranker's.
-    ``header_template`` relabels a section (the TOP-ROLE TRIM BATCH reuses
-    this emitter with its own header).
 
     With ``jd_terms`` (--jd), JD-evidence bullets are excluded from the
     suggestions and listed under "JD-matched (kept)" with the terms that
@@ -946,15 +943,12 @@ def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=(),
                    if _jd_hits(b, jd_terms)]
         concept_kept = [(b, _concept_hits(b)) for b in bullets
                         if _concept_hits(b) and not _jd_hits(b, jd_terms)]
-        kept_bullets = [b for b in bullets
-                        if _is_protected(b, protect) or _jd_kept(b, jd_terms)]
         protected_count = _protected_count(bullets, protect=protect,
                                            jd_terms=jd_terms)
         unprotected_count = len(bullets) - protected_count
         lines = _drop_plan_lines(bullets, n, all_texts=all_texts,
                                  protect=protect, jd_terms=jd_terms)
-        section = [header_template.format(key=key)
-                   + f": drop {n} of {len(bullets)} bullets"]
+        section = [f"DROP PLAN ({key}): drop {n} of {len(bullets)} bullets"]
         if jd_kept or concept_kept:
             section.append(
                 "  JD-matched (kept) — never suggested while weaker "
@@ -989,6 +983,45 @@ def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=(),
                 section.append(f"    {line}")
         sections.append("\n".join(section))
     return sections
+
+
+def _batch_section(batch, role, header, all_texts=None, protect=(),
+                   jd_terms=()):
+    """Render the TOP-ROLE TRIM BATCH section — the residual-gap closer.
+
+    ``batch`` is ``(key, action, saved_lines)`` from
+    :func:`_top_role_batch`. ``header`` is the caller-provided first line
+    (e.g. 'TOP-ROLE TRIM BATCH (GEICO; closes ...)'). Returns the section
+    as a multi-line string, or ``None`` when the batch/role is empty.
+    """
+    _key, action, _saved = batch
+    m = _DROP_ACTION.match(action)
+    if not m or role is None:
+        return None
+    n = int(m.group(1))
+    bullets = role.get("bullet_texts") or []
+    jd_kept = [(b, _jd_hits(b, jd_terms)) for b in bullets
+               if _jd_hits(b, jd_terms)]
+    concept_kept = [(b, _concept_hits(b)) for b in bullets
+                    if _concept_hits(b) and not _jd_hits(b, jd_terms)]
+    lines = _drop_plan_lines(bullets, n, all_texts=all_texts,
+                             protect=protect, jd_terms=jd_terms)
+    section = [header]
+    if jd_kept or concept_kept:
+        section.append("  JD-matched (kept) — never suggested while weaker "
+                       "bullets remain:")
+        for b, hits in jd_kept:
+            section.append(f"    - {b[:68]}  [{' , '.join(hits)}]")
+        for b, hits in concept_kept:
+            section.append(
+                f"    - {b[:68]}  [practice: {', '.join(hits)}]"
+            )
+    if lines:
+        section.append("  weakest-first (generic/no-number first — review each")
+        section.append("  against the JD before cutting):")
+        for line in lines:
+            section.append(f"    {line}")
+    return "\n".join(section)
 
 
 def _layout_hints(matched, pages_text, capacity):
@@ -1268,8 +1301,9 @@ def main():
                           f"surviving neighbors — prefer cutting from the "
                           f"oldest role, or drop the whole gapless tail.")
         residual = required - feasible
+        closes = batch is not None and math.isclose(batch[2], residual,
+                                                 abs_tol=0.001)
         if batch is not None:
-            closes = batch[2] >= residual - 1e-9
             print(f"  - residual ~{residual:.0f} line(s) after the feasible "
                   f"cuts above — TOP-ROLE TRIM BATCH below "
                   + ("closes it" if closes else
@@ -1316,14 +1350,15 @@ def main():
         sections = _drop_sections(plan, roles, all_texts=all_texts,
                                   protect=protect, jd_terms=jd_terms)
         if batch is not None:
-            closes = batch[2] >= residual - 1e-9
-            sections += _drop_sections(
-                [batch], roles, all_texts=all_texts, protect=protect,
-                jd_terms=jd_terms,
-                header_template="TOP-ROLE TRIM BATCH ({key}; "
-                                + ("closes the residual gap after the cuts "
-                                   "above)" if closes else
-                                   "the largest remaining safe source)"))
+            top_role = next((r for r in roles if r["key"] == batch[0]), None)
+            batch_hdr = ("closes the residual gap after the cuts above"
+                         if closes else "the largest remaining safe source")
+            header = f"TOP-ROLE TRIM BATCH ({batch[0]}; {batch_hdr}): "
+            section = _batch_section(batch, top_role, header,
+                                     all_texts=all_texts, protect=protect,
+                                     jd_terms=jd_terms)
+            if section is not None:
+                sections.append(section)
             if not closes:
                 sections.append(
                     f"NOTE: even with the top-role batch, ~{residual - batch[2]:.0f} "

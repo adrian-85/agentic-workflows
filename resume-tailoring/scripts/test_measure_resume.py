@@ -469,17 +469,17 @@ class TopRoleBatchTests(unittest.TestCase):
         self.assertIsNotNone(batch)
         self.assertEqual(adjusted, [])
 
-    def test_drop_sections_renders_batch_with_custom_header(self):
+    def test_batch_section_renders_with_custom_header(self):
         batch = ("GEICO", "drop 2 bullet(s) (saves ~5 lines)", 5.0)
-        roles = [self.matched[0][0]]
-        sections = mr._drop_sections(
-            [batch], roles,
-            header_template="TOP-ROLE TRIM BATCH ({key}; closes the "
-                            "residual gap after the cuts above)")
-        self.assertEqual(len(sections), 1)
-        self.assertIn("TOP-ROLE TRIM BATCH (GEICO", sections[0])
-        self.assertIn("find_p(ps,", sections[0])
-        self.assertNotIn("Championed agentic workflows", sections[0])
+        role = self.matched[0][0]
+        header = "TOP-ROLE TRIM BATCH (GEICO; closes the residual gap "
+        section = mr._batch_section(
+            batch, role, header,
+            protect=(), jd_terms=self.jd)
+        self.assertIn("TOP-ROLE TRIM BATCH (GEICO", section)
+        self.assertIn("find_p(ps,", section)
+        # Protected (Playwright) bullets are not suggested.
+        self.assertNotIn("Championed agentic workflows", section)
 
 
 class JDAwareTests(unittest.TestCase):
