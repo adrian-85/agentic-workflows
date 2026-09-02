@@ -624,6 +624,13 @@ def drop(body, prefixes):
         ps = drop(body, ["prefix one", "prefix two"])
     """
     for prefix in prefixes:
+        if not isinstance(prefix, str):
+            raise TypeError(
+                "drop() takes prefix STRINGS (copy-pasteable find_p(ps, '…') "
+                "lines from the --prefixes dump / DROP PLAN), not paragraph "
+                "elements. Got "
+                f"{type(prefix).__name__}; pass the prefix text itself."
+            )
         p = find_p(paras(body), prefix)
         if p is None:
             # find_p already warned (missing or ambiguous, record=False);
@@ -643,6 +650,22 @@ ROLE_STYLE = "CompanyBlock"
 SECTION_STYLE = "SectionHeading"
 _BLOCK_BOUNDARY_STYLES = ("CompanyBlock", "SectionHeading",
                           "Heading1", "Heading2")
+
+
+def _prefix_arg(prefix, api):
+    """Guard the whole-role/section removers: they take a prefix STRING.
+
+    A common authoring slip (seen in a real tailoring session) is passing the
+    result of ``find_p(...)`` — an lxml/ElementTree element — where the prefix
+    text belongs. Fail immediately with a message naming the fix instead of a
+    raw ``AttributeError`` deep inside ``find_p``."""
+    if not isinstance(prefix, str):
+        raise TypeError(
+            f"{api}() takes a prefix STRING (a copy-pasteable find_p line "
+            f"from the --prefixes dump), not a paragraph element; got "
+            f"{type(prefix).__name__}. Pass the prefix text itself."
+        )
+    return prefix
 
 
 def _block(body, prefix, anchor_style, boundary_styles):
@@ -694,7 +717,8 @@ def drop_role(body, company_prefix, company_style=ROLE_STYLE,
     ``boundary_styles`` explicitly. Returns the refreshed paragraph list;
     a missing/ambiguous/wrong-style prefix records a skip
     (``drop_role: <prefix>``) and mutates nothing."""
-    block = _block(body, company_prefix, company_style, boundary_styles)
+    block = _block(body, _prefix_arg(company_prefix, "drop_role"),
+                   company_style, boundary_styles)
     if block is None:
         _warn_missing(f"drop_role: {company_prefix}")
         return paras(body)
@@ -712,7 +736,8 @@ def drop_section(body, heading_prefix, heading_style=SECTION_STYLE,
     for the same reason as :func:`drop_role`'s. Returns the refreshed
     paragraph list; a missing/ambiguous/wrong-style prefix records a skip
     (named ``drop_section: <prefix>``) and mutates nothing."""
-    block = _block(body, heading_prefix, heading_style, boundary_styles)
+    block = _block(body, _prefix_arg(heading_prefix, "drop_section"),
+                   heading_style, boundary_styles)
     if block is None:
         _warn_missing(f"drop_section: {heading_prefix}")
         return paras(body)

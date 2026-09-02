@@ -832,6 +832,65 @@ def _dead_end_roles(plan, roles, protect=(), jd_terms=()):
     return dead
 
 
+def _top_role_batch(matched, plan, per, required, tools_savings=0,
+                    top_block_count=0, protect=(), jd_terms=()):
+    """Size the most-recent role's trim batch — the residual-gap closer.
+
+    The BATCH RECLAIM PLAN is oldest-first and stops as soon as its listed
+    savings reach the gap. But dead-end budgets (JD-protected bullets)
+    overstate what the oldest roles can actually give, and TOP-BLOCK lines
+    and Tools de-wraps are the only other removal sources. When even those
+    fall short of ``required``, the honest remaining source is the
+    most-recent role's weakest UNPROTECTED bullets — the failure this
+    replaces is the author inventing levers to close the gap (hand-
+    shortening kept bullets from two rendered lines to one), because the
+    tool's plan visibly cannot reach the target.
+
+    Returns ``(batch_entry, adjusted_plan, feasible)`` where ``batch_entry``
+    is ``(top_key, action, saved_lines)`` or ``None`` when the feasible
+    cuts already close the gap (or the top role has no unprotected
+    bullet to give); ``adjusted_plan`` drops any superseded dead-end entry
+    for the top role (the batch is the authoritative sizing for it); and
+    ``feasible`` is the total line savings the removals above can actually
+    deliver (dead-end budgets shrunk to unprotected counts, + Tools
+    de-wraps, + TOP-BLOCK lines) — so main() can state honestly when the
+    gap cannot close without cutting JD-matched content.
+    """
+    if not matched:
+        return None, list(plan), 0.0
+    by_key = {r["key"]: r for r, _sp, _ep, _l in matched}
+    top_key = matched[0][0]["key"]  # matched is document order: most-recent first
+    feasible = 0.0
+    adjusted = []
+    for key, action, saved in plan:
+        m = _DROP_ACTION.match(action)
+        if not m:
+            feasible += saved  # whole-role drop: feasible by definition
+            adjusted.append((key, action, saved))
+            continue
+        role = by_key.get(key) or {}
+        bullets = role.get("bullet_texts") or []
+        prot = _protected_count(bullets, protect=protect, jd_terms=jd_terms)
+        take = min(int(m.group(1)), max(0, len(bullets) - prot))
+        if take > 0:
+            feasible += take * per
+        if key == top_key:
+            continue  # superseded: the batch below is the authoritative sizing
+        adjusted.append((key, action, saved))
+    feasible += tools_savings + top_block_count
+    shortfall = required - feasible
+    top_bullets = matched[0][0].get("bullet_texts") or []
+    top_protected = _protected_count(top_bullets, protect=protect,
+                                     jd_terms=jd_terms)
+    unprotected = max(0, len(top_bullets) - top_protected)
+    if shortfall <= 0 or unprotected <= 0:
+        return None, adjusted, feasible
+    n = min(unprotected, math.ceil(shortfall / per))
+    saved = n * per
+    return ((top_key, f"drop {n} bullet(s) (saves ~{saved:.0f} lines)", saved),
+            adjusted, feasible)
+
+
 def _apply_simulate(docx_path, drop_prefixes, out_path):
     """Copy ``docx_path`` to ``out_path`` and drop the WHOLE roles named by
     each prefix (docx_edit.drop_role) in the copy — the seniority-alignment
@@ -856,7 +915,8 @@ def _apply_simulate(docx_path, drop_prefixes, out_path):
     return out_path, dropped
 
 
-def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):
+def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=(),
+                   header_template="DROP PLAN ({key})"):
     """Turn a BATCH RECLAIM PLAN into per-role DROP PLAN sections.
 
     Each "drop N bullet(s)" plan entry (keyed by role key) becomes a
@@ -864,6 +924,8 @@ def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):
     lines. "consider dropping the whole role" entries produce no section —
     the header/tools lines save more than any single bullet, and the
     seniority decision is the user's, not the ranker's.
+    ``header_template`` relabels a section (the TOP-ROLE TRIM BATCH reuses
+    this emitter with its own header).
 
     With ``jd_terms`` (--jd), JD-evidence bullets are excluded from the
     suggestions and listed under "JD-matched (kept)" with the terms that
@@ -891,7 +953,8 @@ def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):
         unprotected_count = len(bullets) - protected_count
         lines = _drop_plan_lines(bullets, n, all_texts=all_texts,
                                  protect=protect, jd_terms=jd_terms)
-        section = [f"DROP PLAN ({key}): drop {n} of {len(bullets)} bullets"]
+        section = [header_template.format(key=key)
+                   + f": drop {n} of {len(bullets)} bullets"]
         if jd_kept or concept_kept:
             section.append(
                 "  JD-matched (kept) — never suggested while weaker "
@@ -1177,7 +1240,20 @@ def main():
         # Measured math + concrete batch (replaces an earlier hardcoded
         # "~2 lines per bullet" estimate that undercounted dense bullets).
         per = _measured_lines_per_bullet(matched)
-        plan, remaining = _reclaim_batch(matched, per, overflow_lines + per)
+        required = overflow_lines + per
+        plan, remaining = _reclaim_batch(matched, per, required)
+        # TOP-BLOCK candidates are a planned removal source, so compute
+        # them BEFORE sizing the top-role batch; printed below in the same
+        # place as before.
+        top = _top_block_candidates(body, jd_terms)
+        # The oldest-first plan overstates what dead-end roles can give;
+        # when TOP-BLOCK + Tools de-wraps + feasible oldest cuts still fall
+        # short, size a TOP-ROLE TRIM BATCH here (see _top_role_batch) —
+        # the author then pastes emitted find_p lines instead of inventing
+        # levers (hand-shortening kept bullets) to close the gap.
+        batch, plan, feasible = _top_role_batch(
+            matched, plan, per, required, tools_savings=len(wrapped),
+            top_block_count=len(top), protect=protect, jd_terms=jd_terms)
         matched_roles = [m[0] for m in matched]
         print()
         print(f"MEASURED: ~{per:.1f} rendered lines per bullet (this render)")
@@ -1191,7 +1267,15 @@ def main():
                           f"opens a ~{gap}-month employment gap between its "
                           f"surviving neighbors — prefer cutting from the "
                           f"oldest role, or drop the whole gapless tail.")
-        if remaining > 0:
+        residual = required - feasible
+        if batch is not None:
+            closes = batch[2] >= residual - 1e-9
+            print(f"  - residual ~{residual:.0f} line(s) after the feasible "
+                  f"cuts above — TOP-ROLE TRIM BATCH below "
+                  + ("closes it" if closes else
+                     "is the largest remaining safe source (its "
+                     "JD-protected bullets stay)"))
+        elif remaining > 0:
             print(f"  (still ~{remaining:.0f} line(s) over plan — cut past the "
                   f"listed bullet(s) or trim Tools lines)")
         print("  Generic savings: drop blank inter-role spacers via "
@@ -1212,8 +1296,8 @@ def main():
 
         # TOP-BLOCK CANDIDATES: off-JD proficiency/certification lines are
         # first-class cuts too (line-costed, copy-pasteable), not just role
-        # bullets — the whole resume tailors to the JD.
-        top = _top_block_candidates(body, jd_terms)
+        # bullets — the whole resume tailors to the JD. (Computed above so
+        # the top-role batch can size against them.)
         if top:
             print()
             print("TOP-BLOCK RECLAIM CANDIDATES (Technical Proficiencies / "
@@ -1231,6 +1315,28 @@ def main():
         all_texts = [de.text_of(p) for p in de.paras(body)]
         sections = _drop_sections(plan, roles, all_texts=all_texts,
                                   protect=protect, jd_terms=jd_terms)
+        if batch is not None:
+            closes = batch[2] >= residual - 1e-9
+            sections += _drop_sections(
+                [batch], roles, all_texts=all_texts, protect=protect,
+                jd_terms=jd_terms,
+                header_template="TOP-ROLE TRIM BATCH ({key}; "
+                                + ("closes the residual gap after the cuts "
+                                   "above)" if closes else
+                                   "the largest remaining safe source)"))
+            if not closes:
+                sections.append(
+                    f"NOTE: even with the top-role batch, ~{residual - batch[2]:.0f} "
+                    "line(s) remain — the gap cannot close without cutting "
+                    "JD-matched content or revisiting the approved "
+                    "whole-role drops with the user.")
+        if batch is None and residual > 0:
+            sections.append(
+                f"NO SAFE PLAN: feasible removals cover ~{feasible:.0f} of "
+                f"~{required:.0f} line(s) and the most-recent role has no "
+                "unprotected bullet to give — the gap cannot close without "
+                "cutting JD-matched content or revisiting the approved "
+                "whole-role drops with the user.")
         if sections:
             print()
             for section in sections:

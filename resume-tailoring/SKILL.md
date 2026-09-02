@@ -92,7 +92,10 @@ reference. The non-obvious rules while authoring:
   it can never "find" a paragraph an earlier call already detached (a `ps`
   list threaded across calls goes stale → false ambiguity on short
   prefixes, or silent edits on detached elements). Skipped prefixes are
-  named in the warning, not a generic `(remove)`.
+  named in the warning, not a generic `(remove)`. Takes prefix STRINGS
+  (the copy-pasteable `find_p` lines from the `--prefixes` dump / DROP
+  PLAN) — passing `find_p(...)` results raises a `TypeError` naming the
+  fix (same guard on `drop_role`/`drop_section`).
 - **`drop_role(body, "<company-header prefix>")`**: removes an ENTIRE role —
   company header, title, bullets, Tools line, trailing spacer — stopping
   BEFORE the next company header or section heading. The library
@@ -358,6 +361,16 @@ Compression order: (1) oldest-role bullets via DROP PLAN, (2) TOP-BLOCK
 CANDIDATES lines (off-JD proficiencies/certs), (3) Tools line trims, (4)
 blank spacers. Go in that order; don't hand-pick.
 
+**The plan is a sum of REMOVALS, and measure emits it.** Every line in
+the plan's math is a paragraph the tailor script deletes. When the
+oldest-first plan cannot close the gap, measure emits a TOP-ROLE TRIM
+BATCH (the most-recent role's weakest unprotected bullets, sized to the
+residual gap) and, when even that cannot close it, a NOTE saying so —
+paste its `find_p` lines into the script's first pass and take the NOTE
+back to the user (whole-role drops / JD-matched tradeoffs). Kept
+bullets' text is final; hand-shortening kept bullets from two rendered
+lines to one is not a cut and never closes a measured gap.
+
 **Measure before cutting.** After the content edits (steps 4–7), run
 `scripts/measure_resume.py <target.docx> [TARGET_PAGES]` — it renders once and
 reports the per-role line cost and the **exact reclaim gap** to the target page
@@ -583,6 +596,8 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Guessing WHICH bullets to cut from the reclaim gap | Use measure's DROP PLAN with `--jd "<JD>.txt"` + `--protect "<fact>"`; paste its `find_p` lines, or run `squeeze_resume.py` for the residual gap (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
+| Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | They take prefix STRINGS — paste the `find_p` lines from the DROP PLAN verbatim; an element argument now fails fast with a `TypeError` (Helper library) |
+| Iterating Tools-line trims because a trimmed line still wraps | Expected once: measure re-flags remaining wraps in TOOLS LINES THAT WRAP after each render; keep values to ~8 tools per line to usually fit in one pass (Step 8) |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 5) |
 | Appending bullets when content overlaps an existing one | Merge (`merge_into`) — appending blows the page budget (Step 6) |

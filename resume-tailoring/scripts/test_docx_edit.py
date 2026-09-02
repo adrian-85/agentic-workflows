@@ -504,6 +504,21 @@ class DropTests(unittest.TestCase):
         self.assertNotIn("matches multiple", err.getvalue())
         self.assertEqual([de.text_of(p) for p in ps], ["Unrelated bullet"])
 
+    def test_element_argument_fails_fast_with_typeerror(self):
+        # THE session failure (CarMax Principal Quality tailoring): the
+        # author passed find_p(ps, ...) results — paragraph elements —
+        # into drop(), which takes prefix STRINGS. Unguarded, this crashed
+        # deep inside find_p with a raw AttributeError ("'Element' object
+        # has no attribute 'translate'"), costing a debug cycle to trace
+        # the failure back to the call site. The guard fails fast at the
+        # drop() boundary with a message naming the fix.
+        element = de.find_p(de.paras(self.body), "Unrelated bullet")
+        with self.assertRaises(TypeError) as ctx:
+            de.drop(self.body, [element])
+        self.assertIn("prefix STRINGS", str(ctx.exception))
+        self.assertEqual(de._APPLIED, 0)
+        self.assertEqual(len(list(self.body.iter(W + "p"))), 3)
+
     def test_missing_prefix_skips_with_named_prefix(self):
         # Unlike remove(None)'s generic "(remove)" label, the skip record
         # and warning name the actual prefix so strict reports point at
@@ -656,6 +671,20 @@ class DropRoleTests(unittest.TestCase):
                 [de.text_of(p) for p in de.paras(body)], ["Summary"])
         finally:
             de._ORIG.clear()
+
+    def test_element_argument_fails_fast_with_typeerror(self):
+        # Same session failure as DropTests (CarMax Principal Quality):
+        # drop_role/drop_section take a company/section prefix STRING;
+        # passing a find_p result must fail fast with a named fix, not a
+        # raw AttributeError inside find_p.
+        element = de.find_p(de.paras(self.body), "Illumina, San Diego")
+        with self.assertRaises(TypeError) as ctx:
+            de.drop_role(self.body, element)
+        self.assertIn("drop_role", str(ctx.exception))
+        self.assertIn("prefix STRING", str(ctx.exception))
+        self.assertEqual(de._APPLIED, 0)
+        # Nothing removed: all 19 setUp paragraphs still present.
+        self.assertEqual(len(list(self.body.iter(W + "p"))), 19)
 
 
 class DropSectionTests(unittest.TestCase):

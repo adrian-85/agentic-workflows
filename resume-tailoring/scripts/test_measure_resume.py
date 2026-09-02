@@ -377,6 +377,111 @@ class DropPlanTests(unittest.TestCase):
         self.assertEqual(mr._drop_sections(plan, roles), [])
 
 
+class TopRoleBatchTests(unittest.TestCase):
+    """_top_role_batch: the most-recent role's trim batch, emitted when the
+    deterministic plan cannot close the gap.
+
+    THE session failure (CarMax Principal Quality tailoring): the master's
+    most-recent role held 23 bullets / 63 rendered lines, every older-role
+    budget was a dead end, and the tool's BATCH RECLAIM PLAN still could
+    not reach the 3-page target. Nothing in the output covered the top
+    role, so the author had to invent levers — headless-session replays
+    showed agents filling the vacuum with hand-shortening (rewriting kept
+    bullets from two rendered lines to one), the lowest-leverage edit in
+    the skill. Enforcement moved into the tool: when TOP-BLOCK + Tools
+    de-wraps + feasible oldest cuts fall short, measure emits the top
+    role's weakest UNPROTECTED bullets in the same copy-pasteable find_p
+    format, so the authoring plan is a sum of tool-named removals.
+    """
+
+    def setUp(self):
+        # Document order: most-recent role FIRST. GEICO is the bloated top
+        # role; the two oldest roles are dead ends (all bullets protected).
+        self.matched = [
+            ({"key": "GEICO", "bullets": 5, "has_tools": True,
+              "bullet_texts": [
+                  "Wrote scripts for storing images in JFrog Artifactory",
+                  "Demoed release process improvements at team meetings",
+                  "Updated the team wiki page weekly",
+                  "Landed Playwright as the company UI testing tool",
+                  "Configured Playwright pipelines for cross-repo runs"]},
+             1, 2, 30),
+            ({"key": "Middle", "bullets": 2, "has_tools": True,
+              "bullet_texts": [
+                  "Landed Playwright as the company UI testing tool",
+                  "Configured Playwright pipelines for cross-repo runs"]},
+             2, 2, 10),
+            ({"key": "Old", "bullets": 2, "has_tools": True,
+              "bullet_texts": [
+                  "Landed Playwright as the company UI testing tool",
+                  "Configured Playwright pipelines for cross-repo runs"]},
+             3, 3, 10),
+        ]
+        self.jd = ("playwright",)
+
+    def test_emits_batch_sized_to_residual_gap(self):
+        # required=20. Old and Middle are TRUE dead ends (both bullets
+        # JD-protected -> feasible 0). Tools de-wraps (2) + top-block (2)
+        # = 4 feasible. Residual 16 -> ceil(16/2.5)=7 bullets wanted,
+        # capped at GEICO's 3 unprotected.
+        plan = [
+            ("Old", "drop 2 bullet(s) (saves ~5 lines)", 5.0),
+            ("Middle", "drop 2 bullet(s) (saves ~5 lines)", 5.0),
+        ]
+        batch, adjusted, feasible = mr._top_role_batch(
+            self.matched, plan, 2.5, 20, tools_savings=2,
+            top_block_count=2, jd_terms=self.jd)
+        self.assertIsNotNone(batch)
+        self.assertEqual(batch[0], "GEICO")
+        self.assertIn("drop 3 bullet(s)", batch[1])  # capped at 5-2=3 unprotected
+        self.assertAlmostEqual(batch[2], 3 * 2.5)
+        # Dead-end entries for the OTHER roles survive (they print the
+        # honest infeasibility note); no GEICO entry to double-count.
+        self.assertEqual([p[0] for p in adjusted], ["Old", "Middle"])
+        self.assertAlmostEqual(feasible, 4.0)
+
+    def test_no_batch_when_feasible_cuts_close_the_gap(self):
+        plan = [("Old", "drop 2 bullet(s) (saves ~5 lines)", 5.0)]
+        batch, adjusted, feasible = mr._top_role_batch(
+            self.matched, plan, 2.5, 4, tools_savings=4,
+            top_block_count=1, jd_terms=set())
+        self.assertIsNone(batch)
+        # feasible = 2 unprotected * 2.5 + 4 tools + 1 top-block = 10
+        self.assertAlmostEqual(feasible, 10.0)
+
+    def test_no_batch_when_top_role_fully_protected(self):
+        matched = [({"key": "GEICO", "bullets": 2, "has_tools": True,
+                     "bullet_texts": ["Landed Playwright as the company UI "
+                                       "testing tool"]}, 1, 1, 8)]
+        plan = []
+        batch, _adjusted, _feasible = mr._top_role_batch(
+            matched, plan, 2.5, 10, tools_savings=0, top_block_count=0,
+            jd_terms=("playwright",))
+        self.assertIsNone(batch)
+
+    def test_superseded_top_role_entry_removed_from_plan(self):
+        # If the oldest-first loop reached the top role with a dead-end
+        # budget, the batch replaces it (one authoritative sizing).
+        plan = [("GEICO", "drop 8 bullet(s) (saves ~20 lines)", 20.0)]
+        batch, adjusted, _feasible = mr._top_role_batch(
+            self.matched, plan, 2.5, 40, tools_savings=0,
+            top_block_count=0, jd_terms=set())
+        self.assertIsNotNone(batch)
+        self.assertEqual(adjusted, [])
+
+    def test_drop_sections_renders_batch_with_custom_header(self):
+        batch = ("GEICO", "drop 2 bullet(s) (saves ~5 lines)", 5.0)
+        roles = [self.matched[0][0]]
+        sections = mr._drop_sections(
+            [batch], roles,
+            header_template="TOP-ROLE TRIM BATCH ({key}; closes the "
+                            "residual gap after the cuts above)")
+        self.assertEqual(len(sections), 1)
+        self.assertIn("TOP-ROLE TRIM BATCH (GEICO", sections[0])
+        self.assertIn("find_p(ps,", sections[0])
+        self.assertNotIn("Championed agentic workflows", sections[0])
+
+
 class JDAwareTests(unittest.TestCase):
     """--jd makes the DROP PLAN JD-aware: bullets whose text matches a
     candidate-tech term the JD asks for (Cypress, Gatling, Jenkins, ...) or
