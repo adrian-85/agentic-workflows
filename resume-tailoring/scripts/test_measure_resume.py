@@ -372,6 +372,172 @@ class DropPlanTests(unittest.TestCase):
         self.assertEqual(mr._drop_sections(plan, roles), [])
 
 
+class JDAwareTests(unittest.TestCase):
+    """--jd makes the DROP PLAN JD-aware: bullets whose text matches a
+    candidate-tech term the JD asks for (Cypress, Gatling, Jenkins, ...) or
+    a named JD practice (mentorship, shift-left) must NOT be suggested for
+    cutting while any non-matching bullet remains. This session's failure:
+    the JD-blind scorer ranked 'Championed the adoption of Cypress' and
+    'Created performance tests using Gatling' (both directly named JD quals)
+    as weak, and silently cut a 'Mentored junior team member' bullet that
+    the JD's 'Mentor junior QA engineers' requires."""
+
+    def _prof_body(self):
+        """Resume with a Technical Proficiencies block, a Tools line, and a
+        job-title paragraph (the vocabulary sources for --jd terms)."""
+        return _body([
+            _para("Technical Proficiencies", style="SectionHeading"),
+            _para("Programming Languages: Java, C#, JavaScript, Python"),
+            _para("Automation Testing Frameworks: Karate, Cypress, Playwright, "
+                    "Gatling, Selenium"),
+            _para("CI/CD: Jenkins, CircleCI, GitHub Actions, Azure DevOps"),
+            _para("Certifications", style="SectionHeading"),
+            _para(mr.SECTION_CAREER, style="SectionHeading"),
+            _para("Company ABC, City" + _sample_date() + " – 04/2020",
+                  style=mr.COMPANY_STYLE),
+            _para("Senior SDET", style="JobTitleBlock"),
+            _para("Championed the adoption of Cypress, co-architecting the "
+                    "initial framework", numId=2),
+            _para("Created performance tests using Gatling", numId=2),
+            _para("Established weekly cross-team meetings", numId=2),
+            _para("Tools & Technologies: Cypress, JavaScript, Gatling, Jenkins"),
+            _para(mr.SECTION_EDUCATION, style="SectionHeading"),
+        ])
+
+    def test_jd_terms_intersect_proficiencies_with_jd(self):
+        jd = "Hands-on Selenium, Cypress, or Playwright. CI/CD with Jenkins " \
+             "or GitHub Actions. Performance testing with Gatling."
+        terms = mr._jd_terms(jd, self._prof_body())
+        for want in ("cypress", "playwright", "jenkins", "gatling",
+                     "github actions"):
+            self.assertIn(want, terms, f"{want!r} must be a JD-matched term")
+
+    def test_jd_terms_exclude_generic_language_stopwords(self):
+        # Java/Python/etc. appear in nearly every bullet; protecting them
+        # over-protects. They must NOT become JD terms.
+        jd = "Java, Python, C# programming. SQL and REST APIs."
+        terms = mr._jd_terms(jd, self._prof_body())
+        for banned in ("java", "python", "javascript", "c#", "sql", "api"):
+            self.assertNotIn(banned, terms)
+
+    def test_jd_terms_include_title_vocab(self):
+        # 'sdet' comes from the job title line, not the proficiency block.
+        jd = "Five or more years as an SDET."
+        terms = mr._jd_terms(jd, self._prof_body())
+        self.assertIn("sdet", terms)
+
+    def test_jd_terms_include_bullet_only_tool(self):
+        # A tool the candidate uses ONLY in a bullet (e.g. Snyk folded into
+        # the master, absent from the proficiency list) must still be a JD
+        # term when the JD names it — otherwise the Snyk bullet falls to the
+        # cut list, the very JD-blind bug --jd exists to fix.
+        body = _body([
+            _para("Technical Proficiencies", style="SectionHeading"),
+            _para("Programming Languages: Java, C#, JavaScript, Python"),
+            _para("Certifications", style="SectionHeading"),
+            _para(mr.SECTION_CAREER, style="SectionHeading"),
+            _para("Company ABC, City" + _sample_date() + " – 04/2020",
+                  style=mr.COMPANY_STYLE),
+            _para("Senior SDET", style="JobTitleBlock"),
+            _para("Adhered high-priority compliance and configured Snyk "
+                  "for team repositories", numId=2),
+            _para("Tools & Technologies: Java, SQL"),
+            _para(mr.SECTION_EDUCATION, style="SectionHeading"),
+        ])
+        jd = "Exposure to security testing tools (OWASP ZAP, Burp Suite, " \
+             "Snyk)."
+        terms = mr._jd_terms(jd, body)
+        self.assertIn("snyk", terms)
+
+    def test_jd_terms_exclude_common_prose_words(self):
+        # Prose words that appear in both the JD and a bullet (coverage,
+        # stakeholders) must NOT become JD terms — that over-protects
+        # everything and defeats the ranking.
+        body = self._prof_body()
+        body.append(_para("Increased test coverage and engaged stakeholders"))
+        jd = "Drive continuous improvement of test coverage. Engage " \
+             "stakeholders across the SDLC."
+        terms = mr._jd_terms(jd, body)
+        for banned in ("coverage", "stakeholders"):
+            self.assertNotIn(banned, terms)
+
+    def test_jd_terms_skip_short_or_numeric_tokens(self):
+        self.assertNotIn("c", mr._jd_terms("C programming", self._prof_body()))
+
+    def test_jd_matched_bullets_never_suggested_while_weak_remain(self):
+        # The session's failure: Cypress (JD Required qual) ranked weak and
+        # landed on the cut list. With --jd it must be excluded.
+        bullets = [
+            "Championed the adoption of Cypress, co-architecting the initial "
+            "framework",
+            "Established weekly cross-team meetings",
+        ]
+        drops = mr._suggest_drops(bullets, 1, jd_terms={"cypress"})
+        self.assertEqual(drops, [bullets[1]])
+
+    def test_jd_matched_gatling_performance_bullet_kept(self):
+        bullets = [
+            "Created performance tests using Gatling, pinpointing a major "
+            "issue in containerized services",
+            "Established bi-monthly interdepartmental QA meetings",
+        ]
+        drops = mr._suggest_drops(bullets, 1, jd_terms={"gatling"})
+        self.assertEqual(drops, [bullets[1]])
+
+    def test_suggest_drops_without_jd_terms_is_unchanged(self):
+        # Backward compat: no --jd means the old JD-blind ranking, where a
+        # Cypress bullet (JD-relevant but unquantified) IS a cut candidate.
+        bullets = [
+            "Championed the adoption of Cypress",
+            "Established weekly cross-team meetings",
+        ]
+        drops = mr._suggest_drops(bullets, 2)
+        # Both are cut candidates without --jd; the generic one ranks weaker.
+        self.assertIn(bullets[0], drops,
+                      "without --jd the old JD-blind ranking must be unchanged")
+        self.assertEqual(drops, [bullets[1], bullets[0]])
+
+    def test_concept_mentorship_bullet_kept(self):
+        # The session's worst miss: a 'Mentored junior team member' bullet
+        # was cut, but the JD requires mentoring. A JD practice phrase in
+        # JD_CONCEPTS must keep it out of the cut list.
+        bullets = [
+            "Mentored junior team member resulting in their successful "
+            "transition to an automation role",
+            "Established weekly cross-team meetings",
+        ]
+        drops = mr._suggest_drops(bullets, 1)
+        self.assertEqual(drops, [bullets[1]])
+
+    def test_concept_hits_lists_matches(self):
+        self.assertEqual(
+            mr._concept_hits("Mentored a junior QA engineer one-on-one"),
+            ["mentor"],
+        )
+
+    def test_drop_sections_notes_jd_kept_bullets(self):
+        plan = [("Company ABC, City", "drop 1 bullet(s) (saves ~2 lines)", 2.0)]
+        roles = [{"key": "Company ABC, City", "bullet_texts": [
+            "Championed the adoption of Cypress frameworks across the team",
+            "Established weekly cross-team meetings",
+        ]}]
+        sections = mr._drop_sections(
+            plan, roles, jd_terms={"cypress"},
+        )
+        self.assertEqual(len(sections), 1)
+        self.assertIn("JD-matched (kept)", sections[0])
+        self.assertIn("Cypress frameworks", sections[0])
+        dropped = [l for l in sections[0].splitlines() if "find_p(ps," in l]
+        self.assertEqual(len(dropped), 1)
+        self.assertIn("Established weekly", dropped[0])
+
+    def test_drop_plan_lines_respect_jd_terms(self):
+        bullets = ["Championed Cypress adoption", "Some generic bullet"]
+        lines = mr._drop_plan_lines(bullets, 1, jd_terms={"cypress"})
+        self.assertEqual(len(lines), 1)
+        self.assertIn("Some generic bullet", lines[0])
+
+
 class VisibleSpanTests(unittest.TestCase):
     """_visible_span parses company-header date ranges into a span."""
 

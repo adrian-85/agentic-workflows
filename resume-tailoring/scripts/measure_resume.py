@@ -9,7 +9,14 @@ batch instead of discovered through a cut-render-cut-render loop.
 Usage::
 
     python3 scripts/measure_resume.py <resume.docx> [TARGET_PAGES]
+    python3 scripts/measure_resume.py <resume.docx> [TARGET_PAGES] \
+        --jd <raw-JD.txt> [--protect "<phrase>"]
     TARGET_PAGES=2 python3 scripts/measure_resume.py <resume.docx>
+
+``--jd`` makes the DROP PLAN JD-aware (see JD_CONCEPTS / JD_STOP below):
+candidate-tech terms that the raw JD also asks for — and JD practice
+phrases like mentorship — are excluded from the cut suggestions and listed
+as "JD-matched (kept)", so the plan never fights the JD.
 
 Reads role/bullet structure from the .docx (via docx_edit) and rendered line
 counts from the PDF (via pdftotext). Requires libreoffice + pdftotext.
@@ -52,7 +59,9 @@ W = de.W
 # ---------------------------------------------------------------------- #
 SECTION_CAREER = "Career Experience"
 SECTION_EDUCATION = "Education"
+SECTION_PROFICIENCIES = "Technical Proficiencies"
 COMPANY_STYLE = "CompanyBlock"
+VOCAB_STYLE = "JobTitleBlock"  # job-title paragraphs feed the --jd vocabulary
 DATE_RE = re.compile(r"\d{1,2}/\d{4}")  # dates on role headers, e.g. 02/2019
 BULLET_STYLES = ("ListBullet",)  # styles whose bullets carry no paragraph numId
 
@@ -346,6 +355,162 @@ GENERIC_PHRASES = (
 _NUMBER = re.compile(r"\d|%")
 
 
+# ---------------------------------------------------------------------- #
+# JD-aware ranking (--jd <file>). The weakness scorer is JD-blind: it ranks
+# by numbers and generic phrasing, so a bullet like "Championed the
+# adoption of Cypress" — a directly named JD Required qual — can land on
+# the cut list, and a "Mentored junior team member" bullet can be silently
+# cut under page pressure even though the JD requires mentorship. --jd
+# fixes that with zero NLP: a term is JD-relevant when it appears in BOTH
+# the candidate's own tech vocabulary (proficiency lines, Tools lines, job
+# titles — the universe of what the candidate claims) AND the raw JD text.
+# The intersection is exactly "tools the JD asks for that this candidate
+# actually has", and it is robust to JD phrasing (Selenium vs Selenium
+# WebDriver).
+# ---------------------------------------------------------------------- #
+
+# Candidate-tech terms that are too generic across bullets to signal JD
+# relevance (protecting them over-protects: Java/Python appear everywhere).
+# Add to this list only when a vocabulary term keeps over-matching.
+JD_STOP = frozenset({
+    "java", "python", "javascript", "typescript", "c#", "c", "c++", "go",
+    "ruby", "php", "scala", "kotlin", "swift", "cobol", "r", "matlab",
+    "test", "tests", "testing", "api", "rest", "restful", "sql", "ci",
+    "cd", "sdlc", "web", "mobile", "app", "apps", "application",
+    "applications", "software", "automation", "framework", "frameworks",
+    "tool", "tools", "tooling", "quality", "qa", "engineering",
+    "engineer", "engineers", "experience", "senior", "staff",
+    "technical", "tech", "technology", "technologies", "systems",
+    "system", "code", "codes", "platform", "platforms", "service",
+    "services", "product", "products", "process", "processes", "team",
+    "teams", "project", "projects", "cloud", "data", "documentation",
+    "release", "releases", "integration", "unit", "end", "end-to-end",
+    "e2e", "architecture", "architectures", "design", "development",
+    "developer", "build", "building", "report", "reports", "model",
+    "models", "workflow", "workflows", "standard", "standards",
+    "functional", "regression", "smoke", "acceptance", "analytics",
+    "metric", "metrics", "delivery", "operations", "monitoring",
+    "infrastructure", "devops", "tested", "testers",
+})
+
+# JD-Named PRACTICES the vocabulary intersection cannot see (they are not
+# tools): "Mentor junior QA engineers" names a responsibility, not a
+# technology. A bullet naming one of these is JD-evidence and must not be
+# cut while non-matching bullets remain. Extend with JD-specific practice
+# phrases when the JD names one (shift-left, contract testing, ...).
+JD_CONCEPTS = (
+    "mentor", "mentoring", "mentorship", "shift-left", "shift left",
+    "contract testing", "root-cause", "root cause", "risk-based",
+    "exploratory", "chaos", "model-based", "code review", "design review",
+    "traceability",
+)
+
+
+def _proficiency_block(body):
+    """Text of the Technical Proficiencies section (between its heading and
+    the next section heading). This is the resume's own tech vocabulary."""
+    ps = de.paras(body)
+    start = None
+    for i, p in enumerate(ps):
+        if de.text_of(p).strip() == SECTION_PROFICIENCIES:
+            start = i
+            break
+    if start is None:
+        return []
+    out = []
+    for p in ps[start + 1:]:
+        if de.style_and_numid(p)[0] == "SectionHeading":
+            break
+        if de.text_of(p).strip():
+            out.append(de.text_of(p))
+    return out
+
+
+def _line_terms(line):
+    """Tech terms from one labeled line ("Label: values"): each comma/;
+    chunk verbatim (so multi-word "GitHub Actions" stays a phrase) plus
+    len>=4 words inside multi-word chunks (so "sdet" from "Senior SDET"
+    survives while "actions" is too generic to matter at len 7)."""
+    terms = set()
+    if ":" in line:
+        line = line.split(":", 1)[1]
+    for chunk in re.split(r"[,;]", line):
+        chunk = chunk.strip().lower()
+        if not chunk:
+            continue
+        terms.add(chunk)
+        if " " in chunk:
+            for word in re.findall(r"[a-z0-9][a-z0-9#.+]*", chunk):
+                if len(word) >= 4 and not re.fullmatch(r"[0-9.]+\w*", word):
+                    terms.add(word)
+    return terms
+
+
+def _vocab_terms(body):
+    """The candidate's claimed tech vocabulary: proficiency lines, every
+    role's Tools & Technologies line, and job-title paragraphs."""
+    terms = set()
+    for line in _proficiency_block(body):
+        terms |= _line_terms(line)
+    for p in de.paras(body):
+        t = de.text_of(p)
+        if t.lower().startswith("tools") and "technolog" in t.lower():
+            terms |= _line_terms(t)
+        elif de.style_and_numid(p)[0] == VOCAB_STYLE:
+            terms |= _line_terms(t)
+    return terms
+
+
+def _bullet_terms(body):
+    """Single-word alnum tokens (len>=4, not stops/numeric) from every
+    numbered bullet. This catches candidate tools that appear ONLY in a
+    bullet (e.g. Snyk folded into the master, absent from the proficiency
+    and Tools lists) — a gap the vocabulary intersection alone misses.
+    Prose words are largely filtered by JD_STOP; the token must also appear
+    in the JD to become a term, so misses only over-protect when the JD
+    itself names a prose word."""
+    terms = set()
+    for p in de.paras(body):
+        style, numId = de.style_and_numid(p)
+        if numId in (None, "0") and style not in BULLET_STYLES:
+            continue
+        for w in re.findall(r"[a-z0-9][a-z0-9#.+-]*", de.text_of(p).lower()):
+            if w in JD_STOP or len(w) < 4 or re.fullmatch(r"[0-9.]+\w*", w):
+                continue
+            terms.add(w)
+    return terms
+
+
+def _jd_terms(jd_text, body):
+    """Candidate-technical terms the JD actually asks for: vocabulary and
+    bullet-tool terms the JD also names, minus generic stopwords. Empty
+    when jd_text is empty/garbage — callers fall back to the JD-blind
+    ranking."""
+    jd_low = jd_text.lower()
+    terms = set()
+    for t in _vocab_terms(body):
+        if len(t) < 3 or t in JD_STOP or re.fullmatch(r"[0-9.]+\w*", t):
+            continue
+        if t in jd_low:
+            terms.add(t)
+    for t in _bullet_terms(body):
+        if t in jd_low:
+            terms.add(t)
+    return terms
+
+
+def _jd_hits(text, jd_terms):
+    """Sorted list of JD terms present in ``text`` (substring, lowercase)."""
+    low = text.lower()
+    return sorted(t for t in jd_terms if t in low)
+
+
+def _concept_hits(text):
+    """JD practice phrases present in ``text`` (JD_CONCEPTS)."""
+    low = text.lower()
+    return [c for c in JD_CONCEPTS if c in low]
+
+
 def _weakness_key(text):
     """Deterministic weakness sort key for a bullet: weakest first.
 
@@ -367,34 +532,42 @@ def _is_protected(text, protect):
     return any(p.lower() in low for p in protect)
 
 
-def _suggest_drops(bullet_texts, budget, protect=()):
+def _jd_kept(text, jd_terms):
+    """True if JD evidence (a matched JD term or a JD practice phrase)."""
+    return bool(_jd_hits(text, jd_terms)) or bool(_concept_hits(text))
+
+
+def _suggest_drops(bullet_texts, budget, protect=(), jd_terms=()):
     """The `budget` weakest bullets (weakest first), deterministically.
 
     Bullets containing a ``protect`` phrase are **never** suggested — the
-    budget is filled exclusively from unprotected bullets.  When the budget
-    exceeds the unprotected supply, returns only what is available (a short
-    list); callers should surface the shortfall to the user.
+    budget is filled exclusively from unprotected bullets.  With ``jd_terms``
+    (from --jd), bullets carrying JD evidence (a matched term or a JD
+    practice phrase) are excluded the same way, while any non-JD bullet
+    remains — so a Cypress bullet stops being cuttable the moment the JD
+    asks for Cypress.  When the budget exceeds the unprotected supply,
+    returns only what is available (a short list); callers should surface
+    the shortfall to the user.
     """
     if budget <= 0 or not bullet_texts:
         return []
-    unprotected = [t for t in bullet_texts if not _is_protected(t, protect)]
-    ranked = sorted(unprotected, key=_weakness_key)
+    cuttable = [t for t in bullet_texts
+                if not _is_protected(t, protect) and not _jd_kept(t, jd_terms)]
+    ranked = sorted(cuttable, key=_weakness_key)
     return ranked[:budget]
 
 
-def _drop_plan_lines(bullet_texts, budget, all_texts=None, protect=()):
-    """Copy-pasteable find_p lines for the `budget` weakest bullets.
-
-    Each line is ``find_p(ps, "<unique prefix>")  # <full bullet>`` so the
-    agent can paste the exact cut into the tailor script with zero
-    render-measure iterations. Uniqueness is checked against ``all_texts``
-    (pass the FULL document's paragraph texts so the emitted prefix stays
-    unique document-wide), falling back to the role's own bullets.
-    ``protect`` phrases keep JD-critical bullets out of the suggestions.
+def _drop_suggestions(bullet_texts, budget, all_texts=None, protect=(),
+                      jd_terms=()):
+    """[(find_p_prefix, full_bullet_text)] for the `budget` weakest cuttable
+    bullets — the structured form behind the DROP PLAN's copy-pasteable
+    lines, consumed by squeeze_resume.py's auto loop so it applies exactly
+    what the plan names.
     """
     out = []
     unique_against = all_texts if all_texts else bullet_texts
-    for text in _suggest_drops(bullet_texts, budget, protect=protect):
+    for text in _suggest_drops(bullet_texts, budget, protect=protect,
+                               jd_terms=jd_terms):
         try:
             idx = unique_against.index(text)
         except ValueError:
@@ -402,14 +575,33 @@ def _drop_plan_lines(bullet_texts, budget, all_texts=None, protect=()):
         prefix = de.shortest_unique_prefix(unique_against, idx, min_len=6)
         if prefix is None:
             continue
-        out.append(f'find_p(ps, "{prefix}")  # {text}')
+        out.append((prefix, text))
     return out
+
+def _drop_plan_lines(bullet_texts, budget, all_texts=None, protect=(),
+                     jd_terms=()):
+    """Copy-pasteable find_p lines for the `budget` weakest bullets.
+
+    Each line is ``find_p(ps, "<unique prefix>")  # <full bullet>`` so the
+    agent can paste the exact cut into the tailor script with zero
+    render-measure iterations. Uniqueness is checked against ``all_texts``
+    (pass the FULL document's paragraph texts so the emitted prefix stays
+    unique document-wide), falling back to the role's own bullets.
+    ``protect`` phrases and ``jd_terms`` keep JD-critical bullets out of the
+    suggestions.
+    """
+    return [
+        f'find_p(ps, "{prefix}")  # {text}'
+        for prefix, text in _drop_suggestions(
+            bullet_texts, budget, all_texts=all_texts, protect=protect,
+            jd_terms=jd_terms)
+    ]
 
 
 _DROP_ACTION = re.compile(r"^drop (\d+) bullet\(s\)")
 
 
-def _drop_sections(plan, roles, all_texts=None, protect=()):
+def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):
     """Turn a BATCH RECLAIM PLAN into per-role DROP PLAN sections.
 
     Each "drop N bullet(s)" plan entry (keyed by role key) becomes a
@@ -417,6 +609,11 @@ def _drop_sections(plan, roles, all_texts=None, protect=()):
     lines. "consider dropping the whole role" entries produce no section —
     the header/tools lines save more than any single bullet, and the
     seniority decision is the user's, not the ranker's.
+
+    With ``jd_terms`` (--jd), JD-evidence bullets are excluded from the
+    suggestions and listed under "JD-matched (kept)" with the terms that
+    matched — so the plan shows WHY a bullet was kept instead of making the
+    agent re-derive it by reading each suggestion against the JD.
     """
     sections = []
     for key, action, _saved in plan:
@@ -428,20 +625,41 @@ def _drop_sections(plan, roles, all_texts=None, protect=()):
             continue
         n = int(m.group(1))
         bullets = role.get("bullet_texts") or []
-        lines = _drop_plan_lines(bullets, n, all_texts=all_texts, protect=protect)
-        protected_count = sum(1 for b in bullets if _is_protected(b, protect))
+        jd_kept = [(b, _jd_hits(b, jd_terms)) for b in bullets
+                   if _jd_hits(b, jd_terms)]
+        concept_kept = [(b, _concept_hits(b)) for b in bullets
+                        if _concept_hits(b) and not _jd_hits(b, jd_terms)]
+        kept_bullets = [b for b in bullets
+                        if _is_protected(b, protect) or _jd_kept(b, jd_terms)]
+        protected_count = len(kept_bullets)
         unprotected_count = len(bullets) - protected_count
+        lines = _drop_plan_lines(bullets, n, all_texts=all_texts,
+                                 protect=protect, jd_terms=jd_terms)
         section = [f"DROP PLAN ({key}): drop {n} of {len(bullets)} bullets"]
+        if jd_kept or concept_kept:
+            section.append(
+                "  JD-matched (kept) — never suggested while weaker "
+                "bullets remain:"
+            )
+            for b, hits in jd_kept:
+                section.append(f"    - {b[:68]}  [{' , '.join(hits)}]")
+            for b, hits in concept_kept:
+                section.append(
+                    f"    - {b[:68]}  [practice: {', '.join(hits)}]"
+                )
         if n > unprotected_count and protected_count > 0:
             if not lines:
                 section.append(
-                    f"  ALL {len(bullets)} bullet(s) protected — budget={n} cannot"
-                    f" be met without cutting protected content."
+                    f"  ALL {len(bullets)} bullet(s) protected — budget={n} "
+                    "cannot be met without cutting JD/protected content. "
+                    "Consider dropping the whole role (seniority decision) "
+                    "or trimming the Tools line instead."
                 )
             else:
                 section.append(
-                    f"  NOTE: budget={n} but only {unprotected_count} unprotected "
-                    f"bullet(s) — {protected_count} protected bullet(s) excluded."
+                    f"  NOTE: budget={n} but only {unprotected_count} "
+                    f"unprotected bullet(s) — {protected_count} excluded "
+                    f"(JD-matched/protected)."
                 )
         if lines:
             section.append("  weakest-first (generic/no-number first — review each")
@@ -549,6 +767,7 @@ def _reclaim_batch(matched, per_bullet, gap):
 def main():
     argv = [a for a in sys.argv[1:]]
     protect = []
+    jd_file = None
     kept = []
     i = 0
     while i < len(argv):
@@ -556,19 +775,28 @@ def main():
         if a == "--protect":
             protect.append(argv[i + 1])
             i += 2
+        elif a == "--jd":
+            jd_file = argv[i + 1]
+            i += 2
         else:
             kept.append(a)
             i += 1
     if len(kept) < 1:
         print("usage: measure_resume.py <resume.docx> [TARGET_PAGES] "
-              "[--protect \"<JD-critical phrase>\"]",
+              "[--jd <raw-JD.txt>] [--protect \"<JD-critical phrase>\"]",
               file=sys.stderr)
         print("  Renders the docx, reports per-role rendered line costs and "
               "the reclaim gap to TARGET_PAGES (default 2, or env).",
               file=sys.stderr)
+        print("  --jd <file>: raw job-description text. Bullets whose text "
+              "matches a candidate-tech term the JD asks for, or a named JD "
+              "practice (mentorship, shift-left), are excluded from the DROP "
+              "PLAN and listed as 'JD-matched (kept)' — the scorer alone "
+              "cannot know the JD.",
+              file=sys.stderr)
         print("  --protect: pass repeatedly; bullets containing the phrase "
-              "are never suggested for cutting (JD-critical content the "
-              "weakness scorer cannot know about).",
+              "are never suggested for cutting (candidate-specific facts "
+              "the JD text cannot name, e.g. a confirmed Snyk duty).",
               file=sys.stderr)
         sys.exit(2)
     docx = kept[0]
@@ -577,6 +805,26 @@ def main():
 
     root, body, _, _, _ = de.load(docx)
     roles = _roles(body)
+
+    jd_terms = set()
+    if jd_file:
+        try:
+            with open(jd_file, encoding="utf-8", errors="replace") as f:
+                jd_text = f.read()
+        except OSError as e:
+            print(f"error: cannot read --jd file {jd_file}: {e}",
+                  file=sys.stderr)
+            sys.exit(2)
+        jd_terms = _jd_terms(jd_text, body)
+        if jd_terms:
+            ex = ", ".join(sorted(jd_terms)[:8])
+            print(f"JD-aware ranking: {len(jd_terms)} term(s) matched from "
+                  f"{jd_file} (e.g. {ex})")
+        else:
+            print(f"JD-aware ranking: no candidate-tech terms in {jd_file} "
+                  "intersect the resume's vocabulary — falling back to the "
+                  "JD-blind ranking; check the file is the raw JD text.",
+                  file=sys.stderr)
 
     with tempfile.TemporaryDirectory() as td:
         pdf = _render_pdf(docx, td)
@@ -661,7 +909,7 @@ def main():
         # WHICH of a role's bullets to cut.
         all_texts = [de.text_of(p) for p in de.paras(body)]
         sections = _drop_sections(plan, roles, all_texts=all_texts,
-                                  protect=protect)
+                                  protect=protect, jd_terms=jd_terms)
         if sections:
             print()
             for section in sections:

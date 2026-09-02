@@ -36,7 +36,7 @@ subtractive: cut from the oldest roles, never the most recent.
 | 5 | No sections between Summary & Proficiencies | — |
 | 6 | Re-anchor senior role (merge, don't append) | `set_text`, `merge_into` |
 | 7 | Expand role adjacent to JD industry/stage | `set_text` |
-| 8 | Compress oldest roles (measure first) | `measure_resume.py` (DROP PLAN) |
+| 8 | Compress oldest roles (measure first) | `measure_resume.py` `--jd` (DROP PLAN); `squeeze_resume.py` for the residual gap |
 | 9 | Fix grammar, typos, punctuation | grep + `validate_resume.py` |
 | 10 | Save tailored copy (never overwrite master) | `save()` |
 | 11 | Render + verify PDF | `render_pdf.sh` |
@@ -57,9 +57,10 @@ User-supplied personal assets (`*.docx` / `*.pdf`, gitignored) live in the skill
 
 `scripts/` (each tool's docstring / usage is the reference; the steps below point at them):
 `docx_edit.py` (Helper library) · `tailor_resume.py` (template) · `render_pdf.sh` (Steps 8, 11) ·
-`measure_resume.py` (Step 8) · `validate_resume.py` (Steps 3, 11; `--master` auto-detects the
+`measure_resume.py` (Step 8; `--jd` makes its DROP PLAN JD-aware) · `squeeze_resume.py` (Step 8;
+auto-tightens to the page budget) · `validate_resume.py` (Steps 3, 11; `--master` auto-detects the
 `* Master Resume.docx` next to the input) · `diff_resume.py` (Token-spend) · `read_profile.sh` (Step 1) ·
-`test_*.py` unit tests (`python3 -m unittest test_docx_edit test_measure_resume test_validate_resume`,
+`test_*.py` unit tests (`python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test_squeeze_resume`,
 from `scripts/`).
 
 Run scripts from the skill root so the relative `SRC` path resolves:
@@ -137,13 +138,23 @@ manual habits are:
    map adds style/numId — only for rare layout checks). For CUT decisions, take the DROP
    PLAN's `find_p` lines directly (Step 8) — the prefixes are already emitted,
    uniqueness-checked against the document.
-2. **Before reusing a tailor script after the user edited the .docx, run `diff_resume.py --tailor`**
+2. **Run `measure_resume.py <MASTER> <target> --jd <JD.txt>` at AUTHORING time**, before
+   writing the tailor script, and paste its DROP PLAN `find_p` lines verbatim into the
+   script's `drop()` calls. Running measure on the master (not the target) plans all the
+   cuts up front instead of discovering them after the first build. `--jd` protects JD
+   evidence automatically (see Step 8), so the plan doesn't fight the JD.
+3. **Before reusing a tailor script after the user edited the .docx, run `diff_resume.py --tailor`**
    first — one command surfaces manual edits a blind re-run would wipe. (The drift sidecar
    is the tripwire; diff_resume is the review.)
+4. **Over-cut by 1–2 bullets per batch; if still over, drop a whole oldest role.** Never
+   hand-shorten sentences to chase a page break — it's the lowest-leverage, highest-cycle
+   edit. When only a few lines over, run `squeeze_resume.py` (Step 8) to close the residual
+   gap automatically instead of trimming by hand.
 
 Tool-enforced (no instruction needed): `render_pdf.sh` refuses broken or unapproved-elimination
-docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN, its DROP PLAN with
-copy-pasteable `find_p` cut lines, and flags page widows / underfilled pages (Step 8).
+docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
+with copy-pasteable `find_p` cut lines, and flags page widows / underfilled pages (Step 8);
+`squeeze_resume.py` closes the residual page gap automatically.
 
 ## Workflow
 
@@ -307,17 +318,46 @@ role starts cleanly at the top of a page.
 *how many* bullets to cut per role; the **DROP PLAN** section names *which*, as
 copy-pasteable `find_p(ps, "…")` lines — ranked weakest-first by a deterministic
 scorer (generic/no-number bullets first; quantified ones last; ties toward
-longer text since it saves more lines). Pass `--protect "<JD-critical
-phrase>"` (repeatable) for anything the scorer can't know is valuable — e.g.
-`--protect "partner integrations" --protect "sandbox"` — so JD-critical
-bullets never land on the cut list:
+longer text since it saves more lines).
+
+**Run `--jd <raw-JD.txt>` so the DROP PLAN is JD-aware.** The scorer alone is
+JD-blind: it ranks by numbers and generic phrasing, so a bullet like
+"Championed the adoption of Cypress" (a named JD qual) or a "Mentored junior
+QA engineer" bullet (the JD requires mentorship) can land on the cut list and
+be silently cut under page pressure. `--jd` extracts the candidate-tech terms
+the JD asks for (matched against the resume's proficiency/Tools/title
+vocabulary plus bullet-only tools) and excludes JD-evidence bullets from the
+suggestions, listing them under "JD-matched (kept)" with the terms that
+matched:
 
 ```bash
-python3 scripts/measure_resume.py "<Target>.docx" 2 \
+python3 scripts/measure_resume.py "<Target>.docx" 2 --jd "<JD>.txt"
+```
+
+Pass `--protect "<phrase>"` (repeatable) only for JD-critical facts the raw JD
+text cannot name — candidate-specific evidence like a confirmed Snyk duty or
+"sandbox" — so those bullets never land on the cut list:
+
+```bash
+python3 scripts/measure_resume.py "<Target>.docx" 2 --jd "<JD>.txt" \
     --protect "partner integrations" --protect "sandbox"
 ```
 
-Paste the DROP PLAN's `find_p` prefix strings straight into a
+**Residual gap: run `squeeze_resume.py`, don't trim by hand.** When only a few
+lines over after the planned old-role cuts, the tool automates the remaining
+cut-render-cut loop: each iteration applies the same JD-aware oldest-first
+DROP PLAN, re-measures, and repeats until on target or no JD-safe cuts remain
+(it backs up to `<docx>.pre-squeeze.docx` and logs every cut to
+`<docx>.squeeze.json` as copy-pasteable `find_p` prefixes to fold back into the
+tailor script). It STOPS — never overriding page pressure — when every
+remaining bullet is JD-matched/protected, signaling a whole-role drop
+(seniority alignment, Step 3) or a Tools-line trim instead:
+
+```bash
+python3 scripts/squeeze_resume.py "<Target>.docx" 2 --jd "<JD>.txt"
+```
+
+Paste the DROP PLAN / squeeze log's `find_p` prefix strings straight into a
 `drop(body, [...])` call (never re-derive them by hand), re-run the tailor
 script, re-measure once to confirm the gap closed,
 then render to verify. This replaces the cut-render-cut guesswork.
@@ -446,7 +486,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Using `set_text` on a `"Label: values"` line | Collapses to all-bold — use `set_labeled` (Helper library) |
 | Hand-counting an edit budget (`expect_edits=N`) | Never count — `save()`'s drift sidecar records the baseline and warns on change |
 | Chasing a skip warning as a library bug | Re-dump `--prefixes` on the master FIRST — it may have been edited since your dump (the `MASTER CHANGED:` sidecar warning fires on this); a prefix can also match a paragraph an earlier `drop` already removed if you thread a stale `ps` list — use `ps = drop(body, [...])` |
-| Guessing WHICH bullets to cut from the reclaim gap | Use measure's DROP PLAN + `--protect "<JD ask>"`; paste its `find_p` lines (Step 8) |
+| Guessing WHICH bullets to cut from the reclaim gap | Use measure's DROP PLAN with `--jd "<JD>.txt"` + `--protect "<fact>"`; paste its `find_p` lines, or run `squeeze_resume.py` for the residual gap (Step 8) |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 5) |
 | Appending bullets when content overlaps an existing one | Merge (`merge_into`) — appending blows the page budget (Step 6) |
