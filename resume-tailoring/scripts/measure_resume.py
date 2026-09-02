@@ -39,6 +39,7 @@ to verify.
 import math
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -453,6 +454,7 @@ JD_STOP = frozenset({
     "quality", "engineer", "engineers", "role", "roles", "end",
     "end-to-end", "e2e", "standard", "standards", "deliver",
     "delivered", "delivering", "deliveries",
+    "and", "the", "for", "a", "an", "or", "of", "in", "to", "on",
     "with", "from", "into", "them", "they", "their", "each",
     "when", "while", "where", "which", "through", "throughout",
     "than", "then", "also", "both", "over", "more", "most",
@@ -493,6 +495,21 @@ JD_CONCEPTS = (
     "instructor-led", "incomplete documentation",
 )
 
+# Unambiguous technology nouns that JDs routinely use lowercase
+# mid-sentence ("Perform API, service, integration, and backend
+# validation"). The bullet-only capitalization gate exists to block PROSE
+# flood; these can never be prose, so they are exempt. The generic-hit-rate
+# guard (term hits >50% of bullets) still applies to them. Session failure:
+# 'integration' was gated as bullet-only, so the Amex partner-integrations
+# bullet (strong integration-testing evidence) was ranked for cutting.
+CORE_TECH_NOUNS = frozenset({
+    "api", "apis", "sql", "sdk", "graphql", "grpc", "rest", "soap",
+    "json", "xml", "yaml", "integration", "integrations", "backend",
+    "database", "databases", "sandbox",
+    "regression", "end-to-end", "playwright", "cypress", "selenium",
+    "karate", "postman", "jenkins", "docker", "kubernetes", "terraform",
+})
+
 
 def _proficiency_block(body):
     """Text of the Technical Proficiencies section (between its heading and
@@ -517,19 +534,26 @@ def _proficiency_block(body):
 def _line_terms(line):
     """Tech terms from one labeled line ("Label: values"): each comma/;
     chunk verbatim (so multi-word "GitHub Actions" stays a phrase) plus
-    len>=4 words inside multi-word chunks (so "sdet" from "Senior SDET"
-    survives while "actions" is too generic to matter at len 7)."""
+    len>=3 words inside multi-word chunks. Label text (the "Label" side)
+    also contributes len>=3 words — so an "API & Web Services" line yields
+    "api"/"web"/"services" as claimed vocabulary."""
     terms = set()
     if ":" in line:
-        line = line.split(":", 1)[1]
-    for chunk in re.split(r"[,;]", line):
+        label, value = line.split(":", 1)
+    else:
+        label, value = None, line
+    if label:
+        for word in re.findall(r"[a-z0-9][a-z0-9#.+]*", label.lower()):
+            if len(word) >= 3 and not re.fullmatch(r"[0-9.]+\w*", word):
+                terms.add(word)
+    for chunk in re.split(r"[,;]", value):
         chunk = chunk.strip().lower()
         if not chunk:
             continue
         terms.add(chunk)
         if " " in chunk:
             for word in re.findall(r"[a-z0-9][a-z0-9#.+]*", chunk):
-                if len(word) >= 4 and not re.fullmatch(r"[0-9.]+\w*", word):
+                if len(word) >= 3 and not re.fullmatch(r"[0-9.]+\w*", word):
                     terms.add(word)
     return terms
 
@@ -626,7 +650,8 @@ def _jd_terms(jd_text, body):
         if t in jd_low:
             terms.add(t)
     for t in _bullet_terms(body):
-        if t in jd_low and _jd_capitalized(jd_text, t):
+        if t in jd_low and (_jd_capitalized(jd_text, t)
+                            or t in CORE_TECH_NOUNS):
             terms.add(t)
     if terms:
         bullets = _all_bullet_texts(body)
@@ -652,11 +677,14 @@ def _jd_hits(text, jd_terms):
     single tokens must not be flanked by token characters
     (``[a-z0-9#.+-]``, the same class _bullet_terms tokenizes with).
 
-    Plural tolerance: a singular/plural pair is the SAME evidence (the JD
-    asks for "API integrations", the bullet says "integration test"), so a
-    term ending in ``s`` also matches its singular stem as a whole word.
-    Keeps genuinely-technical lines (an API proficiencies line vs the JD's
-    "APIs") from being misread as off-JD cut candidates.
+    Plural tolerance is BIDIRECTIONAL — a singular/plural pair is the SAME
+    evidence: a term ending in ``s`` also matches its singular stem as a
+    whole word (the JD asks for "API integrations", the bullet says
+    "integration test"), and a singular term also matches its ``s``-plural
+    (JD: "integration"; bullet: "partner integrations"; JD: "API";
+    resume line: "REST APIs"). Keeps genuinely-technical lines (an API
+    proficiencies line vs the JD's "APIs") from being misread as off-JD
+    cut candidates.
     """
     low = text.lower()
     out = []
@@ -668,6 +696,8 @@ def _jd_hits(text, jd_terms):
         cands = {t}
         if len(t) >= 4 and t.endswith("s"):
             cands.add(t[:-1])
+        if len(t) >= 3:
+            cands.add(t + "s")
         for c in cands:
             if re.search(
                     r"(?<![a-z0-9#.+-])" + re.escape(c) + r"(?![a-z0-9#.+-])",
@@ -773,6 +803,59 @@ def _drop_plan_lines(bullet_texts, budget, all_texts=None, protect=(),
 _DROP_ACTION = re.compile(r"^drop (\d+) bullet\(s\)")
 
 
+def _protected_count(bullets, protect=(), jd_terms=()):
+    """How many of ``bullets`` carry JD/protect evidence (never suggested
+    for cutting while weaker bullets remain)."""
+    return sum(1 for b in bullets
+               if _is_protected(b, protect) or _jd_kept(b, jd_terms))
+
+
+def _dead_end_roles(plan, roles, protect=(), jd_terms=()):
+    """Role keys whose "drop N bullet(s)" budget exceeds their unprotected
+    bullets: meeting the budget means cutting JD-matched/protected content.
+    The honest fixes are TOP-BLOCK RECLAIM CANDIDATES, a Tools-line trim,
+    or a whole-role drop — not slicing kept bullets."""
+    dead = []
+    for key, action, _saved in plan:
+        m = _DROP_ACTION.match(action)
+        if not m:
+            continue
+        role = next((r for r in roles if r["key"] == key), None)
+        if not role:
+            continue
+        bullets = role.get("bullet_texts") or []
+        n = int(m.group(1))
+        protected = _protected_count(bullets, protect=protect,
+                                     jd_terms=jd_terms)
+        if n > len(bullets) - protected and protected > 0:
+            dead.append(key)
+    return dead
+
+
+def _apply_simulate(docx_path, drop_prefixes, out_path):
+    """Copy ``docx_path`` to ``out_path`` and drop the WHOLE roles named by
+    each prefix (docx_edit.drop_role) in the copy — the seniority-alignment
+    what-if behind ``--simulate``. Returns ``(out_path, dropped)`` where
+    ``dropped`` lists the company-header texts actually removed (prefixes
+    that matched nothing are absent, with drop_role's stderr warning).
+    The original file is never modified."""
+    shutil.copyfile(docx_path, out_path)
+    root, body, names, data, _ = de.load(out_path)
+    dropped = []
+    for prefix in drop_prefixes:
+        ps = de.paras(body)
+        anchor = de.find_p(ps, prefix)
+        if anchor is None:
+            continue  # drop_role already warned; nothing removed
+        header = de.text_of(anchor)
+        before = len(ps)
+        de.drop_role(body, prefix)
+        if len(de.paras(body)) < before:
+            dropped.append(header)
+    de.save(out_path, root, names, data, drift_key="simulate-temp")
+    return out_path, dropped
+
+
 def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):
     """Turn a BATCH RECLAIM PLAN into per-role DROP PLAN sections.
 
@@ -803,7 +886,8 @@ def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):
                         if _concept_hits(b) and not _jd_hits(b, jd_terms)]
         kept_bullets = [b for b in bullets
                         if _is_protected(b, protect) or _jd_kept(b, jd_terms)]
-        protected_count = len(kept_bullets)
+        protected_count = _protected_count(bullets, protect=protect,
+                                           jd_terms=jd_terms)
         unprotected_count = len(bullets) - protected_count
         lines = _drop_plan_lines(bullets, n, all_texts=all_texts,
                                  protect=protect, jd_terms=jd_terms)
@@ -942,6 +1026,7 @@ def main():
     argv = [a for a in sys.argv[1:]]
     protect = []
     jd_file = None
+    simulate = []
     kept = []
     i = 0
     while i < len(argv):
@@ -952,12 +1037,16 @@ def main():
         elif a == "--jd":
             jd_file = argv[i + 1]
             i += 2
+        elif a == "--simulate":
+            simulate.append(argv[i + 1])
+            i += 2
         else:
             kept.append(a)
             i += 1
     if len(kept) < 1:
         print("usage: measure_resume.py <resume.docx> [TARGET_PAGES] "
-              "[--jd <raw-JD.txt>] [--protect \"<JD-critical phrase>\"]",
+              "[--jd <raw-JD.txt>] [--protect \"<JD-critical phrase>\"] "
+              "[--simulate <company-prefix>]",
               file=sys.stderr)
         print("  Renders the docx, reports per-role rendered line costs and "
               "the reclaim gap to TARGET_PAGES (default 2, or env).",
@@ -972,35 +1061,55 @@ def main():
               "are never suggested for cutting (candidate-specific facts "
               "the JD text cannot name, e.g. a confirmed Snyk duty).",
               file=sys.stderr)
+        print("  --simulate: pass repeatedly; drops each named WHOLE role "
+              "(company-header prefix) in a temp copy and measures THAT — "
+              "the seniority-alignment what-if. The file on disk is never "
+              "modified; compare the printed TIMELINE against the JD's ask.",
+              file=sys.stderr)
         sys.exit(2)
     docx = kept[0]
     target = int(kept[1]) if len(kept) > 1 else int(
         os.environ.get("TARGET_PAGES", "2"))
 
-    root, body, _, _, _ = de.load(docx)
-    roles = _roles(body)
-
-    jd_terms = set()
-    if jd_file:
-        try:
-            with open(jd_file, encoding="utf-8", errors="replace") as f:
-                jd_text = f.read()
-        except OSError as e:
-            print(f"error: cannot read --jd file {jd_file}: {e}",
-                  file=sys.stderr)
-            sys.exit(2)
-        jd_terms = _jd_terms(jd_text, body)
-        if jd_terms:
-            ex = ", ".join(sorted(jd_terms)[:8])
-            print(f"JD-aware ranking: {len(jd_terms)} term(s) matched from "
-                  f"{jd_file} (e.g. {ex})")
-        else:
-            print(f"JD-aware ranking: no candidate-tech terms in {jd_file} "
-                  "intersect the resume's vocabulary — falling back to the "
-                  "JD-blind ranking; check the file is the raw JD text.",
-                  file=sys.stderr)
-
     with tempfile.TemporaryDirectory() as td:
+        if simulate:
+            sim_path = os.path.join(td, "simulated.docx")
+            docx, dropped = _apply_simulate(docx, simulate, sim_path)
+            print("SIMULATED seniority alignment — the file on disk was "
+                  "NOT modified:")
+            for header in dropped:
+                print(f"  dropped whole role: {header}")
+            missing = len(simulate) - len(dropped)
+            if missing:
+                print(f"  ({missing} prefix(es) matched nothing — see "
+                      f"warnings above)")
+            print("  Compare the TIMELINE below against the JD's ask; run "
+                  "without --simulate to apply the drops for real.")
+            print()
+
+        root, body, _, _, _ = de.load(docx)
+        roles = _roles(body)
+
+        jd_terms = set()
+        if jd_file:
+            try:
+                with open(jd_file, encoding="utf-8", errors="replace") as f:
+                    jd_text = f.read()
+            except OSError as e:
+                print(f"error: cannot read --jd file {jd_file}: {e}",
+                      file=sys.stderr)
+                sys.exit(2)
+            jd_terms = _jd_terms(jd_text, body)
+            if jd_terms:
+                ex = ", ".join(sorted(jd_terms)[:8])
+                print(f"JD-aware ranking: {len(jd_terms)} term(s) matched "
+                      f"from {jd_file} (e.g. {ex})")
+            else:
+                print(f"JD-aware ranking: no candidate-tech terms in "
+                      f"{jd_file} intersect the resume's vocabulary — "
+                      f"falling back to the JD-blind ranking; check the "
+                      f"file is the raw JD text.", file=sys.stderr)
+
         pdf = _render_pdf(docx, td)
         pages_text = _pdf_pages_text(pdf)
         total_pages = len(pages_text)
@@ -1087,6 +1196,19 @@ def main():
                   f"listed bullet(s) or trim Tools lines)")
         print("  Generic savings: drop blank inter-role spacers via "
               "remove_empty (~1 line each)")
+
+        # Dead-end plans: roles whose budget cannot be met from unprotected
+        # bullets — say so at the top so the fix is TOP-BLOCK/Tools/whole-
+        # role, not slicing JD-matched bullets.
+        dead = _dead_end_roles(plan, roles, protect=protect,
+                               jd_terms=jd_terms)
+        if dead:
+            print()
+            print("DEAD-END PLANS: " + ", ".join(dead) + " cannot meet "
+                  "their cut budget from unprotected bullets — prefer the "
+                  "TOP-BLOCK RECLAIM CANDIDATES, a Tools-line trim, or a "
+                  "whole-role drop (seniority decision) over cutting "
+                  "JD-matched bullets.")
 
         # TOP-BLOCK CANDIDATES: off-JD proficiency/certification lines are
         # first-class cuts too (line-costed, copy-pasteable), not just role

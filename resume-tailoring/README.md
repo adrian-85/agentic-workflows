@@ -69,7 +69,10 @@ python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test
    Every run copies the master to `<userName> Resume - <Target>.docx` and
    edits that copy — the master is never overwritten.
 5. **Verify every edit applied** — `DOCX_EDIT_STRICT=1` makes any skipped
-   edit fail the run (exit 2) instead of shipping a partial resume.
+   edit fail the run (exit 2) instead of shipping a partial resume. After a
+   fold into the master (or a user edit between sessions), the next run is
+   auto-strict: the `MASTER CHANGED:` gate exits 2 on any skipped edit even
+   without the env var.
 6. **Render and size-check** the PDF, iterating until the last page is full:
 
    ```bash
@@ -77,7 +80,10 @@ python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test
    ```
 
    Measure before cutting with `measure_resume.py` to plan the oldest-role
-   cuts as a batch.
+   cuts as a batch; `--simulate "<company prefix>"` what-ifs a whole-role
+   drop (seniority alignment) without touching the file. Verification is
+   text-only — `--verbose` page map, page-fill table, `pdftotext` — never
+   rendered page images.
 
 ## Resume format assumptions
 

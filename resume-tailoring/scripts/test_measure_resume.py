@@ -13,9 +13,14 @@ Run from the scripts directory (so `docx_edit`/`measure_resume` import):
     python3 -m unittest test_measure_resume
 """
 
+import contextlib
+import io
+import os
 import re
 import sys
+import tempfile
 import unittest
+import zipfile
 from xml.etree import ElementTree as ET
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
@@ -426,16 +431,34 @@ class JDAwareTests(unittest.TestCase):
     def test_jd_terms_generic_hit_rate_guard(self):
         # A term that hits more than half the bullets is prose, not
         # technology: it must be dropped even though the JD names it,
-        # otherwise the DROP PLAN floods and stalls.
+        # otherwise the DROP PLAN floods and stalls. (Own fixture: label
+        # vocabulary now makes 'automation' a real term, so the bullets
+        # must genuinely repeat it for the guard to fire.)
+        body = _body([
+            _para("Technical Proficiencies", style="SectionHeading"),
+            _para("Automation Tooling: Selenium, Postman"),
+            _para(mr.SECTION_CAREER, style="SectionHeading"),
+            _para("Company ABC, City" + _sample_date() + " – 04/2020",
+                  style=mr.COMPANY_STYLE),
+            _para("Senior SDET", style="JobTitleBlock"),
+            _para("Championed the adoption of Cypress automation", numId=2),
+            _para("Created automation using Gatling", numId=2),
+            _para("Established weekly automation meetings", numId=2),
+            _para(mr.SECTION_EDUCATION, style="SectionHeading"),
+        ])
+        for extra in ("Ran automation suites nightly",
+                      "Reviewed automation coverage reports",
+                      "Trained peers on automation tooling",
+                      "Logged automation defects in Jira"):
+            body.append(_para(extra, numId=2))
         jd = "Testing, automation, and framework ownership required. " \
              "Cypress experience a plus."
-        terms = mr._jd_terms(jd, self._prof_body())
-        # 'cypress' hits 1 of 3 bullets — survives.
+        terms = mr._jd_terms(jd, body)
+        # 'cypress' hits 1 of 7 bullets — survives.
         self.assertIn("cypress", terms)
-        for banned in ("testing", "automation", "framework"):
-            self.assertNotIn(banned, terms,
-                             f"{banned!r} hits most bullets — must be "
-                             f"guard-dropped")
+        # 'automation' hits 7 of 7 bullets — guard-dropped.
+        self.assertNotIn("automation", terms,
+                         "hits most bullets — must be guard-dropped")
 
     def test_jd_terms_include_title_vocab(self):
         # 'sdet' comes from the job title line, not the proficiency block.
@@ -582,6 +605,20 @@ class JdHitsTests(unittest.TestCase):
         self.assertEqual(mr._jd_hits("the api layer", {"apis"}), ["apis"])
         self.assertEqual(mr._jd_hits("the api layer", {"tokens"}), [])
 
+    def test_singular_term_matches_plural(self):
+        # Bidirectional: the JD asks for 'integration' work, the bullet says
+        # 'partner integrations' — same evidence (QualityAI session: the
+        # Amex partner-integrations bullet was ranked for cutting while the
+        # JD asked for 'API, service, integration, and backend validation').
+        self.assertEqual(
+            mr._jd_hits("Tested partner integrations", {"integration"}),
+            ["integration"])
+
+    def test_short_tech_term_matches_plural(self):
+        # 'api' (len 3) must still match the plural 'APIs'.
+        self.assertEqual(mr._jd_hits("Validated the REST APIs", {"api"}),
+                         ["api"])
+
 
 class JdCapitalizedTests(unittest.TestCase):
     """Bullet-only terms must be named as proper nouns in the JD."""
@@ -598,6 +635,198 @@ class JdCapitalizedTests(unittest.TestCase):
         # Every sentence starts capitalized — that is not evidence.
         self.assertFalse(mr._jd_capitalized(
             "Mentor junior engineers. Closely with clients.", "closely"))
+
+
+class CoreTechNounTests(unittest.TestCase):
+    """Core tech nouns are exempt from the bullet-only capitalization gate.
+
+    Session failure regressed here (QualityAI Playwright JD): the JD's
+    'Perform API, service, integration, and backend validation' names
+    'integration' lowercase mid-sentence, so the bullet-only term was
+    rejected and the DROP PLAN suggested cutting the Amex
+    partner-integrations bullet — strong integration-testing evidence.
+    The capitalization gate exists to block PROSE flood; these nouns can
+    never be prose. The generic-hit-rate guard still applies.
+    """
+
+    def _body(self):
+        return _body([
+            _para("Technical Proficiencies", style="SectionHeading"),
+            _para("Programming Languages: Java, JavaScript"),
+            _para("Certifications", style="SectionHeading"),
+            _para(mr.SECTION_CAREER, style="SectionHeading"),
+            _para("Rakuten, San Diego, CA" + _sample_date() + " – 01/2019",
+                  style=mr.COMPANY_STYLE),
+            _para("Senior Quality Assurance Engineer", style="JobTitleBlock"),
+            _para("Tested American Express partner integrations against "
+                  "their sandbox, coordinating with Amex engineers on "
+                  "unexpected response codes", numId=2),
+            _para("Established bi-monthly interdepartmental QA meetings",
+                  numId=2),
+            _para("Tools & Technologies: Java, Karate"),
+            _para(mr.SECTION_EDUCATION, style="SectionHeading"),
+        ])
+
+    _JD = ("Perform API, service, integration, and backend validation. "
+           "Validate end-to-end business workflows and system integrations.")
+
+    def test_lowercase_integration_in_jd_is_a_term(self):
+        terms = mr._jd_terms(self._JD, self._body())
+        self.assertIn("integrations", terms)
+
+    def test_amex_integration_bullet_is_jd_evidence(self):
+        terms = mr._jd_terms(self._JD, self._body())
+        amex = ("Tested American Express partner integrations against "
+                "their sandbox, coordinating with Amex engineers on "
+                "unexpected response codes")
+        self.assertTrue(mr._jd_kept(amex, terms),
+                        "integration bullet must be JD-protected")
+
+    def test_generic_hit_rate_guard_still_applies(self):
+        # The exemption cannot flood: a core noun hitting most bullets is
+        # still guard-dropped.
+        body = _body([
+            _para("Technical Proficiencies", style="SectionHeading"),
+            _para("Databases: SQL Server"),
+            _para(mr.SECTION_CAREER, style="SectionHeading"),
+            _para("Company A" + _sample_date() + " – 04/2020",
+                  style=mr.COMPANY_STYLE),
+            _para("SDET", style="JobTitleBlock"),
+            _para("Validated database one", numId=2),
+            _para("Validated database two", numId=2),
+            _para("Validated database three", numId=2),
+            _para("Unrelated meeting notes here", numId=2),
+            _para(mr.SECTION_EDUCATION, style="SectionHeading"),
+        ])
+        for extra in ("Validated database four", "Validated database five",
+                      "Validated database six"):
+            body.append(_para(extra, numId=2))
+        terms = mr._jd_terms("SQL and database validation required.", body)
+        # 'sql' hits 0 of 7 bullets — survives; 'database' hits 6 of 7 —
+        # the CORE_TECH_NOUNS exemption does not bypass the guard.
+        self.assertIn("sql", terms)
+        self.assertNotIn("database", terms, "hits >50% of bullets — guard")
+
+    def test_prose_words_still_gated(self):
+        # 'closely' is not a core tech noun: lowercase in the JD stays
+        # rejected for bullet-only terms.
+        jd = "you will be coordinating closely with partner teams"
+        body = _body([
+            _para(mr.SECTION_CAREER, style="SectionHeading"),
+            _para("Company A" + _sample_date() + " – 04/2020",
+                  style=mr.COMPANY_STYLE),
+            _para("SDET", style="JobTitleBlock"),
+            _para("Coordinating closely with partners", numId=2),
+        ])
+        self.assertNotIn("closely", mr._jd_terms(jd, body))
+
+
+class LabelVocabEndToEndTests(unittest.TestCase):
+    """Label words flow through _jd_terms: an 'API & Web Services'
+    proficiencies line carries JD evidence when the JD asks for API work,
+    so it must NOT be a TOP-BLOCK cut candidate."""
+
+    def _body(self):
+        return _body([
+            _para("Technical Proficiencies", style="SectionHeading"),
+            _para("Programming Languages: Java, JavaScript"),
+            _para("API & Web Services: REST, GraphQL, gRPC, SOAP"),
+            _para("Certifications", style="SectionHeading"),
+            _para("Payments Boot Camp: Glenbrook Partners"),
+            _para(mr.SECTION_CAREER, style="SectionHeading"),
+            _para("Company ABC, City" + _sample_date() + " – 04/2020",
+                  style=mr.COMPANY_STYLE),
+            _para("Senior SDET", style="JobTitleBlock"),
+            _para("Bullet one", numId=2),
+        ])
+
+    def test_api_label_line_is_jd_evidence_not_candidate(self):
+        jd = "Deep hands-on expertise in API testing and backend validation."
+        terms = mr._jd_terms(jd, self._body())
+        self.assertIn("api", terms, "label vocabulary must reach _jd_terms")
+        cands = mr._top_block_candidates(self._body(), terms)
+        texts = [t for _p, t in cands]
+        self.assertFalse(
+            any("API & Web Services" in t for t in texts),
+            f"API line must not be a cut candidate; candidates={texts}")
+
+    def test_off_jd_label_lines_still_candidates(self):
+        jd = "Deep hands-on expertise in API testing."
+        terms = mr._jd_terms(jd, self._body())
+        cands = mr._top_block_candidates(self._body(), terms)
+        texts = [t for _p, t in cands]
+        self.assertTrue(any("Payments Boot Camp" in t for t in texts))
+
+
+class DeadEndTests(unittest.TestCase):
+    """_dead_end_roles: a role whose DROP PLAN budget exceeds its
+    unprotected bullets cannot meet the budget without cutting JD-matched
+    content — surface that at the top so the fix is TOP-BLOCK cuts, a
+    Tools-line trim, or a whole-role drop, not slicing kept bullets."""
+
+    def test_all_protected_role_is_dead_end(self):
+        plan = [("Company A", "drop 3 bullet(s) (saves ~6 lines)", 6)]
+        roles = [{"key": "Company A",
+                  "bullet_texts": ["Championed the adoption of Cypress",
+                                   "Mentored junior QA engineers",
+                                   "Owned the Karate framework"]}]
+        dead = mr._dead_end_roles(plan, roles,
+                                  protect=("Cypress", "Mentored", "Karate"))
+        self.assertEqual(dead, ["Company A"])
+
+    def test_partially_protected_role_is_not_dead_end(self):
+        plan = [("Company A", "drop 1 bullet(s) (saves ~2 lines)", 2)]
+        roles = [{"key": "Company A",
+                  "bullet_texts": ["Championed the adoption of Cypress",
+                                   "Established weekly meetings"]}]
+        dead = mr._dead_end_roles(plan, roles, protect=("Cypress",))
+        self.assertEqual(dead, [])
+
+    def test_non_drop_plan_entries_ignored(self):
+        plan = [("Company B",
+                 "consider dropping the whole role (saves ~9 lines)", 9)]
+        roles = [{"key": "Company B", "bullet_texts": ["Only bullet"]}]
+        self.assertEqual(mr._dead_end_roles(plan, roles), [])
+
+    def test_jd_terms_count_as_protection(self):
+        plan = [("Company A", "drop 2 bullet(s) (saves ~4 lines)", 4)]
+        roles = [{"key": "Company A",
+                  "bullet_texts": ["Built the Playwright framework",
+                                   "Wrote TypeScript page objects"]}]
+        dead = mr._dead_end_roles(
+            plan, roles,
+            jd_terms={"playwright", "typescript"})
+        self.assertEqual(dead, ["Company A"])
+
+
+class LineTermsTests(unittest.TestCase):
+    """_line_terms: the LABEL of a labeled line is part of the resume's
+    claimed vocabulary too. Session failure regressed here: the QualityAI
+    JD asked for API testing, but 'API' only appeared in the LABEL
+    ('API & Web Services: REST, ...') which the old value-only splitter
+    discarded — so the line carried 'no JD evidence' and landed on the
+    TOP-BLOCK cut list."""
+
+    def test_label_words_become_vocabulary(self):
+        terms = mr._line_terms("API & Web Services: REST, GraphQL, gRPC")
+        for want in ("api", "web", "services", "rest"):
+            self.assertIn(want, terms, f"{want!r} must come from the label")
+
+    def test_multiword_label_words(self):
+        terms = mr._line_terms("Automation Testing Frameworks: Karate")
+        for want in ("automation", "testing", "frameworks"):
+            self.assertIn(want, terms)
+
+    def test_short_label_words_included_len3(self):
+        # 'api'/'sql' are length 3 and unambiguous tech terms.
+        terms = mr._line_terms("Databases: SQL Server, PostgreSQL")
+        self.assertIn("sql", terms)
+        self.assertIn("databases", terms)
+
+    def test_line_without_colon_whole_line_chunk(self):
+        terms = mr._line_terms("Senior SDET")
+        self.assertIn("senior sdet", terms)
+        self.assertIn("sdet", terms)
 
 
 class TopBlockCandidatesTests(unittest.TestCase):
@@ -640,6 +869,103 @@ class TopBlockCandidatesTests(unittest.TestCase):
         texts = [t for _p, t in cands]
         self.assertFalse(any(t.startswith("Company") for t in texts))
         self.assertFalse(any(t == "Bullet one" for t in texts))
+
+
+class ApplySimulateTests(unittest.TestCase):
+    """_apply_simulate: seniority-alignment what-if — drop whole roles in a
+    TEMP COPY and measure that, so the resulting visible timeline span is
+    computed by the tool instead of by hand in chat. The original file must
+    never be modified."""
+
+    def _docx_with_roles(self):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+
+        def p(text, style=None, numid=None):
+            pPr = ""
+            if style or numid:
+                inner = ""
+                if style:
+                    inner += f'<w:pStyle w:val="{style}"/>'
+                if numid:
+                    inner += (f'<w:numPr><w:numId w:val="{numid}"/></w:numPr>')
+                pPr = f'<w:pPr>{inner}</w:pPr>'
+            return (f'<w:p>{pPr}<w:r><w:t xml:space="preserve">'
+                    f'{text}</w:t></w:r></w:p>')
+
+        paras = [
+            p(mr.SECTION_CAREER, style="SectionHeading"),
+            p("GEICO, Chevy Chase06/2025 – 07/2026", style=mr.COMPANY_STYLE),
+            p("Staff Engineer", style="JobTitleBlock"),
+            p("Led QA", style="BodyText", numid=4),
+            p("Tools &amp; Technologies: Go", style="BodyText"),
+            p("", style="BodyText"),
+            p("Illumina, San Diego02/2012 – 10/2014", style=mr.COMPANY_STYLE),
+            p("Software Test Engineer I", style="JobTitleBlock"),
+            p("Tested DNA pipelines", style="BodyText", numid=8),
+            p("Tools &amp; Technologies: MS Test", style="BodyText"),
+            p("", style="BodyText"),
+            p(mr.SECTION_EDUCATION, style="SectionHeading"),
+            p("Some College", style=mr.COMPANY_STYLE),
+            p("Bachelor's Degree", style="JobTitleBlock"),
+        ]
+        doc = (
+            '<?xml version="1.0"?>'
+            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
+            + "".join(paras) + '</w:body></w:document>'
+        )
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr("word/document.xml", doc)
+            z.writestr("[Content_Types].xml", "<Types/>")
+        return path
+
+    def test_drops_role_in_copy_original_untouched(self):
+        src = self._docx_with_roles()
+        try:
+            with open(src, "rb") as f:
+                before = f.read()
+            out = tempfile.mktemp(suffix=".docx")
+            try:
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf), \
+                        contextlib.redirect_stderr(buf):
+                    out_path, dropped = mr._apply_simulate(
+                        src, ["Illumina, San Diego"], out)
+                self.assertEqual(out_path, out)
+                self.assertEqual(len(dropped), 1)
+                self.assertIn("Illumina", dropped[0])
+                with open(src, "rb") as f:
+                    self.assertEqual(f.read(), before,
+                                     "original must never be modified")
+                root, body, _, _, _ = de.load(out)
+                texts = [de.text_of(p) for p in de.paras(body)]
+                self.assertFalse(any("Illumina" in t for t in texts))
+                self.assertIn("GEICO, Chevy Chase06/2025 – 07/2026", texts)
+                self.assertIn(mr.SECTION_EDUCATION, texts)
+            finally:
+                for suffix in ("", ".drift.json"):
+                    if os.path.exists(out + suffix):
+                        os.unlink(out + suffix)
+        finally:
+            os.unlink(src)
+
+    def test_missing_prefix_reported_not_dropped(self):
+        src = self._docx_with_roles()
+        try:
+            out = tempfile.mktemp(suffix=".docx")
+            try:
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf), \
+                        contextlib.redirect_stderr(buf):
+                    _out_path, dropped = mr._apply_simulate(
+                        src, ["No Such Company"], out)
+                self.assertEqual(dropped, [])
+            finally:
+                for suffix in ("", ".drift.json"):
+                    if os.path.exists(out + suffix):
+                        os.unlink(out + suffix)
+        finally:
+            os.unlink(src)
 
 
 class GapIfDroppedTests(unittest.TestCase):

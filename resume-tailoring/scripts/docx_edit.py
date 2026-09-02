@@ -18,6 +18,8 @@ Usage as a library::
 
     root, body, names, data, W = load("in.docx")
     ps = paras(body)
+    # paragraphs are XML ELEMENTS — read their text with text_of(p), never
+    # p.text / p.text_ (AttributeError).
     # All mutation helpers (set_text, set_labeled, replace_text, clone_after,
     # remove) are defensive: if find_p returns None (the master changed and the
     # prefix no longer exists), they skip the edit with a stderr warning
@@ -169,6 +171,15 @@ def save(path, root, names, data, drift_key=None, src=None):
     with no skip fired. On this warning, re-dump
     ``docx_edit.py <master> --prefixes`` and run ``diff_resume.py --tailor``
     before rendering.
+
+    The MASTER CHANGED detection is also a GATE, not just a warning: when
+    the master changed since the script's last run, skipped edits exit 2
+    even WITHOUT ``DOCX_EDIT_STRICT``. This deterministically enforces the
+    SKILL fold-ordering rule (fold into the master, then re-run the tailor
+    script) without relying on the agent remembering to re-run under
+    strict: a mid-session master fold can no longer silently strand drifted
+    prefixes — the next tailor run either resolves every prefix (clean
+    pass) or fails loudly.
     """
     global _APPLIED
     data["word/document.xml"] = ET.tostring(
@@ -213,21 +224,26 @@ def save(path, root, names, data, drift_key=None, src=None):
             f"DRIFT: {drift_key} expected {prev_edits} edits (last "
             f"recorded run) but applied {applied} — an edit was added, "
             f"removed, or stopped matching the master. Review before "
-            f"rendering.",
+            f"rendering. If this change was intentional, no action is "
+            f"needed: the baseline updates automatically (warn-once), and "
+            f"the blocking gate for a stopped-matching edit is the "
+            f"skipped-edit check.",
             file=sys.stderr,
         )
         # A count change is a review signal, not a gate: rebaseline so the
         # warning fires ONCE per change (an intentional add/remove must not
         # trap every later run). The blocking gate for "an edit stopped
-        # matching" is the skipped-edit check above, which exits 2 under
-        # strict.
-    if prev_sha and master_sha and prev_sha != master_sha:
+        # matching" is the skipped-edit check below.
+    master_changed = bool(prev_sha and master_sha and prev_sha != master_sha)
+    if master_changed:
         print(
             f"MASTER CHANGED: {src} differs from the master of the last "
             f"run of {drift_key} — prefixes may have drifted or edits may "
             f"now land on rewritten text. Re-dump `docx_edit.py {src!r} "
             f"--prefixes` and run diff_resume.py --tailor before "
-            f"rendering.",
+            f"rendering. Expected if you folded content into the master "
+            f"this session; this run is auto-strict — any skipped edit "
+            f"now exits 2.",
             file=sys.stderr,
         )
     baseline[drift_key] = {"edits": applied, "master_sha": master_sha}
@@ -240,6 +256,19 @@ def save(path, root, names, data, drift_key=None, src=None):
         print(
             f"output written to {path}; strict check FAILED "
             f"({len(skipped)} skipped edit(s)) — review the warnings above",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    if master_changed and skipped and not strict:
+        # Deterministic enforcement (see docstring): a run against a changed
+        # master must prove every prefix still resolves. Without this, a
+        # mid-session master fold strands drifted prefixes silently unless
+        # the agent remembers to re-run under DOCX_EDIT_STRICT.
+        print(
+            f"output written to {path}; MASTER-CHANGED gate FAILED "
+            f"({len(skipped)} skipped edit(s) against a changed master) — "
+            f"re-dump `docx_edit.py {src!r} --prefixes`, fix the skipped "
+            f"prefixes, and re-run",
             file=sys.stderr,
         )
         raise SystemExit(2)
@@ -605,6 +634,93 @@ def drop(body, prefixes):
     return paras(body)
 
 
+# Block grammar of the resume layout (see drop_role/drop_section). A role
+# runs from its CompanyBlock header to just BEFORE the next CompanyBlock or
+# section heading; a section runs from its SectionHeading to just BEFORE
+# the next SectionHeading. Heading1/Heading2 are accepted as boundaries too
+# so documents that use real heading styles instead of SectionHeading work.
+ROLE_STYLE = "CompanyBlock"
+SECTION_STYLE = "SectionHeading"
+_BLOCK_BOUNDARY_STYLES = ("CompanyBlock", "SectionHeading",
+                          "Heading1", "Heading2")
+
+
+def _block(body, prefix, anchor_style, boundary_styles):
+    """Paragraphs of the contiguous block anchored at ``prefix`` (resolved
+    by find_p and REQUIRED to have ``anchor_style``), up to but EXCLUDING
+    the first subsequent boundary-style paragraph. ``None`` (with a stderr
+    warning) when the prefix is missing/ambiguous or anchors to a paragraph
+    of a different style — a wrong-style anchor must refuse to mass-delete
+    from that point rather than eat half the document."""
+    ps = paras(body)
+    anchor = find_p(ps, prefix)
+    if anchor is None:
+        return None
+    style, _ = style_and_numid(anchor)
+    if style != anchor_style:
+        print(
+            f"warning: block anchored at {prefix!r} resolved to a "
+            f"{style!r} paragraph, expected {anchor_style!r} — skipping",
+            file=sys.stderr,
+        )
+        return None
+    out = []
+    started = False
+    for p in ps:
+        if p is anchor:
+            started = True
+            out.append(p)
+            continue
+        if not started:
+            continue
+        st, _ = style_and_numid(p)
+        if st in boundary_styles:
+            break  # boundary EXCLUDED — checked before appending
+        out.append(p)
+    return out
+
+
+def drop_role(body, company_prefix, company_style=ROLE_STYLE,
+              boundary_styles=_BLOCK_BOUNDARY_STYLES):
+    """Remove an ENTIRE role: the company header found by ``company_prefix``
+    through its job title, bullets, Tools line, and trailing blank spacer —
+    stopping BEFORE the next company header or section heading.
+
+    Boundary is checked BEFORE appending, so the next section heading is
+    never consumed. Duplicate job titles need no ``after=``/``nth=`` anchor
+    (the block is contiguous from the role's OWN header).
+
+    For a resume whose style names differ, pass ``company_style`` and
+    ``boundary_styles`` explicitly. Returns the refreshed paragraph list;
+    a missing/ambiguous/wrong-style prefix records a skip
+    (``drop_role: <prefix>``) and mutates nothing."""
+    block = _block(body, company_prefix, company_style, boundary_styles)
+    if block is None:
+        _warn_missing(f"drop_role: {company_prefix}")
+        return paras(body)
+    for p in block:
+        remove(body, p)
+    return paras(body)
+
+
+def drop_section(body, heading_prefix, heading_style=SECTION_STYLE,
+                 boundary_styles=("SectionHeading", "Heading1", "Heading2")):
+    """Remove a whole SECTION: the SectionHeading found by
+    ``heading_prefix`` through every paragraph up to (excluding) the next
+    section heading — e.g. dropping Education when the JD gives the degree
+    no evidentiary weight (SKILL Step 3.4). The boundary heading is excluded
+    for the same reason as :func:`drop_role`'s. Returns the refreshed
+    paragraph list; a missing/ambiguous/wrong-style prefix records a skip
+    (named ``drop_section: <prefix>``) and mutates nothing."""
+    block = _block(body, heading_prefix, heading_style, boundary_styles)
+    if block is None:
+        _warn_missing(f"drop_section: {heading_prefix}")
+        return paras(body)
+    for p in block:
+        remove(body, p)
+    return paras(body)
+
+
 def merge_into(body, target, source, text):
     """Merge ``source`` into ``target`` in ONE op: rewrite ``target`` with
     ``text`` and remove ``source``.
@@ -747,28 +863,41 @@ def cli(argv):
     """docx_edit.py command line. Returns a process exit code.
 
     Modes:
-      docx_edit.py <path.docx> [range] [--full] [--prefixes]
-          inspect paragraphs / print copy-pasteable find_p prefixes
+      docx_edit.py <path.docx> [range] [--full] [--prefixes] [--style NAME]
+          inspect paragraphs / print copy-pasteable find_p prefixes. With
+          no range or flag this prints the FULL PARAGRAPH MAP — index,
+          style, numId, text — which is how you discover the block-boundary
+          styles (CompanyBlock, SectionHeading) that drop_role/drop_section
+          key on; --style NAME filters the map to one style.
       docx_edit.py <path.docx> --append-after "<ref prefix>" \
           --with "<new bullet text>"
           clone a new bullet AFTER the paragraph whose text starts with the
           ref prefix (inherits ref's numbering/bullet style), in place.
-          The ref prefix is resolved with find_p — smart punctuation is
-          tolerated, and a missing/ambiguous ref exits 2 so a one-shot
-          fold cannot silently no-op.
+      docx_edit.py <path.docx> --set-text "<prefix>" --with "<new text>"
+          rewrite the paragraph's text in place (first run's formatting
+          kept). For one-off folds/fixes; NOT for "Label: values"
+          proficiency lines (set_text collapses the bold split — use a
+          script with set_labeled for those). Both edit modes resolve the
+          prefix with find_p — smart punctuation is tolerated, and a
+          missing/ambiguous prefix exits 2 so a one-shot edit cannot
+          silently no-op.
     """
     if len(argv) < 2 or argv[1] in ("--help", "-h"):
-        print("usage: docx_edit.py <path.docx> [range] [--full] [--prefixes]",
+        print("usage: docx_edit.py <path.docx> [range] [--full] [--prefixes] [--style NAME]",
               file=sys.stderr)
         print("       docx_edit.py <path.docx> --append-after \"<ref prefix>\" --with \"<text>\"",
               file=sys.stderr)
-        print("  Inspect paragraphs, print find_p prefixes, or clone a bullet.",
+        print("  Inspect paragraphs (default = full map: index | style | numId | text),",
+              file=sys.stderr)
+        print("  print find_p prefixes, clone a bullet, or rewrite a paragraph.",
               file=sys.stderr)
         print("  range: N-M (paragraphs N..M inclusive) or N (just paragraph N)",
               file=sys.stderr)
         print("  --full:     show full text instead of truncating at 90 chars",
               file=sys.stderr)
         print("  --prefixes: print uniqueness-checked find_p(ps, \"\u2026\") prefixes",
+              file=sys.stderr)
+        print("  --style N:  map filtered to one paragraph style (e.g. CompanyBlock)",
               file=sys.stderr)
         return 2
     path = argv[1]
@@ -794,9 +923,36 @@ def cli(argv):
         clone_after(body, ref_p, text)
         save(path, root, names, data)
         return 0
+    if "--set-text" in args:
+        try:
+            i = args.index("--set-text")
+            prefix = args[i + 1]
+            if args[i + 2] != "--with":
+                raise IndexError
+            text = args[i + 3]
+        except IndexError:
+            print("usage: docx_edit.py <path.docx> --set-text \"<prefix>\" "
+                  "--with \"<text>\"", file=sys.stderr)
+            return 2
+        root, body, names, data, _ = load(path)
+        ps = paras(body)
+        p = find_p(ps, prefix)
+        if p is None:
+            print(f"target paragraph {prefix[:40]!r} not found; "
+                  f"no changes written", file=sys.stderr)
+            return 2
+        set_text(p, text)
+        save(path, root, names, data)
+        return 0
     full = "--full" in args
     want_prefixes = "--prefixes" in args
-    args = [a for a in args if a not in ("--full", "--prefixes")]
+    style_filter = None
+    if "--style" in args:
+        i = args.index("--style")
+        if i + 1 < len(args):
+            style_filter = args[i + 1]
+    args = [a for a in args if a not in ("--full", "--prefixes", "--style")
+            and a != style_filter]
     width = None if full else 90
     rng = None
     for a in args:
@@ -808,6 +964,13 @@ def cli(argv):
     root, body, names, data, _ = load(path)
     if want_prefixes:
         lines = prefixes(body)
+    elif style_filter is not None:
+        lines = []
+        for i, p in enumerate(paras(body)):
+            st, numid = style_and_numid(p)
+            if st == style_filter:
+                txt = text_of(p) if width is None else text_of(p)[:width]
+                lines.append(f"{i:2} [{st}] num={numid} | {txt}")
     else:
         lines = paragraph_map(body, width=width)
     if rng:

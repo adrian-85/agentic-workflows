@@ -47,11 +47,14 @@ User-supplied personal assets (`*.docx` / `*.pdf`, gitignored) live in the skill
 
 - `<userName> Master Resume.docx` — the comprehensive data pool. Targeted scripts read it
   by name from the skill root and subtract from it. **Real experience belongs here** — if a
-  session authors a bullet the user confirms, fold it into the master (via `clone_after`)
-  so every future tailored resume can pull from it. Fold AFTER the per-target
-  script is finished: a fold rewrites master text, which can invalidate the
-  script's `find_p` prefixes — re-run the script under `DOCX_EDIT_STRICT=1`
-  afterwards and re-dump `--prefixes` if any skip fires.
+  session authors a bullet the user confirms, fold it into the master (via `clone_after` or
+  the `--set-text`/`--append-after` CLI) so every future tailored resume can pull from it.
+  Fold AFTER the per-target script is finished: a fold rewrites master text, which can
+  invalidate the script's `find_p` prefixes. This ordering is ENFORCED, not a habit —
+  after any fold (or a user edit between sessions), the next tailor run detects the
+  changed master (`MASTER CHANGED:`) and runs auto-strict: skipped edits exit 2 without
+  needing `DOCX_EDIT_STRICT=1`. If the master change was the USER's, respect it — re-dump
+  `--prefixes`, fix drifted prefixes in the tailor script, never re-fold over their text.
 - `Profile.pdf` — richer than the resume for content to enrich/merge (Step 1). The LinkedIn
   data-export CSVs are an even richer source when available.
 
@@ -90,26 +93,55 @@ reference. The non-obvious rules while authoring:
   list threaded across calls goes stale → false ambiguity on short
   prefixes, or silent edits on detached elements). Skipped prefixes are
   named in the warning, not a generic `(remove)`.
+- **`drop_role(body, "<company-header prefix>")`**: removes an ENTIRE role —
+  company header, title, bullets, Tools line, trailing spacer — stopping
+  BEFORE the next company header or section heading. The library
+  replacement for hand-rolled role-drop helpers, which got the block
+  grammar wrong under real use (a boundary check placed after the append
+  swallowed the following `SectionHeading`, silently eating Education).
+  Handles duplicate job titles with no `after=`/`nth=` anchor (the block is
+  contiguous from the role's OWN header). Seniority alignment (Step 3) is
+  a sequence of these.
+- **`drop_section(body, "<heading prefix>")`**: removes a whole SECTION
+  (e.g. Education) from its `SectionHeading` to just before the next one.
+  Same boundary guarantee as `drop_role`.
 - **`save()` drift sidecar**: auto-maintains `<dst>.drift.json` keyed by the
   calling script. First run records the baseline; later runs warn (`DRIFT:`) if
   the applied-edit count changed. Warn-once, rebaseline; the blocking gate for
   a stopped-matching edit is the skipped-edit check (exit 2 under
   `DOCX_EDIT_STRICT=1`). Pass `src=SRC` and the sidecar also records the
   master's sha256, warning (`MASTER CHANGED:`) when the master differs from
-  the script's last run — see `save()`'s docstring for why that matters.
+  the script's last run — a fold landed between runs, or (most often) the
+  USER edited the master between sessions. **That warning is also a GATE**:
+  a run against a changed master is auto-strict — any skipped edit exits 2
+  even without `DOCX_EDIT_STRICT=1`, so a mid-flight master edit can never
+  silently strand drifted prefixes. Re-dump `--prefixes`, review what
+  changed (respect the user's edits — never re-fold over them), fix any
+  drifted prefix in the tailor script, re-run.
 - **`clone_after(body, ref_p, text)`**: add a NEW bullet to the master,
   inheriting numbering.
 - **`merge_into(body, target, source, text)`**: rewrite `target` AND remove
   `source` in one op — prevents near-dup residue from a two-step
   `set_text` + `remove`.
 
+Paragraphs are XML elements — read their text with `text_of(p)`, never
+`p.text`/`p.text_`.
+
 Inspect/author with:
 
 ```bash
 python3 scripts/docx_edit.py "<userName> Master Resume.docx" [--prefixes]
+# Default mode (no range/flag) prints the FULL PARAGRAPH MAP — index,
+# style, numId, text. That is how you discover the block-boundary styles
+# (CompanyBlock, SectionHeading) drop_role/drop_section key on:
+python3 scripts/docx_edit.py "<userName> Master Resume.docx" --style SectionHeading
 # Fold NEW confirmed bullets into the master without writing a bespoke script:
 python3 scripts/docx_edit.py "<userName> Master Resume.docx" \
     --append-after "<ref prefix>" --with "<new bullet text>"
+# One-shot rewrite of an existing bullet (NOT for "Label: values" lines —
+# set_text collapses the bold split; use a script with set_labeled there):
+python3 scripts/docx_edit.py "<userName> Master Resume.docx" \
+    --set-text "<ref prefix>" --with "<new bullet text>"
 ```
 
 ## The reference template
@@ -213,6 +245,23 @@ compression when the page budget forces it:
    15-year span does not align the resume — the *years shown* are what a
    screener sees. The structural validator catches any orphaned title/bullets
    after each whole-role removal.
+
+   **Compute the resulting span BEFORE editing.** Pass each whole-role drop
+   to measure as a what-if — it drops the roles in a temp copy, renders
+   THAT, and prints the resulting TIMELINE, so the year math is the tool's,
+   not hand-derived in chat (the file on disk is never modified)::
+
+   ```bash
+   python3 scripts/measure_resume.py "<Master>.docx" 3 --jd "<JD>.txt" \
+       --simulate "Illumina, San Diego" --simulate "Epic Sciences, San Diego"
+   ```
+
+   **Apply the drops with `drop_role` — never a hand-rolled helper.**
+   Whole-role removal is a library primitive (`docx_edit.drop_role`): it
+   owns the block grammar (company header → Tools line + trailing spacer,
+   boundary paragraph excluded) and handles duplicate job titles with no
+   anchor. Education goes with `drop_section`. See Common mistakes for the
+   failure this replaces.
 3. **Reduce number-of-years statements** to match the visible span ("15 years"
    → "7+ years" in the Summary; any other "N years" claim). The validator
    enforces this mechanically for the Summary and every paragraph.
@@ -350,6 +399,20 @@ python3 scripts/measure_resume.py "<Target>.docx" 2 --jd "<JD>.txt" \
     --protect "partner integrations" --protect "sandbox"
 ```
 
+The scorer already protects what the JD text itself names — including core
+tech nouns JDs use lowercase mid-sentence ("Perform API, service,
+integration, and backend validation" protects API/integration bullets),
+proficiency-LABEL vocabulary (an "API & Web Services" line is evidence when
+the JD asks for API work), and singular/plural pairs ("integration" ↔
+"partner integrations"). `--protect` is for what the JD text CANNOT name.
+
+**Check DEAD-END PLANS before cutting anything.** A role whose DROP PLAN
+budget exceeds its unprotected bullets cannot meet the budget without
+cutting JD-matched content — measure flags these at the top
+("DEAD-END PLANS: … cannot meet their cut budget …"). The honest fixes are
+the TOP-BLOCK candidates, a Tools-line trim, or a whole-role drop — NOT
+slicing kept bullets to fill the gap.
+
 **Also check the TOP-BLOCK RECLAIM CANDIDATES** in the same measure output:
 every Technical Proficiencies or Certifications line with no JD evidence, as a
 copy-pasteable `find_p` cut (~1 line each). Cut those before touching any
@@ -460,6 +523,14 @@ eliminated — without it the render is blocked, so the user-approved decision i
 recorded, not assumed. The two flags are independent: `--jd-years` is an
 optional advisory; the gate reads only the approval token.
 
+**Verification is TEXT-ONLY — never render pages to images.** This harness
+reads no images, so converting the PDF to PNGs and "viewing" them fails
+every time (observed in two sessions). The text path already covers what a
+visual check would: `render_pdf.sh --verbose` prints the page-boundary map
+and last-page tail, and `measure_resume.py` prints the page-fill table with
+widow/underfill detection. Read those, plus `pdftotext` per page if you need
+to inspect content placement.
+
 **Final human review (what the tools can't judge).** After the last render,
 re-read the full `--prefixes` dump top-to-bottom once: every kept bullet still
 serves the JD, whole-role removals still read as a coherent timeline, and the
@@ -506,6 +577,8 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Rebuilding the .docx from scratch | Edit XML in place — `python-docx` drops styles, numbering, hyperlinks |
 | Using `set_text` on a `"Label: values"` line | Collapses to all-bold — use `set_labeled` (Helper library) |
 | Hand-counting an edit budget (`expect_edits=N`) | Never count — `save()`'s drift sidecar records the baseline and warns on change |
+| Hand-rolling whole-role removal in the tailor script | Use `drop_role(body, "<company prefix>")` / `drop_section(body, "Education")` — the library owns the block grammar. A hand-rolled helper that appends before checking the boundary (or only treats Heading1/2 as boundaries) swallows the next `SectionHeading` (Education) and strands later edits as "not found" skips |
+| Verifying the PDF by rendering pages to images | Never works — this harness reads no images. Use `render_pdf.sh --verbose` (page map, last-page tail), `measure_resume.py`'s page-fill table, and `pdftotext` |
 | Chasing a skip warning as a library bug | Re-dump `--prefixes` on the master FIRST — it may have been edited since your dump (the `MASTER CHANGED:` sidecar warning fires on this); a prefix can also match a paragraph an earlier `drop` already removed if you thread a stale `ps` list — use `ps = drop(body, [...])` |
 | Guessing WHICH bullets to cut from the reclaim gap | Use measure's DROP PLAN with `--jd "<JD>.txt"` + `--protect "<fact>"`; paste its `find_p` lines, or run `squeeze_resume.py` for the residual gap (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |

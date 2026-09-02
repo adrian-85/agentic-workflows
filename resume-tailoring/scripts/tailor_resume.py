@@ -96,16 +96,14 @@ def main():
     #     SKILL.md Step 3. Shorthand: drop ENTIRE oldest roles in contiguous
     #     gapless blocks; reduce "N years" statements to the visible span;
     #     keep Education when the JD has an "OR degree" clause; confirm with
-    #     the user first. Enforcement: validate_resume.py blocks the render
-    #     on unapproved role elimination — record approval via
+    #     the user first. What-if the resulting span with measure's
+    #     --simulate BEFORE editing. Enforcement: validate_resume.py blocks
+    #     the render on unapproved role elimination — record approval via
     #     RESUME_VALIDATE_ARGS="--seniority-approved" (--jd-years optional).
     # ------------------------------------------------------------------ #
-    # ps = drop(body, [
-    #     "<oldest-role company header>...",
-    #     "<oldest-role job title>",
-    #     "<oldest-role bullet prefixes>",
-    #     "<oldest-role Tools & Technologies line>",
-    # ])
+    # drop_role(body, "<oldest-role company header prefix>")   # whole role
+    # drop_role(body, "<second-oldest-role company prefix>")
+    # drop_section(body, "Education")          # if the degree is not evidence
     # set_text(find_p(ps, "<Summary>"), "...N+ years...")
 
     # ------------------------------------------------------------------ #

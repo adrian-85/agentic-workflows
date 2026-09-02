@@ -86,6 +86,24 @@ def fmt(p):
     return out
 
 
+def mkstyled(text, style, numId=None):
+    """Build a <w:p> with a pStyle (and optional numId), mirroring the
+    master's CompanyBlock/JobTitleBlock/BodyText/SectionHeading styles."""
+    p = ET.Element(W + "p")
+    pPr = ET.SubElement(p, W + "pPr")
+    st = ET.SubElement(pPr, W + "pStyle")
+    st.set(W + "val", style)
+    if numId is not None:
+        np = ET.SubElement(pPr, W + "numPr")
+        ni = ET.SubElement(np, W + "numId")
+        ni.set(W + "val", str(numId))
+    r = ET.SubElement(p, W + "r")
+    t = ET.SubElement(r, W + "t")
+    t.text = text
+    t.set(SPACE, "preserve")
+    return p
+
+
 class ReplaceTextTests(unittest.TestCase):
     """replace_text: per-run substring replacement preserving formatting."""
 
@@ -499,6 +517,203 @@ class DropTests(unittest.TestCase):
         self.assertEqual(len(list(self.body.iter(W + "p"))), 3)
 
 
+class DropRoleTests(unittest.TestCase):
+    """drop_role(): whole-role removal for seniority alignment (SKILL Step 3).
+
+    Session failure regressed here: a hand-rolled role-drop helper appended
+    each paragraph BEFORE checking the block boundary and only treated
+    Heading1/Heading2 as boundaries, so the role drop swallowed the
+    SectionHeading ("Education") that followed the role — the later
+    drop(body, ["Education", ...]) then skipped with 'target paragraph not
+    found'. drop_role owns the block grammar: boundary styles are known,
+    and the boundary paragraph is excluded, never consumed.
+    """
+
+    def setUp(self):
+        ps = [
+            mkstyled("Career Experience", "SectionHeading"),
+            mkstyled("GEICO, Chevy Chase06/2025 - 07/2026", "CompanyBlock"),
+            mkstyled("Staff Engineer", "JobTitleBlock"),
+            mkstyled("Led QA at GEICO", "BodyText", numId=4),
+            mkstyled("Tools & Technologies: Go, Python", "BodyText"),
+            mkstyled("", "BodyText"),
+            mkstyled("Epic Sciences, San Diego01/2015 - 12/2015", "CompanyBlock"),
+            mkstyled("Software QA Engineer", "JobTitleBlock"),
+            mkstyled("Led QA for blood analysis", "BodyText", numId=8),
+            mkstyled("Tools & Technologies: Bamboo", "BodyText"),
+            mkstyled("", "BodyText"),
+            mkstyled("Illumina, San Diego02/2012 - 10/2014", "CompanyBlock"),
+            # Duplicate of Epic's title — the case plain drop() cannot do.
+            mkstyled("Software QA Engineer", "JobTitleBlock"),
+            mkstyled("Primary test engineer for DNA project", "BodyText", numId=8),
+            mkstyled("Tools & Technologies: MS Test", "BodyText"),
+            mkstyled("", "BodyText"),
+            mkstyled("Education", "SectionHeading"),
+            mkstyled("San Diego Christian College", "CompanyBlock"),
+            mkstyled("Bachelor's Degree", "JobTitleBlock"),
+        ]
+        self.body = ET.Element(W + "body")
+        for p in ps:
+            self.body.append(p)
+            de._ORIG[id(p)] = (p, de.text_of(p))
+        de._APPLIED = 0
+        de._SKIPS.clear()
+
+    def tearDown(self):
+        de._ORIG.clear()
+        de._APPLIED = 0
+        de._SKIPS.clear()
+
+    def _texts(self):
+        return [de.text_of(p) for p in de.paras(self.body)]
+
+    def test_removes_whole_role_including_tools_and_spacer(self):
+        de.drop_role(self.body, "Illumina, San Diego")
+        texts = self._texts()
+        for gone in ("Illumina, San Diego02/2012 - 10/2014",
+                     "Primary test engineer for DNA project",
+                     "Tools & Technologies: MS Test"):
+            self.assertNotIn(gone, texts)
+        # the trailing blank spacer went with the role (3 fixtures spacers
+        # minus Illumina's = 2 remain)
+        self.assertEqual(texts.count(""), 2)
+
+    def test_boundary_section_heading_is_never_consumed(self):
+        # THE bug: the paragraph AFTER the role (Education SectionHeading)
+        # must survive.
+        de.drop_role(self.body, "Illumina, San Diego")
+        texts = self._texts()
+        self.assertIn("Education", texts)
+        self.assertIn("San Diego Christian College", texts)
+        self.assertIn("Bachelor's Degree", texts)
+
+    def test_previous_role_and_duplicate_title_survive(self):
+        de.drop_role(self.body, "Illumina, San Diego")
+        texts = self._texts()
+        self.assertIn("Epic Sciences, San Diego01/2015 - 12/2015", texts)
+        self.assertIn("Led QA for blood analysis", texts)
+        # exactly one of the two duplicate titles remains (Epic's)
+        self.assertEqual(texts.count("Software QA Engineer"), 1)
+
+    def test_returns_refreshed_paragraph_list(self):
+        ps = de.drop_role(self.body, "Illumina, San Diego")
+        self.assertEqual(ps, de.paras(self.body))
+        # 19 fixture paragraphs - 5 removed (header, title, bullet, tools,
+        # spacer) = 14
+        self.assertEqual(len(ps), 14)
+
+    def test_counts_one_applied_edit_per_removed_paragraph(self):
+        de.drop_role(self.body, "Illumina, San Diego")
+        # header + title + bullet + tools + spacer = 5 paragraphs
+        self.assertEqual(de._APPLIED, 5)
+
+    def test_missing_prefix_warns_names_prefix_and_mutates_nothing(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            ps = de.drop_role(self.body, "No Such Company")
+        self.assertIn("No Such Company", err.getvalue())
+        self.assertEqual(de._SKIPS, ["drop_role: No Such Company"])
+        self.assertEqual(ps, de.paras(self.body))
+        self.assertEqual(de._APPLIED, 0)
+
+    def test_anchor_on_wrong_style_skips(self):
+        # A prefix that resolves to a NON-company paragraph (e.g. a section
+        # heading) must refuse to mass-delete from that point.
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            ps = de.drop_role(self.body, "Career Experience")
+        self.assertIn("CompanyBlock", err.getvalue())
+        self.assertEqual(de._APPLIED, 0)
+        self.assertEqual(len(ps), 19)
+
+    def test_role_at_end_of_document_removed_to_eof(self):
+        body = ET.Element(W + "body")
+        for p in (mkstyled("Company A02/2019 - 04/2020", "CompanyBlock"),
+                  mkstyled("Senior QA Engineer", "JobTitleBlock"),
+                  mkstyled("Did things", "BodyText", numId=8),
+                  mkstyled("Tools & Technologies: Java", "BodyText"),
+                  mkstyled("", "BodyText")):
+            body.append(p)
+            de._ORIG[id(p)] = (p, de.text_of(p))
+        try:
+            de.drop_role(body, "Company A")
+            self.assertEqual([de.text_of(p) for p in de.paras(body)], [])
+        finally:
+            de._ORIG.clear()
+
+    def test_custom_style_names_for_other_resume_formats(self):
+        body = ET.Element(W + "body")
+        for p in (mkstyled("Employer X02/2019", "Employer"),
+                  mkstyled("Title", "JobTitle"),
+                  mkstyled("Bullet", "Body", numId=3),
+                  mkstyled("Summary", "Heading")):
+            body.append(p)
+            de._ORIG[id(p)] = (p, de.text_of(p))
+        try:
+            de.drop_role(body, "Employer X", company_style="Employer",
+                         boundary_styles=("Employer", "Heading"))
+            self.assertEqual(
+                [de.text_of(p) for p in de.paras(body)], ["Summary"])
+        finally:
+            de._ORIG.clear()
+
+
+class DropSectionTests(unittest.TestCase):
+    """drop_section(): remove a SectionHeading's whole section (e.g.
+    Education when the JD gives the degree no evidentiary weight)."""
+
+    def setUp(self):
+        ps = [
+            mkstyled("Rakuten01/2016 - 01/2019", "CompanyBlock"),
+            mkstyled("Senior QA Engineer", "JobTitleBlock"),
+            mkstyled("Tested partner integrations", "BodyText", numId=8),
+            mkstyled("", "BodyText"),
+            mkstyled("Education", "SectionHeading"),
+            mkstyled("San Diego Christian College", "CompanyBlock"),
+            mkstyled("Bachelor's Degree", "JobTitleBlock"),
+            mkstyled("Certifications", "SectionHeading"),
+            mkstyled("Rapid Software Testing and AI: Satisfice", "BodyText"),
+        ]
+        self.body = ET.Element(W + "body")
+        for p in ps:
+            self.body.append(p)
+            de._ORIG[id(p)] = (p, de.text_of(p))
+        de._APPLIED = 0
+        de._SKIPS.clear()
+
+    def tearDown(self):
+        de._ORIG.clear()
+        de._APPLIED = 0
+        de._SKIPS.clear()
+
+    def _texts(self):
+        return [de.text_of(p) for p in de.paras(self.body)]
+
+    def test_removes_section_stopping_at_next_section_heading(self):
+        de.drop_section(self.body, "Education")
+        texts = self._texts()
+        for gone in ("Education", "San Diego Christian College",
+                     "Bachelor's Degree"):
+            self.assertNotIn(gone, texts)
+        # the NEXT section and the role above are untouched
+        self.assertIn("Certifications", texts)
+        self.assertIn("Rapid Software Testing and AI: Satisfice", texts)
+        self.assertIn("Rakuten01/2016 - 01/2019", texts)
+
+    def test_section_at_eof_removed_to_end(self):
+        de.drop_section(self.body, "Certifications")
+        texts = self._texts()
+        self.assertNotIn("Rapid Software Testing and AI: Satisfice", texts)
+        self.assertIn("Education", texts)
+
+    def test_missing_prefix_skips_named(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            de.drop_section(self.body, "No Such Section")
+        self.assertEqual(de._SKIPS, ["drop_section: No Such Section"])
+        self.assertEqual(len(self._texts()), 9)
+
+
 class OriginalTextResolutionTests(unittest.TestCase):
     """find_p resolves prefixes against each paragraph's ORIGINAL text
     (captured at load/clone time), so a script's own earlier edits cannot
@@ -807,6 +1022,231 @@ class AppendCLITests(unittest.TestCase):
             rc = de.cli(["docx_edit.py", path, "--append-after", "Ref"])  # missing --with
             self.assertEqual(rc, 2)
             self.assertEqual(self._texts(path), ["Ref"])
+        finally:
+            os.unlink(path)
+
+
+class MasterChangeGateTests(unittest.TestCase):
+    """save() MASTER CHANGED gate — deterministic enforcement of the
+    fold-then-retailor ordering. When a tailored copy's script runs against
+    a master that changed since its last run, skipped edits exit 2 EVEN
+    WITHOUT DOCX_EDIT_STRICT: a mid-session master fold can no longer
+    silently strand drifted prefixes (the session failure where MASTER
+    CHANGED printed as a warning and relied on the agent re-running strict
+    manually)."""
+
+    def setUp(self):
+        de._APPLIED = 0
+        de._SKIPS.clear()
+        fd, self.master = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        fd, self.dst = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        _empty_docx(self.master)
+        _empty_docx(self.dst)
+
+    def tearDown(self):
+        for path in (self.master, self.dst):
+            for suffix in ("", ".drift.json"):
+                p = path + suffix
+                if os.path.exists(p):
+                    os.unlink(p)
+        de._APPLIED = 0
+        de._SKIPS.clear()
+
+    def _rewrite_master(self, text):
+        # Change the master's bytes so its sha256 differs from run 1's.
+        with open(self.master, "wb") as f:
+            f.write(b"changed-master-bytes-" + text.encode())
+
+    def _run(self, skip=False, strict=False):
+        de._APPLIED = 0
+        root, body, names, data, _ = de.load(self.dst)
+        p = ET.SubElement(body, de.W + "p")
+        t = ET.SubElement(p, de.W + "t")
+        t.text = "x"
+        if skip:
+            de.set_text(None, "a skipped edit")
+        else:
+            de.set_text(p, "hello")
+        out, err = io.StringIO(), io.StringIO()
+        old = os.environ.get("DOCX_EDIT_STRICT")
+        if strict:
+            os.environ["DOCX_EDIT_STRICT"] = "1"
+        cm = None
+        try:
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                try:
+                    de.save(self.dst, root, names, data,
+                            drift_key="tailor_gate.py", src=self.master)
+                except SystemExit as e:
+                    cm = e
+        finally:
+            if old is None:
+                os.environ.pop("DOCX_EDIT_STRICT", None)
+            else:
+                os.environ["DOCX_EDIT_STRICT"] = old
+        return out.getvalue(), err.getvalue(), cm
+
+    def test_first_run_establishes_baseline_no_gate(self):
+        # No previous sha recorded: skipped edits alone do not exit without
+        # strict (unchanged legacy behavior for a first run).
+        out, err, cm = self._run(skip=True)
+        self.assertIsNone(cm)
+        self.assertNotIn("MASTER CHANGED", err)
+
+    def test_unchanged_master_rerun_with_skips_gated_only_by_strict(self):
+        self._run()
+        out, err, cm = self._run(skip=True)
+        self.assertIsNone(cm, "master unchanged: gate must not fire")
+        self.assertNotIn("MASTER CHANGED", err)
+
+    def test_changed_master_with_skips_exits_2_without_strict(self):
+        self._run()
+        self._rewrite_master("v2")
+        out, err, cm = self._run(skip=True)
+        self.assertIn("MASTER CHANGED", err)
+        self.assertIsNotNone(cm, "changed master + skipped edit must gate")
+        self.assertEqual(cm.code, 2)
+
+    def test_changed_master_clean_rerun_passes(self):
+        # The intended workflow: fold changed the master, the tailor script
+        # is re-run, every prefix still resolves -> no gate, warning only.
+        self._run()
+        self._rewrite_master("v2")
+        out, err, cm = self._run()
+        self.assertIn("MASTER CHANGED", err)
+        self.assertIsNone(cm, "changed master + zero skips must pass")
+
+    def test_gate_applies_under_strict_too(self):
+        self._run()
+        self._rewrite_master("v2")
+        out, err, cm = self._run(skip=True, strict=True)
+        self.assertIsNotNone(cm)
+        self.assertEqual(cm.code, 2)
+
+
+class SetTextCLITests(unittest.TestCase):
+    """docx_edit.py --set-text — one-shot bullet rewrite from the CLI, the
+    replacement for bespoke fold scripts whose only edit is set_text."""
+
+    def _docx_with(self, *texts):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        doc = (
+            '<?xml version="1.0"?>'
+            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
+        )
+        for t in texts:
+            doc += (
+                f'<w:p><w:r><w:t xml:space="preserve">{t}</w:t></w:r></w:p>'
+            )
+        doc += '</w:body></w:document>'
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr("word/document.xml", doc)
+            z.writestr("[Content_Types].xml", "<Types/>")
+        return path
+
+    def _texts(self, path):
+        root, body, names, data, _ = de.load(path)
+        return [de.text_of(p) for p in de.paras(body)]
+
+    def test_rewrites_paragraph_by_prefix(self):
+        path = self._docx_with("Implemented Jest and Playwright for tests.",
+                               "Unrelated bullet")
+        try:
+            de._APPLIED = 0
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = de.cli(["docx_edit.py", path, "--set-text",
+                             "Implemented Jest and Playwright",
+                             "--with", "Landed Playwright company-wide"])
+            self.assertEqual(rc, 0)
+            self.assertEqual(self._texts(path),
+                             ["Landed Playwright company-wide",
+                              "Unrelated bullet"])
+        finally:
+            os.unlink(path)
+            if os.path.exists(path + ".drift.json"):
+                os.unlink(path + ".drift.json")
+
+    def test_missing_prefix_exits_2_without_mutation(self):
+        path = self._docx_with("Some bullet")
+        try:
+            de._APPLIED = 0
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = de.cli(["docx_edit.py", path, "--set-text",
+                             "No such prefix", "--with", "New text"])
+            self.assertEqual(rc, 2)
+            self.assertEqual(self._texts(path), ["Some bullet"])
+        finally:
+            os.unlink(path)
+
+    def test_missing_with_arg_exits_2(self):
+        path = self._docx_with("Some bullet")
+        try:
+            rc = de.cli(["docx_edit.py", path, "--set-text", "Some bullet"])
+            self.assertEqual(rc, 2)
+        finally:
+            os.unlink(path)
+
+
+class StyleFilterCLITests(unittest.TestCase):
+    """docx_edit.py --style <name> — discover block-boundary styles (the
+    CompanyBlock/SectionHeading map) without paging the full paragraph map."""
+
+    def _docx_with_styles(self):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        ps = (
+            ("Career Experience", "SectionHeading"),
+            ("GEICO, Chevy Chase06/2025", "CompanyBlock"),
+            ("Staff Engineer", "JobTitleBlock"),
+            ("Bullet one", "BodyText"),
+            ("Education", "SectionHeading"),
+        )
+        doc = (
+            '<?xml version="1.0"?>'
+            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
+        )
+        for text, style in ps:
+            doc += (
+                f'<w:p><w:pPr><w:pStyle w:val="{style}"/></w:pPr>'
+                f'<w:r><w:t xml:space="preserve">{text}</w:t></w:r></w:p>'
+            )
+        doc += '</w:body></w:document>'
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr("word/document.xml", doc)
+            z.writestr("[Content_Types].xml", "<Types/>")
+        return path
+
+    def test_filters_paragraphs_by_style(self):
+        path = self._docx_with_styles()
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = de.cli(["docx_edit.py", path, "--style", "SectionHeading"])
+            self.assertEqual(rc, 0)
+            text = out.getvalue()
+            self.assertIn("Career Experience", text)
+            self.assertIn("Education", text)
+            self.assertNotIn("Staff Engineer", text)
+            self.assertNotIn("Bullet one", text)
+            # original index numbers preserved (0 and 4), not renumbered
+            self.assertRegex(text, r"\b0\b")
+            self.assertRegex(text, r"\b4\b")
+        finally:
+            os.unlink(path)
+
+    def test_unknown_style_prints_nothing_exits_0(self):
+        path = self._docx_with_styles()
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = de.cli(["docx_edit.py", path, "--style", "Nope"])
+            self.assertEqual(rc, 0)
+            self.assertEqual(out.getvalue().strip(), "")
         finally:
             os.unlink(path)
 
