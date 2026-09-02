@@ -89,6 +89,14 @@ def fmt(p):
 class ReplaceTextTests(unittest.TestCase):
     """replace_text: per-run substring replacement preserving formatting."""
 
+    def setUp(self):
+        de._APPLIED = 0
+        de._SKIPS.clear()
+
+    def tearDown(self):
+        de._APPLIED = 0
+        de._SKIPS.clear()
+
     def test_replaces_and_preserves_formatting(self):
         """The core behavior: replace per-run and check result text and
         each run's formatting (bold preserved where expected)."""
@@ -143,6 +151,22 @@ class ReplaceTextTests(unittest.TestCase):
                 self.assertIn("target paragraph not found", err.getvalue())
                 if p is not None:
                     self.assertEqual(de.text_of(p), "nothing here")
+
+    def test_spanning_occurrence_skips_without_partial_mutation(self):
+        # `old` appears in the joined text but NO single run contains it
+        # (split across a run boundary): per-run replacement cannot cross
+        # runs. Must skip cleanly BEFORE mutating — no partial edit, no
+        # applied count, skip recorded so strict mode surfaces it. (The
+        # session case: a grammar fix silently no-op'd against text whose
+        # runs split the phrase, and only a manual XML grep caught it.)
+        p = mkp(("Conducted Chaos testing ", False), ("Using AWS FIS", False))
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            de.replace_text(p, "Chaos testing Using", "chaos testing using")
+        self.assertEqual(de.text_of(p), "Conducted Chaos testing Using AWS FIS")
+        self.assertEqual(de._APPLIED, 0, "spanning edit must not count as applied")
+        self.assertIn("spans run boundaries", err.getvalue())
+        self.assertIn("Chaos testing Using", de._SKIPS)
 
 
 class SetTextTests(unittest.TestCase):
@@ -415,6 +439,64 @@ class RemoveTests(unittest.TestCase):
         with contextlib.redirect_stderr(err):
             de.remove(body, None)
         self.assertIn("target paragraph not found", err.getvalue())
+
+
+class DropTests(unittest.TestCase):
+    """drop(): library removal by prefixes — always resolves against a
+    fresh paras(body), names skipped prefixes, returns the refreshed list."""
+
+    def setUp(self):
+        body = ET.Element(W + "body")
+        for text in ("Established a comprehensive test automation approach",
+                     "Established bi-monthly interdepartmental QA meetings",
+                     "Unrelated bullet"):
+            p = ET.SubElement(body, W + "p")
+            t = ET.SubElement(p, W + "t")
+            t.text = text
+            de._ORIG[id(p)] = (p, de.text_of(p))
+        self.body = body
+        de._APPLIED = 0
+        de._SKIPS.clear()
+
+    def tearDown(self):
+        de._ORIG.clear()
+        de._APPLIED = 0
+        de._SKIPS.clear()
+
+    def test_removes_all_and_returns_refreshed_list(self):
+        ps = de.drop(self.body, ["Established a comprehensive",
+                                 "Unrelated bullet"])
+        self.assertEqual([de.text_of(p) for p in ps],
+                         ["Established bi-monthly interdepartmental QA meetings"])
+        self.assertEqual(de._APPLIED, 2)
+
+    def test_regression_short_prefix_after_superstring_removed(self):
+        # THE session failure (BILL SDET tailoring): drop the LONGER prefix
+        # first, then a SHORT prefix that also matches the removed
+        # paragraph's text. The old per-script _drop threaded one ps list
+        # across calls without refreshing the caller's copy, so the later
+        # find_p ran against a list still holding the detached paragraph —
+        # false ambiguity, edit skipped, exit 2 under strict. drop()
+        # resolves against a fresh paras(body) every iteration, so the
+        # short prefix resolves uniquely.
+        de.drop(self.body, ["Established bi-monthly interde"])
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            ps = de.drop(self.body, ["Establ"])
+        self.assertNotIn("matches multiple", err.getvalue())
+        self.assertEqual([de.text_of(p) for p in ps], ["Unrelated bullet"])
+
+    def test_missing_prefix_skips_with_named_prefix(self):
+        # Unlike remove(None)'s generic "(remove)" label, the skip record
+        # and warning name the actual prefix so strict reports point at
+        # the culprit line in the tailor script.
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            de.drop(self.body, ["No Such Prefix"])
+        self.assertIn("No Such Prefix", err.getvalue())
+        self.assertEqual(de._SKIPS, ["No Such Prefix"])
+        self.assertEqual(de._APPLIED, 0)
+        self.assertEqual(len(list(self.body.iter(W + "p"))), 3)
 
 
 class OriginalTextResolutionTests(unittest.TestCase):

@@ -48,7 +48,10 @@ User-supplied personal assets (`*.docx` / `*.pdf`, gitignored) live in the skill
 - `<userName> Master Resume.docx` — the comprehensive data pool. Targeted scripts read it
   by name from the skill root and subtract from it. **Real experience belongs here** — if a
   session authors a bullet the user confirms, fold it into the master (via `clone_after`)
-  so every future tailored resume can pull from it.
+  so every future tailored resume can pull from it. Fold AFTER the per-target
+  script is finished: a fold rewrites master text, which can invalidate the
+  script's `find_p` prefixes — re-run the script under `DOCX_EDIT_STRICT=1`
+  afterwards and re-dump `--prefixes` if any skip fires.
 - `Profile.pdf` — richer than the resume for content to enrich/merge (Step 1). The LinkedIn
   data-export CSVs are an even richer source when available.
 
@@ -79,11 +82,26 @@ reference. The non-obvious rules while authoring:
   as of `load()` time, so a script's own earlier edits can't collide mid-run.
   Smart punctuation is collapsed (curly quotes/dashes match ASCII). For
   duplicate job titles, use `after=<company-header>` or `nth=N`.
+- **`drop(body, prefixes)`**: removes by prefix and returns the refreshed
+  list — `ps = drop(body, ["prefix one", "prefix two"])`. The library
+  replacement for per-script `_drop` helpers: it resolves every prefix
+  against a fresh `paras(body)`, so it can never "find" a paragraph an
+  earlier call already detached (a `ps` list threaded across calls goes
+  stale — the caller's copy keeps removed paragraphs — producing false
+  ambiguity on short prefixes, or silent edits applied to detached
+  elements). A skipped prefix is named in the warning, not reported as a
+  generic `(remove)`.
 - **`save()` drift sidecar**: auto-maintains `<dst>.drift.json` keyed by the
   calling script. First run records the baseline; later runs warn (`DRIFT:`) if
   the applied-edit count changed. Warn-once, rebaseline; the blocking gate for
   a stopped-matching edit is the skipped-edit check (exit 2 under
-  `DOCX_EDIT_STRICT=1`).
+  `DOCX_EDIT_STRICT=1`); `DOCX_EDIT_REBASELINE=1` rebaselines an intentional
+  count change silently (authoring-time iteration). Pass `src=SRC` to
+  `save()` and the sidecar also records the master's sha256, warning
+  (`MASTER CHANGED:`) when the master differs from the script's last run —
+  a master edited mid-session can leave a prefix matching while the text
+  underneath changed, and a `set_text` rewrite would silently land on the
+  new text with no skip fired.
 - **`clone_after(body, ref_p, text)`**: add a NEW bullet to the master,
   inheriting numbering.
 - **`merge_into(body, target, source, text)`**: rewrite `target` AND remove
@@ -305,9 +323,9 @@ python3 scripts/measure_resume.py "<Target>.docx" 2 \
     --protect "partner integrations" --protect "sandbox"
 ```
 
-Paste the DROP PLAN's `find_p` lines into the tailor script's `remove` calls
-(wrapped in the same `for prefix in [...]: remove(body, find_p(ps, prefix))`
-pattern), re-run the tailor script, re-measure once to confirm the gap closed,
+Paste the DROP PLAN's `find_p` prefix strings straight into a
+`drop(body, [...])` call (never re-derive them by hand), re-run the tailor
+script, re-measure once to confirm the gap closed,
 then render to verify. This replaces the cut-render-cut guesswork.
 
 **Human rule still applies on top:** keep (or protect) the 2–3 bullets with hard
@@ -359,8 +377,12 @@ verification render: validation report, page map, spilled content, last-page tai
 
 ```bash
 ./scripts/render_pdf.sh "<output>.docx"          # compact
-./scripts/render_pdf.sh --verbose "<output>.docx"  # final verification
+./scripts/render_pdf.sh --target-pages 3 --verbose "<output>.docx"  # final verification
 ```
+
+The render's default page target is 2; pass `--target-pages N` matching the
+target agreed in Step 3, so the overflow report measures against the goal you
+actually agreed on (3 for senior/Staff, not the 2-page default).
 
 `render_pdf.sh` **validates first** (runs `validate_resume.py`): it refuses to
 render on blocking errors — an orphan job title, a company without a title,
@@ -429,6 +451,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Rebuilding the .docx from scratch | Edit XML in place — `python-docx` drops styles, numbering, hyperlinks |
 | Using `set_text` on a `"Label: values"` line | Collapses to all-bold — use `set_labeled` (Helper library) |
 | Hand-counting an edit budget (`expect_edits=N`) | Never count — `save()`'s drift sidecar records the baseline and warns on change |
+| Chasing a skip warning as a library bug | Re-dump `--prefixes` on the master FIRST — it may have been edited since your dump (the `MASTER CHANGED:` sidecar warning fires on this); a prefix can also match a paragraph an earlier `drop` already removed if you thread a stale `ps` list — use `ps = drop(body, [...])` |
 | Guessing WHICH bullets to cut from the reclaim gap | Use measure's DROP PLAN + `--protect "<JD ask>"`; paste its `find_p` lines (Step 8) |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 5) |

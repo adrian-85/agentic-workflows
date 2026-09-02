@@ -15,7 +15,7 @@ The pattern (see SKILL.md for the full workflow):
 3. Re-anchor the most-recent/senior role intro around ownership and the
    JD's selling points; weave JD-named tools into the role bullet where they
    were actually used (merge, don't append).
-4. Compress every role to its most JD-aligned/quantified bullets via `remove`,
+4. Compress every role to its most JD-aligned/quantified bullets via `drop`,
    cutting from the oldest roles first (never the most recent).
 5. Trim the oldest roles' exhaustive Tools lines to one line each.
 6. Drop blank inter-role spacer paragraphs to reclaim vertical space.
@@ -67,18 +67,11 @@ import shutil
 
 from docx_edit import (
     load, save, paras, find_p, set_text, set_labeled, replace_text,
-    merge_into, remove, remove_empty,
+    merge_into, drop, remove, remove_empty,
 )
 
 SRC = "<userName> Master Resume.docx"
 DST = "<userName> Resume - <Target>.docx"
-
-
-def _drop(body, ps, prefixes):
-    """Remove paragraphs whose text starts with any prefix; refresh `ps`."""
-    for prefix in prefixes:
-        remove(body, find_p(ps, prefix))
-        ps = paras(body)
 
 
 def main():
@@ -107,7 +100,7 @@ def main():
     #     on unapproved role elimination — record approval via
     #     RESUME_VALIDATE_ARGS="--seniority-approved" (--jd-years optional).
     # ------------------------------------------------------------------ #
-    # _drop(body, ps, [
+    # ps = drop(body, [
     #     "<oldest-role company header>...",
     #     "<oldest-role job title>",
     #     "<oldest-role bullet prefixes>",
@@ -143,7 +136,7 @@ def main():
         find_p(ps, "<prefix of the senior-role intro bullet>"),
         "<Re-anchored intro emphasizing ownership and THIS JD's selling points.>",
     )
-    _drop(body, ps, [
+    ps = drop(body, [
         "<prefix of an off-theme senior-role bullet to drop>",
         # ...
     ])
@@ -153,7 +146,7 @@ def main():
     #    back first; keep the 2-3 with hard numbers or framework-ownership
     #    signal. Never cut the most-recent role to make room — reallocate.
     # ------------------------------------------------------------------ #
-    # _drop(body, ps, [
+    # ps = drop(body, [
     #     "<oldest-role bullet to drop>",
     #     # ...
     # ])
@@ -192,7 +185,7 @@ def main():
     # skipped-edit check (exit 2 under strict). No literal to maintain. render_pdf.sh also runs validate_resume.py on the output
     # and refuses to render a docx with structural errors (orphan job
     # titles, company blocks without titles).
-    save(DST, root, names, data)
+    save(DST, root, names, data, src=SRC)
     print("WROTE", DST)
 
 

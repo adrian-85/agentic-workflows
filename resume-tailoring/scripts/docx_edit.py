@@ -57,6 +57,7 @@ CLI (inspect structure before editing)::
 """
 
 import copy
+import hashlib
 import json
 import os
 import sys
@@ -144,7 +145,7 @@ def load(path):
     return root, body, names, data, W
 
 
-def save(path, root, names, data, drift_key=None):
+def save(path, root, names, data, drift_key=None, src=None):
     """Serialize mutated root back into the .docx zip at `path`.
 
     After writing, prints an applied-vs-skipped summary so a silently
@@ -157,7 +158,18 @@ def save(path, root, names, data, drift_key=None):
     and every later run warns when the count changed — i.e. an edit was
     added, removed, or stopped matching the master. Warn-once, rebaseline;
     the blocking gate for a stopped-matching edit is the skipped-edit check
-    (exit 2 under strict).
+    (exit 2 under strict). Set ``DOCX_EDIT_REBASELINE=1`` to rebaseline an
+    intentional count change silently (authoring-time iteration).
+
+    When ``src`` (the master the script copied from) is passed, the sidecar
+    also records the master's sha256 and warns ``MASTER CHANGED`` when it
+    differs from the previous run of the same script. This catches the
+    silent hazard a skipped-edit warning cannot see: a master edited
+    mid-session (or between runs) where a script prefix STILL matches but
+    the text underneath changed — the rewrite would land on the new text
+    with no skip fired. On this warning, re-dump
+    ``docx_edit.py <master> --prefixes`` and run ``diff_resume.py --tailor``
+    before rendering.
     """
     global _APPLIED
     data["word/document.xml"] = ET.tostring(
@@ -190,26 +202,56 @@ def save(path, root, names, data, drift_key=None):
                 baseline = json.load(f)
         except (ValueError, OSError):
             baseline = {}
+    master_sha = None
+    if src:
+        try:
+            with open(src, "rb") as f:
+                master_sha = hashlib.sha256(f.read()).hexdigest()
+        except OSError:
+            master_sha = None
     prev = baseline.get(drift_key)
-    if prev is not None and prev != applied:
+    prev_edits = prev.get("edits") if isinstance(prev, dict) else prev
+    prev_sha = prev.get("master_sha") if isinstance(prev, dict) else None
+    rebaseline = (
+        os.environ.get("DOCX_EDIT_REBASELINE", "").strip().lower() == "1"
+    )
+    if prev is not None and prev_edits != applied:
+        if rebaseline:
+            pass  # intentional change; rebaseline silently (authoring-time)
+        else:
+            print(
+                f"DRIFT: {drift_key} expected {prev_edits} edits (last "
+                f"recorded run) but applied {applied} — an edit was added, "
+                f"removed, or stopped matching the master. Review before "
+                f"rendering.",
+                file=sys.stderr,
+            )
+            # A count change is a review signal, not a gate: rebaseline so
+            # the warning fires ONCE per change (an intentional add/remove
+            # must not trap every later run). The blocking gate for "an edit
+            # stopped matching" is the skipped-edit check above, which exits
+            # 2 under strict.
+    if prev_sha and master_sha and prev_sha != master_sha:
         print(
-            f"DRIFT: {drift_key} expected {prev} edits (last recorded run) "
-            f"but applied {applied} — an edit was added, removed, or stopped "
-            f"matching the master. Review before rendering.",
+            f"MASTER CHANGED: {src} differs from the master of the last "
+            f"run of {drift_key} — prefixes may have drifted or edits may "
+            f"now land on rewritten text. Re-dump `docx_edit.py {src!r} "
+            f"--prefixes` and run diff_resume.py --tailor before "
+            f"rendering.",
             file=sys.stderr,
         )
-        # A count change is a review signal, not a gate: rebaseline so the
-        # warning fires ONCE per change (an intentional add/remove must not
-        # trap every later run). The blocking gate for "an edit stopped
-        # matching" is the skipped-edit check above, which exits 2 under
-        # strict.
-    baseline[drift_key] = applied
+    baseline[drift_key] = {"edits": applied, "master_sha": master_sha}
     try:
         with open(drift_path, "w") as f:
             json.dump(baseline, f, indent=1)
     except OSError:
         pass  # sidecar is best-effort; never fails the save
     if strict and skipped:
+        print(
+            f"output written to {path}; strict check FAILED "
+            f"({len(skipped)} skipped edit(s)) — review the warnings above",
+            file=sys.stderr,
+        )
         raise SystemExit(2)
 
 
@@ -440,6 +482,24 @@ def replace_text(p, old, new):
     if old not in text_of(p):
         _warn_missing(old)
         return
+    if not any(
+        old in (t.text or "")
+        for r in _runs(p)
+        for t in r.findall(W + "t")
+    ):
+        # The joined text contains `old` but no single run does: the phrase
+        # spans run boundaries (e.g. a bold lead-in run + a plain run).
+        # Per-run replacement cannot cross runs, so mutating now would edit
+        # nothing while still counting the edit as applied. Skip cleanly
+        # (all-or-nothing) and record so strict mode surfaces it.
+        print(
+            f"warning: replace_text({old!r}) appears in the paragraph's "
+            f"joined text but spans run boundaries — per-run replacement "
+            f"cannot cross runs; no change made, edit skipped",
+            file=sys.stderr,
+        )
+        _SKIPS.append(old)
+        return
     for r in _runs(p):
         for t in r.findall(W + "t"):
             if t.text and old in t.text:
@@ -522,6 +582,37 @@ def remove(body, p):
     body.remove(p)
     global _APPLIED
     _APPLIED += 1
+
+
+def drop(body, prefixes):
+    """Remove paragraphs whose text starts with any of ``prefixes``.
+
+    The library replacement for the per-script ``_drop`` helper, and the
+    fix for its stale-list failure mode: a helper that threads one ``ps``
+    list across edits keeps references to paragraphs removed by EARLIER
+    calls (the caller's list is never refreshed), so a later ``find_p``
+    against that stale list can "find" an already-detached paragraph —
+    a false ambiguity on a short prefix, or a silent edit applied to a
+    detached element. ``drop`` resolves every prefix against a FRESH
+    :func:`paras` of the body, so detachment is impossible.
+
+    A prefix that matches nothing (or is ambiguous) is skipped with the
+    prefix named in the warning/skip record — unlike ``remove(None)``'s
+    generic "(remove)" label — so strict-mode reports name the culprit.
+
+    Returns the refreshed paragraph list; assign it back::
+
+        ps = drop(body, ["prefix one", "prefix two"])
+    """
+    for prefix in prefixes:
+        p = find_p(paras(body), prefix)
+        if p is None:
+            # find_p already warned (missing or ambiguous, record=False);
+            # record the skip under the real prefix for save()'s report.
+            _SKIPS.append(prefix)
+            continue
+        remove(body, p)
+    return paras(body)
 
 
 def merge_into(body, target, source, text):
