@@ -359,6 +359,97 @@ class JdYearsTests(unittest.TestCase):
         self.assertIn("aligned", out)
 
 
+class RoleIntegrityTests(unittest.TestCase):
+    """Whole-role removals must be WHOLE (validated against the master):
+    kept roles keep title+bullets; removed roles leave no surviving bullets
+    (the Symbols-orphan failure)."""
+
+    @staticmethod
+    def _write(path, roles):
+        """roles: list of (header, title_or_None, [bullet_texts])."""
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr(
+                "word/document.xml",
+                '<?xml version="1.0"?><w:document xmlns:w="'
+                + de.XMLNS + '"><w:body/></w:document>',
+            )
+            z.writestr("[Content_Types].xml", "<Types/>")
+        root, body, names, data, _ = de.load(path)
+        ps = [mk("Career Experience", style="SectionHeading")]
+        for header, title, bullets in roles:
+            ps.append(mk(header, style=mr.COMPANY_STYLE))
+            if title:
+                ps.append(mk(title, style=vr.TITLE_STYLE))
+            for b in bullets:
+                ps.append(mk(b, numId=4))
+        ps.append(mk("Education", style="SectionHeading"))
+        for p in ps:
+            body.append(p)
+        with contextlib.redirect_stdout(io.StringIO()):
+            de.save(path, root, names, data)
+
+    def _run(self, master_roles, target_roles):
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        master = os.path.join(td.name, "Test Master Resume.docx")
+        target = os.path.join(td.name, "Test Resume - Target.docx")
+        self._write(master, master_roles)
+        self._write(target, target_roles)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = vr.main([target, "--master", master, "--seniority-approved"])
+        return rc, out.getvalue()
+
+    def test_clean_tailoring_passes(self):
+        roles = [
+            ("Co A, City01/2020 – 06/2021", "Title A", ["bullet A1", "b A2"]),
+            ("Co B, City01/2019 – 01/2020", "Title B", ["bullet B1"]),
+        ]
+        target = [roles[0]]  # B removed whole, A kept whole
+        rc, out = self._run(roles, target)
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("role integrity", out.lower())
+
+    def test_role_kept_but_bullets_all_removed_is_error(self):
+        roles = [
+            ("Co A, City01/2020 – 06/2021", "Title A", ["bullet A1"]),
+            ("Co B, City01/2019 – 01/2020", "Title B", ["bullet B1"]),
+        ]
+        target = [
+            ("Co A, City01/2020 – 06/2021", "Title A", []),  # emptied
+            ("Co B, City01/2019 – 01/2020", "Title B", ["bullet B1"]),
+        ]
+        rc, out = self._run(roles, target)
+        self.assertEqual(rc, 2)
+        self.assertIn("ALL its bullets", out)
+
+    def test_role_removed_but_bullet_survives_is_error(self):
+        roles = [
+            ("Co A, City01/2020 – 06/2021", "Title A", ["bullet A1"]),
+            ("Co B, City01/2019 – 01/2020", "Title B", ["orphan B1"]),
+        ]
+        # B removed but its bullet text survives under role A (the
+        # Symbols-orphan failure: bullets kept, header/title dropped).
+        target = [
+            ("Co A, City01/2020 – 06/2021", "Title A",
+             ["bullet A1", "orphan B1"]),
+        ]
+        rc, out = self._run(roles, target)
+        self.assertEqual(rc, 2)
+        self.assertIn("survives", out)
+
+    def test_role_kept_but_title_removed_is_error(self):
+        roles = [
+            ("Co A, City01/2020 – 06/2021", "Title A", ["bullet A1"]),
+        ]
+        target = [
+            ("Co A, City01/2020 – 06/2021", None, ["bullet A1"]),
+        ]
+        rc, out = self._run(roles, target)
+        self.assertEqual(rc, 2)
+        self.assertIn("job title was removed", out)
+
+
 class SeniorityGateTests(unittest.TestCase):
     """The Step 3 seniority gate: whole-role elimination (visible span >= 2y
     shorter than the master) is a blocking error unless --seniority-approved

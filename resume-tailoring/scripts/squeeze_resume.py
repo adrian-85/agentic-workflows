@@ -146,9 +146,12 @@ def main():
                             jd_terms=jd_terms)
         if not batch:
             print("  no JD-safe bullet cuts remain — every remaining bullet "
-                  "is JD-matched or protected. Next step is a whole-role "
-                  "drop (seniority alignment; user approval recorded at "
-                  "render) or a Tools-line trim.", file=sys.stderr)
+                  "is JD-matched or protected. Cuts can still come from ANY "
+                  "section: run measure_resume.py for the TOP-BLOCK RECLAIM "
+                  "CANDIDATES (off-JD proficiency/certification lines), trim "
+                  "a Tools line, or drop a whole role (seniority alignment; "
+                  "user approval recorded at render — check the gap warning "
+                  "in measure's BATCH RECLAIM PLAN).", file=sys.stderr)
             log["final_pages"] = total
             break
 

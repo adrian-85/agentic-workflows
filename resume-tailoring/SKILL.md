@@ -36,7 +36,7 @@ subtractive: cut from the oldest roles, never the most recent.
 | 5 | No sections between Summary & Proficiencies | — |
 | 6 | Re-anchor senior role (merge, don't append) | `set_text`, `merge_into` |
 | 7 | Expand role adjacent to JD industry/stage | `set_text` |
-| 8 | Compress oldest roles (measure first) | `measure_resume.py` `--jd` (DROP PLAN); `squeeze_resume.py` for the residual gap |
+| 8 | Compress any section (measure first): oldest-role bullets, then off-JD proficiencies/certs | `measure_resume.py` `--jd` (DROP PLAN + TOP-BLOCK CANDIDATES); `squeeze_resume.py` for the residual gap |
 | 9 | Fix grammar, typos, punctuation | grep + `validate_resume.py` |
 | 10 | Save tailored copy (never overwrite master) | `save()` |
 | 11 | Render + verify PDF | `render_pdf.sh` |
@@ -301,7 +301,14 @@ the theme explicit. If the master is missing a theme the user confirms they
 have, fold that content into the master first (real experience lives in the
 master, not per-target scripts).
 
-### 8. Compress the oldest roles
+### 8. Compress — the WHOLE resume tailors to the JD
+**Cuts can come from ANY section, not just job bullets.** Technical
+Proficiencies lines, Certifications, Tools lines, blank spacers, and
+role bullets are all first-class cuts — the same rendered line cost.
+Compression order: (1) oldest-role bullets via DROP PLAN, (2) TOP-BLOCK
+CANDIDATES lines (off-JD proficiencies/certs), (3) Tools line trims, (4)
+blank spacers. Go in that order; don't hand-pick.
+
 **Measure before cutting.** After the content edits (steps 4–7), run
 `scripts/measure_resume.py <target.docx> [TARGET_PAGES]` — it renders once and
 reports the per-role line cost and the **exact reclaim gap** to the target page
@@ -343,6 +350,12 @@ python3 scripts/measure_resume.py "<Target>.docx" 2 --jd "<JD>.txt" \
     --protect "partner integrations" --protect "sandbox"
 ```
 
+**Also check the TOP-BLOCK RECLAIM CANDIDATES** in the same measure output:
+every Technical Proficiencies or Certifications line with no JD evidence, as a
+copy-pasteable `find_p` cut (~1 line each). Cut those before touching any
+JD-matched bullet — the list is deterministic; don't evaluate whether a line
+"evidence" the JD.
+
 **Residual gap: run `squeeze_resume.py`, don't trim by hand.** When only a few
 lines over after the planned old-role cuts, the tool automates the remaining
 cut-render-cut loop: each iteration applies the same JD-aware oldest-first
@@ -369,11 +382,19 @@ before quantified ones. The scorer only ranks — you confirm against the JD.
 
 The reclaim plan may also suggest **dropping a whole oldest role** (cleanest
 page math). That is Step 3 seniority-alignment territory: confirm with the
-user and record `--seniority-approved` at render time.
+user and record `--seniority-approved` at render time. The plan annotates
+any interior whole-role drop with a **gap warning** (the employment gap its
+removal opens between surviving neighbors) — an interior drop that opens a
+gap is a sign to cut from the oldest role instead, or restore a lean stub of
+the removed role (header/title + strongest bullet) to keep the timeline
+gapless.
 
 Still a few lines over? Trim the oldest roles' Tools lines to one line each
 (keep the 6–8 most JD-relevant tools) and drop blank inter-role spacers with
-`remove_empty`.
+`remove_empty`. Re-check the **TOP-BLOCK RECLAIM CANDIDATES** section of the
+measure output: it lists every Technical Proficiencies / Certifications line
+that carries NO JD evidence as a copy-pasteable `find_p` cut (~1 line each).
+Cut those before cutting another JD-matched bullet.
 
 Re-run `render_pdf.sh` (compact) to verify — measuring replaces iteration, it
 does not replace the final verification render.
@@ -487,6 +508,8 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Hand-counting an edit budget (`expect_edits=N`) | Never count — `save()`'s drift sidecar records the baseline and warns on change |
 | Chasing a skip warning as a library bug | Re-dump `--prefixes` on the master FIRST — it may have been edited since your dump (the `MASTER CHANGED:` sidecar warning fires on this); a prefix can also match a paragraph an earlier `drop` already removed if you thread a stale `ps` list — use `ps = drop(body, [...])` |
 | Guessing WHICH bullets to cut from the reclaim gap | Use measure's DROP PLAN with `--jd "<JD>.txt"` + `--protect "<fact>"`; paste its `find_p` lines, or run `squeeze_resume.py` for the residual gap (Step 8) |
+| Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
+| Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 5) |
 | Appending bullets when content overlaps an existing one | Merge (`merge_into`) — appending blows the page budget (Step 6) |

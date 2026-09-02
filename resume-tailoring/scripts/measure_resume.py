@@ -190,6 +190,75 @@ def _roles(body):
     return roles
 
 
+def _top_block_candidates(body, jd_terms=()):
+    """Cut candidates from the FIXED TOP BLOCK: Technical Proficiencies
+    lines and certification lines carrying no JD evidence.
+
+    The whole resume tailors to the JD — compression is NOT limited to
+    role bullets. Each candidate is ``(find_p_prefix, text)``; a line that
+    matches a JD term or practice phrase is NOT a candidate (it is doing
+    JD work). The Certifications section heading itself is skipped (it is
+    only cuttable together with its last line). Empty without --jd? No —
+    without ``jd_terms`` every top-block line is a candidate (the caller
+    labels them "review against the JD").
+    """
+    ps = de.paras(body)
+    texts = [de.text_of(p) for p in ps]
+    start = None
+    for i, p in enumerate(ps):
+        if texts[i].strip() == SECTION_PROFICIENCIES:
+            start = i + 1
+            break
+    if start is None:
+        return []
+    out = []
+    for i in range(start, len(ps)):
+        p = ps[i]
+        style, _ = de.style_and_numid(p)
+        t = texts[i]
+        if style == COMPANY_STYLE and t.strip():
+            break  # career region begins
+        if style == "SectionHeading" or not t.strip():
+            continue
+        if _jd_hits(t, jd_terms) or _concept_hits(t):
+            continue
+        prefix = de.shortest_unique_prefix(texts, i, min_len=6)
+        if prefix is not None:
+            out.append((prefix, t.strip()))
+    return out
+
+
+def _role_span_months(raw):
+    """(start, end) month indexes from a role-header's date range, else
+    (None, None)."""
+    dates = []
+    for m in DATE_RE.finditer(raw):
+        mm, yyyy = m.group(0).split("/")
+        dates.append((int(yyyy), int(mm)))
+    if len(dates) < 2:
+        return None, None
+    return dates[0], dates[-1]
+
+
+def _gap_if_dropped(roles, key):
+    """Months of employment gap that dropping the role ``key`` would open
+    between its two surviving neighbors, else 0.
+
+    ``roles`` is newest-first (document order). Only interior roles can
+    open a gap — dropping the oldest role just shortens the timeline.
+    """
+    idx = next((i for i, r in enumerate(roles) if r["key"] == key), None)
+    if idx is None or idx == 0 or idx + 1 >= len(roles):
+        return 0
+    _, older_end = _role_span_months(roles[idx + 1]["raw"])
+    newer_start, _ = _role_span_months(roles[idx - 1]["raw"])
+    if older_end is None or newer_start is None:
+        return 0
+    gap = ((newer_start[0] - older_end[0]) * 12
+           + (newer_start[1] - older_end[1]))
+    return max(0, gap)
+
+
 def _match_roles_to_pages(roles, pages_text):
     """Attribute rendered lines to each role by locating its header in the
     PDF text. Returns list of (role, start_page_1based, end_page,
@@ -373,24 +442,42 @@ _NUMBER = re.compile(r"\d|%")
 # relevance (protecting them over-protects: Java/Python appear everywhere).
 # Add to this list only when a vocabulary term keeps over-matching.
 JD_STOP = frozenset({
-    "java", "python", "javascript", "typescript", "c#", "c", "c++", "go",
-    "ruby", "php", "scala", "kotlin", "swift", "cobol", "r", "matlab",
-    "test", "tests", "testing", "api", "rest", "restful", "sql", "ci",
-    "cd", "sdlc", "web", "mobile", "app", "apps", "application",
-    "applications", "software", "automation", "framework", "frameworks",
-    "tool", "tools", "tooling", "quality", "qa", "engineering",
-    "engineer", "engineers", "experience", "senior", "staff",
-    "technical", "tech", "technology", "technologies", "systems",
-    "system", "code", "codes", "platform", "platforms", "service",
-    "services", "product", "products", "process", "processes", "team",
-    "teams", "project", "projects", "cloud", "data", "documentation",
-    "release", "releases", "integration", "unit", "end", "end-to-end",
-    "e2e", "architecture", "architectures", "design", "development",
-    "developer", "build", "building", "report", "reports", "model",
-    "models", "workflow", "workflows", "standard", "standards",
-    "functional", "regression", "smoke", "acceptance", "analytics",
-    "metric", "metrics", "delivery", "operations", "monitoring",
-    "infrastructure", "devops", "tested", "testers",
+    # Vague résumé/JD nouns and generic ENGLISH PROSE. Tech words (rest,
+    # api, java, sql, testing, ...) are deliberately NOT here: matching is
+    # whole-word + capitalized-for-bullet-only-terms + a generic-hit-rate
+    # guard, so a JD that names REST or Java now protects the bullets that
+    # use them instead of being silenced by the stop list. The stop list is
+    # only for words that are NEVER tech evidence.
+    "experience", "senior", "staff", "team", "teams", "project",
+    "projects", "process", "processes", "product", "products",
+    "quality", "engineer", "engineers", "role", "roles", "end",
+    "end-to-end", "e2e", "standard", "standards", "deliver",
+    "delivered", "delivering", "deliveries",
+    "with", "from", "into", "them", "they", "their", "each",
+    "when", "while", "where", "which", "through", "throughout",
+    "than", "then", "also", "both", "over", "more", "most",
+    "other", "others", "some", "such", "only", "well", "work",
+    "worked", "working", "works", "need", "needs", "using",
+    "used", "uses", "across", "against", "within", "without",
+    "via", "per", "plus", "near", "among", "along", "since",
+    "until", "upon", "about", "after", "before", "during",
+    "between", "internal", "external", "global", "globally",
+    "international", "meeting", "meetings", "contact", "corporate",
+    "clients", "client", "customers", "customer", "hour", "hours",
+    "time", "lead", "leads", "leading", "flow", "flows", "gain",
+    "gains", "approach", "approaches", "clearly", "clear",
+    "required", "require", "requires", "requirement", "requirements",
+    "commit", "commits", "committed", "resolution", "resolve",
+    "resolved", "support", "supports", "supported", "supporting",
+    "issue", "issues", "based", "multiple", "various", "several",
+    "include", "includes", "included", "including", "deeply", "deep",
+    "key", "core", "strong", "strongly", "solid", "proven",
+    "ability", "abilities", "skill", "skills", "skilled",
+    "knowledge", "understanding", "complex", "concepts", "concept",
+    "bachelor", "degree", "education", "university", "college",
+    "business", "businesses", "progress", "flexible", "flexibility",
+    "learning", "collaborative", "environment", "environments",
+    "practice", "practices", "types", "type", "internally",
 })
 
 # JD-Named PRACTICES the vocabulary intersection cannot see (they are not
@@ -402,7 +489,8 @@ JD_CONCEPTS = (
     "mentor", "mentoring", "mentorship", "shift-left", "shift left",
     "contract testing", "root-cause", "root cause", "risk-based",
     "exploratory", "chaos", "model-based", "code review", "design review",
-    "traceability",
+    "traceability", "documentation gaps", "go-live", "go live",
+    "instructor-led", "incomplete documentation",
 )
 
 
@@ -470,39 +558,123 @@ def _bullet_terms(body):
     in the JD to become a term, so misses only over-protect when the JD
     itself names a prose word."""
     terms = set()
-    for p in de.paras(body):
-        style, numId = de.style_and_numid(p)
-        if numId in (None, "0") and style not in BULLET_STYLES:
-            continue
-        for w in re.findall(r"[a-z0-9][a-z0-9#.+-]*", de.text_of(p).lower()):
+    for text in _all_bullet_texts(body):
+        for w in re.findall(r"[a-z0-9][a-z0-9#.+-]*", text.lower()):
+            w = w.rstrip(".,;:!?'")
             if w in JD_STOP or len(w) < 4 or re.fullmatch(r"[0-9.]+\w*", w):
                 continue
             terms.add(w)
     return terms
 
 
+def _all_bullet_texts(body):
+    """Texts of every numbered bullet in the document (document order)."""
+    out = []
+    for p in de.paras(body):
+        style, numId = de.style_and_numid(p)
+        if (numId in (None, "0") and style not in BULLET_STYLES):
+            continue
+        out.append(de.text_of(p))
+    return out
+
+
+def _jd_capitalized(jd_text, term):
+    """True if ``term`` occurs in the JD as a mid-sentence Capitalized or
+    ALL-CAPS token.
+
+    Bullet-only terms (tools named nowhere in the proficiencies/Tools
+    vocabulary, e.g. Snyk) must pass this test: tool names are proper
+    nouns and stay capitalized mid-sentence in well-formed JDs, while the
+    generic prose that floods JD matching (closely, critical, deliver)
+    does not. Sentence-start capitals are rejected — every English
+    sentence starts capitalized, which would re-admit the prose flood.
+    """
+    for m in re.finditer(
+            r"(?<![A-Za-z0-9#.+-])" + re.escape(term) + r"(?![A-Za-z0-9#.+-])",
+            jd_text, re.I):
+        if not m.group(0)[0].isupper():
+            continue
+        pre = jd_text[:m.start()].rstrip()
+        if pre and pre[-1] not in ".!?\n":
+            return True
+    return False
+
+
 def _jd_terms(jd_text, body):
     """Candidate-technical terms the JD actually asks for: vocabulary and
     bullet-tool terms the JD also names, minus generic stopwords. Empty
     when jd_text is empty/garbage — callers fall back to the JD-blind
-    ranking."""
+    ranking.
+
+    Vocab-derived terms (proficiencies, Tools lines, job titles — the
+    candidate's CLAIMED tech) match anywhere in the JD. Bullet-only terms
+    must additionally pass _jd_capitalized: they are the prose-flood
+    source, and a tool name is a proper noun.
+
+    A GENERIC-HIT-RATE GUARD discards any surviving term that matches more
+    than half of the document's bullets: such a term is prose the stop list
+    missed, not technology — keeping it would "protect" half the resume and
+    stall the DROP PLAN (the consulting-JD flood this guard exists for).
+    """
     jd_low = jd_text.lower()
     terms = set()
     for t in _vocab_terms(body):
-        if len(t) < 3 or t in JD_STOP or re.fullmatch(r"[0-9.]+\w*", t):
+        # "c#"/"c++"/"f#" are length-2 but unambiguous tech terms.
+        if (len(t) < 3 and not re.search(r"[#+]", t)) or t in JD_STOP \
+                or re.fullmatch(r"[0-9.]+\w*", t):
             continue
         if t in jd_low:
             terms.add(t)
     for t in _bullet_terms(body):
-        if t in jd_low:
+        if t in jd_low and _jd_capitalized(jd_text, t):
             terms.add(t)
+    if terms:
+        bullets = _all_bullet_texts(body)
+        if len(bullets) >= 6:
+            texts_low = [b.lower() for b in bullets]
+            generic = set()
+            for t in terms:
+                hits = sum(1 for b in texts_low if _jd_hits(b, {t}))
+                if hits > 0.5 * len(texts_low):
+                    generic.add(t)
+            terms -= generic
     return terms
 
 
 def _jd_hits(text, jd_terms):
-    """Sorted list of JD terms present in ``text`` (substring, lowercase)."""
+    """Sorted list of JD terms present in ``text`` (WHOLE-WORD match,
+    lowercase).
+
+    Word-boundary matching, not substring: the substring form made the
+    generic token "lead" match "leader/leadership/leading" and "flow"
+    match "workflow", protecting bullets that merely share a prose word
+    with the JD. Multi-word terms keep their space-separated phrase form;
+    single tokens must not be flanked by token characters
+    (``[a-z0-9#.+-]``, the same class _bullet_terms tokenizes with).
+
+    Plural tolerance: a singular/plural pair is the SAME evidence (the JD
+    asks for "API integrations", the bullet says "integration test"), so a
+    term ending in ``s`` also matches its singular stem as a whole word.
+    Keeps genuinely-technical lines (an API proficiencies line vs the JD's
+    "APIs") from being misread as off-JD cut candidates.
+    """
     low = text.lower()
-    return sorted(t for t in jd_terms if t in low)
+    out = []
+    for t in jd_terms:
+        if " " in t:
+            if t in low:
+                out.append(t)
+            continue
+        cands = {t}
+        if len(t) >= 4 and t.endswith("s"):
+            cands.add(t[:-1])
+        for c in cands:
+            if re.search(
+                    r"(?<![a-z0-9#.+-])" + re.escape(c) + r"(?![a-z0-9#.+-])",
+                    low):
+                out.append(t)
+                break
+    return sorted(out)
 
 
 def _concept_hits(text):
@@ -652,8 +824,10 @@ def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):
                 section.append(
                     f"  ALL {len(bullets)} bullet(s) protected — budget={n} "
                     "cannot be met without cutting JD/protected content. "
-                    "Consider dropping the whole role (seniority decision) "
-                    "or trimming the Tools line instead."
+                    "Cuts can still come from ANY section: the TOP-BLOCK "
+                    "RECLAIM CANDIDATES (proficiencies/certs), a Tools-line "
+                    "trim, or a whole-role drop (seniority decision; check "
+                    "the gap warning in the BATCH RECLAIM PLAN)."
                 )
             else:
                 section.append(
@@ -858,7 +1032,10 @@ def main():
 
     print()
     print(f"Fixed top block (Summary+Proficiencies+Certifications+chrome): "
-          f"{fixed_top} rendered lines (not where compression cuts happen)")
+          f"{fixed_top} rendered lines")
+    print("  (the WHOLE resume tailors to the JD — cuts can come from ANY")
+    print("   section; see TOP-BLOCK RECLAIM CANDIDATES below when over "
+          "target)")
     print()
     print("Per-role rendered cost (oldest roles LAST — cut from the bottom):")
     print(f"  {'Role':<34} {'pg':>4} {'lines':>5} {'bullets':>7} {'tools':>5}")
@@ -892,16 +1069,38 @@ def main():
         # "~2 lines per bullet" estimate that undercounted dense bullets).
         per = _measured_lines_per_bullet(matched)
         plan, remaining = _reclaim_batch(matched, per, overflow_lines + per)
+        matched_roles = [m[0] for m in matched]
         print()
         print(f"MEASURED: ~{per:.1f} rendered lines per bullet (this render)")
         print("BATCH RECLAIM PLAN (oldest roles first; +1-bullet buffer):")
         for key, action, saved in plan:
             print(f"  - {key}: {action}")
+            if action.startswith("consider dropping"):
+                gap = _gap_if_dropped(matched_roles, key)
+                if gap:
+                    print(f"      WARNING: dropping this (interior) role "
+                          f"opens a ~{gap}-month employment gap between its "
+                          f"surviving neighbors — prefer cutting from the "
+                          f"oldest role, or drop the whole gapless tail.")
         if remaining > 0:
             print(f"  (still ~{remaining:.0f} line(s) over plan — cut past the "
                   f"listed bullet(s) or trim Tools lines)")
         print("  Generic savings: drop blank inter-role spacers via "
               "remove_empty (~1 line each)")
+
+        # TOP-BLOCK CANDIDATES: off-JD proficiency/certification lines are
+        # first-class cuts too (line-costed, copy-pasteable), not just role
+        # bullets — the whole resume tailors to the JD.
+        top = _top_block_candidates(body, jd_terms)
+        if top:
+            print()
+            print("TOP-BLOCK RECLAIM CANDIDATES (Technical Proficiencies / "
+                  "Certifications lines with no JD evidence; ~1 line each):")
+            if not jd_terms:
+                print("  (no --jd given — review each against the JD before "
+                      "cutting)")
+            for prefix, text in top:
+                print(f'    find_p(ps, "{prefix}")  # {text[:70]}')
 
         # The DROP PLAN: name the exact bullets each "drop N bullet(s)"
         # entry refers to, weakest-first, as copy-pasteable find_p lines

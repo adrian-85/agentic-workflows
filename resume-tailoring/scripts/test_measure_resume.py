@@ -388,6 +388,7 @@ class JDAwareTests(unittest.TestCase):
         return _body([
             _para("Technical Proficiencies", style="SectionHeading"),
             _para("Programming Languages: Java, C#, JavaScript, Python"),
+            _para("API & Web Services: REST, SOAP, SQL"),
             _para("Automation Testing Frameworks: Karate, Cypress, Playwright, "
                     "Gatling, Selenium"),
             _para("CI/CD: Jenkins, CircleCI, GitHub Actions, Azure DevOps"),
@@ -412,13 +413,29 @@ class JDAwareTests(unittest.TestCase):
                      "github actions"):
             self.assertIn(want, terms, f"{want!r} must be a JD-matched term")
 
-    def test_jd_terms_exclude_generic_language_stopwords(self):
-        # Java/Python/etc. appear in nearly every bullet; protecting them
-        # over-protects. They must NOT become JD terms.
+    def test_jd_terms_protect_named_tech_when_not_generic(self):
+        # Tech words are NOT stopwords: a JD that names Java/Python/REST
+        # makes them JD terms (whole-word, capitalized), so bullets using
+        # them stop falling to the cut list. They only stay excluded when
+        # the generic-hit-rate guard fires (term hits >50% of bullets).
         jd = "Java, Python, C# programming. SQL and REST APIs."
         terms = mr._jd_terms(jd, self._prof_body())
-        for banned in ("java", "python", "javascript", "c#", "sql", "api"):
-            self.assertNotIn(banned, terms)
+        for want in ("java", "python", "c#", "sql", "rest"):
+            self.assertIn(want, terms, f"{want!r} must be a JD-matched term")
+
+    def test_jd_terms_generic_hit_rate_guard(self):
+        # A term that hits more than half the bullets is prose, not
+        # technology: it must be dropped even though the JD names it,
+        # otherwise the DROP PLAN floods and stalls.
+        jd = "Testing, automation, and framework ownership required. " \
+             "Cypress experience a plus."
+        terms = mr._jd_terms(jd, self._prof_body())
+        # 'cypress' hits 1 of 3 bullets — survives.
+        self.assertIn("cypress", terms)
+        for banned in ("testing", "automation", "framework"):
+            self.assertNotIn(banned, terms,
+                             f"{banned!r} hits most bullets — must be "
+                             f"guard-dropped")
 
     def test_jd_terms_include_title_vocab(self):
         # 'sdet' comes from the job title line, not the proficiency block.
@@ -536,6 +553,126 @@ class JDAwareTests(unittest.TestCase):
         lines = mr._drop_plan_lines(bullets, 1, jd_terms={"cypress"})
         self.assertEqual(len(lines), 1)
         self.assertIn("Some generic bullet", lines[0])
+
+
+class JdHitsTests(unittest.TestCase):
+    """_jd_hits: whole-word matching with plural tolerance."""
+
+    def test_substring_no_longer_matches(self):
+        # 'lead' must not match 'leader/leadership/leading'; 'flow' must
+        # not match 'workflow' (the substring flood).
+        self.assertEqual(mr._jd_hits("Mentored and led the leadership team "
+                                     "through workflow redesign", {"lead",
+                                     "flow"}), [])
+
+    def test_whole_word_matches(self):
+        self.assertEqual(mr._jd_hits("Cut lead time by 90%", {"lead"}),
+                         ["lead"])
+
+    def test_plural_term_matches_singular(self):
+        # The JD asks for "API integrations", the bullet says "integration
+        # test" — same evidence, plural stem must match.
+        self.assertEqual(
+            mr._jd_hits("Built an integration test suite", {"integrations"}),
+            ["integrations"])
+
+    def test_plural_stem_no_bogus_stem_match(self):
+        # Stemming strips only a trailing 's': 'apis' legitimately matches
+        # 'api', and a word whose stem is absent does not match.
+        self.assertEqual(mr._jd_hits("the api layer", {"apis"}), ["apis"])
+        self.assertEqual(mr._jd_hits("the api layer", {"tokens"}), [])
+
+
+class JdCapitalizedTests(unittest.TestCase):
+    """Bullet-only terms must be named as proper nouns in the JD."""
+
+    def test_capitalized_mid_sentence_qualifies(self):
+        self.assertTrue(mr._jd_capitalized(
+            "Configure Snyk for dependency scanning. Snyk is a plus.", "snyk"))
+
+    def test_lowercase_prose_rejected(self):
+        self.assertFalse(mr._jd_capitalized(
+            "you will be coordinating closely with partners", "closely"))
+
+    def test_sentence_start_capital_rejected(self):
+        # Every sentence starts capitalized — that is not evidence.
+        self.assertFalse(mr._jd_capitalized(
+            "Mentor junior engineers. Closely with clients.", "closely"))
+
+
+class TopBlockCandidatesTests(unittest.TestCase):
+    """_top_block_candidates: off-JD proficiencies/cert lines are
+    first-class cut candidates."""
+
+    def _body(self, jd_term_line=True):
+        ps = [
+            _para("Technical Proficiencies", style="SectionHeading"),
+            _para("Programming Languages: Java, Python"),
+            _para("Monitoring & Logging: Datadog, Grafana"),
+            _para("Certifications", style="SectionHeading"),
+            _para("Payments Boot Camp: Glenbrook Partners"),
+            _para(mr.SECTION_CAREER, style="SectionHeading"),
+            _para("Company ABC, City" + _sample_date() + " – 04/2020",
+                  style=mr.COMPANY_STYLE),
+            _para("Senior SDET", style="JobTitleBlock"),
+            _para("Bullet one", numId=2),
+        ]
+        return _body(ps)
+
+    def test_off_jd_lines_are_candidates(self):
+        cands = mr._top_block_candidates(self._body(), jd_terms={"java"})
+        texts = [t for _p, t in cands]
+        self.assertTrue(any("Monitoring" in t for t in texts))
+        self.assertTrue(any("Payments Boot Camp" in t for t in texts))
+
+    def test_jd_matched_line_not_candidate(self):
+        cands = mr._top_block_candidates(self._body(), jd_terms={"java"})
+        texts = [t for _p, t in cands]
+        self.assertFalse(any("Programming Languages" in t for t in texts))
+
+    def test_prefixes_unique_and_pasteable(self):
+        cands = mr._top_block_candidates(self._body(), jd_terms=set())
+        for prefix, _t in cands:
+            self.assertGreaterEqual(len(prefix), 6)
+
+    def test_stops_at_career_region(self):
+        cands = mr._top_block_candidates(self._body(), jd_terms=set())
+        texts = [t for _p, t in cands]
+        self.assertFalse(any(t.startswith("Company") for t in texts))
+        self.assertFalse(any(t == "Bullet one" for t in texts))
+
+
+class GapIfDroppedTests(unittest.TestCase):
+    """_gap_if_dropped: interior whole-role drops open employment gaps."""
+
+    def _roles(self):
+        return [
+            {"key": "geico", "raw": "GEICO06/2025 – 07/2026"},
+            {"key": "symbols", "raw": "Symbols02/2025 – 06/2025"},
+            {"key": "caremetx", "raw": "CareMetx04/2023 – 01/2025"},
+            {"key": "rakuten", "raw": "Rakuten01/2016 – 01/2019"},
+        ]
+
+    def test_interior_drop_opens_gap(self):
+        # Dropping Symbols leaves CareMetx (ends 01/2025) next to GEICO
+        # (starts 06/2025): a 5-month gap.
+        self.assertEqual(mr._gap_if_dropped(self._roles(), "symbols"), 5)
+
+    def test_oldest_drop_no_gap(self):
+        self.assertEqual(mr._gap_if_dropped(self._roles(), "rakuten"), 0)
+
+    def test_newest_drop_no_gap(self):
+        self.assertEqual(mr._gap_if_dropped(self._roles(), "geico"), 0)
+
+    def test_gapless_interior_drop_no_gap(self):
+        roles = [
+            {"key": "b", "raw": "B01/2020 – 06/2020"},
+            {"key": "a", "raw": "A01/2019 – 01/2020"},
+        ]
+        self.assertEqual(mr._gap_if_dropped(roles, "a"), 0)
+
+    def test_unknown_key_no_gap(self):
+        self.assertEqual(mr._gap_if_dropped(self._roles(), "nope"), 0)
 
 
 class VisibleSpanTests(unittest.TestCase):

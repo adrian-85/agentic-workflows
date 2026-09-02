@@ -8,6 +8,10 @@ Catches the error classes tailoring sessions actually hit:
      dangles), or a company block followed by no job title
    - content after a role's Tools line with no new company block (a
      company+title were removed but later bullets survived)
+   - ROLE INTEGRITY (needs the master): whole-role removals must be whole.
+     A kept role must retain its job title and at least one bullet; a
+     removed role must leave no surviving bullet (header dropped but
+     bullets kept = orphaned content that dangles under another role)
    - near-duplicate bullets: a merge that left the source's old text beside
      the rewritten target (long shared substring => likely residue)
 
@@ -255,6 +259,90 @@ def _company_headers(body):
     ]
 
 
+def _role_groups(body):
+    """[({key, title, bullets})] per company block, document order.
+
+    ``key`` is the date-stripped company portion (mr._company_key), which
+    is stable between the master and a tailored copy. Scoped to the career
+    region: education entries reuse the company-block style in this format
+    and are not roles.
+    """
+    groups = []
+    cur = None
+    in_career = False
+    for p in de.paras(body):
+        style, _ = de.style_and_numid(p)
+        t = de.text_of(p).strip()
+        if style == "SectionHeading":
+            in_career = (t == mr.SECTION_CAREER)
+            continue
+        if not in_career:
+            continue
+        if style == mr.COMPANY_STYLE and t:
+            if cur:
+                groups.append(cur)
+            cur = {"key": mr._company_key(t), "title": None, "bullets": []}
+        elif cur is not None:
+            if style == TITLE_STYLE and cur["title"] is None:
+                cur["title"] = t
+            elif _is_bullet(p):
+                cur["bullets"].append(t)
+    if cur:
+        groups.append(cur)
+    return groups
+
+
+def _norm_text(s):
+    return re.sub(r"\s+", " ", s).strip().lower()
+
+
+def _role_integrity_errors(master_path, body):
+    """Whole-role removals must be WHOLE. Compared against the master:
+
+    - a kept role must retain its job title AND at least one bullet
+      (a company header with no title, or a title with no bullets, is a
+      partially-removed role);
+    - a removed role must leave NO surviving bullet (its bullets kept
+      while its header/title were dropped is the Symbols-orphan failure:
+      they dangle under the previous role or after a Tools line).
+    """
+    if not master_path or not os.path.exists(master_path):
+        return []
+    root, mbody, _n, _d, _ = de.load(master_path)
+    master_groups = _role_groups(mbody)
+    out_groups = _role_groups(body)
+    out_by_key = {}
+    for g in out_groups:
+        out_by_key.setdefault(g["key"], []).append(g)
+    out_bullet_set = {_norm_text(b) for g in out_groups for b in g["bullets"]}
+
+    errors = []
+    for g in master_groups:
+        mkey = g["key"]
+        mbullets = g["bullets"]
+        kept = out_by_key.get(mkey)
+        if kept:
+            for og in kept:
+                if og["title"] is None:
+                    errors.append(
+                        f"role {mkey!r} kept but its job title was removed "
+                        f"(partially-removed role)"
+                    )
+                if not og["bullets"]:
+                    errors.append(
+                        f"role {mkey!r} kept but ALL its bullets were "
+                        f"removed (empty role)"
+                    )
+        else:
+            for b in mbullets:
+                if _norm_text(b) in out_bullet_set:
+                    errors.append(
+                        f"role {mkey!r} was removed but its bullet survives "
+                        f"elsewhere: {b[:60]!r}"
+                    )
+    return errors
+
+
 def _master_span(master_path):
     """Visible (start, end) span of the master's role dates, else (None, None)."""
     if not master_path or not os.path.exists(master_path):
@@ -304,6 +392,10 @@ def main(argv=None):
     master_path = master or _find_master(path)
     master_texts = _master_texts(master_path)
     master_blob = " ".join(master_texts) if master_texts is not None else None
+
+    # Whole-role integrity (needs the master): kept roles keep title+bullets,
+    # removed roles leave no surviving bullets (the Symbols-orphan failure).
+    errors.extend(_role_integrity_errors(master_path, body))
 
     # Seniority gate (Step 3 enforcement): if whole roles were eliminated
     # (visible span shrank >= SENIORITY_GATE_YEARS vs the master), the run
