@@ -152,7 +152,7 @@ class ClaimTests(unittest.TestCase):
         self.assertEqual(toks, ["50%", "40 hours"])
 
 
-def _write_docx(path, company_dates):
+def _write_docx(path, company_dates, education=True):
     """Write a minimal resume docx whose roles carry the given dates."""
     with zipfile.ZipFile(path, "w") as z:
         z.writestr(
@@ -167,7 +167,8 @@ def _write_docx(path, company_dates):
         ps.append(mk("Company, City" + date, style=mr.COMPANY_STYLE))
         ps.append(mk("Title", style=vr.TITLE_STYLE))
         ps.append(mk("bullet", numId=4))
-    ps.append(mk("Education", style="SectionHeading"))
+    if education:
+        ps.append(mk("Education", style="SectionHeading"))
     for p in ps:
         body.append(p)
     with contextlib.redirect_stdout(io.StringIO()):
@@ -512,6 +513,114 @@ class SeniorityGateTests(unittest.TestCase):
             rc, out = self._run(target, master)
         self.assertEqual(rc, 0)
         self.assertNotIn("whole-role elimination", out)
+
+
+class EducationGateTests(unittest.TestCase):
+    """--jd <file> encodes Step 3.4's education predicates mechanically:
+    a JD that REQUIRES a degree blocks the render when Education was
+    dropped (--education-approved records an override); under an
+    'or equivalent' clause the clause is load-bearing only when the
+    visible span exceeds the ask."""
+
+    JD_DEGREE = ("Bachelor's degree in Computer Science or a related "
+                 "field required. 5+ years of test automation experience.")
+    JD_EQUIV = ("Bachelor's degree in Computer Science, or equivalent "
+                "professional experience. 5+ years of test automation.")
+    JD_NO_DEGREE = "5+ years of test automation experience required."
+
+    def _jd(self, text):
+        fd, jd = tempfile.mkstemp(suffix=".txt")
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        return jd
+
+    def _run(self, path, *args):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = vr.main([path, *args])
+        return rc, out.getvalue()
+
+    def test_degree_required_education_dropped_blocks(self):
+        jd = self._jd(self.JD_DEGREE)
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _write_docx(path, ["01/2020 – 12/2026"], education=False)
+            rc, out = self._run(path, "--jd", jd, "--jd-years", "5")
+        finally:
+            os.unlink(path)
+            os.unlink(jd)
+        self.assertEqual(rc, 2)
+        self.assertIn("Education", out)
+
+    def test_degree_required_education_dropped_approved_passes(self):
+        jd = self._jd(self.JD_DEGREE)
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _write_docx(path, ["01/2020 – 12/2026"], education=False)
+            rc, out = self._run(path, "--jd", jd, "--education-approved")
+        finally:
+            os.unlink(path)
+            os.unlink(jd)
+        self.assertEqual(rc, 0)
+        self.assertIn("--education-approved", out)
+
+    def test_degree_required_education_kept_ok(self):
+        jd = self._jd(self.JD_DEGREE)
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _write_docx(path, ["01/2020 – 12/2026"])
+            rc, out = self._run(path, "--jd", jd)
+        finally:
+            os.unlink(path)
+            os.unlink(jd)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("restore the section", out)
+
+    def test_equivalent_clause_span_above_ask_ok(self):
+        # The clause is satisfied by experience when the visible span
+        # exceeds the ask, so the Education drop is safe.
+        jd = self._jd(self.JD_EQUIV)
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _write_docx(path, ["01/2020 – 12/2026"], education=False)
+            rc, out = self._run(path, "--jd", jd, "--jd-years", "5")
+        finally:
+            os.unlink(path)
+            os.unlink(jd)
+        self.assertEqual(rc, 0)
+        self.assertIn("satisfied", out)
+
+    def test_equivalent_clause_span_at_ask_warns(self):
+        # At/below the ask the clause is load-bearing: dropping Education
+        # leaves nothing substituting for the degree.
+        jd = self._jd(self.JD_EQUIV)
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _write_docx(path, ["01/2022 – 12/2024"], education=False)
+            rc, out = self._run(path, "--jd", jd, "--jd-years", "5")
+        finally:
+            os.unlink(path)
+            os.unlink(jd)
+        self.assertEqual(rc, 0)
+        self.assertIn("load-bearing", out)
+
+    def test_no_degree_requirement_no_gate(self):
+        jd = self._jd(self.JD_NO_DEGREE)
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _write_docx(path, ["01/2020 – 12/2026"], education=False)
+            rc, out = self._run(path, "--jd", jd)
+        finally:
+            os.unlink(path)
+            os.unlink(jd)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("Education", out)
 
 
 if __name__ == "__main__":

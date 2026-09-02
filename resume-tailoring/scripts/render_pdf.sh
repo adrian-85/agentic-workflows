@@ -7,8 +7,8 @@
 #   TARGET_PAGES=2 ./scripts/render_pdf.sh <input.docx> [output.pdf] [outdir]
 #
 # Defaults:
-#   output.pdf   = <input-basename>.pdf (same name, .pdf extension)
-#   outdir       = /tmp
+#   output.pdf   = <input-dir>/<input-basename>.pdf (next to the .docx)
+#   outdir       = the .docx's directory
 #   TARGET_PAGES = 2  (the length the resume is being compressed toward)
 #
 # Output (compact by default):
@@ -67,7 +67,12 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Extra args for the validator come from RESUME_VALIDATE_ARGS (space-
 # separated). The seniority gate needs only the approval token:
 #   RESUME_VALIDATE_ARGS="--seniority-approved" ./scripts/render_pdf.sh "<out>.docx"
-# Add --jd-years <N> for optional span-vs-JD feedback (independent of the gate).
+# Add --jd-years <N> for optional span-vs-JD feedback (independent of the
+# gate), and --jd <JD.txt> to enable the education gate (Step 3.4) — it
+# blocks the render when Education was dropped against a degree-requiring
+# JD unless --education-approved records the override:
+#   RESUME_VALIDATE_ARGS="--jd <JD.txt> --jd-years 5 --seniority-approved" \
+#       ./scripts/render_pdf.sh "<out>.docx"
 VALIDATE_OUT="$(python3 "$SELF_DIR/validate_resume.py" "$INPUT" \
     ${RESUME_VALIDATE_ARGS:-} 2>&1)" \
     && VALIDATE_RC=0 \
@@ -81,8 +86,9 @@ fi
 [ "$VERBOSE" -eq 1 ] && printf '%s\n' "$VALIDATE_OUT"
 
 BASENAME=$(basename "$INPUT" .docx)
-OUTPUT="${2:-/tmp/${BASENAME}.pdf}"
-OUTDIR="${3:-/tmp}"
+INPUT_DIR="$(cd "$(dirname "$INPUT")" && pwd)"
+OUTPUT="${2:-${INPUT_DIR}/${BASENAME}.pdf}"
+OUTDIR="${3:-${INPUT_DIR}}"
 TARGET="${TARGET_PAGES_ARG:-${TARGET_PAGES:-2}}"
 
 log() { if [ "$VERBOSE" -eq 1 ]; then echo "$@"; fi; }

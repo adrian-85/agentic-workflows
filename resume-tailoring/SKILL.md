@@ -290,13 +290,21 @@ compression when the page budget forces it:
      no education-substitution clause is in play (this JD's ask is met by
      experience alone).
    - **KEEP** when ANY hold: the JD requires a degree or has an
-     education-substitution clause, the role is in a credential-sensitive
+     education-substitution clause the visible span does not already
+     satisfy (see the ambiguity note below), the role is in a credential-sensitive
      field (FDA/HIPAA/academic/regulated), the candidate is early-career (the
      degree is primary evidence), or the degree is the strongest available
      evidence for a JD ask (e.g. a CS degree for an engineering role).
    - If the resume's jd-fit verdict is "keep but it's weak", prefer dropping
      it when its 3 lines are the difference between a full last page and a
      page 3 spill — that's a clean card-for-lines trade.
+   - **Ambiguity resolved mechanically:** when the JD offers "degree OR
+     equivalent experience", the clause is satisfied by experience ONLY when
+     the visible span exceeds the ask — at/below the ask the clause is
+     load-bearing and Education is KEEP. `validate_resume.py --jd <JD.txt>`
+     enforces this: a degree-requiring JD blocks the render when Education
+     was dropped (`--education-approved` records the override), and warns
+     when an equivalent clause is load-bearing.
    - Removing Education is a structural change (the Education section heading
      and entries are removed together; `validate_resume.py` treats a resume
      ending at the last role's Tools line as clean). Remind yourself this is
@@ -377,13 +385,15 @@ lines to one is not a cut and never closes a measured gap.
 `scripts/measure_resume.py <target.docx> [TARGET_PAGES]` — it renders once and
 reports the per-role line cost and the **exact reclaim gap** to the target page
 count, so you plan the oldest-role cuts as a batch instead of discovering them
-through a cut-render-cut-render loop. (Its reclaim plan includes a
-+1-bullet wrapping-variance buffer.) Use its **BATCH RECLAIM PLAN** (measured
+through a cut-render loop. Pass the agreed Step-3 target positionally
+(`measure_resume.py <target.docx> 3`) — measuring against the 2-page default
+while over it prints a NOTE and over-reports the gap. Use its **BATCH RECLAIM PLAN** (measured
 lines-per-bullet from the actual render, oldest roles first) rather than
 estimating savings, and read its **page-fill table**: an underfilled page or a
 role header stranded as the last line of a page ("WIDOW") will not be fixed by
-a line-count budget alone — trim earlier content or merge bullets so the next
-role starts cleanly at the top of a page.
+a line-count budget alone — the WIDOW note names the block to reclaim from
+(the content preceding the stranded header); trim those ~2 lines or merge
+bullets so the next role starts cleanly at the top of a page.
 
 **Apply the DROP PLAN, not your own instinct.** The BATCH RECLAIM PLAN says
 *how many* bullets to cut per role; the **DROP PLAN** section names *which*, as
@@ -399,7 +409,11 @@ be silently cut under page pressure. `--jd` extracts the candidate-tech terms
 the JD asks for (matched against the resume's proficiency/Tools/title
 vocabulary plus bullet-only tools) and excludes JD-evidence bullets from the
 suggestions, listing them under "JD-matched (kept)" with the terms that
-matched:
+matched. It also prints the FULL extracted term list plus the file's word
+count — scan that list against the posting to confirm the JD file is the
+verbatim text, not a paraphrase: a summarized JD silently drops whole skill
+areas from the DROP PLAN (paste the posting verbatim; a short file gets a
+fidelity note, and a recruiter's message is legitimately short):
 
 ```bash
 python3 scripts/measure_resume.py "<Target>.docx" 2 --jd "<JD>.txt"
@@ -519,14 +533,15 @@ actually agreed on (3 for senior/Staff, not the 2-page default).
 
 `render_pdf.sh` **validates first** (runs `validate_resume.py`): it refuses to
 render on blocking errors — an orphan job title, a company without a title,
-content orphaned after a Tools line, or **unapproved whole-role elimination**.
-Fix the errors, then render.
+content orphaned after a Tools line, **unapproved whole-role elimination**, or
+**Education dropped against a degree-requiring JD** (when `--jd` is passed).
+Fix the errors, then render. The rendered PDF lands next to the `.docx`.
 
 **When the JD specifies years of experience** (Step 3), confirm alignment and
 record approval in one command:
 
 ```bash
-RESUME_VALIDATE_ARGS="--jd-years <N> --seniority-approved" \
+RESUME_VALIDATE_ARGS="--jd <JD.txt> --jd-years <N> --seniority-approved" \
   ./scripts/render_pdf.sh "<output>.docx"
 ```
 

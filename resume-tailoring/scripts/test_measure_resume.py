@@ -1136,5 +1136,116 @@ class VisibleSpanTests(unittest.TestCase):
         self.assertEqual(mr._visible_span([]), (None, None))
 
 
+class JdReportTests(unittest.TestCase):
+    """_jd_report describes the --jd ranking. Its fidelity job: print the
+    FULL extracted term list (the old 'e.g.' line truncated at 8) so a term
+    missing from a paraphrased/summarized JD file is visible, plus the JD's
+    word count and a note when the file is too short to be a full posting.
+    """
+
+    def test_full_term_list_printed_when_many(self):
+        terms = {f"tool{i}" for i in range(12)}
+        lines = mr._jd_report("jd.txt", "word " * 400, terms)
+        joined = "\n".join(lines)
+        for i in range(12):
+            self.assertIn(f"tool{i}", joined)
+        self.assertNotIn("e.g.", joined)
+
+    def test_word_count_reported(self):
+        lines = mr._jd_report("jd.txt", "word " * 400, {"python"})
+        self.assertIn("(400 words)", "\n".join(lines))
+
+    def test_short_file_fidelity_note(self):
+        # A full JD posting is rarely <100 words; if the file is, flag that
+        # it may be a summary rather than the verbatim posting.
+        lines = mr._jd_report("jd.txt", "short jd text " * 5, {"python"})
+        self.assertIn("verbatim", "\n".join(lines))
+
+    def test_normal_full_jd_no_fidelity_note(self):
+        lines = mr._jd_report("jd.txt", "word " * 400, {"python"})
+        self.assertNotIn("verbatim", "\n".join(lines))
+
+    def test_no_terms_fallback_message(self):
+        lines = mr._jd_report("jd.txt", "word " * 400, set())
+        self.assertTrue(any("no candidate-tech terms" in ln for ln in lines))
+
+
+class TargetNoteTests(unittest.TestCase):
+    """The reclaim gap must be measured against the target actually agreed
+    on (Step 3): measuring a 3-page senior resume against the 2-page
+    default over-reports the gap ("OVER by 2 pages / drop ~117 lines") and
+    invites over-cutting. The tool cannot know the agreed target, so it
+    flags the one thing it CAN detect: the default is in play while the
+    document is over it."""
+
+    def test_note_when_default_target_and_over(self):
+        note = mr._default_target_note(4, 2, True)
+        self.assertIsNotNone(note)
+        self.assertIn("2-page default", note)
+
+    def test_no_note_when_target_explicit(self):
+        self.assertIsNone(mr._default_target_note(4, 2, False))
+
+    def test_no_note_when_fits_default(self):
+        self.assertIsNone(mr._default_target_note(2, 2, True))
+
+    def test_env_target_is_not_default(self):
+        self.assertEqual(mr._target_from_args(["doc.docx"]), (2, True))
+        saved = os.environ.get("TARGET_PAGES")
+        os.environ["TARGET_PAGES"] = "3"
+        try:
+            self.assertEqual(mr._target_from_args(["doc.docx"]), (3, False))
+        finally:
+            if saved is None:
+                del os.environ["TARGET_PAGES"]
+            else:
+                os.environ["TARGET_PAGES"] = saved
+        self.assertEqual(mr._target_from_args(["doc.docx", "3"]), (3, False))
+
+
+class WidowHintTests(unittest.TestCase):
+    """The WIDOW note must name the fix: which block to reclaim from and
+    how much — the role whose content immediately precedes the stranded
+    header — instead of the vague "trim earlier content"."""
+
+    GEICO = "GEICO, Chevy Chase, MD (Remote)06/2025 – 07/2026"
+    SYMBOLS = "Symbols, Tbilisi, Georgia (Remote)02/2025 – 06/2025"
+
+    def _pages(self, page2_tail):
+        # Page 2 is full (10 lines) with its LAST line a role header whose
+        # body starts page 3 — the widow.
+        return [
+            self.GEICO + "\nbullet one\nbullet two\nbullet three",
+            "filler\n" * 9 + page2_tail,
+            "Senior QA Engineer\nbullet",
+        ]
+
+    def test_widow_note_names_preceding_role(self):
+        matched = [
+            ({"key": "GEICO, Chevy Chase", "bullets": 3,
+              "has_tools": True}, 1, 1, 10),
+            ({"key": "Symbols, Tbilisi", "bullets": 2,
+              "has_tools": True}, 2, 3, 6),
+        ]
+        out = mr._layout_hints(matched, self._pages(self.SYMBOLS), 10)
+        widow = [ln for ln in out if "WIDOW" in ln]
+        self.assertEqual(len(widow), 1)
+        self.assertIn("reclaim ~2 line(s) from the GEICO, Chevy Chase block",
+                      widow[0])
+
+    def test_widow_without_preceding_role_keeps_generic_hint(self):
+        # No role header precedes the widow on the page (its page is all
+        # filler + the header) — fall back to the generic hint.
+        matched = [
+            ({"key": "Symbols, Tbilisi", "bullets": 2,
+              "has_tools": True}, 2, 3, 6),
+        ]
+        out = mr._layout_hints(matched, self._pages(self.SYMBOLS), 10)
+        widow = [ln for ln in out if "WIDOW" in ln]
+        self.assertEqual(len(widow), 1)
+        self.assertIn("trim earlier content or merge bullets", widow[0])
+        self.assertNotIn("preceding", widow[0])
+
+
 if __name__ == "__main__":
     unittest.main()

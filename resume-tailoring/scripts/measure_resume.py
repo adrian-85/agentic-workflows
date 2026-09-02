@@ -43,6 +43,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
@@ -414,6 +415,21 @@ def _role_header_flat(flat, key):
     return None
 
 
+def _preceding_role_key(flat, idx, keys):
+    """Key of the role owning the rendered content immediately before
+    ``flat[idx]`` (a widow header): the nearest role-header line at or
+    before idx - 1. That block is where the reclaim comes from — the fix
+    for a stranded header is pulling the break point up from there. None
+    when the preceding content is not a role block (e.g. the fixed top
+    block), so callers fall back to the generic hint.
+    """
+    for j in range(idx - 1, -1, -1):
+        for k in keys:
+            if flat[j][1].startswith(k):
+                return k
+    return None
+
+
 # Process-y phrasing that signals a generic bullet (weakest to cut). A
 # bullet with any such phrase and NO hard number ranks weakest; hard
 # numbers/percentages (quantified evidence) always rank strongest.
@@ -664,6 +680,43 @@ def _jd_terms(jd_text, body):
                     generic.add(t)
             terms -= generic
     return terms
+
+
+JD_SHORT_WORDS = 100  # below this, a --jd file is likely a summary, not the posting
+
+
+def _jd_report(jd_file, jd_text, jd_terms):
+    """Lines describing the --jd ranking (printed before the page math).
+
+    Prints the full extracted term list (not just the first 8) plus the JD's
+    word count, so a term missing from a paraphrased or summarized JD file
+    is visible at a glance. A file under JD_SHORT_WORDS words gets a
+    fidelity note (advisory — a recruiter's message is legitimately short).
+    """
+    words = len(jd_text.split())
+    if not jd_terms:
+        return [
+            f"JD-aware ranking: no candidate-tech terms in {jd_file} "
+            f"intersect the resume's vocabulary — falling back to the "
+            f"JD-blind ranking; check the file is the raw JD text.",
+        ]
+    lines = [
+        f"JD-aware ranking: {len(jd_terms)} term(s) matched from "
+        f"{jd_file} ({words} words)",
+        textwrap.fill(
+            ", ".join(sorted(jd_terms)),
+            width=76,
+            initial_indent="  ",
+            subsequent_indent="  ",
+        ),
+    ]
+    if words < JD_SHORT_WORDS:
+        lines.append(
+            f"NOTE: {jd_file} is only {words} words — if it is the full "
+            f"posting, verify it was pasted verbatim (paraphrasing can "
+            f"drop match terms); a recruiter's message is fine."
+        )
+    return lines
 
 
 def _jd_hits(text, jd_terms):
@@ -1055,15 +1108,28 @@ def _layout_hints(matched, pages_text, capacity):
     flat = [(pi, _norm(l), l) for pi, ptext in
             enumerate(pages_text, start=1)
             for l in _page_lines(ptext)]
+    keys = [r["key"] for r, *_ in matched]
     for r, sp, ep, rendered in matched:
         idx = _role_header_flat(flat, r["key"])
         if idx is not None and idx + 1 < len(flat):
-            if flat[idx][0] != flat[idx + 1][0] and (idx == 0 or flat[idx][0] == flat[idx - 1][0]):
-                out.append(
-                    f"  WIDOW: {r['key'][:44]} header is the last line of page "
-                    f"{flat[idx][0]}; its body starts page {flat[idx + 1][0]} — "
-                    f"trim earlier content or merge bullets"
-                )
+            on_page_break = flat[idx][0] != flat[idx + 1][0]
+            at_page_end = idx == 0 or flat[idx][0] == flat[idx - 1][0]
+            if on_page_break and at_page_end:
+                prev = _preceding_role_key(flat, idx, keys)
+                if prev:
+                    out.append(
+                        f"  WIDOW: {r['key'][:44]} header is the last line of page "
+                        f"{flat[idx][0]}; its body starts page {flat[idx + 1][0]} — "
+                        f"reclaim ~2 line(s) from the {prev[:44]} block (the "
+                        f"content preceding the widow) to pull the header up, "
+                        f"or merge bullets"
+                    )
+                else:
+                    out.append(
+                        f"  WIDOW: {r['key'][:44]} header is the last line of page "
+                        f"{flat[idx][0]}; its body starts page {flat[idx + 1][0]} — "
+                        f"trim earlier content or merge bullets"
+                    )
     return out
 
 
@@ -1118,6 +1184,34 @@ def _reclaim_batch(matched, per_bullet, gap):
     return plan, remaining
 
 
+def _target_from_args(kept):
+    """(target, is_default) from the positional args or TARGET_PAGES env."""
+    if len(kept) > 1:
+        return int(kept[1]), False
+    if "TARGET_PAGES" in os.environ:
+        return int(os.environ["TARGET_PAGES"]), False
+    return 2, True
+
+
+def _default_target_note(total_pages, target, is_default):
+    """Reminder when the reclaim gap is measured against the default target.
+
+    The failure mode (a real session): the agreed Step-3 target was 3 for a
+    senior/Staff resume, but measure ran without an explicit target and
+    reported "OVER by 2 pages / drop ~117 lines" against the 2-page default
+    — an irrelevant reading that invites over-cutting. The tool cannot know
+    the agreed target, so it flags the one thing it CAN detect: the default
+    is in play while the document is over it. Nothing prints when the target
+    was passed explicitly (positionally or via TARGET_PAGES) or the document
+    fits the default.
+    """
+    if not is_default or total_pages <= target:
+        return None
+    return ("NOTE: no page target given — the gap above is measured against "
+            "the 2-page default. Pass the agreed Step-3 target (senior/Staff "
+            "= 3) so the reclaim plan measures the goal actually agreed on.")
+
+
 def main():
     argv = [a for a in sys.argv[1:]]
     protect = []
@@ -1164,8 +1258,7 @@ def main():
               file=sys.stderr)
         sys.exit(2)
     docx = kept[0]
-    target = int(kept[1]) if len(kept) > 1 else int(
-        os.environ.get("TARGET_PAGES", "2"))
+    target, default_target = _target_from_args(kept)
 
     with tempfile.TemporaryDirectory() as td:
         if simulate:
@@ -1196,15 +1289,8 @@ def main():
                       file=sys.stderr)
                 sys.exit(2)
             jd_terms = _jd_terms(jd_text, body)
-            if jd_terms:
-                ex = ", ".join(sorted(jd_terms)[:8])
-                print(f"JD-aware ranking: {len(jd_terms)} term(s) matched "
-                      f"from {jd_file} (e.g. {ex})")
-            else:
-                print(f"JD-aware ranking: no candidate-tech terms in "
-                      f"{jd_file} intersect the resume's vocabulary — "
-                      f"falling back to the JD-blind ranking; check the "
-                      f"file is the raw JD text.", file=sys.stderr)
+            for line in _jd_report(jd_file, jd_text, jd_terms):
+                print(line)
 
         pdf = _render_pdf(docx, td)
         pages_text = _pdf_pages_text(pdf)
@@ -1226,6 +1312,9 @@ def main():
         print(f"UNDER target by {-over} page(s) — room to expand.")
     else:
         print("ON target.")
+    note = _default_target_note(total_pages, target, default_target)
+    if note:
+        print(note)
 
     # Visible timeline span — the number behind Step 3's seniority-alignment
     # decision (compare against the JD's "N+ years" ask, NOT the candidate's

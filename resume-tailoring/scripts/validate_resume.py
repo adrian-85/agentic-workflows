@@ -32,6 +32,12 @@ Catches the error classes tailoring sessions actually hit:
      `--seniority-approved` records the user's approval. This makes the
      Step 3 "ask the user first" rule a gate: render_pdf.sh will not
      produce a PDF from a shortened timeline without the approval token.
+   - EDUCATION GATE (`--jd <JD.txt>`): Step 3.4's predicates, mechanical.
+     A JD that requires a degree blocks the render when Education was
+     dropped (`--education-approved` records the override). Under an
+     'or equivalent' clause the clause is satisfied by experience only
+     when the visible span exceeds the ask; at/below the ask, dropping
+     Education warns (the clause is load-bearing — keep the section).
 
 3. PUNCTUATION — periods and commas only. Enforced on the Summary and the
    job-history prose (role intros, bullets, tools lines): no em dashes,
@@ -40,9 +46,9 @@ Catches the error classes tailoring sessions actually hit:
    (company headers, job titles) and out-of-region sections
    (proficiencies, certifications, education) are not scanned.
 
-Structural, punctuation, and seniority-gate errors exit 2 — render_pdf.sh
-refuses to render. Near-duplicate and claim warnings exit 0 unless
---strict (exit 1).
+Structural, punctuation, seniority-gate, and education-gate errors exit 2 —
+render_pdf.sh refuses to render. Near-duplicate and claim warnings exit 0
+unless --strict (exit 1).
 
 The master file is auto-detected as the "X Master Resume.docx" next to the
 input; override with --master <path>.
@@ -50,7 +56,7 @@ input; override with --master <path>.
 Usage:
     python3 scripts/validate_resume.py <resume.docx> [--strict] [--master p]
     python3 scripts/validate_resume.py <resume.docx> --jd-years 5 [--master p]
-    python3 scripts/validate_resume.py <resume.docx> --seniority-approved [--master p]  # (--jd-years is a separate optional advisory)
+    python3 scripts/validate_resume.py <resume.docx> --jd <JD.txt> [--jd-years 5] [--education-approved] [--master p]
 """
 
 import os
@@ -68,6 +74,13 @@ LIST_STYLES = ("ListBullet",)   # paragraph styles whose bullets carry no numId
 
 DUP_K = 20                      # shared substring length that flags near-dups
 SENIORITY_GATE_YEARS = 2.0      # visible-span shrink (vs master) that requires approval
+
+# Step 3.4 education predicates, mechanical form (see _education_gate).
+DEGREE_RE = re.compile(r"bachelor|master|associate|\bdegree\b", re.I)
+EQUIV_CLAUSE_RE = re.compile(
+    r"or equivalent|equivalent (?:professional |work )?(?:experience|education)",
+    re.I,
+)
 NUM_CLAIM = re.compile(r"\d+(?:\.\d+)?\s*(?:%|hours?|minutes?)", re.I)
 YEARS_RE = re.compile(r"(\d{1,2})\s*(?:\+)?\s*(?:years|yrs)", re.I)
 DATE_RANGE = re.compile(r"\d{1,2}/\d{4}\s*[–\-]\s*\d{1,2}/\d{4}")
@@ -351,22 +364,106 @@ def _master_span(master_path):
     return mr._visible_span(_company_headers(body))
 
 
+def _has_education(body):
+    """True when an Education section heading survives in the resume.
+
+    Exact-text match on the heading: a bullet never consists of just the
+    word "Education", so no style check is needed and resumes using a
+    different heading style still register.
+    """
+    return any(de.text_of(p).strip().lower() == "education"
+               for p in de.paras(body))
+
+
+def _education_gate(jd_text, body, span, jd_years, approved):
+    """Step 3.4's education predicates as (errors, notes).
+
+    Notes are (severity, message) pairs printed under the EDUCATION
+    section (severity in warn|ok). The predicates, enforced mechanically
+    once the JD text is available via --jd:
+
+    - JD requires a degree (no equivalent clause) and Education was
+      dropped -> BLOCKING error unless ``approved`` records the override
+      (--education-approved). Restore the section from the master.
+    - JD offers an 'or equivalent experience/education' clause: the clause
+      is satisfied by experience when the visible span exceeds the ask
+      (the drop is safe); at or below the ask the clause is load-bearing —
+      Education becomes the substitute evidence and dropping it leaves
+      nothing standing in for the degree (warn).
+    - JD states no degree requirement -> nothing to check.
+    """
+    errors, notes = [], []
+    if not DEGREE_RE.search(jd_text):
+        return errors, notes
+    if _has_education(body):
+        notes.append(("ok", "section present; the JD's degree requirement "
+                           "is satisfied"))
+        return errors, notes
+    ask = (f"the JD's {jd_years:g}+ years ask" if jd_years is not None
+           else None)
+    if EQUIV_CLAUSE_RE.search(jd_text):
+        if jd_years is not None and span is not None and span > jd_years:
+            notes.append((
+                "ok",
+                f"dropped, but the JD's equivalent-experience clause is "
+                f"satisfied by the ~{span:.1f}-year visible span"
+                + (f" (vs {ask})" if ask else "") + " — the drop is safe",
+            ))
+        else:
+            span_txt = (f"the ~{span:.1f}-year visible span does not clearly"
+                        f" exceed" + (f" {ask}" if ask else "")
+                        if span is not None else
+                        f"the resume has no dated roles to satisfy"
+                        + (f" {ask}" if ask else ""))
+            notes.append((
+                "warn",
+                f"dropped while the JD's 'or equivalent' clause is "
+                f"load-bearing: {span_txt} — the clause substitutes "
+                f"experience for the degree only, so keep the section "
+                f"prominent as the substitute evidence",
+            ))
+        return errors, notes
+    if approved:
+        notes.append((
+            "ok",
+            "dropped although the JD requires a degree — "
+            "--education-approved recorded",
+        ))
+    else:
+        errors.append(
+            "the JD requires a degree but Education was dropped — "
+            "restore the section from the master (it is ~3 rendered lines "
+            "there) or record the override with --education-approved"
+        )
+    return errors, notes
+
+
+def _parse_flag(argv, flag):
+    """Remove a boolean flag from ``argv`` (in-place) and return True if it was present."""
+    if flag in argv:
+        argv.remove(flag)
+        return True
+    return False
+
+
+def _extract_flag(argv, flag):
+    """Extract a flag + value pair from ``argv`` (in-place), returning the value or None."""
+    if flag in argv:
+        i = argv.index(flag)
+        value = argv[i + 1]
+        del argv[i:i + 2]
+        return value
+    return None
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    strict = "--strict" in argv
-    argv = [a for a in argv if a not in ("--strict",)]
-    master = None
-    if "--master" in argv:
-        i = argv.index("--master")
-        master = argv[i + 1]
-        del argv[i:i + 2]
-    jd_years = None
-    if "--jd-years" in argv:
-        i = argv.index("--jd-years")
-        jd_years = float(argv[i + 1])
-        del argv[i:i + 2]
-    seniority_approved = "--seniority-approved" in argv
-    argv = [a for a in argv if a != "--seniority-approved"]
+    strict = _parse_flag(argv, "--strict")
+    master = _extract_flag(argv, "--master")
+    jd_years = float(_extract_flag(argv, "--jd-years")) if "--jd-years" in argv else None
+    jd_path = _extract_flag(argv, "--jd")
+    seniority_approved = _parse_flag(argv, "--seniority-approved")
+    education_approved = _parse_flag(argv, "--education-approved")
     if not argv:
         print(__doc__)
         return 2
@@ -387,6 +484,22 @@ def main(argv=None):
     span = (last - first) if (first is not None and last is not None) else None
 
     claim_notes = []  # (severity, message); severity in warn|ok|note
+
+    # Education gate (Step 3.4, needs --jd): a degree-requiring JD blocks
+    # the render when the section was dropped (--education-approved
+    # records the override); under an 'or equivalent' clause the clause is
+    # load-bearing only when the visible span does not exceed the ask.
+    education_errors, education_notes = [], []
+    if jd_path:
+        try:
+            with open(jd_path, encoding="utf-8", errors="replace") as f:
+                jd_text = f.read()
+        except OSError as e:
+            print(f"error: cannot read --jd file {jd_path}: {e}",
+                  file=sys.stderr)
+            return 2
+        education_errors, education_notes = _education_gate(
+            jd_text, body, span, jd_years, education_approved)
 
     # Claims: numbers vs master.
     master_path = master or _find_master(path)
@@ -530,6 +643,13 @@ def main(argv=None):
         print(f"  ERROR: {e}")
     if not seniority_errors:
         print("  ok")
+    if jd_path:
+        print("== EDUCATION ==")
+        for e in education_errors:
+            print(f"  ERROR: {e}")
+        for lvl, c in education_notes:
+            tag = {"warn": "WARNING", "ok": "ok", "note": "note"}[lvl]
+            print(f"  {tag}: {c}")
     print("== NEAR-DUPLICATES ==")
     for a, b, snip in dups:
         print(f"  WARNING: bullets share {DUP_K}+ chars ({snip!r}):")
@@ -548,7 +668,8 @@ def main(argv=None):
         len(dups)
         + sum(1 for lvl, _ in claim_notes if lvl == "warn")
     )
-    blocking = len(errors) + len(punct_errors) + len(seniority_errors)
+    blocking = (len(errors) + len(punct_errors) + len(seniority_errors)
+                + len(education_errors))
     if blocking:
         print(f"RESULT: {blocking} blocking error(s) — fix before rendering (exit 2)")
         return 2
