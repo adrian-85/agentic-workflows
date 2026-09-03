@@ -156,7 +156,9 @@ python3 scripts/docx_edit.py "<userName> Master Resume.docx" \
 `scripts/tailor_resume.py` is a **generic template** (placeholder content, no company or
 recruiter detail) showing the subtractive pattern in order: summary → proficiencies →
 role re-anchor → per-role compression → tools trims → spacers → PDF iteration (the
-Workflow steps below cover the same pattern in detail).
+Workflow steps below cover the same pattern in detail). Import only the helpers the
+planned edits use — the script is re-run after every revision, and pruning an unused
+import mid-iteration costs a full edit-plus-rerun cycle for zero behavior change.
 
 ### Do you need a per-target script?
 
@@ -192,6 +194,12 @@ manual habits are:
    hand-shorten sentences to chase a page break — it's the lowest-leverage, highest-cycle
    edit. When only a few lines over, run `squeeze_resume.py` (Step 8) to close the residual
    gap automatically instead of trimming by hand.
+5. **Slice files, not re-runs.** Output you will read in sections — measure's DROP PLAN /
+   page-fill table, a full `--prefixes` dump — goes to a file once (`measure_resume.py … >
+   /tmp/measure.txt 2>&1`), then read the file with grep/sed. Never pipe a dump you will
+   author from through `head`: the tail is silently lost and the missing paragraphs resurface
+   as skipped edits (observed: `--prefixes | head -150` cost a second dump, and three
+   consecutive measure re-runs differed only in their grep).
 
 Tool-enforced (no instruction needed): `render_pdf.sh` refuses broken or unapproved-elimination
 docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
@@ -300,7 +308,15 @@ compression when the page budget forces it:
 
    **Drop Education entirely when the degree is not evidence for the role.**
    Education is three rendered lines at the tail of the document — exactly the
-   cost of the last-page spills that cost real iterations. Decide by
+   cost of the last-page spills that cost real iterations. **Establish
+   mechanically whether the JD requires a degree at all before applying the
+   predicates below** — grep the JD text for degree language (`degree`,
+   `Master`, `Bachelor`, `will accept`, `H-1B`). Visa-attestation boilerplate
+   is easy to misread as not-a-degree-requirement, and a drop that survives
+   authoring only to be flagged at validation time costs a script rewrite,
+   an unused-import cleanup, and a re-verification cycle (observed: a script
+   authored with `drop_section("Education")` against a JD reading "will
+   accept a Master's degree … and 8 years of experience"). Then decide by
    observable predicates, not habit:
 
    - **DROP** when ALL hold: the JD states *no* degree requirement, the degree
@@ -324,6 +340,14 @@ compression when the page budget forces it:
      enforces this: a degree-requiring JD blocks the render when Education
      was dropped (`--education-approved` records the override), and warns
      when an equivalent clause is load-bearing.
+   - **"AND" is not "OR":** the clause grammar decides which predicate
+     applies. Visa/attestation boilerplate like "will accept a Master's
+     degree … **and** N years of experience" (Oracle postings) is a degree
+     REQUIREMENT with no substitution path — the degree does not alternate
+     with experience — so Education is KEEP and the years ask is handled by
+     seniority alignment (Step 3.2), not by reading the span as satisfying
+     the clause. Only an **OR** construction ("degree OR N years") opens
+     the substitution path above.
    - Removing Education is a structural change (the Education section heading
      and entries are removed together; `validate_resume.py` treats a resume
      ending at the last role's Tools line as clean). Remind yourself this is
@@ -591,6 +615,14 @@ content orphaned after a Tools line, **unapproved whole-role elimination**, or
 **Education dropped against a degree-requiring JD** (when `--jd` is passed).
 Fix the errors, then render. The rendered PDF lands next to the `.docx`.
 
+**The two gates have different trigger conditions — don't conflate a clean
+render with clearance.** The seniority gate runs unconditionally; the
+education gate runs ONLY when `--jd` is passed (via `RESUME_VALIDATE_ARGS`).
+A render without `--jd` that reports "only the seniority blocker" says
+nothing about the education decision — do not read it as "the degree clause
+is satisfied" (observed misread that had to be re-litigated two cycles
+later when `--jd-years` surfaced the education blocker).
+
 **When the JD specifies years of experience** (Step 3), confirm alignment and
 record approval in one command:
 
@@ -685,6 +717,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Appending bullets when content overlaps an existing one | Merge (`merge_into`) — appending blows the page budget (Step 6) |
 | Overwriting the master resume | Write to `<userName> Resume - <Target>.docx` — never the master filename (Step 10) |
 | Keeping Education when the degree isn't evidence for the JD | Evaluate the drop/keep predicates (Step 3.4) — a BA vs an engineering JD is a 3-line drop |
+| Reading a clean render (no `--jd`) as education-clause clearance | The education gate runs only with `--jd`; the seniority gate always. A plain render says nothing about the degree decision (Step 11) |
 | Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 9) |
 | Em dash / double dash / semicolon in rewritten Summary or bullet prose | No em dashes, double hyphens, or semicolons — split into a new sentence or use a comma; single hyphens in compound words are fine (Step 9). `validate_resume.py` blocks the render |
 | JD asks for fewer years than the candidate has | Offer Step 3 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it. The token needs the user's authority: their chat reply or pre-authorization in the request; never pass it on your own |
