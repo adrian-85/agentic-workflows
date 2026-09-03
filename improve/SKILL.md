@@ -39,16 +39,11 @@ Or manually: "Improve the workflow I just used"
    source scripts/load-config.sh
    ```
 
-2. **Locate the session file:**
-   ```bash
-   scripts/find-session.sh              # most recent session
-   scripts/find-session.sh <session-id> # or a specific session
-   ```
-   If the user names a session, resolve it; otherwise use the most recent.
-
-3. **Analyze the raw session (model-driven, not scripted):**
-   - Read the raw session JSONL file directly. For large files, read in
-     chunks (offset/limit) until the whole transcript is covered.
+2. **Read the target session transcript:**
+   - The invocation names the session to improve — by default, the
+     session the workflow is invoked from, available as `$PI_SESSION_FILE`
+   - Read it directly; for large files, read in chunks (offset/limit)
+     until the whole transcript is covered.
    - Analyze the transcript for improvement indicators in the workflow
      that was used:
      - Clarification questions the agent asked (unclear workflow)
@@ -221,7 +216,6 @@ Default values are in `improve/config.json`.
 │   ├── config.json               # Default configuration
 │   └── scripts/
 │       ├── load-config.sh        # Config loading
-│       ├── find-session.sh       # Session file locator
 │       ├── setup-worktree.sh     # Worktree creation
 │       ├── approval-gate.sh      # Approval handling
 │       ├── merge-worktree.sh     # Merge and cleanup
@@ -239,21 +233,21 @@ source scripts/load-config.sh
 # Exports: ANALYSIS_MODEL, REVIEW_MODEL, WORKTREE_BASE_PATH, WORKTREE_PREFIX
 ```
 
-### analyze-session.sh (removed)
+### Session targeting
 
-Session analysis is deliberately **not** scripted. Regex/heuristic
-pre-filtering discards context and nuance, so the raw session transcript
-is analyzed directly by the configured model. `find-session.sh` only
-locates the file; judgment is left to the model.
+There is no session-lookup machinery. The invocation prompt names the
+session to improve ("improve the workflow used in this session"), and the
+agent is already inside it — the current session file is available as
+`$PI_SESSION_FILE`. If the user names a different session, use that path
+instead. Analysis is model-driven: judgment is left to the model, not
+to scripts.
 
-### find-session.sh
-Locates a pi session file for analysis.
-
-```bash
-scripts/find-session.sh               # most recent session file
-scripts/find-session.sh <session-id>  # resolve partial/full ID
-# Output: absolute path to session JSONL
-```
+### Scripts summary
+- `load-config.sh` — load `.improvement-workflow.json` (or defaults)
+- `approval-gate.sh` — coded approval gate (exit 0/1/2)
+- `setup-worktree.sh` — create isolated worktree + branch
+- `merge-worktree.sh` — merge branch to main, remove worktree
+- `git-operations.sh` — shared git helpers (source to use)
 
 ### setup-worktree.sh
 Creates git worktree and branch for isolated work.

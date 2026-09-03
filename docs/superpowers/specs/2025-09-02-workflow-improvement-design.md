@@ -53,10 +53,12 @@ The workflow reads the current session transcript to identify which workflow was
 **Steps**:
 
 1. **Session Transcript Analysis**
+   - The workflow runs inside the session it analyzes; pi injects
+     `$PI_SESSION_FILE` (path to the current session JSONL) into every
+     bash command, so no session lookup is needed
    - Analysis is **model-driven**: the configured analysis model reads the
-     raw session JSONL transcript directly (no regex/heuristic pre-filtering,
+     raw session transcript directly (no regex/heuristic pre-filtering,
      which discards context and nuance)
-   - A thin `find-session.sh` helper only locates the session file
    - Identify:
      - Clarification questions agent asked (indicates unclear workflow)
      - Tool/command patterns (repetitive actions, streamlining opportunities)
