@@ -92,8 +92,11 @@ SENIORITY_GATE_YEARS = 2.0      # visible-span shrink (vs master) that requires 
 # and warned about a dropped Education section. Credential forms:
 # 'Bachelor('s) degree/of/in', 'Master's degree', degree-abbreviations,
 # or 'degree' adjacent (same sentence, <=30 chars) to required/preferred.
+# The apostrophe group accepts the curly form too — JD text pasted from a
+# PDF carries U+2019 ("Master’s degree"), which the ASCII-only group
+# missed, silently skipping the education gate on a degree-requiring JD.
 DEGREE_RE = re.compile(
-    r"\b(?:bachelor|master|associate)(?:'s)?\s+(?:degree|of|in)\b"
+    r"\b(?:bachelor|master|associate)(?:['’]s)?\s+(?:degree|of|in)\b"
     r"|\bb\.[sa]\.\b|\bm\.[sa]\.\b|\bph\.?\s?d\b"
     r"|\bdegree\b[^.;]{0,30}\b(?:required|preferred)\b"
     r"|\b(?:required|preferred)[^.;]{0,30}\bdegree\b",

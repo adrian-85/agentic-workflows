@@ -767,6 +767,18 @@ class EducationGateTests(unittest.TestCase):
             "Five years of experience, or an equivalent combination of "
             "education and experience."))
 
+    def test_curly_apostrophe_degree_still_detected(self):
+        # Regression (real session): a JD pasted from a PDF carried the
+        # curly apostrophe — "Master’s degree" — which the ASCII-only
+        # (?:'s)? group missed, so a degree-REQUIRING JD skipped the
+        # education gate entirely and a dropped Education survived
+        # validation until --jd-years forced a second look.
+        self.assertTrue(vr.DEGREE_RE.search(
+            "Employer will accept a Master\u2019s degree in Computer "
+            "Science, Engineering, or related Technical field."))
+        self.assertTrue(vr.DEGREE_RE.search(
+            "Bachelor\u2019s degree in a related field."))
+
 
 if __name__ == "__main__":
     unittest.main()
