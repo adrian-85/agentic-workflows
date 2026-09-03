@@ -689,6 +689,62 @@ class EducationGateTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertNotIn("Education", out)
 
+    def test_prose_degree_word_is_not_a_degree_requirement(self):
+        # Regression (real session): the JD's 'a high degree of autonomy'
+        # matched the old bare \bdegree\b, so a JD with NO degree
+        # requirement entered the education gate and warned about the
+        # dropped Education section.
+        jd = self._jd(
+            "Able to operate with a high degree of autonomy and identify "
+            "where your input will create the most value. 5+ years of "
+            "test automation experience required."
+        )
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _write_docx(path, ["04/2021 – 09/2026"], education=False)
+            rc, out = self._run(path, "--jd", jd)
+        finally:
+            os.unlink(path)
+            os.unlink(jd)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("Education", out)
+
+    def test_language_equivalence_is_not_an_education_clause(self):
+        # Regression (real session): 'CEFR C2 or equivalent' matched the
+        # old bare `or equivalent` branch, fabricating a load-bearing
+        # education clause on a JD with no degree ask.
+        jd = self._jd(
+            "Exceptional written and verbal communication skills in "
+            "English (CEFR C2 or equivalent), as most collaboration "
+            "happens asynchronously. 5+ years of test automation "
+            "experience required."
+        )
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _write_docx(path, ["04/2021 – 09/2026"], education=False)
+            rc, out = self._run(path, "--jd", jd)
+        finally:
+            os.unlink(path)
+            os.unlink(jd)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("load-bearing", out)
+
+    def test_degree_and_equivalence_still_detected(self):
+        # The tightened regexes must keep matching real credential
+        # language: 'Bachelor's degree ... required' and 'or equivalent
+        # professional experience' still enter the gate.
+        self.assertTrue(vr.DEGREE_RE.search(self.JD_DEGREE))
+        self.assertTrue(vr.DEGREE_RE.search(
+            "Associate degree in a related field preferred."))
+        self.assertTrue(vr.DEGREE_RE.search(
+            "A bachelor's degree is required for this role."))
+        self.assertTrue(vr.EQUIV_CLAUSE_RE.search(self.JD_EQUIV))
+        self.assertTrue(vr.EQUIV_CLAUSE_RE.search(
+            "Five years of experience, or an equivalent combination of "
+            "education and experience."))
+
 
 if __name__ == "__main__":
     unittest.main()

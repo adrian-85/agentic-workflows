@@ -86,9 +86,28 @@ DUP_K = 20                      # shared substring length that flags near-dups
 SENIORITY_GATE_YEARS = 2.0      # visible-span shrink (vs master) that requires approval
 
 # Step 3.4 education predicates, mechanical form (see _education_gate).
-DEGREE_RE = re.compile(r"bachelor|master|associate|\bdegree\b", re.I)
+# DEGREE_RE requires CREDENTIAL context, not the bare words: a real JD
+# matched the old `\bdegree\b` via prose — 'a high degree of autonomy' —
+# so a JD with no degree requirement at all entered the education gate
+# and warned about a dropped Education section. Credential forms:
+# 'Bachelor('s) degree/of/in', 'Master's degree', degree-abbreviations,
+# or 'degree' adjacent (same sentence, <=30 chars) to required/preferred.
+DEGREE_RE = re.compile(
+    r"\b(?:bachelor|master|associate)(?:'s)?\s+(?:degree|of|in)\b"
+    r"|\bb\.[sa]\.\b|\bm\.[sa]\.\b|\bph\.?\s?d\b"
+    r"|\bdegree\b[^.;]{0,30}\b(?:required|preferred)\b"
+    r"|\b(?:required|preferred)[^.;]{0,30}\bdegree\b",
+    re.I,
+)
+# An 'or equivalent' EDUCATION-substitution clause — not a generic
+# equivalence: a real JD matched the old bare `or equivalent` branch via
+# 'CEFR C2 or equivalent' (language proficiency), fabricating a
+# load-bearing education predicate. Require degree/experience/education
+# context in the same sentence.
 EQUIV_CLAUSE_RE = re.compile(
-    r"or equivalent|equivalent (?:professional |work )?(?:experience|education)",
+    r"equivalent (?:professional |work )?(?:experience|education)"
+    r"|(?:degree|experience|education)[^.;]{0,40}or (?:an )?equivalent"
+    r"|or (?:an )?equivalent[^.;]{0,40}(?:degree|experience|education)",
     re.I,
 )
 NUM_CLAIM = re.compile(r"\d+(?:\.\d+)?\s*(?:%|hours?|minutes?)", re.I)
