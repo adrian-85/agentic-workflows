@@ -163,6 +163,11 @@ action resumes only after the user replies.
 Findings are presented **directly in chat** — no proposal files; the
 session transcript is the record.
 
+**Checkpoint enforcement:** `checkpoint.sh` records when each gate is
+passed and blocks the next phase until its prerequisite gate is recorded.
+This makes the hard stops verifiable, not just advisory. State file:
+`/tmp/improve-workflow-checkpoint.json`.
+
 ---
 
 ## File Structure

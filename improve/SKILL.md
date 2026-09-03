@@ -95,12 +95,21 @@ The chat is the approval mechanism — there is no approval script.
 
 5. **Present findings and stop (hard stop #1):**
    - Format suggestions clearly with rationale and session evidence,
-     presented directly in chat — the chat is the deliverable; no
-     proposal files are written
-   - **STOP.** If the user declines, the workflow ends. If they request
-     modifications, revise and present again. If they approve, continue.
+     presented directly in chat — the chat is the deliverable
+   - **STOP.** Do nothing further until the user replies.
+   - If the user declines, reset the checkpoint and exit.
+   - If they approve, record the gate and continue:
+     ```bash
+     scripts/checkpoint.sh gate 1
+     ```
 
-6. **Implement approved improvements:**
+6. **Verify the gate:**
+   ```bash
+   scripts/checkpoint.sh require 1
+   ```
+   If this fails, **stop** — do not proceed until gate 1 is passed.
+
+7. **Implement approved improvements:**
    - Create the worktree:
      ```bash
      scripts/setup-worktree.sh <workflow-name>
@@ -111,7 +120,7 @@ The chat is the approval mechanism — there is no approval script.
    - Commit after each logical change with descriptive messages
    - Run the workflow's own tests/verification if it has any
 
-7. **Report completion and stop (hard stop #2 — model switch):**
+8. **Report completion and stop (hard stop #2 — model switch):**
    - Confirm what was implemented (one line: e.g. "6 improvements
      committed, 245 tests passing")
    - Tell the user to switch to `$REVIEW_MODEL` and confirm
@@ -119,10 +128,21 @@ The chat is the approval mechanism — there is no approval script.
      switched. Do not re-present the approved changes — the user just
      reviewed them.
 
+9. **Record gate 2:** Once the user confirms the model switch:
+   ```bash
+   scripts/checkpoint.sh gate 2
+   ```
+
 ### Phase 2: Quality Review & Implementation  (model: `reviewModel`)
 
 1. **Verify the model:** Check `$PI_MODEL` against `reviewModel`.
    If it does not match, remind the user and **stop until they confirm**.
+
+2. **Verify the gate:**
+   ```bash
+   scripts/checkpoint.sh require 2
+   ```
+   If this fails, **stop** — do not begin Phase 2.
 
 2. **Run code simplicity review:**
    - Invoke the code-simplicity-reviewer skill on the Phase 1 changes
@@ -137,11 +157,22 @@ The chat is the approval mechanism — there is no approval script.
 4. **Combine findings and stop (hard stop #3):**
    - Merge suggestions from both reviews, prioritized by impact,
      presented directly in chat
-   - **STOP.** If the user declines, keep Phase 1 changes and proceed to
-     Phase 3 (final review). If they request modifications, revise and
-     present again. If they approve, continue.
+   - **STOP.** Do nothing further until the user replies.
+   - If they decline, record gate 3 (no quality changes) and proceed to
+     Phase 3 (final review).
+   - If they approve, record gate 3 then implement:
+     ```bash
+     scripts/checkpoint.sh gate 3
+     ```
 
-5. **Implement approved quality improvements:**
+5. **Verify the gate:** Do not implement quality improvements until
+   hard stop #3 has been passed.
+   ```bash
+   scripts/checkpoint.sh require 3
+   ```
+   If this fails, **stop** — present findings first.
+
+6. **Implement approved quality improvements:**
    - Apply each approved change in the worktree
    - Commit with descriptive messages
 
@@ -157,7 +188,10 @@ The chat is the approval mechanism — there is no approval script.
    - Full diff summary: what was improved, quality changes applied,
      files changed, commits
    - **STOP.** If the user declines, stop — the worktree persists for later.
-     If they approve, continue to merge.
+   - If they approve, record gate 4 then merge:
+     ```bash
+     scripts/checkpoint.sh gate 4
+     ```
 
 3. **Merge to main:**
    ```bash
@@ -237,7 +271,8 @@ Default values are in `improve/config.json`.
 │       ├── load-config.sh        # Config loading
 │       ├── setup-worktree.sh     # Worktree creation
 │       ├── merge-worktree.sh     # Merge and cleanup
-│       └── git-operations.sh     # Git helpers
+│       ├── git-operations.sh     # Git helpers
+│       └── checkpoint.sh        # Gate enforcement
 └── .improvement-workflow.json    # User configuration (created on first run)
 ```
 
@@ -282,10 +317,23 @@ Scripts may be run from the main repo or from inside the worktree.
 argument, so it works from anywhere. Do not run `git-operations.sh`
 as a command — it only defines functions when executed.
 
+### checkpoint.sh
+Gate checkpoint enforcement — the only way past a hard stop.
+
+```bash
+scripts/checkpoint.sh gate 1      # record that gate 1 has been passed
+scripts/checkpoint.sh require 1   # fail (exit 1) unless gate 1 is passed
+scripts/checkpoint.sh status      # print state of all four gates
+scripts/checkpoint.sh reset       # clear all state (new run)
+```
+
+State file: `/tmp/improve-workflow-checkpoint.json`.
+
 ### Approval mechanism
 There is no approval script and no proposal files. Findings are
 presented directly in chat; the chat is the gate: end your turn and
-wait for the user's reply. The session transcript is the record.
+wait for the user's reply. The checkpoint script enforces the sequence:
+a phase cannot begin until its prerequisite gate has been passed.
 
 ## Tips
 
