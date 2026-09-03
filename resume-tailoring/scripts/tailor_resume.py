@@ -67,7 +67,7 @@ import shutil
 
 from docx_edit import (
     load, save, paras, find_p, set_text, set_labeled, replace_text,
-    merge_into, drop, remove_empty,
+    merge_into, drop, drop_role, drop_section, remove_empty,
 )
 
 SRC = "<userName> Master Resume.docx"
@@ -151,15 +151,23 @@ def main():
 
     # ------------------------------------------------------------------ #
     # 5. RECLAIM SPACE — trim the oldest roles' exhaustive Tools lines to
-    #    one line each (each wraps to two rendered lines), keeping the 6-8
-    #    most JD-relevant tools plus the stack's signature one. Normalize
+    #    one line each, sized to the MEASURED wrap budget (measure's TOOLS
+    #    LINES THAT WRAP prints "value is N chars, wraps after ~M — cut
+    #    ~N-M chars"; the proportional font makes a fixed tool count
+    #    unreliable). Normalize
     #    the label to "Tools & Technologies:" and fix proper-noun casing
     #    (GitHub, HIPAA).
     # ------------------------------------------------------------------ #
     trims = [
-        ("<oldest-role Tools-line prefix>",
+        # Each entry's prefix is the TOOLS LINE'S OWN unique text start
+        # (e.g. "Tools & Technologies: MVC,"), NOT the company-header
+        # prefix — find_p matches paragraph text, and the header is a
+        # different paragraph. The --prefixes dump shows each Tools line's
+        # text; its first ~25 chars are unique once the other roles'
+        # tools lines differ.
+        ("<Tools-line's own unique text start, e.g. 'Tools & Technologies: MVC,'>",
          "Tools & Technologies: ",
-         "<6-8 most JD-relevant tools, one line>"),
+         "<tools trimmed to the measured wrap budget, one line>"),
         # ...
     ]
     for prefix, label, value in trims:
