@@ -148,7 +148,8 @@ The chat is the approval mechanism — there is no approval script.
 
 1. **Generate the final diff:**
    ```bash
-   scripts/git-operations.sh get_diff main
+   source scripts/git-operations.sh
+   get_diff main        # functions, not a CLI — source the library first
    ```
 
 2. **Present everything and stop (hard stop #4):**
@@ -265,11 +266,20 @@ scripts/merge-worktree.sh <worktree-path>
 ```
 
 ### git-operations.sh
-Shared git helper functions. Source to use.
+Shared git helper functions — a library to **source**, not a CLI.
 
 ```bash
 source scripts/git-operations.sh
+get_diff main            # diff vs main
+get_diff_stat main       # diff --stat vs main
+commit_changes "msg"     # add -A + commit if there are changes
 ```
+
+### Script invocation context
+Scripts may be run from the main repo or from inside the worktree.
+`merge-worktree.sh` resolves the main repo root from its worktree-path
+argument, so it works from anywhere. Do not run `git-operations.sh`
+as a command — it only defines functions when executed.
 
 ### Approval mechanism
 There is no approval script. The chat is the gate: present findings,

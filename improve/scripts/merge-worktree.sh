@@ -49,8 +49,11 @@ echo "Merging worktree branch to main..."
 echo "  Worktree: $WORKTREE_PATH"
 echo "  Branch: $BRANCH_NAME"
 
-# Get repo root
-REPO_ROOT=$(get_repo_root)
+# Resolve the MAIN repo root from the worktree path (not $PWD — this script
+# may be run from anywhere, including inside the worktree being merged).
+# --git-common-dir points at the main repo's .git directory.
+MAIN_GIT_DIR=$(git -C "$WORKTREE_PATH" rev-parse --path-format=absolute --git-common-dir)
+REPO_ROOT="$(dirname "$MAIN_GIT_DIR")"
 
 # Switch to main branch in main working directory
 cd "$REPO_ROOT"
