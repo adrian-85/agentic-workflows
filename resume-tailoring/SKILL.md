@@ -316,7 +316,8 @@ compression when the page budget forces it:
    authoring only to be flagged at validation time costs a script rewrite,
    an unused-import cleanup, and a re-verification cycle (observed: a script
    authored with `drop_section("Education")` against a JD reading "will
-   accept a Master's degree … and 8 years of experience"). Then decide by
+   accept a Master's degree … and 8 years of experience"; the validator is
+   the gate, this grep only saves the cycle). Then decide by
    observable predicates, not habit:
 
    - **DROP** when ALL hold: the JD states *no* degree requirement, the degree
@@ -615,13 +616,12 @@ content orphaned after a Tools line, **unapproved whole-role elimination**, or
 **Education dropped against a degree-requiring JD** (when `--jd` is passed).
 Fix the errors, then render. The rendered PDF lands next to the `.docx`.
 
-**The two gates have different trigger conditions — don't conflate a clean
-render with clearance.** The seniority gate runs unconditionally; the
-education gate runs ONLY when `--jd` is passed (via `RESUME_VALIDATE_ARGS`).
-A render without `--jd` that reports "only the seniority blocker" says
-nothing about the education decision — do not read it as "the degree clause
-is satisfied" (observed misread that had to be re-litigated two cycles
-later when `--jd-years` surfaced the education blocker).
+**The two gates have different trigger conditions.** The seniority gate runs
+unconditionally; the education gate runs ONLY when `--jd` is passed (via
+`RESUME_VALIDATE_ARGS`) — `render_pdf.sh` prints a NOTE whenever the
+education gate did not run. Never read "only the seniority blocker" from a
+render without `--jd` as "the degree clause is satisfied" (observed misread
+that was re-litigated two cycles later).
 
 **When the JD specifies years of experience** (Step 3), confirm alignment and
 record approval in one command:
@@ -717,7 +717,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Appending bullets when content overlaps an existing one | Merge (`merge_into`) — appending blows the page budget (Step 6) |
 | Overwriting the master resume | Write to `<userName> Resume - <Target>.docx` — never the master filename (Step 10) |
 | Keeping Education when the degree isn't evidence for the JD | Evaluate the drop/keep predicates (Step 3.4) — a BA vs an engineering JD is a 3-line drop |
-| Reading a clean render (no `--jd`) as education-clause clearance | The education gate runs only with `--jd`; the seniority gate always. A plain render says nothing about the degree decision (Step 11) |
+| Reading a clean render (no `--jd`) as education-clause clearance | The education gate runs only with `--jd`; the seniority gate always — render_pdf.sh NOTEs when the education gate did not run (Step 11) |
 | Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 9) |
 | Em dash / double dash / semicolon in rewritten Summary or bullet prose | No em dashes, double hyphens, or semicolons — split into a new sentence or use a comma; single hyphens in compound words are fine (Step 9). `validate_resume.py` blocks the render |
 | JD asks for fewer years than the candidate has | Offer Step 3 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it. The token needs the user's authority: their chat reply or pre-authorization in the request; never pass it on your own |
