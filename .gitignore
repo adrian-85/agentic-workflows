@@ -6,6 +6,10 @@ __pycache__/
 *.docx
 *.pdf
 
+# Session artifacts: pasted job descriptions, save() drift sidecars
+resume-tailoring/jd_*.txt
+*.drift.json
+
 # LinkedIn data exports (personal — stay local)
 resume-tailoring/Basic_LinkedInDataExport_*/
 
