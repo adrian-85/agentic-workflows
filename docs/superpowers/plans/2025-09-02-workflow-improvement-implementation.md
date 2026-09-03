@@ -8,49 +8,54 @@
 
 ## Overview
 
-This plan breaks the workflow improvement feature into implementation steps. Each step is a logical unit that can be implemented and verified independently.
+This plan implements the workflow improvement feature using a hybrid approach:
+- **Programmatic scripts** for deterministic operations (config, git, approval gates)
+- **SKILL.md** for non-deterministic guidance (analysis, interpretation, implementation decisions)
 
 ---
 
-## Prerequisites
+## Directory Structure
 
-- Git repository at `~/workspace/agentic-workflows/`
-- Pi installed with `--fork` support
-- Git worktree support enabled
+```
+~/workspace/agentic-workflows/
+├── improve/
+│   ├── SKILL.md                  # Workflow guidance and orchestration
+│   ├── config.json               # Default configuration (copied to repo root on first run)
+│   └── scripts/
+│       ├── load-config.sh        # Load and parse configuration
+│       ├── analyze-session.sh    # Extract improvement indicators from session
+│       ├── setup-worktree.sh     # Create worktree and branch
+│       ├── approval-gate.sh      # Handle approval prompts with user input
+│       ├── merge-worktree.sh     # Merge branch and cleanup
+│       └── git-operations.sh     # Shared git helper functions
+└── .improvement-workflow.json    # User configuration (created on first run)
+```
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Create Workflow Directory Structure
-
-**Files to create:**
-```
-workflows/improve/
-├── SKILL.md                    # Main workflow skill
-└── scripts/
-    └── parse-config.sh         # Config file parser
-```
+### Step 1: Create Directory Structure
 
 **Actions:**
-1. Create `workflows/improve/` directory
-2. Create `workflows/improve/scripts/` directory
-3. Create empty `SKILL.md` with frontmatter skeleton
-4. Create `scripts/parse-config.sh` skeleton
+1. Create `improve/` directory
+2. Create `improve/scripts/` directory
+3. Create placeholder files
 
-**Verification:** Directory structure exists, files are valid
+**Verification:** Directory structure exists
 
 ---
 
-### Step 2: Create Configuration File
+### Step 2: Create Configuration Files
 
 **Files to create:**
 ```
-.improvement-workflow.json      # Configuration
+improve/config.json              # Default config template
+.improvement-workflow.json       # User config (created on first run)
 ```
 
 **Actions:**
-1. Create `.improvement-workflow.json` with default values:
+1. Create `improve/config.json` with default values:
    ```json
    {
      "analysisModel": "deepseek/deepseek-v4-flash-0731",
@@ -59,268 +64,307 @@ workflows/improve/
      "worktreePrefix": "agentic-workflows-improve"
    }
    ```
-2. Update `.gitignore` to exclude worktree directories (not config)
+2. Document that `.improvement-workflow.json` is created in repo root on first run
 
-**Verification:** Config loads correctly, defaults are sensible
-
----
-
-### Step 3: Implement Config Loading in SKILL.md
-
-**Files to modify:**
-```
-workflows/improve/SKILL.md
-```
-
-**Actions:**
-1. Add section for config loading:
-   - Read `.improvement-workflow.json` from repo root
-   - Parse JSON using bash `jq` or similar
-   - Set variables: `analysisModel`, `reviewModel`, `worktreeBasePath`, `worktreePrefix`
-   - Fallback to defaults if config missing
-
-**Verification:** Config loading documented, fallback behavior clear
+**Verification:** Config template valid JSON, defaults sensible
 
 ---
 
-### Step 4: Implement Session Analysis Logic
+### Step 3: Implement `load-config.sh`
 
-**Files to modify:**
-```
-workflows/improve/SKILL.md
-```
+**File:** `improve/scripts/load-config.sh`
+
+**Purpose:** Load configuration from `.improvement-workflow.json` or defaults
 
 **Actions:**
-1. Add section for session transcript analysis:
-   - Read current session (use `pi --session <id>` to export or read session file)
-   - Identify which workflow was primarily used:
-     - Look for workflow invocation patterns (`/workflows:...` or skill references)
-     - Count frequency of skill file reads
-     - Determine primary workflow name
-   - Analyze for improvement indicators:
-     - Clarification questions asked by agent
-     - Tool/command usage patterns
-     - Skill file deviations or workarounds
-   - Generate prioritized improvement suggestions
+1. Check for `.improvement-workflow.json` in repo root
+2. If exists, parse with `jq` and export variables
+3. If not exists, copy `improve/config.json` to repo root as `.improvement-workflow.json`
+4. Export: `ANALYSIS_MODEL`, `REVIEW_MODEL`, `WORKTREE_BASE_PATH`, `WORKTREE_PREFIX`
+5. Validate required fields exist
 
-**Verification:** Analysis logic documented, output format defined
+**Verification:** Script loads config correctly, handles missing file
 
 ---
 
-### Step 5: Implement Approval Gate #1 (Analysis)
+### Step 4: Implement `analyze-session.sh`
 
-**Files to modify:**
-```
-workflows/improve/SKILL.md
-```
+**File:** `improve/scripts/analyze-session.sh`
+
+**Purpose:** Extract improvement indicators from session transcript
+
+**Input:** Session ID or session file path
+
+**Output:** Structured JSON with analysis results
 
 **Actions:**
-1. Add section for presenting analysis results:
-   - Format suggestions clearly with rationale
-   - Include specific session examples
-   - Present approval prompt to user
-   - Handle approve/decline/modification responses
-   - If declined: stop workflow, clean up
-   - If modifications requested: iterate until satisfied
+1. Accept session identifier as argument
+2. Read session file (JSONL format)
+3. Extract and analyze:
+   - Workflow invocations (which workflow was used)
+   - Clarification questions (agent asked for more info)
+   - Tool/command patterns (repetitive actions)
+   - Skill file reads and deviations
+4. Generate structured output:
+   ```json
+   {
+     "workflow": "resume-tailoring",
+     "indicators": [
+       {"type": "clarification", "count": 3, "examples": [...]},
+       {"type": "repetitive_commands", "commands": [...], "count": 5},
+       {"type": "skill_deviation", "description": "..."}
+     ],
+     "suggestions": [...]
+   }
+   ```
+5. Handle errors (invalid session, no workflow found)
 
-**Verification:** Approval gate flow documented, edge cases handled
+**Verification:** Script extracts meaningful indicators from test session
 
 ---
 
-### Step 6: Implement Fork and Worktree Setup
+### Step 5: Implement `approval-gate.sh`
 
-**Files to modify:**
-```
-workflows/improve/SKILL.md
-```
+**File:** `improve/scripts/approval-gate.sh`
+
+**Purpose:** Handle approval prompts with user input
+
+**Input:** 
+- `$1`: Gate name (e.g., "analysis", "quality-review", "final")
+- `$2`: Path to proposal file (markdown or JSON)
+
+**Output:** Exit code 0 (approved), 1 (declined), 2 (modifications requested)
 
 **Actions:**
-1. Add section for session forking:
-   - Get current session ID
-   - Execute `pi --fork <session-id>` to create forked session
-   - Note: This creates a new session file, workflow continues there
-2. Add section for worktree creation:
-   - Generate worktree name: `<workflow-name>-<timestamp>`
-   - Generate branch name: `improve/<workflow-name>-<timestamp>`
-   - Execute `git worktree add <path> -b <branch>`
-   - Change directory to worktree
-3. Add section for handling existing worktrees:
-   - Check if worktree already exists for workflow
-   - Prompt user for new name or abort
+1. Display gate header
+2. Read and display proposal content
+3. Prompt user for decision:
+   - `[a]pprove` - proceed with implementation
+   - `[d]ecline` - stop workflow
+   - `[m]odify` - request changes
+4. Handle response:
+   - `approve`: exit 0
+   - `decline`: exit 1
+   - `modify`: prompt for modification text, write to file, exit 2
+5. Include timeout option (default: no timeout)
 
-**Verification:** Fork and worktree commands documented, error handling included
+**Verification:** Script correctly handles all response types
 
 ---
 
-### Step 7: Implement Phase 1 Improvements Implementation
+### Step 6: Implement `setup-worktree.sh`
 
-**Files to modify:**
-```
-workflows/improve/SKILL.md
-```
+**File:** `improve/scripts/setup-worktree.sh`
+
+**Purpose:** Create git worktree and branch for isolated work
+
+**Input:**
+- `$1`: Workflow name
+- `$2`: Base path (optional, from config)
+
+**Output:** Worktree path
 
 **Actions:**
-1. Add section for implementing approved improvements:
-   - Apply each approved change to workflow files
-   - Follow existing patterns in the workflow
-   - Write meaningful commit messages
-   - Commit after each logical change
-2. Add section for implementation tracking:
-   - Track what changes were made
-   - Track which suggestions were implemented
-   - Prepare summary for Phase 2
+1. Load config to get `WORKTREE_BASE_PATH` and `WORKTREE_PREFIX`
+2. Generate worktree name: `<workflow-name>-<timestamp>`
+3. Generate branch name: `improve/<workflow-name>-<timestamp>`
+4. Check if worktree already exists:
+   - If exists, prompt user for alternative name or abort
+5. Create worktree:
+   ```bash
+   git worktree add "$BASE_PATH/$WORKTREE_PREFIX/$NAME" -b "$BRANCH"
+   ```
+6. Return worktree path
 
-**Verification:** Implementation steps documented, commit strategy defined
+**Verification:** Worktree created, branch exists, path returned
 
 ---
 
-### Step 8: Implement Phase 2 Quality Review Integration
+### Step 7: Implement `merge-worktree.sh`
 
-**Files to modify:**
-```
-workflows/improve/SKILL.md
-```
+**File:** `improve/scripts/merge-worktree.sh`
+
+**Purpose:** Merge worktree branch to main and cleanup
+
+**Input:**
+- `$1`: Worktree path
+
+**Output:** Success/failure status
 
 **Actions:**
-1. Add section for invoking code-simplicity-reviewer:
-   - Read the code-simplicity-reviewer skill
-   - Apply review to Phase 1 changes
-   - Generate simplification suggestions
-2. Add section for invoking writing-skills:
-   - Read the writing-skills skill
-   - Apply review to Phase 1 changes
-   - Generate improvement suggestions
-3. Add section for presenting Phase 2 findings:
-   - Combine suggestions from both reviews
-   - Format clearly for user
-   - Present approval prompt
+1. Get current branch from worktree
+2. Switch to main branch: `git checkout main`
+3. Merge branch: `git merge <branch>`
+4. Handle merge conflicts:
+   - If conflicts, present to user
+   - User resolves conflicts
+   - Continue merge
+5. Remove worktree: `git worktree remove <path>`
+6. Remove branch: `git branch -d <branch>`
+7. Inform user changes ready to push
 
-**Verification:** Quality review integration documented, approval gate included
+**Verification:** Merge successful, worktree cleaned up
 
 ---
 
-### Step 9: Implement Phase 2 Quality Improvements Implementation
+### Step 8: Implement `git-operations.sh`
 
-**Files to modify:**
-```
-workflows/improve/SKILL.md
-```
+**File:** `improve/scripts/git-operations.sh`
 
-**Actions:**
-1. Add section for implementing approved quality improvements:
-   - Apply each approved quality change
-   - Commit with descriptive messages
-   - Track changes for final summary
+**Purpose:** Shared git helper functions
 
-**Verification:** Quality implementation steps documented
+**Functions:**
+- `get_current_branch()` - Get current git branch
+- `get_repo_root()` - Get repository root path
+- `check_worktree_exists()` - Check if worktree exists
+- `list_worktrees()` - List all worktrees
+- `commit_changes()` - Commit with message
+- `get_diff()` - Get diff between branches
 
----
-
-### Step 10: Implement Final Review and Merge
-
-**Files to modify:**
-```
-workflows/improve/SKILL.md
-```
-
-**Actions:**
-1. Add section for final review:
-   - Generate full diff: `git diff main...HEAD`
-   - Summarize all changes made
-   - Present to user for final approval
-2. Add section for merge to main:
-   - Switch to main branch
-   - Merge worktree branch: `git merge <branch>`
-   - Handle merge conflicts if any
-   - Clean up worktree: `git worktree remove <path>`
-   - Inform user changes are ready to push
-
-**Verification:** Final review and merge steps documented, conflict handling included
+**Verification:** Functions work correctly
 
 ---
 
-### Step 11: Add Edge Case Handling
+### Step 9: Create SKILL.md
 
-**Files to modify:**
-```
-workflows/improve/SKILL.md
-```
+**File:** `improve/SKILL.md`
 
-**Actions:**
-1. Add section for edge cases:
-   - No workflow identified: prompt user to specify
-   - Worktree name collision: prompt for alternative name
-   - Merge conflicts: present to user for resolution
-   - Phase 1 declined: clean up partial changes
-   - Phase 2 declined: merge Phase 1 only
-   - Session interrupted: document worktree persistence and resume
+**Purpose:** Workflow guidance for non-deterministic parts
 
-**Verification:** All edge cases from spec addressed
+**Content:**
+- Frontmatter with name and description
+- Overview of the workflow
+- Phase 1: Analysis guidance
+  - Invoke `analyze-session.sh`
+  - Interpret results
+  - Generate improvement suggestions
+  - Present to user via `approval-gate.sh`
+- Phase 2: Implementation guidance
+  - Invoke `setup-worktree.sh`
+  - Implement approved changes
+  - Commit changes
+- Phase 3: Quality review guidance
+  - Invoke code-simplicity-reviewer
+  - Invoke writing-skills
+  - Present findings via `approval-gate.sh`
+  - Implement quality improvements
+- Phase 4: Final merge guidance
+  - Present final diff
+  - Get approval via `approval-gate.sh`
+  - Invoke `merge-worktree.sh`
+- Error handling guidance
+- Edge case handling guidance
+
+**Verification:** SKILL.md is clear, references scripts correctly
 
 ---
 
-### Step 12: Add Error Handling
+### Step 10: Implement Approval Gate Flow
 
 **Files to modify:**
 ```
-workflows/improve/SKILL.md
+improve/SKILL.md
 ```
 
-**Actions:**
-1. Add section for error handling:
-   - Git command failures
-   - Fork command failures
-   - Config file parse errors
-   - Permission errors
-   - Network errors (if applicable)
+**Purpose:** Wire up approval gates at each phase
 
-**Verification:** Error scenarios documented, recovery steps included
+**Actions:**
+1. Phase 1 approval gate:
+   - After analysis, write suggestions to `.pending-analysis.md`
+   - Invoke `approval-gate.sh analysis .pending-analysis.md`
+   - Handle response (approve/decline/modify)
+2. Phase 2 approval gate:
+   - After quality review, write suggestions to `.pending-quality.md`
+   - Invoke `approval-gate.sh quality-review .pending-quality.md`
+   - Handle response
+3. Phase 3 approval gate:
+   - After all implementation, write diff summary to `.pending-final.md`
+   - Invoke `approval-gate.sh final .pending-final.md`
+   - Handle response
+
+**Verification:** All approval gates wired correctly
+
+---
+
+### Step 11: Add Error Handling
+
+**Files to modify:**
+```
+improve/scripts/*.sh
+improve/SKILL.md
+```
+
+**Purpose:** Handle error conditions gracefully
+
+**Actions:**
+1. Add error handling to all scripts:
+   - Check exit codes
+   - Provide meaningful error messages
+   - Clean up partial changes on failure
+2. Document error scenarios in SKILL.md
+3. Add recovery guidance
+
+**Verification:** Errors handled gracefully, no partial states left
+
+---
+
+### Step 12: Add Edge Case Handling
+
+**Files to modify:**
+```
+improve/SKILL.md
+```
+
+**Purpose:** Handle edge cases from spec
+
+**Actions:**
+1. No workflow identified: prompt user to specify
+2. Worktree name collision: prompt for alternative
+3. Merge conflicts: present to user for resolution
+4. Phase declined: clean up appropriately
+5. Session interrupted: document worktree persistence
+
+**Verification:** All edge cases addressed
 
 ---
 
 ## Implementation Order
 
-Implement in this order for incremental progress:
-
-1. **Steps 1-2**: Directory structure and config file
-2. **Steps 3-5**: Analysis and first approval gate
-3. **Steps 6-7**: Fork, worktree, and Phase 1 implementation
-4. **Steps 8-9**: Phase 2 quality review
-5. **Steps 10-12**: Final review, merge, edge cases, errors
-
----
-
-## Verification Strategy
-
-After each step:
-- Review SKILL.md for clarity
-- Check that instructions are actionable
-- Verify edge cases are handled
-- Ensure approval gates are present
-
-After all steps:
-- Test with a real workflow session
-- Verify worktree isolation works
-- Verify merge back to main works
-- Run code-simplicity-reviewer on final SKILL.md
-- Run writing-skills review on final SKILL.md
+1. **Steps 1-2**: Directory structure and config
+2. **Steps 3-4**: Config loading and session analysis
+3. **Step 5**: Approval gate script
+4. **Steps 6-8**: Git operations (worktree, merge, helpers)
+5. **Step 9**: SKILL.md creation
+6. **Steps 10-12**: Wiring up gates and edge cases
 
 ---
 
 ## Dependencies
 
-- `jq` for JSON parsing (install if not present)
-- Git worktree support (built into git 2.5+)
+- `jq` for JSON parsing
+- Git 2.5+ for worktree support
 - Pi with `--fork` support
+- Bash 4.0+ for modern features
+
+---
+
+## Verification Strategy
+
+1. Unit test each script independently
+2. Integration test full flow with mock session
+3. Test approval gates with user interaction
+4. Test worktree creation and merge
+5. Test error handling scenarios
+6. Manual verification with real workflow
 
 ---
 
 ## Success Criteria
 
-1. User can invoke `/workflows:improve` to start improvement workflow
-2. Analysis identifies actionable improvements from session
-3. Approval gates work at each phase
-4. Worktree isolation prevents interference with active sessions
-5. Quality reviews (simplicity + writing-skills) are integrated
-6. Final merge back to main is clean and reversible
-7. User is informed when changes are ready to push
+1. Scripts handle all deterministic operations
+2. SKILL.md guides non-deterministic decisions
+3. Approval gates work with user input
+4. Worktree isolation prevents interference
+5. Merge back to main is clean
+6. Error handling is graceful
+7. User informed when changes ready to push
