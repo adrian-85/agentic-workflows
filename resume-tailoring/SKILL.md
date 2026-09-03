@@ -501,7 +501,8 @@ the removed role (header/title + strongest bullet) to keep the timeline
 gapless.
 
 Still a few lines over? Trim the oldest roles' Tools lines to one line each
-(keep the 6–8 most JD-relevant tools) and drop blank inter-role spacers with
+(TOOLS LINES THAT WRAP reports the measured char budget per line — cut to
+it, not to a tool count) and drop blank inter-role spacers with
 `remove_empty`. Re-check the **TOP-BLOCK RECLAIM CANDIDATES** section of the
 measure output: it lists every Technical Proficiencies / Certifications line
 that carries NO JD evidence as a copy-pasteable `find_p` cut (~1 line each).
@@ -634,7 +635,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
 | Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | They take prefix STRINGS — paste the `find_p` lines from the DROP PLAN verbatim; an element argument now fails fast with a `TypeError` (Helper library) |
-| Iterating Tools-line trims because a trimmed line still wraps | Expected once: measure re-flags remaining wraps in TOOLS LINES THAT WRAP after each render; keep values to ~8 tools per line to usually fit in one pass (Step 8) |
+| Iterating Tools-line trims because a trimmed line still wraps | Rare now: TOOLS LINES THAT WRAP reports the MEASURED budget per line ("value is N chars, wraps after ~M — cut ~N-M chars"), so the first trim lands. Trim to the reported budget, not a tool count — the proportional font makes "~8 tools" unreliable (Step 8) |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 5) |
 | Appending bullets when content overlaps an existing one | Merge (`merge_into`) — appending blows the page budget (Step 6) |

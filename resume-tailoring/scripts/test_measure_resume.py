@@ -193,6 +193,61 @@ class RolesTests(unittest.TestCase):
         self.assertFalse(r["has_tools"])
 
 
+class WrappedToolsBudgetTests(unittest.TestCase):
+    """_wrapped_tools reports the MEASURED trim budget (value chars vs the
+    first-rendered-line capacity), not a fixed "~N tools" guess. Session
+    failure: two trim passes were needed because the wrap width was guessed
+    (~45-48 chars) from a proportional-font render where no fixed count is
+    right — the wrap point itself is the only honest budget."""
+
+    KEY = "Company ABC, Phoenix, AZ"
+    VALUE = "Go, Python, JavaScript, TypeScript, Azure Service Bus"
+
+    def _flat(self, first_value, continuation):
+        first = "   Tools & Technologies: " + first_value
+        lines = [
+            (1, "Career Experience", "    Career Experience"),
+            (1, self.KEY, self.KEY + "06/2025 - 07/2026"),
+            (1, "Bullet one", "   Bullet one"),
+            (1, mr._norm(first), first),
+        ]
+        lines += [(1, mr._norm(c), "       " + c) for c in continuation]
+        lines += [(2, mr.SECTION_EDUCATION,
+                   "    " + mr.SECTION_EDUCATION)]
+        return lines
+
+    def _matched(self):
+        return [({"key": self.KEY, "has_tools": True}, 1, 2, 5)]
+
+    def test_reports_value_chars_capacity_and_overflow(self):
+        # The PDF broke the line after 'TypeScript,' (35 value chars on the
+        # first rendered line); the full value is 53 chars → cut ~18.
+        flat = self._flat("Go, Python, JavaScript, TypeScript,",
+                          ["Azure Service Bus"])
+        got = mr._wrapped_tools(flat, self._matched())
+        self.assertEqual(len(got), 1)
+        key, value_chars, capacity, preview = got[0]
+        self.assertEqual(key, self.KEY)
+        self.assertEqual(value_chars, len(self.VALUE))
+        self.assertEqual(capacity, len("Go, Python, JavaScript, TypeScript,"))
+        self.assertEqual(value_chars - capacity, 18)
+        self.assertTrue(preview.startswith("Tools & Technologies:"))
+
+    def test_single_line_tools_not_reported(self):
+        # No continuation before the boundary → no wrap, no entry.
+        flat = self._flat(self.VALUE, [])
+        self.assertEqual(mr._wrapped_tools(flat, self._matched()), [])
+
+    def test_multi_line_continuation_joined(self):
+        flat = self._flat(
+            "Go, Python, JavaScript,",
+            ["TypeScript, Azure", "Service Bus"])
+        key, value_chars, capacity, _preview = mr._wrapped_tools(
+            flat, self._matched())[0]
+        self.assertEqual(value_chars, len(self.VALUE))
+        self.assertEqual(capacity, len("Go, Python, JavaScript,"))
+
+
 class LayoutAndReclaimTests(unittest.TestCase):
     """New page-fill / measured-cost / batch-plan helpers."""
 

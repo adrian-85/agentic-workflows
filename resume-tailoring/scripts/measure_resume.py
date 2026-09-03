@@ -316,6 +316,14 @@ def _wrapped_tools(flat, matched):
     The validator guarantees a Tools line is the last content of its role
     (nothing legit follows it), so a wrap is exactly: the line AFTER the
     tools line is not the next role/section boundary.
+
+    Returns (key, value_chars, wrap_capacity, preview) per wrapped line:
+    ``value_chars`` is the full value length after the "Tools &
+    Technologies: " label (continuation lines joined), ``wrap_capacity`` is
+    how many value chars fit on the FIRST rendered line. The gap between
+    the two is the honest trim budget — the render's proportional font
+    makes a fixed "~N tools" heuristic wrong, so the measured wrap point
+    (not a guess) is what the trim note reports.
     """
     others = {r["key"] for r, *_ in matched}
 
@@ -336,7 +344,21 @@ def _wrapped_tools(flat, matched):
                 break  # no tools line in this role's region
             if "tools" in line.lower() and "technolog" in line.lower():
                 if k + 1 < len(flat) and not is_boundary(flat[k + 1][1]):
-                    results.append((r["key"], flat[k][2][:80]))
+                    raw_first = flat[k][2]
+                    label = "Tools & Technologies: "
+                    stripped = raw_first.lstrip()
+                    # Capacity = value chars that fit on the first rendered
+                    # line (label excluded, indent excluded).
+                    capacity = max(0, len(stripped) - len(label))
+                    full = stripped[len(label):] if stripped.startswith(label) else stripped
+                    parts = [full]
+                    for cont in flat[k + 1:]:
+                        if is_boundary(cont[1]):
+                            break
+                        parts.append(cont[2].strip())
+                    value_chars = len(" ".join(parts).strip())
+                    results.append((r["key"], value_chars, capacity,
+                                    raw_first.strip()[:80]))
                 break
     return results
 
@@ -1391,9 +1413,13 @@ def main():
     wrapped = _wrapped_tools(flat, matched)
     if wrapped:
         print()
-        print("TOOLS LINES THAT WRAP (trim to 1 line to save ~1 line each):")
-        for key, preview in wrapped:
-            print(f"  {key} — \"{preview}\"")
+        print("TOOLS LINES THAT WRAP (each costs ~1 rendered line; trim to "
+              "the measured budget):")
+        for key, value_chars, capacity, preview in wrapped:
+            over = value_chars - capacity
+            print(f"  {key} — value is {value_chars} chars, wraps after "
+                  f"~{capacity} — cut ~{over} chars (≈2-4 tools)")
+            print(f"    \"{preview}\"")
 
     # Reclaim suggestion: size cuts to the overflow gap, from oldest roles.
     if over > 0:
