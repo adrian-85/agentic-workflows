@@ -1,0 +1,6 @@
+{
+  "analysisModel": "z-ai/glm-5.3-flash",
+  "reviewModel": "xiaomi/mimo-v2.5",
+  "worktreeBasePath": "~/workspace",
+  "worktreePrefix": "agentic-workflows-improve"
+}

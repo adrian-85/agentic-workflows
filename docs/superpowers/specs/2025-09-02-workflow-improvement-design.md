@@ -53,12 +53,15 @@ The workflow reads the current session transcript to identify which workflow was
 **Steps**:
 
 1. **Session Transcript Analysis**
-   - Read through session messages
+   - Analysis is **model-driven**: the configured analysis model reads the
+     raw session JSONL transcript directly (no regex/heuristic pre-filtering,
+     which discards context and nuance)
+   - A thin `find-session.sh` helper only locates the session file
    - Identify:
      - Clarification questions agent asked (indicates unclear workflow)
      - Tool/command patterns (repetitive actions, streamlining opportunities)
      - Skill file deviations or workarounds (skill needs improvement)
-   - Generate prioritized improvement suggestions
+   - Generate prioritized improvement suggestions with session evidence
 
 2. **Present Findings to User**
    - Format suggestions clearly with rationale
