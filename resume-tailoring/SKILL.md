@@ -138,6 +138,10 @@ python3 scripts/docx_edit.py "<userName> Master Resume.docx" [--prefixes]
 # style, numId, text. That is how you discover the block-boundary styles
 # (CompanyBlock, SectionHeading) drop_role/drop_section key on:
 python3 scripts/docx_edit.py "<userName> Master Resume.docx" --style SectionHeading
+# Read a paragraph's COMPLETE text before rewriting it (the default map
+# truncates at 90 chars / --prefixes at ~70). Use a range to see several:
+python3 scripts/docx_edit.py "<userName> Master Resume.docx" 8 --full
+python3 scripts/docx_edit.py "<userName> Master Resume.docx" 26-50 --full
 # Fold NEW confirmed bullets into the master without writing a bespoke script:
 python3 scripts/docx_edit.py "<userName> Master Resume.docx" \
     --append-after "<ref prefix>" --with "<new bullet text>"
@@ -172,7 +176,10 @@ manual habits are:
 1. **Author scripts from `--prefixes` alone** (uniqueness-checked copy-paste; the paragraph
    map adds style/numId — only for rare layout checks). For CUT decisions, take the DROP
    PLAN's `find_p` lines directly (Step 8) — the prefixes are already emitted,
-   uniqueness-checked against the document.
+   uniqueness-checked against the document. To read a paragraph's FULL text before
+   rewriting it (Summary, senior-role intro, a bullet), use
+   `docx_edit.py "<docx>" <idx> --full` (or `<start>-<end> --full`) rather than ad-hoc
+   inline python — it is one command and shows the exact string you are replacing.
 2. **Run `measure_resume.py <MASTER> <target> --jd <JD.txt>` at AUTHORING time**, before
    writing the tailor script, and paste its DROP PLAN `find_p` lines verbatim into the
    script's `drop()` calls. Running measure on the master (not the target) plans all the

@@ -502,7 +502,8 @@ def replace_text(p, old, new):
     if p is None:
         _warn_missing(old)
         return
-    if old not in text_of(p):
+    ptext = text_of(p)
+    if old not in ptext:
         # Paragraph was found, but the search string isn't in it. The most
         # likely author error is a mismatched `find_p(...)` prefix pointing at
         # the wrong paragraph — so name the paragraph, not `old`, and record
@@ -511,7 +512,7 @@ def replace_text(p, old, new):
         print(
             f"warning: replace_text({old!r}) targeted a paragraph that does "
             f"not contain that text; paragraph starts:"
-            f" {text_of(p)[:50]!r} — this usually means the find_p prefix "
+            f" {ptext[:50]!r} — this usually means the find_p prefix "
             f"resolved to the wrong paragraph; check the prefix, not the "
             f"text — edit skipped",
             file=sys.stderr,
