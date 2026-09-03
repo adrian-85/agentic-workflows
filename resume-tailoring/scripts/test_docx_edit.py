@@ -487,11 +487,13 @@ class DropTests(unittest.TestCase):
         self.body = body
         de._APPLIED = 0
         de._SKIPS.clear()
+        de._ELEMENT_FORM_DROPS = 0
 
     def tearDown(self):
         de._ORIG.clear()
         de._APPLIED = 0
         de._SKIPS.clear()
+        de._ELEMENT_FORM_DROPS = 0
 
     def test_removes_all_and_returns_refreshed_list(self):
         ps = de.drop(self.body, ["Established a comprehensive",
@@ -527,7 +529,10 @@ class DropTests(unittest.TestCase):
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
             ps = de.drop(self.body, [element])
-        self.assertIn("derived its prefix", err.getvalue())
+        # The per-call stderr note was replaced by a counter that save()
+        # reports as one summary line (22 bullet drops printed 22 notes).
+        self.assertEqual(err.getvalue(), "")
+        self.assertEqual(de._ELEMENT_FORM_DROPS, 1)
         self.assertEqual([de.text_of(p) for p in ps],
                          ["Established a comprehensive test automation approach",
                           "Established bi-monthly interdepartmental QA meetings"])
@@ -721,7 +726,8 @@ class DropRoleTests(unittest.TestCase):
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
             de.drop_role(self.body, element)
-        self.assertIn("derived its prefix", err.getvalue())
+        self.assertEqual(err.getvalue(), "")
+        self.assertEqual(de._ELEMENT_FORM_DROPS, 1)
         texts = [de.text_of(p) for p in de.paras(self.body)]
         self.assertNotIn("Initech, Metropolis01/2017 - 06/2018", texts)
         self.assertNotIn("Primary test engineer for the flagship project", texts)
@@ -849,6 +855,34 @@ class SaveReportTests(unittest.TestCase):
     def _reset_stats(self):
         de._APPLIED = 0
         de._SKIPS.clear()
+        de._ELEMENT_FORM_DROPS = 0
+
+    def test_element_form_drop_reports_one_summary_line(self):
+        # save() summarizes element-form drop calls in ONE line instead of
+        # the old per-call note (22 bullet drops printed 22 near-identical
+        # note lines, burying the stderr warnings that matter).
+        self._reset_stats()
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _empty_docx(path)
+            root, body, names, data, _ = de.load(path)
+            for text in ("Bullet one", "Bullet two"):
+                p = ET.SubElement(body, de.W + "p")
+                t = ET.SubElement(p, de.W + "t"); t.text = text
+            elements = [de.find_p(de.paras(body), t) for t in ("Bullet one", "Bullet two")]
+            de.drop(body, elements)
+            out = io.StringIO()
+            err = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                de.save(path, root, names, data)
+            self.assertIn(
+                "note: 2 drop-family call(s) used the element form",
+                err.getvalue(),
+            )
+            self.assertNotIn("derived its prefix", err.getvalue())
+        finally:
+            os.unlink(path)
 
     def test_reports_clean_run(self):
         self._reset_stats()

@@ -80,6 +80,7 @@ _ORIG = {}
 # Applied/skipped edit accounting for save()'s end-of-run report.
 _APPLIED = 0
 _SKIPS = []  # prefix/label of each skipped edit (recorded by mutators only)
+_ELEMENT_FORM_DROPS = 0  # drop()/drop_role()/drop_section() calls given an element
 
 
 def _orig_text(p):
@@ -181,7 +182,7 @@ def save(path, root, names, data, drift_key=None, src=None):
     prefixes — the next tailor run either resolves every prefix (clean
     pass) or fails loudly.
     """
-    global _APPLIED
+    global _APPLIED, _ELEMENT_FORM_DROPS
     data["word/document.xml"] = ET.tostring(
         root, xml_declaration=True, encoding="UTF-8"
     )
@@ -190,8 +191,16 @@ def save(path, root, names, data, drift_key=None, src=None):
             zout.writestr(n, data[n])
     applied = _APPLIED
     skipped = list(_SKIPS)
+    element_form = _ELEMENT_FORM_DROPS
     _APPLIED = 0
     _SKIPS.clear()
+    _ELEMENT_FORM_DROPS = 0
+    if element_form:
+        print(
+            f"note: {element_form} drop-family call(s) used the element form "
+            f"instead of the copy-pasteable prefix string",
+            file=sys.stderr,
+        )
     strict = os.environ.get("DOCX_EDIT_STRICT", "").strip().lower() == "1"
     if skipped:
         print(
@@ -676,28 +685,26 @@ def _prefix_arg(prefix, api):
     accepted: its own text IS the prefix, so deriving it (instead of
     raising) spares the author the crash-and-retype cycle that a mixed-API
     script invites — set_text/set_labeled/merge_into take elements, and a
-    script that edits both ways will eventually pass one to drop(). A
-    stderr note names the derived prefix so the string convention stays
-    visible. Any other type still fails fast: an int/None here is an
-    authoring bug, not a conversion case.
+    script that edits both ways will eventually pass one to drop(). Each
+    element-form call is counted; save() prints ONE summary line so a
+    large batch does not flood stderr. Any other type still fails fast:
+    an int/None here is an authoring bug, not a conversion case.
 
     Deriving is safe for STALE elements too: the derived prefix resolves
     through find_p against a FRESH paras(body), so an already-removed
     paragraph's element records a skip named by its own text instead of
     mutating some other paragraph.
     """
+    global _ELEMENT_FORM_DROPS
     if isinstance(prefix, str):
         return prefix
     tag = getattr(prefix, "tag", None)
     if isinstance(tag, str):
-        derived = text_of(prefix)
-        print(
-            f"note: {api}() derived its prefix from the paragraph element "
-            f"passed instead of the prefix string; derived "
-            f"{derived[:50]!r} — elements work, but the copy-pasteable "
-            f"prefix string is the documented form",
-            file=sys.stderr,
-        )
+        # Count instead of printing per call: a batch drop() of ~20 JD-cut
+        # bullets printed 22 near-identical note lines, burying the real
+        # stderr warnings. save() emits one summary line (see below).
+        _ELEMENT_FORM_DROPS += 1
+        return text_of(prefix)
         return derived
     raise TypeError(
         f"{api}() takes a prefix STRING (a copy-pasteable find_p(ps, '…') "
