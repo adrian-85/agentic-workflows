@@ -29,12 +29,16 @@ Catches the error classes tailoring sessions actually hit:
      contiguous blocks + reduce years statements) when it is relevant
    - SENIORITY GATE: when whole roles were eliminated (visible span >= 2
      years shorter than the master), the run is a blocking error unless
-     `--seniority-approved` records the user's approval. This makes the
-     Step 3 "ask the user first" rule a gate: render_pdf.sh will not
-     produce a PDF from a shortened timeline without the approval token.
+     `--seniority-approved` records the user's approval — and the token's
+     authority must come from OUTSIDE the agent: the user's chat reply or
+     pre-authorization in the original request. An agent passing the token
+     itself is not an approval, it is a bypass. This makes the Step 3 "ask
+     the user first" rule a gate: render_pdf.sh will not produce a PDF
+     from a shortened timeline without the approval token.
    - EDUCATION GATE (`--jd <JD.txt>`): Step 3.4's predicates, mechanical.
      A JD that requires a degree blocks the render when Education was
-     dropped (`--education-approved` records the override). Under an
+     dropped (`--education-approved` records a USER-GRANTED override, same
+     origin rule as the seniority token). Under an
      'or equivalent' clause the clause is satisfied by experience only
      when the visible span exceeds the ask; at/below the ask, dropping
      Education warns (the clause is load-bearing — keep the section).
@@ -433,7 +437,10 @@ def _education_gate(jd_text, body, span, jd_years, approved):
         errors.append(
             "the JD requires a degree but Education was dropped — "
             "restore the section from the master (it is ~3 rendered lines "
-            "there) or record the override with --education-approved"
+            "there), or record a USER-GRANTED override with "
+            "--education-approved: approval may come only from the user's "
+            "chat reply or pre-authorization in the original request — do "
+            "NOT pass the flag on your own authority"
         )
     return errors, notes
 
@@ -529,10 +536,14 @@ def main(argv=None):
                 seniority_errors.append(
                     f"whole-role elimination detected: visible span "
                     f"~{span:.1f}y is ~{shrink:.1f}y shorter than the master "
-                    f"(~{master_span:.1f}y). Confirm the seniority-alignment "
-                    f"option (SKILL Step 3) with the user and record approval "
-                    f"by re-running with --seniority-approved — the PDF render "
-                    f"is blocked without it."
+                    f"(~{master_span:.1f}y). The seniority-alignment decision "
+                    f"belongs to the USER (SKILL Step 3): approval may come "
+                    f"only from their chat reply or from pre-authorization in "
+                    f"the original request — do NOT pass --seniority-approved "
+                    f"on your own authority. Finish the .docx, present the "
+                    f"proposed span with the numbers, and hand the user the "
+                    f"render command; the PDF stays blocked until they "
+                    f"approve."
                 )
             else:
                 claim_notes.append((

@@ -336,8 +336,18 @@ compression when the page budget forces it:
    candidate has Y, propose showing ~Z contiguous years), get a yes/no.
    **Enforced, not a habit:** `validate_resume.py` detects whole-role elimination
    (visible span ≥2 years shorter than the master) and `render_pdf.sh` blocks the
-   PDF until you record the approval with `--seniority-approved` (Step 11) — you
+   PDF until the approval is recorded with `--seniority-approved` (Step 11) — you
    cannot ship a PDF from a shortened timeline without the approval token.
+   **The token's authority comes from OUTSIDE you.** Approval is valid only from
+   (a) the user's reply in this chat, or (b) explicit pre-authorization in the
+   original request (e.g. "seniority alignment approved" or the user naming the
+   target span). Passing `--seniority-approved` on your own authority is not a
+   judgment call — it is a bypass that turns the gate into decoration. Same rule
+   for `--education-approved` (Step 3.4). In a single-turn/autonomous session
+   (the whole task arrived in one message and no user turn is available):
+   complete everything EXCEPT the final PDF, report the proposed span with the
+   numbers, and hand the user the exact render command — the PDF is deferred,
+   not self-approved.
 
 ### 4. Rewrite the Summary to lead with JD-aligned value
 The Summary is the first thing read. Rewrite it so its first sentence hits the
@@ -493,7 +503,9 @@ before quantified ones. The scorer only ranks — you confirm against the JD.
 
 The reclaim plan may also suggest **dropping a whole oldest role** (cleanest
 page math). That is Step 3 seniority-alignment territory: confirm with the
-user and record `--seniority-approved` at render time. The plan annotates
+user and record `--seniority-approved` at render time — only with the user's
+authority (Step 3.5); in a single-turn session, defer the render to the user
+instead. The plan annotates
 any interior whole-role drop with a **gap warning** (the employment gap its
 removal opens between surviving neighbors) — an interior drop that opens a
 gap is a sign to cut from the oldest role instead, or restore a lean stub of
@@ -570,7 +582,10 @@ JD's 5+ — aligned"), warns if under (underqualified), and notes a large
 overshoot — the signal to offer Step 3's gapless oldest-role elimination.
 `--seniority-approved` is the gate token: REQUIRED only when whole roles were
 eliminated — without it the render is blocked, so the user-approved decision is
-recorded, not assumed. The two flags are independent: `--jd-years` is an
+recorded, not assumed. **Pass it only with the user's authority** (their chat
+reply, or pre-authorization in the original request — Step 3.5). Without that
+authority, finish the .docx and give the user this command to run themselves.
+The two flags are independent: `--jd-years` is an
 optional advisory; the gate reads only the approval token.
 
 **Verification is TEXT-ONLY — never render pages to images.** This harness
@@ -643,4 +658,4 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Keeping Education when the degree isn't evidence for the JD | Evaluate the drop/keep predicates (Step 3.4) — a BA vs an engineering JD is a 3-line drop |
 | Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 9) |
 | Em dash / double dash / semicolon in rewritten Summary or bullet prose | No em dashes, double hyphens, or semicolons — split into a new sentence or use a comma; single hyphens in compound words are fine (Step 9). `validate_resume.py` blocks the render |
-| JD asks for fewer years than the candidate has | Offer Step 3 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it |
+| JD asks for fewer years than the candidate has | Offer Step 3 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it. The token needs the user's authority: their chat reply or pre-authorization in the request; never pass it on your own |
