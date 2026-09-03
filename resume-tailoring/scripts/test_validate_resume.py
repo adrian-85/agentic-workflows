@@ -359,6 +359,28 @@ class JdYearsTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("aligned", out)
 
+    def test_jd_years_without_jd_years_in_text_warns_invented(self):
+        # Regression (real session): with no years line in the JD, an
+        # agent invented --jd-years 10 'as a test value' and got a false
+        # underqualified verdict plus a load-bearing education warning.
+        # The validator now flags the invented ask.
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        fd2, jd = tempfile.mkstemp(suffix=".txt")
+        with os.fdopen(fd2, "w") as f:
+            f.write("Strong web test automation experience required.")
+        try:
+            self._docx(path, ["09/2019 – 08/2026"])
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = vr.main([path, "--jd", jd, "--jd-years", "10"])
+        finally:
+            os.unlink(path)
+            os.unlink(jd)
+        self.assertEqual(rc, 0)
+        self.assertIn("--jd-years 10 passed", out.getvalue())
+        self.assertIn("states no 'N+ years' ask", out.getvalue())
+
 
 class TitleAlignmentValidateTests(unittest.TestCase):
     """--jd surfaces the SKILL Step 4 title signal at render time: a

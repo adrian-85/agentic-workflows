@@ -532,6 +532,16 @@ def main(argv=None):
             return 2
         education_errors, education_notes = _education_gate(
             jd_text, body, span, jd_years, education_approved)
+        # A fabricated ask poisons every span comparison downstream (the
+        # underqualified warning, the education load-bearing check): a
+        # real session passed --jd-years 10 against a JD with no years
+        # line and got false 'underqualified' output. Warn so the number
+        # is only ever the JD's own.
+        if jd_years is not None and not YEARS_RE.search(jd_text):
+            claim_notes.append(("warn",
+                f"--jd-years {jd_years:g} passed, but the JD text states "
+                f"no 'N+ years' ask — the number looks invented; drop the "
+                f"flag unless the posting states one"))
         # SKILL Step 4 title alignment (advisory, shared with measure): a
         # headline MORE SENIOR than the JD's title warns — never blocks.
         claim_notes.append(mr.title_alignment_notes(body, jd_text))

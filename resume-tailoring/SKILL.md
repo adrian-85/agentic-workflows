@@ -232,6 +232,15 @@ later edit shows where each was used.
 
 ### 3. Decide length up front
 - **Target 2 pages; accept 3 for senior/Staff; 4 is too long.**
+- **Present only a feasibility-measured target.** Before recommending a
+  page count to the user, run the what-if (measure `--simulate` with the
+  candidate whole-role drops, at the candidate target) and check the
+  projected page count. A real session recommended "2 pages" up front,
+  the user approved, and the simulation THEN showed 4 pages after the
+  approved drops — forcing either a silent re-target (a trust breach)
+  or mid-flight target waffle. The user's approval is only as good as
+  the numbers it is based on; simulate first, present the measured
+  target, then ask.
 - **Don't waffle between page targets.** If the LAST page renders under
   50% full, re-target one page lower BEFORE cutting any JD-matched bullet
   (measure emits `TARGET NOTE`). Once chosen, don't revisit the target
@@ -353,9 +362,13 @@ mid-level "Software Test Engineer" posting against "Staff Engineer"), set the
 (`set_text(find_p(ps, "<title prefix>"), "<JD title>")`); same-level retitles
 are also safe. **Never adopt a MORE senior title**; if the JD names no title,
 leave the headline unchanged. Only the positioning headline changes —
-history-block `JobTitleBlock` titles stay the real titles. In this resume the
-top title shares its prefix with the most-recent role's title, so anchor it:
-`find_p(ps, "Staff Engineer", after=find_p(ps, "Adrian Alan"))`.
+history-block `JobTitleBlock` titles stay the real titles. The top title
+often shares its prefix with the most-recent role's title ("Staff Engineer"
+vs "Staff Engineer – Quality Automation & Engineering Enablement"), so
+`after=` alone will NOT disambiguate it: `after=` means "strictly after
+this paragraph in document order", not "the next paragraph", and both
+candidates sit after the name line. Anchor by occurrence instead:
+`find_p(ps, "Staff Engineer", nth=1)` — the headline is the FIRST match.
 
 Level the title's echo in the Summary's first sentence so the pair reads
 consistently ("Results-driven Staff engineer…" → "Results-driven Software Test
@@ -599,6 +612,12 @@ reply, or pre-authorization in the original request — Step 3.5). Without that
 authority, finish the .docx and give the user this command to run themselves.
 The two flags are independent: `--jd-years` is an
 optional advisory; the gate reads only the approval token.
+`--jd-years` is ONLY for a JD that states a number of years. If the
+posting names no years ask, do NOT pass it (and never invent a value "to
+see what happens"): every span comparison is then measured against a
+fabricated ask, producing false *underqualified* verdicts and a false
+load-bearing education warning. `validate_resume.py` warns when
+`--jd-years` is passed but the JD text states no "N+ years" ask.
 
 **Verification is TEXT-ONLY — never render pages to images.** This harness
 reads no images, so converting the PDF to PNGs and "viewing" them fails
