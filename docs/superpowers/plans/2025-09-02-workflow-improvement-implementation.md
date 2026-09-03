@@ -58,8 +58,8 @@ improve/config.json              # Default config template
 1. Create `improve/config.json` with default values:
    ```json
    {
-     "analysisModel": "deepseek/deepseek-v4-flash-0731",
-     "reviewModel": "deepseek/deepseek-v4-flash-0731",
+     "analysisModel": "z-ai/glm-5.3-flash",
+     "reviewModel": "xiaomi/mimo-v2.5",
      "worktreeBasePath": "~/workspace",
      "worktreePrefix": "agentic-workflows-improve"
    }
@@ -328,6 +328,19 @@ improve/SKILL.md
 
 ---
 
+## Self-Improvement
+
+The improvement workflow should be able to improve itself:
+
+1. When invoked, it analyzes the current session for which workflow was used
+2. If the current workflow IS `improve`, it targets itself for improvement
+3. This allows the workflow to evolve based on actual usage
+4. No special case needed — same logic applies to any workflow
+
+**Verification:** Workflow can be invoked on itself and generate self-improvement suggestions
+
+---
+
 ## Implementation Order
 
 1. **Steps 1-2**: Directory structure and config
@@ -336,6 +349,7 @@ improve/SKILL.md
 4. **Steps 6-8**: Git operations (worktree, merge, helpers)
 5. **Step 9**: SKILL.md creation
 6. **Steps 10-12**: Wiring up gates and edge cases
+7. **Verification**: Test self-improvement capability
 
 ---
 

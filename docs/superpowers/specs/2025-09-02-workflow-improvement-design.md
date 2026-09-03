@@ -17,6 +17,12 @@ A meta-workflow that improves existing agentic workflows through session analysi
 - Ensure quality through code simplicity and writing-skills reviews
 - Provide clear approval gates for user control
 
+## Self-Improvement
+
+The workflow can improve itself. When invoked after using the `improve` workflow, it analyzes its own session for improvements. No special case needed — the same analysis logic applies.
+
+---
+
 ## Non-Goals
 
 - Automatic/background improvement (on-demand only)
