@@ -1,21 +1,16 @@
 #!/bin/bash
 # checkpoint.sh — Gate checkpoint enforcement for the improve workflow.
 #
-# Maintains a small state file so each hard stop is recorded, and the
-# next phase refuses to run until its prerequisite gate has been passed.
-#
 # Usage:
 #   checkpoint.sh gate <N>        # Mark gate N as passed
 #   checkpoint.sh require <N>     # Fail (exit 1) unless gate N was passed
-#   checkpoint.sh status          # Print current state
+#   checkpoint.sh status          # Print state of all four gates
 #   checkpoint.sh reset           # Clear all state (new run)
 #
 # State file: /tmp/improve-workflow-checkpoint.json
-# Gate numbering follows the hard stops in SKILL.md:
-#   1 = analysis findings approved  (before implementation)
-#   2 = model switched              (before Phase 2)
-#   3 = quality review approved     (before implementing quality fixes)
-#   4 = final review approved       (before merge)
+# Gates follow the hard stops in SKILL.md:
+#   1 = analysis approved          2 = model switched
+#   3 = quality review approved    4 = final review approved
 
 set -euo pipefail
 
@@ -26,82 +21,48 @@ usage() {
     exit 1
 }
 
-# Ensure state file exists
 ensure_state() {
-    if [ ! -f "$STATE_FILE" ]; then
-        echo '{"gates":{}}' > "$STATE_FILE"
-    fi
+    [ -f "$STATE_FILE" ] || echo '{"gates":{}}' > "$STATE_FILE"
 }
 
-# Record gate N as passed
 gate() {
-    [ $# -ge 1 ] || usage
-    local n="$1"
+    local n="${1:-}"
+    [ -n "$n" ] || usage
     ensure_state
-
     local tmp
     tmp=$(mktemp)
-    python3 -c "
-import json, sys, datetime
-with open('$STATE_FILE') as f:
-    state = json.load(f)
-state['gates']['$n'] = {
-    'passed': True,
-    'at': datetime.datetime.now(datetime.timezone.utc).isoformat()
-}
-with open('$tmp', 'w') as f:
-    json.dump(state, f, indent=2)
-" && mv "$tmp" "$STATE_FILE"
-
+    jq --arg n "$n" '.gates[$n].passed = true' "$STATE_FILE" > "$tmp"
+    mv "$tmp" "$STATE_FILE"
     echo "Gate $n recorded."
 }
 
-# Require gate N to have been passed; exit 1 otherwise
 require() {
-    [ $# -ge 1 ] || usage
-    local n="$1"
+    local n="${1:-}"
+    [ -n "$n" ] || usage
     ensure_state
-
-    python3 -c "
-import json, sys
-with open('$STATE_FILE') as f:
-    state = json.load(f)
-gate = state.get('gates', {}).get('$n', {})
-if gate.get('passed'):
-    sys.exit(0)
-else:
-    print('BLOCKED: Gate $n has not been passed.', file=sys.stderr)
-    print('The previous phase must be completed and approved before continuing.', file=sys.stderr)
-    sys.exit(1)
-"
+    if jq -e --arg n "$n" '.gates[$n].passed == true' "$STATE_FILE" > /dev/null; then
+        exit 0
+    fi
+    echo "BLOCKED: Gate $n has not been passed." >&2
+    echo "The previous phase must be completed and approved before continuing." >&2
+    exit 1
 }
 
-# Print current state
 status() {
     ensure_state
-    python3 -c "
-import json
-with open('$STATE_FILE') as f:
-    state = json.load(f)
-gates = state.get('gates', {})
-for n in ['1','2','3','4']:
-    g = gates.get(n, {})
-    mark = '✓' if g.get('passed') else '✗'
-    ts = g.get('at', '—')
-    print(f'  Gate {n}: {mark}  {ts}')
-"
+    jq -r '("1","2","3","4") as $n |
+        "\($n): \(if .gates[$n].passed == true then "✓" else "✗" end)"' "$STATE_FILE"
 }
 
-# Clear state
 reset() {
     echo '{"gates":{}}' > "$STATE_FILE"
     echo "State cleared."
 }
 
 case "${1:-}" in
-    gate)   gate "${2:-}" ;;
+    gate)    gate "${2:-}" ;;
     require) require "${2:-}" ;;
-    status) status ;;
-    reset)  reset ;;
-    *)      usage ;;
+    status)  status ;;
+    reset)   reset ;;
+    *)       usage ;;
 esac
