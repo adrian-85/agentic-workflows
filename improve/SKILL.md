@@ -9,172 +9,189 @@ description: "Use when you want to improve an existing workflow based on actual 
 
 This workflow improves other workflows by analyzing actual usage patterns. It:
 
-1. **Analyzes the current session** for improvement indicators
+1. **Analyzes the target session** for improvement indicators
 2. **Implements improvements** in an isolated git worktree
 3. **Runs quality reviews** (code simplicity + writing-skills)
 4. **Merges approved changes** back to main
 
 The workflow can improve itself when invoked after using the `improve` workflow.
 
+## Models
+
+This workflow uses two models, configured in `.improvement-workflow.json`:
+
+- **`analysisModel`** — Phase 1: session analysis and improvement implementation
+- **`reviewModel`** — Phase 2: quality review and quality-change implementation
+
+The **user switches models manually**. Do not attempt to switch models
+yourself — you cannot. Instead, verify the active model with `$PI_MODEL`
+(which holds the full model ID, matching the config format) and stop at
+the phase boundary so the user can switch:
+
+- At invocation, `$PI_MODEL` should match `analysisModel`. If it does not,
+  tell the user which model to switch to and **stop until they confirm**.
+- After Phase 1 implementation, **stop** and ask the user to switch to
+  `reviewModel` before starting Phase 2.
+
 ## Invocation
 
+The user switches to the analysis model first, then invokes:
+
 ```
-/workflows:improve
+/improve  (or: "improve the workflow used in this session")
 ```
 
-Or manually: "Improve the workflow I just used"
+The invocation names the session to improve — by default the session the
+workflow is invoked from (`$PI_SESSION_FILE`).
+
+## Hard Stops
+
+There are four hard stops. At each one:
+
+> **STOP. End your turn after presenting the required information. Do not
+> implement anything, create worktrees, run reviews, or take any further
+> workflow action until the user replies.**
+
+| # | After | Waiting for |
+|---|-------|-------------|
+| 1 | Analysis findings | Approval / decline / modifications |
+| 2 | Phase 1 implementation complete | Model switch to `reviewModel` + confirmation |
+| 3 | Quality review findings | Approval / decline / modifications |
+| 4 | Final review (diff + summary) | Approval to merge |
+
+The chat is the approval mechanism — there is no approval script.
 
 ## Prerequisites
 
-- `jq` installed for JSON parsing
+- `jq` installed for JSON parsing (python3 fallback exists in load-config.sh)
 - Git 2.5+ for worktree support
-- Pi with `--fork` support
 
 ## Workflow Phases
 
-### Phase 1: Analysis
+### Phase 1: Analysis & Implementation  (model: `analysisModel`)
 
 1. **Load configuration:**
    ```bash
    source scripts/load-config.sh
    ```
 
-2. **Read the target session transcript:**
-   - The invocation names the session to improve — by default, the
-     session the workflow is invoked from, available as `$PI_SESSION_FILE`
-   - Read it directly; for large files, read in chunks (offset/limit)
-     until the whole transcript is covered.
+2. **Verify the model:** Check `$PI_MODEL` against `analysisModel`.
+   If it does not match, tell the user which model is active and which
+   is configured, and **stop until they confirm** how to proceed.
+
+3. **Read the target session transcript:**
+   - Read `$PI_SESSION_FILE` (or the session path named in the invocation)
+     directly; for large files, read in chunks (offset/limit) until the
+     whole transcript is covered.
    - Analyze the transcript for improvement indicators in the workflow
      that was used:
      - Clarification questions the agent asked (unclear workflow)
      - Repetitive or roundabout tool/command patterns (streamlining)
      - Deviations from or workarounds around the skill file
      - Ambiguous or missing guidance in the skill document itself
-   - Use the configured analysis model (`$ANALYSIS_MODEL`) for this phase.
 
 4. **Generate prioritized improvement suggestions** from what you observed.
    Quote specific moments from the session as evidence for each suggestion.
 
-5. **Present findings to user:**
-   - Format suggestions clearly with rationale
-   - Include specific session examples
-   - Write suggestions to `.pending-analysis.md`
+5. **Present findings and stop (hard stop #1):**
+   - Format suggestions clearly with rationale and session evidence
+   - Save the proposal to a temp directory for reference:
+     ```bash
+     mktemp -d   # write .pending-analysis.md there — never into the live repo
+     ```
+   - **STOP.** If the user declines, the workflow ends. If they request
+     modifications, revise and present again. If they approve, continue.
 
-6. **Get approval:**
-   ```bash
-   scripts/approval-gate.sh analysis .pending-analysis.md
-   ```
-   - If declined (exit 1): Stop workflow
-   - If modifications requested (exit 2): Iterate until satisfied
-   - If approved (exit 0): Proceed to Phase 2
+6. **Implement approved improvements:**
+   - Create the worktree:
+     ```bash
+     scripts/setup-worktree.sh <workflow-name>
+     ```
+   - Work entirely inside the worktree (use the returned path; do not
+     modify files in the main working tree)
+   - Apply each approved change; follow existing patterns in the workflow
+   - Commit after each logical change with descriptive messages
+   - Run the workflow's own tests/verification if it has any
 
-### Phase 2: Implementation Setup
+7. **Report completion and stop (hard stop #2 — model switch):**
+   - Summarize what was implemented (commits, files changed, test results)
+   - Tell the user: "Phase 2 requires the review model — please switch
+     to `$REVIEW_MODEL`"
+   - **STOP.** Do not begin Phase 2 until the user confirms they have
+     switched.
 
-1. **Get workflow name:**
-   - From analysis results
-   - If unclear, ask user: "Which workflow should I improve?"
+### Phase 2: Quality Review & Implementation  (model: `reviewModel`)
 
-2. **Create worktree:**
-   ```bash
-   scripts/setup-worktree.sh <workflow-name>
-   ```
+1. **Verify the model:** Check `$PI_MODEL` against `reviewModel`.
+   If it does not match, remind the user and **stop until they confirm**.
 
-3. **Fork session to worktree:**
-   - Get current session ID
-   - Execute: `pi --fork <session-id>`
-   - Change directory to worktree
+2. **Run code simplicity review:**
+   - Invoke the code-simplicity-reviewer skill on the Phase 1 changes
+   - Generate simplification suggestions — **do not apply them yet**
 
-4. **Implement approved improvements:**
-   - Apply each approved change
-   - Follow existing patterns in the workflow
-   - Commit after each logical change
+3. **Run writing-skills review:**
+   - Invoke the writing-skills skill on the Phase 1 changes
+   - Generate skill-structure improvements — **do not apply them yet**
 
-### Phase 3: Quality Review
+4. **Combine findings and stop (hard stop #3):**
+   - Merge suggestions from both reviews, prioritized by impact
+   - Save to the same temp directory as `.pending-quality.md`
+   - **STOP.** If the user declines, keep Phase 1 changes and proceed to
+     Phase 3 (final review). If they request modifications, revise and
+     present again. If they approve, continue.
 
-1. **Run code simplicity review:**
-   - Invoke code-simplicity-reviewer skill
-   - Analyze Phase 2 changes
-   - Generate simplification suggestions
-
-2. **Run writing-skills review:**
-   - Invoke writing-skills skill
-   - Analyze Phase 2 changes
-   - Generate improvement suggestions
-
-3. **Combine findings:**
-   - Merge suggestions from both reviews
-   - Prioritize by impact
-   - Write to `.pending-quality.md`
-
-4. **Get approval:**
-   ```bash
-   scripts/approval-gate.sh quality-review .pending-quality.md
-   ```
-   - If declined (exit 1): Proceed to Phase 4 with current changes
-   - If modifications requested (exit 2): Iterate until satisfied
-   - If approved (exit 0): Implement quality improvements
-
-5. **Implement quality improvements:**
-   - Apply approved changes
+5. **Implement approved quality improvements:**
+   - Apply each approved change in the worktree
    - Commit with descriptive messages
 
-### Phase 4: Final Review & Merge
+### Phase 3: Final Review & Merge
 
-1. **Generate final diff:**
+1. **Generate the final diff:**
    ```bash
    scripts/git-operations.sh get_diff main
    ```
 
-2. **Summarize changes:**
-   - What was improved
-   - Quality improvements applied
-   - Files changed
+2. **Present everything and stop (hard stop #4):**
+   - Full diff summary: what was improved, quality changes applied,
+     files changed, commits
+   - **STOP.** If the user declines, stop — the worktree persists for later.
+     If they approve, continue to merge.
 
-3. **Present to user:**
-   - Write summary to `.pending-final.md`
-
-4. **Get approval:**
-   ```bash
-   scripts/approval-gate.sh final .pending-final.md
-   ```
-   - If declined (exit 1): Stop, worktree persists for later
-   - If modifications requested (exit 2): Iterate until satisfied
-   - If approved (exit 0): Proceed to merge
-
-5. **Merge to main:**
+3. **Merge to main:**
    ```bash
    scripts/merge-worktree.sh <worktree-path>
    ```
 
-6. **Inform user:**
+4. **Inform the user:**
    - Changes merged to main
    - Ready to push to remote
 
 ## Error Handling
 
 ### No workflow identified
-- Ask user to specify which workflow to improve
-- If user cannot identify, suggest reviewing session manually
+- Ask the user to specify which workflow to improve
+- If user cannot identify, suggest reviewing the session manually
 
 ### Worktree name collision
-- Prompt user for alternative name
-- Or abort and let user clean up manually
+- Prompt the user for an alternative name
+- Or abort and let the user clean up manually
 
 ### Merge conflicts
-- Present conflicts to user
-- User resolves in main working directory
+- Present conflicts to the user
+- User resolves them in the main working directory
 - Continue merge after resolution
 
-### Phase declined
-- Phase 1 declined: Stop workflow, clean up
-- Phase 2 declined: Stop workflow, worktree persists
-- Phase 3 declined: Keep Phase 2 changes, merge what exists
-- Phase 4 declined: Stop workflow, worktree persists
+### Gate declined
+- Hard stop #1 declined: workflow ends, nothing was modified
+- Hard stop #2: user may pause indefinitely (model switch) — resume when
+  they confirm
+- Hard stop #3 declined: keep Phase 1 changes, proceed to final review
+- Hard stop #4 declined: stop, worktree persists
 
 ### Session interrupted
 - Worktree persists on disk
-- User can resume later with `pi --session <worktree-session>`
-- Or manually merge and clean up
+- User can resume later by re-invoking the workflow and pointing at the
+  existing worktree, or manually merge and clean up
 
 ## Edge Cases
 
@@ -186,10 +203,10 @@ When invoked after using the `improve` workflow:
 
 ### Multiple workflows in session
 - Identify primary workflow by frequency of use
-- If unclear, ask user to choose
+- If unclear, ask the user to choose
 
 ### No improvement opportunities found
-- Inform user workflow appears well-optimized
+- Inform the user the workflow appears well-optimized
 - Suggest running again after more usage
 
 ## Configuration
@@ -217,7 +234,6 @@ Default values are in `improve/config.json`.
 │   └── scripts/
 │       ├── load-config.sh        # Config loading
 │       ├── setup-worktree.sh     # Worktree creation
-│       ├── approval-gate.sh      # Approval handling
 │       ├── merge-worktree.sh     # Merge and cleanup
 │       └── git-operations.sh     # Git helpers
 └── .improvement-workflow.json    # User configuration (created on first run)
@@ -233,36 +249,12 @@ source scripts/load-config.sh
 # Exports: ANALYSIS_MODEL, REVIEW_MODEL, WORKTREE_BASE_PATH, WORKTREE_PREFIX
 ```
 
-### Session targeting
-
-There is no session-lookup machinery. The invocation prompt names the
-session to improve ("improve the workflow used in this session"), and the
-agent is already inside it — the current session file is available as
-`$PI_SESSION_FILE`. If the user names a different session, use that path
-instead. Analysis is model-driven: judgment is left to the model, not
-to scripts.
-
-### Scripts summary
-- `load-config.sh` — load `.improvement-workflow.json` (or defaults)
-- `approval-gate.sh` — coded approval gate (exit 0/1/2)
-- `setup-worktree.sh` — create isolated worktree + branch
-- `merge-worktree.sh` — merge branch to main, remove worktree
-- `git-operations.sh` — shared git helpers (source to use)
-
 ### setup-worktree.sh
 Creates git worktree and branch for isolated work.
 
 ```bash
 scripts/setup-worktree.sh <workflow-name> [base-path]
-# Outputs: Worktree path
-```
-
-### approval-gate.sh
-Handles approval prompts with user input.
-
-```bash
-scripts/approval-gate.sh <gate-name> <proposal-file>
-# Exit codes: 0=approved, 1=declined, 2=modifications
+# Output: worktree path
 ```
 
 ### merge-worktree.sh
@@ -278,6 +270,11 @@ Shared git helper functions. Source to use.
 ```bash
 source scripts/git-operations.sh
 ```
+
+### Approval mechanism
+There is no approval script. The chat is the gate: present findings,
+end your turn, and wait for the user's reply. Proposal files are written
+to a temp directory (`mktemp -d`), never into the live repo.
 
 ## Tips
 
