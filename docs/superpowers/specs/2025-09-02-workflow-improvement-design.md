@@ -160,8 +160,8 @@ action resumes only after the user replies.
 | 3 | Quality review findings | Approve / decline / modify |
 | 4 | Final review | Approve merge / decline |
 
-Proposal files are written to a temp directory (`mktemp -d`), never into
-the live repo.
+Findings are presented **directly in chat** — no proposal files; the
+session transcript is the record.
 
 ---
 

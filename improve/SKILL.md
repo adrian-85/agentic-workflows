@@ -94,11 +94,9 @@ The chat is the approval mechanism — there is no approval script.
    Quote specific moments from the session as evidence for each suggestion.
 
 5. **Present findings and stop (hard stop #1):**
-   - Format suggestions clearly with rationale and session evidence
-   - Save the proposal to a temp directory for reference:
-     ```bash
-     mktemp -d   # write .pending-analysis.md there — never into the live repo
-     ```
+   - Format suggestions clearly with rationale and session evidence,
+     presented directly in chat — the chat is the deliverable; no
+     proposal files are written
    - **STOP.** If the user declines, the workflow ends. If they request
      modifications, revise and present again. If they approve, continue.
 
@@ -134,8 +132,8 @@ The chat is the approval mechanism — there is no approval script.
    - Generate skill-structure improvements — **do not apply them yet**
 
 4. **Combine findings and stop (hard stop #3):**
-   - Merge suggestions from both reviews, prioritized by impact
-   - Save to the same temp directory as `.pending-quality.md`
+   - Merge suggestions from both reviews, prioritized by impact,
+     presented directly in chat
    - **STOP.** If the user declines, keep Phase 1 changes and proceed to
      Phase 3 (final review). If they request modifications, revise and
      present again. If they approve, continue.
@@ -282,9 +280,9 @@ argument, so it works from anywhere. Do not run `git-operations.sh`
 as a command — it only defines functions when executed.
 
 ### Approval mechanism
-There is no approval script. The chat is the gate: present findings,
-end your turn, and wait for the user's reply. Proposal files are written
-to a temp directory (`mktemp -d`), never into the live repo.
+There is no approval script and no proposal files. Findings are
+presented directly in chat; the chat is the gate: end your turn and
+wait for the user's reply. The session transcript is the record.
 
 ## Tips
 
