@@ -4,7 +4,7 @@ Catches the error classes tailoring sessions actually hit:
 
 1. STRUCTURE — orphan paragraphs left by subtractive cuts:
    - a job-title paragraph with no preceding company block (a company
-     header was removed but its title stayed, e.g. Epic Sciences / Rakuten
+     header was removed but its title stayed, e.g. Acme / Globex
      dangles), or a company block followed by no job title
    - content after a role's Tools line with no new company block (a
      company+title were removed but later bullets survived)
@@ -316,7 +316,7 @@ def _role_integrity_errors(master_path, body):
       (a company header with no title, or a title with no bullets, is a
       partially-removed role);
     - a removed role must leave NO surviving bullet (its bullets kept
-      while its header/title were dropped is the Symbols-orphan failure:
+      while its header/title were dropped is the orphaned-content failure:
       they dangle under the previous role or after a Tools line).
     """
     if not master_path or not os.path.exists(master_path):
@@ -507,7 +507,7 @@ def main(argv=None):
     master_blob = " ".join(master_texts) if master_texts is not None else None
 
     # Whole-role integrity (needs the master): kept roles keep title+bullets,
-    # removed roles leave no surviving bullets (the Symbols-orphan failure).
+    # removed roles leave no surviving bullets (the orphaned-content failure).
     errors.extend(_role_integrity_errors(master_path, body))
 
     # Seniority gate (Step 3 enforcement): if whole roles were eliminated

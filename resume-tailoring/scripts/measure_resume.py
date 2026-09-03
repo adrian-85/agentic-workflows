@@ -64,7 +64,7 @@ SECTION_EDUCATION = "Education"
 SECTION_PROFICIENCIES = "Technical Proficiencies"
 COMPANY_STYLE = "CompanyBlock"
 VOCAB_STYLE = "JobTitleBlock"  # job-title paragraphs feed the --jd vocabulary
-DATE_RE = re.compile(r"\d{1,2}/\d{4}")  # dates on role headers, e.g. 02/2019
+DATE_RE = re.compile(r"\d{1,2}/\d{4}")  # dates on role headers, e.g. 03/2022
 BULLET_STYLES = ("ListBullet",)  # styles whose bullets carry no paragraph numId
 
 
@@ -129,7 +129,7 @@ def _company_key(text):
     """The matchable company-portion of a role-header line (dates stripped).
 
     The master concatenates the company line and the date range with no
-    separator (e.g. 'Company ABC, Phoenix, AZ02/2019 – 04/2020'); the
+    separator (e.g. 'Company ABC, Phoenix, AZ07/2014 – 08/2016'); the
     PDF renders them separated by whitespace. Stripping the trailing date
     yields a prefix that matches the PDF header line after whitespace
     normalization.
@@ -375,7 +375,7 @@ def _visible_span(company_headers):
     """(start_year_float, end_year_float) across company header date ranges.
 
     ``company_headers`` are full role-header texts (dates included, e.g.
-    "GEICO, MD (Remote)06/2025 – 07/2026"). This is the number behind Step
+    "Acme, MA (Remote)05/2021 – 02/2023"). This is the number behind Step
     3's seniority-alignment decision: the resume's visible years, which a
     recruiter compares against the JD's "N+ years" ask — NOT the
     candidate's total career. Returns (None, None) when no headers have
@@ -515,8 +515,8 @@ JD_CONCEPTS = (
 # mid-sentence ("Perform API, service, integration, and backend
 # validation"). The bullet-only capitalization gate exists to block PROSE
 # flood; these can never be prose, so they are exempt. The generic-hit-rate
-# guard (term hits >50% of bullets) still applies to them. Session failure:
-# 'integration' was gated as bullet-only, so the Amex partner-integrations
+# guard (term hits >50% of bullets) still applies to them. A past session:
+# 'integration' was gated as bullet-only, so the partner-integrations
 # bullet (strong integration-testing evidence) was ranked for cutting.
 CORE_TECH_NOUNS = frozenset({
     "api", "apis", "sql", "sdk", "graphql", "grpc", "rest", "soap",
@@ -1044,7 +1044,7 @@ def _batch_section(batch, role, header, all_texts=None, protect=(),
 
     ``batch`` is ``(key, action, saved_lines)`` from
     :func:`_top_role_batch`. ``header`` is the caller-provided first line
-    (e.g. 'TOP-ROLE TRIM BATCH (GEICO; closes ...)'). Returns the section
+    (e.g. 'TOP-ROLE TRIM BATCH (Acme; closes ...)'). Returns the section
     as a multi-line string, or ``None`` when the batch/role is empty.
     """
     _key, action, _saved = batch

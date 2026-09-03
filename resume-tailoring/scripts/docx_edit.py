@@ -325,7 +325,7 @@ def find_p(paragraphs, startswith, *, after=None, nth=None):
     and locate the title inside it:
 
         find_p(ps, "Senior Quality Assurance Engineer",
-               after=find_p(ps, "Republic Services"))
+               after=find_p(ps, "Company B"))
 
     `nth=N` returns the N-th matching paragraph (1-based) instead of
     requiring uniqueness — for repeated text where position is the only

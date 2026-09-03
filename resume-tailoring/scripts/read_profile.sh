@@ -17,11 +17,9 @@ cd "$(dirname "$0")/.."   # skill root, where the LinkedIn export folder lives
 
 EXPORT_DIR="${1:-}"
 if [ -z "$EXPORT_DIR" ]; then
-  # Prefer the exact folder the workflow is built around; fall back to the
-  # newest Basic_LinkedInDataExport_* if only the date renamed.
-  if [ -d "Basic_LinkedInDataExport_09-02-2026" ]; then
-    EXPORT_DIR="Basic_LinkedInDataExport_09-02-2026"
-  elif ls -d Basic_LinkedInDataExport_* >/dev/null 2>&1; then
+  # Resolve the newest Basic_LinkedInDataExport_* folder. The date in the
+  # folder name changes with each export, so never hardcode a specific one.
+  if ls -d Basic_LinkedInDataExport_* >/dev/null 2>&1; then
     EXPORT_DIR="$(ls -d Basic_LinkedInDataExport_* | sort | tail -1)"
   else
     echo "error: no LinkedIn export folder found in $(pwd)." >&2

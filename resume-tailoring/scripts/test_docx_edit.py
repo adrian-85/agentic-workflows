@@ -293,11 +293,11 @@ class FindPTests(unittest.TestCase):
         self.assertIs(de.find_p(ps, "The company's goal"), ps[0])
 
     def test_finds_en_dash_date_typed_ascii_hyphen(self):
-        # Company headers use an en dash in the date range (06/2025 – 07/2026).
-        ps = [mkp(("06/2025 \u2013 07/2026", False)),
-              mkp(("04/2023 \u2013 01/2025", False))]
-        self.assertIs(de.find_p(ps, "06/2025 - 07/2026"), ps[0])
-        self.assertIs(de.find_p(ps, "04/2023 - 01/2025"), ps[1])
+        # Company headers use an en dash in the date range (03/2022 – 02/2023).
+        ps = [mkp(("03/2022 \u2013 02/2023", False)),
+              mkp(("08/2019 \u2013 06/2020", False))]
+        self.assertIs(de.find_p(ps, "03/2022 - 02/2023"), ps[0])
+        self.assertIs(de.find_p(ps, "08/2019 - 06/2020"), ps[1])
 
     def test_finds_em_dash_bullet_typed_ascii_hyphen(self):
         # Bullets use em dashes (—) as separators.
@@ -311,13 +311,13 @@ class FindPTests(unittest.TestCase):
 
     def test_ascii_prefix_still_matches_ascii_master_text(self):
         # Regression: normalization must not break the all-ASCII case.
-        ps = [mkp(("Results-driven Staff engineer ", True))]
-        self.assertIs(de.find_p(ps, "Results-driven Staff engineer "), ps[0])
+        ps = [mkp(("Results-driven quality engineer ", True))]
+        self.assertIs(de.find_p(ps, "Results-driven quality engineer "), ps[0])
 
     def test_after_anchors_search_to_later_paragraphs(self):
         # Two roles share an identical job title paragraph. Plain find_p is
         # ambiguous; anchored after the SECOND company header it must resolve
-        # to that role's title (the Rakuten-vs-Republic case: anchor on the
+        # to that role's title (the duplicate-job-title case: anchor on the
         # role's OWN header to find its title below it).
         a = mkp(("Company A", False))
         t1 = mkp(("Senior Quality Assurance Engineer", True))
@@ -505,7 +505,7 @@ class DropTests(unittest.TestCase):
         self.assertEqual([de.text_of(p) for p in ps], ["Unrelated bullet"])
 
     def test_element_argument_fails_fast_with_typeerror(self):
-        # THE session failure (CarMax Principal Quality tailoring): the
+        # THE motivating failure (a Principal-level tailoring session): the
         # author passed find_p(ps, ...) results — paragraph elements —
         # into drop(), which takes prefix STRINGS. Unguarded, this crashed
         # deep inside find_p with a raw AttributeError ("'Element' object
@@ -547,24 +547,24 @@ class DropRoleTests(unittest.TestCase):
     def setUp(self):
         ps = [
             mkstyled("Career Experience", "SectionHeading"),
-            mkstyled("GEICO, Chevy Chase06/2025 - 07/2026", "CompanyBlock"),
+            mkstyled("Acme Corp, Springfield03/2022 - 02/2023", "CompanyBlock"),
             mkstyled("Staff Engineer", "JobTitleBlock"),
-            mkstyled("Led QA at GEICO", "BodyText", numId=4),
+            mkstyled("Led QA at Acme Corp", "BodyText", numId=4),
             mkstyled("Tools & Technologies: Go, Python", "BodyText"),
             mkstyled("", "BodyText"),
-            mkstyled("Epic Sciences, San Diego01/2015 - 12/2015", "CompanyBlock"),
+            mkstyled("Globex, Riverside07/2019 - 08/2019", "CompanyBlock"),
             mkstyled("Software QA Engineer", "JobTitleBlock"),
-            mkstyled("Led QA for blood analysis", "BodyText", numId=8),
+            mkstyled("Led QA for the flagship platform", "BodyText", numId=8),
             mkstyled("Tools & Technologies: Bamboo", "BodyText"),
             mkstyled("", "BodyText"),
-            mkstyled("Illumina, San Diego02/2012 - 10/2014", "CompanyBlock"),
-            # Duplicate of Epic's title — the case plain drop() cannot do.
+            mkstyled("Initech, Metropolis01/2017 - 06/2018", "CompanyBlock"),
+            # Duplicate of Globex's title — the case plain drop() cannot do.
             mkstyled("Software QA Engineer", "JobTitleBlock"),
-            mkstyled("Primary test engineer for DNA project", "BodyText", numId=8),
+            mkstyled("Primary test engineer for the flagship project", "BodyText", numId=8),
             mkstyled("Tools & Technologies: MS Test", "BodyText"),
             mkstyled("", "BodyText"),
             mkstyled("Education", "SectionHeading"),
-            mkstyled("San Diego Christian College", "CompanyBlock"),
+            mkstyled("Some College", "CompanyBlock"),
             mkstyled("Bachelor's Degree", "JobTitleBlock"),
         ]
         self.body = ET.Element(W + "body")
@@ -583,42 +583,42 @@ class DropRoleTests(unittest.TestCase):
         return [de.text_of(p) for p in de.paras(self.body)]
 
     def test_removes_whole_role_including_tools_and_spacer(self):
-        de.drop_role(self.body, "Illumina, San Diego")
+        de.drop_role(self.body, "Initech, Metropolis")
         texts = self._texts()
-        for gone in ("Illumina, San Diego02/2012 - 10/2014",
-                     "Primary test engineer for DNA project",
+        for gone in ("Initech, Metropolis01/2017 - 06/2018",
+                     "Primary test engineer for the flagship project",
                      "Tools & Technologies: MS Test"):
             self.assertNotIn(gone, texts)
         # the trailing blank spacer went with the role (3 fixtures spacers
-        # minus Illumina's = 2 remain)
+        # minus Initech's = 2 remain)
         self.assertEqual(texts.count(""), 2)
 
     def test_boundary_section_heading_is_never_consumed(self):
         # THE bug: the paragraph AFTER the role (Education SectionHeading)
         # must survive.
-        de.drop_role(self.body, "Illumina, San Diego")
+        de.drop_role(self.body, "Initech, Metropolis")
         texts = self._texts()
         self.assertIn("Education", texts)
-        self.assertIn("San Diego Christian College", texts)
+        self.assertIn("Some College", texts)
         self.assertIn("Bachelor's Degree", texts)
 
     def test_previous_role_and_duplicate_title_survive(self):
-        de.drop_role(self.body, "Illumina, San Diego")
+        de.drop_role(self.body, "Initech, Metropolis")
         texts = self._texts()
-        self.assertIn("Epic Sciences, San Diego01/2015 - 12/2015", texts)
-        self.assertIn("Led QA for blood analysis", texts)
+        self.assertIn("Globex, Riverside07/2019 - 08/2019", texts)
+        self.assertIn("Led QA for the flagship platform", texts)
         # exactly one of the two duplicate titles remains (Epic's)
         self.assertEqual(texts.count("Software QA Engineer"), 1)
 
     def test_returns_refreshed_paragraph_list(self):
-        ps = de.drop_role(self.body, "Illumina, San Diego")
+        ps = de.drop_role(self.body, "Initech, Metropolis")
         self.assertEqual(ps, de.paras(self.body))
         # 19 fixture paragraphs - 5 removed (header, title, bullet, tools,
         # spacer) = 14
         self.assertEqual(len(ps), 14)
 
     def test_counts_one_applied_edit_per_removed_paragraph(self):
-        de.drop_role(self.body, "Illumina, San Diego")
+        de.drop_role(self.body, "Initech, Metropolis")
         # header + title + bullet + tools + spacer = 5 paragraphs
         self.assertEqual(de._APPLIED, 5)
 
@@ -643,7 +643,7 @@ class DropRoleTests(unittest.TestCase):
 
     def test_role_at_end_of_document_removed_to_eof(self):
         body = ET.Element(W + "body")
-        for p in (mkstyled("Company A02/2019 - 04/2020", "CompanyBlock"),
+        for p in (mkstyled("Company A07/2014 - 08/2016", "CompanyBlock"),
                   mkstyled("Senior QA Engineer", "JobTitleBlock"),
                   mkstyled("Did things", "BodyText", numId=8),
                   mkstyled("Tools & Technologies: Java", "BodyText"),
@@ -658,7 +658,7 @@ class DropRoleTests(unittest.TestCase):
 
     def test_custom_style_names_for_other_resume_formats(self):
         body = ET.Element(W + "body")
-        for p in (mkstyled("Employer X02/2019", "Employer"),
+        for p in (mkstyled("Employer X07/2014", "Employer"),
                   mkstyled("Title", "JobTitle"),
                   mkstyled("Bullet", "Body", numId=3),
                   mkstyled("Summary", "Heading")):
@@ -673,11 +673,11 @@ class DropRoleTests(unittest.TestCase):
             de._ORIG.clear()
 
     def test_element_argument_fails_fast_with_typeerror(self):
-        # Same session failure as DropTests (CarMax Principal Quality):
+        # Same failure mode as DropTests:
         # drop_role/drop_section take a company/section prefix STRING;
         # passing a find_p result must fail fast with a named fix, not a
         # raw AttributeError inside find_p.
-        element = de.find_p(de.paras(self.body), "Illumina, San Diego")
+        element = de.find_p(de.paras(self.body), "Initech, Metropolis")
         with self.assertRaises(TypeError) as ctx:
             de.drop_role(self.body, element)
         self.assertIn("drop_role", str(ctx.exception))
@@ -693,15 +693,15 @@ class DropSectionTests(unittest.TestCase):
 
     def setUp(self):
         ps = [
-            mkstyled("Rakuten01/2016 - 01/2019", "CompanyBlock"),
+            mkstyled("Acme Corp06/2017 - 09/2019", "CompanyBlock"),
             mkstyled("Senior QA Engineer", "JobTitleBlock"),
             mkstyled("Tested partner integrations", "BodyText", numId=8),
             mkstyled("", "BodyText"),
             mkstyled("Education", "SectionHeading"),
-            mkstyled("San Diego Christian College", "CompanyBlock"),
+            mkstyled("Some College", "CompanyBlock"),
             mkstyled("Bachelor's Degree", "JobTitleBlock"),
             mkstyled("Certifications", "SectionHeading"),
-            mkstyled("Rapid Software Testing and AI: Satisfice", "BodyText"),
+            mkstyled("Advanced Testing Practice: Test Academy", "BodyText"),
         ]
         self.body = ET.Element(W + "body")
         for p in ps:
@@ -721,18 +721,18 @@ class DropSectionTests(unittest.TestCase):
     def test_removes_section_stopping_at_next_section_heading(self):
         de.drop_section(self.body, "Education")
         texts = self._texts()
-        for gone in ("Education", "San Diego Christian College",
+        for gone in ("Education", "Some College",
                      "Bachelor's Degree"):
             self.assertNotIn(gone, texts)
         # the NEXT section and the role above are untouched
         self.assertIn("Certifications", texts)
-        self.assertIn("Rapid Software Testing and AI: Satisfice", texts)
-        self.assertIn("Rakuten01/2016 - 01/2019", texts)
+        self.assertIn("Advanced Testing Practice: Test Academy", texts)
+        self.assertIn("Acme Corp06/2017 - 09/2019", texts)
 
     def test_section_at_eof_removed_to_end(self):
         de.drop_section(self.body, "Certifications")
         texts = self._texts()
-        self.assertNotIn("Rapid Software Testing and AI: Satisfice", texts)
+        self.assertNotIn("Advanced Testing Practice: Test Academy", texts)
         self.assertIn("Education", texts)
 
     def test_missing_prefix_skips_named(self):
@@ -1230,7 +1230,7 @@ class StyleFilterCLITests(unittest.TestCase):
         os.close(fd)
         ps = (
             ("Career Experience", "SectionHeading"),
-            ("GEICO, Chevy Chase06/2025", "CompanyBlock"),
+            ("Acme Corp, Springfield03/2022", "CompanyBlock"),
             ("Staff Engineer", "JobTitleBlock"),
             ("Bullet one", "BodyText"),
             ("Education", "SectionHeading"),

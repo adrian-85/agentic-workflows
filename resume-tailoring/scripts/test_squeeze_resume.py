@@ -102,9 +102,9 @@ class NextBatchTests(unittest.TestCase):
 
     def _roles_plan(self):
         roles = [
-            {"key": "GEICO", "bullet_texts": [
-                "Led AI adoption across the department",
-                "Refactored the Go integration framework",
+            {"key": "Recent", "bullet_texts": [
+                "Led tooling adoption across the department",
+                "Refactored the existing Go integration framework",
                 "Estimated weekly process meetings",
             ]},
             {"key": "Oldest, City", "bullet_texts": [
@@ -114,7 +114,7 @@ class NextBatchTests(unittest.TestCase):
         ]
         plan = [
             ("Oldest, City", "drop 1 bullet(s) (saves ~2 lines)", 2.0),
-            ("GEICO", "drop 2 bullet(s) (saves ~5 lines)", 5.0),
+            ("Recent", "drop 2 bullet(s) (saves ~5 lines)", 5.0),
         ]
         return roles, plan
 
@@ -128,11 +128,11 @@ class NextBatchTests(unittest.TestCase):
         texts = [t for _prefix, t in batch]
         # Oldest role first; its JD-matched Cypress bullet must not appear.
         # Within a role, weakest-first by the deterministic scorer (ties
-        # toward longer text: Refactored Go framework is 39 chars, Led AI
-        # adoption is 37).
+        # toward longer text: Refactored the existing Go integration
+        # framework is 48 chars, Led tooling adoption is 42).
         self.assertEqual(texts, ["Established weekly cross-team meetings",
-                                 "Refactored the Go integration framework",
-                                 "Led AI adoption across the department"])
+                                 "Refactored the existing Go integration framework",
+                                 "Led tooling adoption across the department"])
 
     def test_batch_respects_protect(self):
         roles, plan = self._roles_plan()

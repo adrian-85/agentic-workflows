@@ -60,7 +60,7 @@ def _sample_date():
     """A date token the CURRENT DATE_RE matches (MM/YYYY or ISO), so fixtures
     work under either format and the structural tests stay green after a
     legit constants re-config."""
-    for cand in ("02/2019", "2019-02"):
+    for cand in ("07/2014", "2014-07"):
         if mr.DATE_RE.search(cand):
             return cand
     raise AssertionError(
@@ -77,7 +77,7 @@ class CompanyKeyTests(unittest.TestCase):
         # whitespace-normalizes the company portion. Update when DATE_RE
         # is re-configured for a different date format.
         self.assertEqual(
-            mr._company_key("Company ABC, Phoenix, AZ02/2019 – 04/2020"),
+            mr._company_key("Company ABC, Phoenix, AZ06/2013 – 08/2016"),
             "Company ABC, Phoenix, AZ",
         )
 
@@ -101,7 +101,7 @@ class RolesTests(unittest.TestCase):
         (so the suite stays green after a legitimate constants re-config)."""
         return _body([
             _para(mr.SECTION_CAREER, style="SectionHeading"),
-            _para("Company ABC, Phoenix, AZ" + _sample_date() + " — 04/2020",
+            _para("Company ABC, Phoenix, AZ" + _sample_date() + " — 08/2016",
                   style=mr.COMPANY_STYLE),
             _para("Bullet one", numId=2),
             _para("Bullet two", numId=2),
@@ -137,7 +137,7 @@ class RolesTests(unittest.TestCase):
         # reclaim plan is empty.
         body = _body([
             _para(mr.SECTION_CAREER, style="SectionHeading"),
-            _para("Company ABC, Phoenix, AZ02/2019 – 04/2020",
+            _para("Company ABC, Phoenix, AZ07/2014 – 08/2016",
                   style=mr.COMPANY_STYLE),
             _para("Bullet one", style="ListBullet"),
             _para("Bullet two", style="ListBullet"),
@@ -156,7 +156,7 @@ class RolesTests(unittest.TestCase):
             mr.BULLET_STYLES = ("MyBullet",)
             body = _body([
                 _para(mr.SECTION_CAREER, style="SectionHeading"),
-                _para("Company ABC, Phoenix, AZ02/2019 – 04/2020",
+                _para("Company ABC, Phoenix, AZ07/2014 – 08/2016",
                       style=mr.COMPANY_STYLE),
                 _para("Bullet one", style="MyBullet"),
                 _para(mr.SECTION_EDUCATION, style="SectionHeading"),
@@ -211,11 +211,11 @@ class LayoutAndReclaimTests(unittest.TestCase):
         # gap=5: oldest role has 1 bullet -> recommend dropping the whole
         # role (header+tools+bullet ~6 lines) before touching newer roles.
         matched = [
-            {"key": "GEICO", "bullets": 8, "has_tools": True},
+            {"key": "Recent", "bullets": 8, "has_tools": True},
             {"key": "Oldest", "bullets": 1, "has_tools": True},
         ]
         # Match the (r, sp, ep, rendered) tuple shape used by main().
-        wrapped = [(d, 1, 1, 26 if d["key"] == "GEICO" else 6) for d in matched]
+        wrapped = [(d, 1, 1, 26 if d["key"] == "Recent" else 6) for d in matched]
         plan, remaining = mr._reclaim_batch(wrapped, 2.5, 5)
         self.assertEqual(plan[0][0], "Oldest")
         self.assertIn("whole role", plan[0][1])
@@ -253,7 +253,7 @@ class LayoutAndReclaimTests(unittest.TestCase):
 class DropPlanTests(unittest.TestCase):
     """The DROP PLAN turns each "drop N bullet(s)" reclaim line into the
     ACTUAL bullets to cut — ranked weakest-first by a deterministic scorer,
-    emitted as copy-pasteable find_p(ps, "...") lines. The session's
+    emitted as copy-pasteable find_p(ps, "...") lines. The original
     cut-render-cut loop existed because the batch plan said how many to
     drop but never which."""
 
@@ -318,7 +318,7 @@ class DropPlanTests(unittest.TestCase):
         # matter how generic they score. Without it, the weakest-first rank
         # would suggest the user's best JD evidence.
         bullets = [
-            "Tested American Express partner integrations against their sandbox",
+            "Tested partner integrations against their sandbox",
             "Established bi-monthly interdepartmental QA meetings",
         ]
         drops = mr._suggest_drops(bullets, 1, protect=("partner integrations",))
@@ -381,11 +381,11 @@ class TopRoleBatchTests(unittest.TestCase):
     """_top_role_batch: the most-recent role's trim batch, emitted when the
     deterministic plan cannot close the gap.
 
-    THE session failure (CarMax Principal Quality tailoring): the master's
+    THE motivating failure (a Principal-level tailoring session): the master's
     most-recent role held 23 bullets / 63 rendered lines, every older-role
     budget was a dead end, and the tool's BATCH RECLAIM PLAN still could
     not reach the 3-page target. Nothing in the output covered the top
-    role, so the author had to invent levers — headless-session replays
+    role, so the author had to invent levers — headless replays
     showed agents filling the vacuum with hand-shortening (rewriting kept
     bullets from two rendered lines to one), the lowest-leverage edit in
     the skill. Enforcement moved into the tool: when TOP-BLOCK + Tools
@@ -395,12 +395,12 @@ class TopRoleBatchTests(unittest.TestCase):
     """
 
     def setUp(self):
-        # Document order: most-recent role FIRST. GEICO is the bloated top
+        # Document order: most-recent role FIRST. Recent is the bloated top
         # role; the two oldest roles are dead ends (all bullets protected).
         self.matched = [
-            ({"key": "GEICO", "bullets": 5, "has_tools": True,
+            ({"key": "Recent", "bullets": 5, "has_tools": True,
               "bullet_texts": [
-                  "Wrote scripts for storing images in JFrog Artifactory",
+                  "Wrote scripts for storing build artifacts in the registry",
                   "Demoed release process improvements at team meetings",
                   "Updated the team wiki page weekly",
                   "Landed Playwright as the company UI testing tool",
@@ -423,7 +423,7 @@ class TopRoleBatchTests(unittest.TestCase):
         # required=20. Old and Middle are TRUE dead ends (both bullets
         # JD-protected -> feasible 0). Tools de-wraps (2) + top-block (2)
         # = 4 feasible. Residual 16 -> ceil(16/2.5)=7 bullets wanted,
-        # capped at GEICO's 3 unprotected.
+        # capped at Recent's 3 unprotected.
         plan = [
             ("Old", "drop 2 bullet(s) (saves ~5 lines)", 5.0),
             ("Middle", "drop 2 bullet(s) (saves ~5 lines)", 5.0),
@@ -432,11 +432,11 @@ class TopRoleBatchTests(unittest.TestCase):
             self.matched, plan, 2.5, 20, tools_savings=2,
             top_block_count=2, jd_terms=self.jd)
         self.assertIsNotNone(batch)
-        self.assertEqual(batch[0], "GEICO")
+        self.assertEqual(batch[0], "Recent")
         self.assertIn("drop 3 bullet(s)", batch[1])  # capped at 5-2=3 unprotected
         self.assertAlmostEqual(batch[2], 3 * 2.5)
         # Dead-end entries for the OTHER roles survive (they print the
-        # honest infeasibility note); no GEICO entry to double-count.
+        # honest infeasibility note); no Recent entry to double-count.
         self.assertEqual([p[0] for p in adjusted], ["Old", "Middle"])
         self.assertAlmostEqual(feasible, 4.0)
 
@@ -450,7 +450,7 @@ class TopRoleBatchTests(unittest.TestCase):
         self.assertAlmostEqual(feasible, 10.0)
 
     def test_no_batch_when_top_role_fully_protected(self):
-        matched = [({"key": "GEICO", "bullets": 2, "has_tools": True,
+        matched = [({"key": "Recent", "bullets": 2, "has_tools": True,
                      "bullet_texts": ["Landed Playwright as the company UI "
                                        "testing tool"]}, 1, 1, 8)]
         plan = []
@@ -462,7 +462,7 @@ class TopRoleBatchTests(unittest.TestCase):
     def test_superseded_top_role_entry_removed_from_plan(self):
         # If the oldest-first loop reached the top role with a dead-end
         # budget, the batch replaces it (one authoritative sizing).
-        plan = [("GEICO", "drop 8 bullet(s) (saves ~20 lines)", 20.0)]
+        plan = [("Recent", "drop 8 bullet(s) (saves ~20 lines)", 20.0)]
         batch, adjusted, _feasible = mr._top_role_batch(
             self.matched, plan, 2.5, 40, tools_savings=0,
             top_block_count=0, jd_terms=set())
@@ -470,23 +470,23 @@ class TopRoleBatchTests(unittest.TestCase):
         self.assertEqual(adjusted, [])
 
     def test_batch_section_renders_with_custom_header(self):
-        batch = ("GEICO", "drop 2 bullet(s) (saves ~5 lines)", 5.0)
+        batch = ("Recent", "drop 2 bullet(s) (saves ~5 lines)", 5.0)
         role = self.matched[0][0]
-        header = "TOP-ROLE TRIM BATCH (GEICO; closes the residual gap "
+        header = "TOP-ROLE TRIM BATCH (Recent; closes the residual gap "
         section = mr._batch_section(
             batch, role, header,
             protect=(), jd_terms=self.jd)
-        self.assertIn("TOP-ROLE TRIM BATCH (GEICO", section)
+        self.assertIn("TOP-ROLE TRIM BATCH (Recent", section)
         self.assertIn("find_p(ps,", section)
         # Protected (Playwright) bullets are not suggested.
-        self.assertNotIn("Championed agentic workflows", section)
+        self.assertNotIn("Championed internal tooling", section)
 
 
 class JDAwareTests(unittest.TestCase):
     """--jd makes the DROP PLAN JD-aware: bullets whose text matches a
     candidate-tech term the JD asks for (Cypress, Gatling, Jenkins, ...) or
     a named JD practice (mentorship, shift-left) must NOT be suggested for
-    cutting while any non-matching bullet remains. This session's failure:
+    cutting while any non-matching bullet remains. The motivating failure:
     the JD-blind scorer ranked 'Championed the adoption of Cypress' and
     'Created performance tests using Gatling' (both directly named JD quals)
     as weak, and silently cut a 'Mentored junior team member' bullet that
@@ -504,7 +504,7 @@ class JDAwareTests(unittest.TestCase):
             _para("CI/CD: Jenkins, CircleCI, GitHub Actions, Azure DevOps"),
             _para("Certifications", style="SectionHeading"),
             _para(mr.SECTION_CAREER, style="SectionHeading"),
-            _para("Company ABC, City" + _sample_date() + " – 04/2020",
+            _para("Company ABC, City" + _sample_date() + " – 08/2016",
                   style=mr.COMPANY_STYLE),
             _para("Senior SDET", style="JobTitleBlock"),
             _para("Championed the adoption of Cypress, co-architecting the "
@@ -543,7 +543,7 @@ class JDAwareTests(unittest.TestCase):
             _para("Technical Proficiencies", style="SectionHeading"),
             _para("Automation Tooling: Selenium, Postman"),
             _para(mr.SECTION_CAREER, style="SectionHeading"),
-            _para("Company ABC, City" + _sample_date() + " – 04/2020",
+            _para("Company ABC, City" + _sample_date() + " – 08/2016",
                   style=mr.COMPANY_STYLE),
             _para("Senior SDET", style="JobTitleBlock"),
             _para("Championed the adoption of Cypress automation", numId=2),
@@ -581,7 +581,7 @@ class JDAwareTests(unittest.TestCase):
             _para("Programming Languages: Java, C#, JavaScript, Python"),
             _para("Certifications", style="SectionHeading"),
             _para(mr.SECTION_CAREER, style="SectionHeading"),
-            _para("Company ABC, City" + _sample_date() + " – 04/2020",
+            _para("Company ABC, City" + _sample_date() + " – 08/2016",
                   style=mr.COMPANY_STYLE),
             _para("Senior SDET", style="JobTitleBlock"),
             _para("Adhered high-priority compliance and configured Snyk "
@@ -610,7 +610,7 @@ class JDAwareTests(unittest.TestCase):
         self.assertNotIn("c", mr._jd_terms("C programming", self._prof_body()))
 
     def test_jd_matched_bullets_never_suggested_while_weak_remain(self):
-        # The session's failure: Cypress (JD Required qual) ranked weak and
+        # The motivating failure: Cypress (JD Required qual) ranked weak and
         # landed on the cut list. With --jd it must be excluded.
         bullets = [
             "Championed the adoption of Cypress, co-architecting the initial "
@@ -643,7 +643,7 @@ class JDAwareTests(unittest.TestCase):
         self.assertEqual(drops, [bullets[1], bullets[0]])
 
     def test_concept_mentorship_bullet_kept(self):
-        # The session's worst miss: a 'Mentored junior team member' bullet
+        # The motivating miss: a 'Mentored junior team member' bullet
         # was cut, but the JD requires mentoring. A JD practice phrase in
         # JD_CONCEPTS must keep it out of the cut list.
         bullets = [
@@ -712,8 +712,8 @@ class JdHitsTests(unittest.TestCase):
 
     def test_singular_term_matches_plural(self):
         # Bidirectional: the JD asks for 'integration' work, the bullet says
-        # 'partner integrations' — same evidence (QualityAI session: the
-        # Amex partner-integrations bullet was ranked for cutting while the
+        # 'partner integrations' — same evidence (a past session: the
+        # partner-integrations bullet was ranked for cutting while the
         # JD asked for 'API, service, integration, and backend validation').
         self.assertEqual(
             mr._jd_hits("Tested partner integrations", {"integration"}),
@@ -745,10 +745,10 @@ class JdCapitalizedTests(unittest.TestCase):
 class CoreTechNounTests(unittest.TestCase):
     """Core tech nouns are exempt from the bullet-only capitalization gate.
 
-    Session failure regressed here (QualityAI Playwright JD): the JD's
+    A past session regressed here (a Playwright JD): the JD's
     'Perform API, service, integration, and backend validation' names
     'integration' lowercase mid-sentence, so the bullet-only term was
-    rejected and the DROP PLAN suggested cutting the Amex
+    rejected and the DROP PLAN suggested cutting the
     partner-integrations bullet — strong integration-testing evidence.
     The capitalization gate exists to block PROSE flood; these nouns can
     never be prose. The generic-hit-rate guard still applies.
@@ -760,11 +760,11 @@ class CoreTechNounTests(unittest.TestCase):
             _para("Programming Languages: Java, JavaScript"),
             _para("Certifications", style="SectionHeading"),
             _para(mr.SECTION_CAREER, style="SectionHeading"),
-            _para("Rakuten, San Diego, CA" + _sample_date() + " – 01/2019",
+            _para("Acme Corp, Austin, TX" + _sample_date() + " – 12/2023",
                   style=mr.COMPANY_STYLE),
             _para("Senior Quality Assurance Engineer", style="JobTitleBlock"),
-            _para("Tested American Express partner integrations against "
-                  "their sandbox, coordinating with Amex engineers on "
+            _para("Tested partner integrations against "
+                  "their sandbox, coordinating with vendor engineers on "
                   "unexpected response codes", numId=2),
             _para("Established bi-monthly interdepartmental QA meetings",
                   numId=2),
@@ -779,12 +779,12 @@ class CoreTechNounTests(unittest.TestCase):
         terms = mr._jd_terms(self._JD, self._body())
         self.assertIn("integrations", terms)
 
-    def test_amex_integration_bullet_is_jd_evidence(self):
+    def test_partner_integration_bullet_is_jd_evidence(self):
         terms = mr._jd_terms(self._JD, self._body())
-        amex = ("Tested American Express partner integrations against "
-                "their sandbox, coordinating with Amex engineers on "
+        partner_bullet = ("Tested partner integrations against "
+                "their sandbox, coordinating with vendor engineers on "
                 "unexpected response codes")
-        self.assertTrue(mr._jd_kept(amex, terms),
+        self.assertTrue(mr._jd_kept(partner_bullet, terms),
                         "integration bullet must be JD-protected")
 
     def test_generic_hit_rate_guard_still_applies(self):
@@ -794,7 +794,7 @@ class CoreTechNounTests(unittest.TestCase):
             _para("Technical Proficiencies", style="SectionHeading"),
             _para("Databases: SQL Server"),
             _para(mr.SECTION_CAREER, style="SectionHeading"),
-            _para("Company A" + _sample_date() + " – 04/2020",
+            _para("Company A" + _sample_date() + " – 08/2016",
                   style=mr.COMPANY_STYLE),
             _para("SDET", style="JobTitleBlock"),
             _para("Validated database one", numId=2),
@@ -818,7 +818,7 @@ class CoreTechNounTests(unittest.TestCase):
         jd = "you will be coordinating closely with partner teams"
         body = _body([
             _para(mr.SECTION_CAREER, style="SectionHeading"),
-            _para("Company A" + _sample_date() + " – 04/2020",
+            _para("Company A" + _sample_date() + " – 08/2016",
                   style=mr.COMPANY_STYLE),
             _para("SDET", style="JobTitleBlock"),
             _para("Coordinating closely with partners", numId=2),
@@ -837,9 +837,9 @@ class LabelVocabEndToEndTests(unittest.TestCase):
             _para("Programming Languages: Java, JavaScript"),
             _para("API & Web Services: REST, GraphQL, gRPC, SOAP"),
             _para("Certifications", style="SectionHeading"),
-            _para("Payments Boot Camp: Glenbrook Partners"),
+            _para("Performance Boot Camp: Vendor Academy"),
             _para(mr.SECTION_CAREER, style="SectionHeading"),
-            _para("Company ABC, City" + _sample_date() + " – 04/2020",
+            _para("Company ABC, City" + _sample_date() + " – 08/2016",
                   style=mr.COMPANY_STYLE),
             _para("Senior SDET", style="JobTitleBlock"),
             _para("Bullet one", numId=2),
@@ -860,7 +860,7 @@ class LabelVocabEndToEndTests(unittest.TestCase):
         terms = mr._jd_terms(jd, self._body())
         cands = mr._top_block_candidates(self._body(), terms)
         texts = [t for _p, t in cands]
-        self.assertTrue(any("Payments Boot Camp" in t for t in texts))
+        self.assertTrue(any("Performance Boot Camp" in t for t in texts))
 
 
 class DeadEndTests(unittest.TestCase):
@@ -906,7 +906,7 @@ class DeadEndTests(unittest.TestCase):
 
 class LineTermsTests(unittest.TestCase):
     """_line_terms: the LABEL of a labeled line is part of the resume's
-    claimed vocabulary too. Session failure regressed here: the QualityAI
+    claimed vocabulary too. A past session regressed here: the
     JD asked for API testing, but 'API' only appeared in the LABEL
     ('API & Web Services: REST, ...') which the old value-only splitter
     discarded — so the line carried 'no JD evidence' and landed on the
@@ -944,9 +944,9 @@ class TopBlockCandidatesTests(unittest.TestCase):
             _para("Programming Languages: Java, Python"),
             _para("Monitoring & Logging: Datadog, Grafana"),
             _para("Certifications", style="SectionHeading"),
-            _para("Payments Boot Camp: Glenbrook Partners"),
+            _para("Performance Boot Camp: Vendor Academy"),
             _para(mr.SECTION_CAREER, style="SectionHeading"),
-            _para("Company ABC, City" + _sample_date() + " – 04/2020",
+            _para("Company ABC, City" + _sample_date() + " – 08/2016",
                   style=mr.COMPANY_STYLE),
             _para("Senior SDET", style="JobTitleBlock"),
             _para("Bullet one", numId=2),
@@ -957,7 +957,7 @@ class TopBlockCandidatesTests(unittest.TestCase):
         cands = mr._top_block_candidates(self._body(), jd_terms={"java"})
         texts = [t for _p, t in cands]
         self.assertTrue(any("Monitoring" in t for t in texts))
-        self.assertTrue(any("Payments Boot Camp" in t for t in texts))
+        self.assertTrue(any("Performance Boot Camp" in t for t in texts))
 
     def test_jd_matched_line_not_candidate(self):
         cands = mr._top_block_candidates(self._body(), jd_terms={"java"})
@@ -1000,14 +1000,14 @@ class ApplySimulateTests(unittest.TestCase):
 
         paras = [
             p(mr.SECTION_CAREER, style="SectionHeading"),
-            p("GEICO, Chevy Chase06/2025 – 07/2026", style=mr.COMPANY_STYLE),
+            p("Acme Corp, Springfield03/2022 – 02/2023", style=mr.COMPANY_STYLE),
             p("Staff Engineer", style="JobTitleBlock"),
             p("Led QA", style="BodyText", numid=4),
             p("Tools &amp; Technologies: Go", style="BodyText"),
             p("", style="BodyText"),
-            p("Illumina, San Diego02/2012 – 10/2014", style=mr.COMPANY_STYLE),
+            p("Initech, Metropolis01/2017 – 06/2018", style=mr.COMPANY_STYLE),
             p("Software Test Engineer I", style="JobTitleBlock"),
-            p("Tested DNA pipelines", style="BodyText", numid=8),
+            p("Tested data pipelines", style="BodyText", numid=8),
             p("Tools &amp; Technologies: MS Test", style="BodyText"),
             p("", style="BodyText"),
             p(mr.SECTION_EDUCATION, style="SectionHeading"),
@@ -1035,17 +1035,17 @@ class ApplySimulateTests(unittest.TestCase):
                 with contextlib.redirect_stdout(buf), \
                         contextlib.redirect_stderr(buf):
                     out_path, dropped = mr._apply_simulate(
-                        src, ["Illumina, San Diego"], out)
+                        src, ["Initech, Metropolis"], out)
                 self.assertEqual(out_path, out)
                 self.assertEqual(len(dropped), 1)
-                self.assertIn("Illumina", dropped[0])
+                self.assertIn("Initech", dropped[0])
                 with open(src, "rb") as f:
                     self.assertEqual(f.read(), before,
                                      "original must never be modified")
                 root, body, _, _, _ = de.load(out)
                 texts = [de.text_of(p) for p in de.paras(body)]
-                self.assertFalse(any("Illumina" in t for t in texts))
-                self.assertIn("GEICO, Chevy Chase06/2025 – 07/2026", texts)
+                self.assertFalse(any("Initech" in t for t in texts))
+                self.assertIn("Acme Corp, Springfield03/2022 – 02/2023", texts)
                 self.assertIn(mr.SECTION_EDUCATION, texts)
             finally:
                 for suffix in ("", ".drift.json"):
@@ -1078,27 +1078,27 @@ class GapIfDroppedTests(unittest.TestCase):
 
     def _roles(self):
         return [
-            {"key": "geico", "raw": "GEICO06/2025 – 07/2026"},
-            {"key": "symbols", "raw": "Symbols02/2025 – 06/2025"},
-            {"key": "caremetx", "raw": "CareMetx04/2023 – 01/2025"},
-            {"key": "rakuten", "raw": "Rakuten01/2016 – 01/2019"},
+            {"key": "acme", "raw": "Acme01/2024 – 06/2025"},
+            {"key": "globex", "raw": "Globex09/2023 – 12/2023"},
+            {"key": "initech", "raw": "Initech01/2022 – 08/2023"},
+            {"key": "hooli", "raw": "Hooli03/2016 – 04/2017"},
         ]
 
     def test_interior_drop_opens_gap(self):
-        # Dropping Symbols leaves CareMetx (ends 01/2025) next to GEICO
-        # (starts 06/2025): a 5-month gap.
-        self.assertEqual(mr._gap_if_dropped(self._roles(), "symbols"), 5)
+        # Dropping Globex leaves Initech (ends 08/2023) next to Acme
+        # (starts 01/2024): a 5-month gap.
+        self.assertEqual(mr._gap_if_dropped(self._roles(), "globex"), 5)
 
     def test_oldest_drop_no_gap(self):
-        self.assertEqual(mr._gap_if_dropped(self._roles(), "rakuten"), 0)
+        self.assertEqual(mr._gap_if_dropped(self._roles(), "hooli"), 0)
 
     def test_newest_drop_no_gap(self):
-        self.assertEqual(mr._gap_if_dropped(self._roles(), "geico"), 0)
+        self.assertEqual(mr._gap_if_dropped(self._roles(), "acme"), 0)
 
     def test_gapless_interior_drop_no_gap(self):
         roles = [
-            {"key": "b", "raw": "B01/2020 – 06/2020"},
-            {"key": "a", "raw": "A01/2019 – 01/2020"},
+            {"key": "b", "raw": "B06/2017 – 11/2018"},
+            {"key": "a", "raw": "A01/2016 – 05/2017"},
         ]
         self.assertEqual(mr._gap_if_dropped(roles, "a"), 0)
 
@@ -1111,11 +1111,11 @@ class VisibleSpanTests(unittest.TestCase):
 
     def test_mm_yyyy_dates(self):
         first, last = mr._visible_span([
-            "GEICO, MD (Remote)06/2025 – 07/2026",
-            "Republic, AZ02/2019 – 04/2020",
+            "Acme, MA (Remote)05/2021 – 02/2023",
+            "Globex, TX03/2017 – 04/2018",
         ])
-        self.assertAlmostEqual(first, 2019 + 1 / 12, places=2)
-        self.assertAlmostEqual(last, 2026 + 6 / 12, places=2)
+        self.assertAlmostEqual(first, 2017 + 2 / 12, places=2)
+        self.assertAlmostEqual(last, 2023 + 1 / 12, places=2)
 
     def test_iso_dates(self):
         saved = mr.DATE_RE
@@ -1208,39 +1208,39 @@ class WidowHintTests(unittest.TestCase):
     how much — the role whose content immediately precedes the stranded
     header — instead of the vague "trim earlier content"."""
 
-    GEICO = "GEICO, Chevy Chase, MD (Remote)06/2025 – 07/2026"
-    SYMBOLS = "Symbols, Tbilisi, Georgia (Remote)02/2025 – 06/2025"
+    ACME = "Acme, Springfield, MA (Remote)03/2022 – 02/2023"
+    GLOBEX = "Globex, Columbus, OH (Remote)05/2019 – 09/2019"
 
     def _pages(self, page2_tail):
         # Page 2 is full (10 lines) with its LAST line a role header whose
         # body starts page 3 — the widow.
         return [
-            self.GEICO + "\nbullet one\nbullet two\nbullet three",
+            self.ACME + "\nbullet one\nbullet two\nbullet three",
             "filler\n" * 9 + page2_tail,
             "Senior QA Engineer\nbullet",
         ]
 
     def test_widow_note_names_preceding_role(self):
         matched = [
-            ({"key": "GEICO, Chevy Chase", "bullets": 3,
+            ({"key": "Acme, Springfield", "bullets": 3,
               "has_tools": True}, 1, 1, 10),
-            ({"key": "Symbols, Tbilisi", "bullets": 2,
+            ({"key": "Globex, Columbus", "bullets": 2,
               "has_tools": True}, 2, 3, 6),
         ]
-        out = mr._layout_hints(matched, self._pages(self.SYMBOLS), 10)
+        out = mr._layout_hints(matched, self._pages(self.GLOBEX), 10)
         widow = [ln for ln in out if "WIDOW" in ln]
         self.assertEqual(len(widow), 1)
-        self.assertIn("reclaim ~2 line(s) from the GEICO, Chevy Chase block",
+        self.assertIn("reclaim ~2 line(s) from the Acme, Springfield block",
                       widow[0])
 
     def test_widow_without_preceding_role_keeps_generic_hint(self):
         # No role header precedes the widow on the page (its page is all
         # filler + the header) — fall back to the generic hint.
         matched = [
-            ({"key": "Symbols, Tbilisi", "bullets": 2,
+            ({"key": "Globex, Columbus", "bullets": 2,
               "has_tools": True}, 2, 3, 6),
         ]
-        out = mr._layout_hints(matched, self._pages(self.SYMBOLS), 10)
+        out = mr._layout_hints(matched, self._pages(self.GLOBEX), 10)
         widow = [ln for ln in out if "WIDOW" in ln]
         self.assertEqual(len(widow), 1)
         self.assertIn("trim earlier content or merge bullets", widow[0])

@@ -55,7 +55,7 @@ User-supplied personal assets (`*.docx` / `*.pdf`, gitignored) live in the skill
   changed master (`MASTER CHANGED:`) and runs auto-strict: skipped edits exit 2 without
   needing `DOCX_EDIT_STRICT=1`. If the master change was the USER's, respect it — re-dump
   `--prefixes`, fix drifted prefixes in the tailor script, never re-fold over their text.
-- `Basic_LinkedInDataExport_09-02-2026/` — the LinkedIn data export (CSVs), the richer source than
+- `Basic_LinkedInDataExport_*/` — the LinkedIn data export (CSVs), the richer source than
   the resume for content to enrich/merge (Step 1).
 
 `scripts/` (each tool's docstring / usage is the reference; the steps below point at them):
@@ -203,7 +203,7 @@ with copy-pasteable `find_p` cut lines, and flags page widows / underfilled page
   not edited precisely.
 - **Read the LinkedIn source before editing.** The resume is a compressed
   view; the LinkedIn data export has the richer detail that lets you enrich
-  and merge bullets. Read the export folder `Basic_LinkedInDataExport_09-02-2026/`:
+  and merge bullets. Read the export folder `Basic_LinkedInDataExport_*/`:
   - `Positions.csv` — the full role history with description bullets: the
     richest source for restoring sub-roles and extra bullets the resume
     compressed away.
@@ -258,7 +258,7 @@ compression when the page budget forces it:
 
    ```bash
    python3 scripts/measure_resume.py "<Master>.docx" 3 --jd "<JD>.txt" \
-       --simulate "Illumina, San Diego" --simulate "Epic Sciences, San Diego"
+       --simulate "Acme Corp, Austin, TX" --simulate "Globex, Chicago, IL"
    ```
 
    **Apply the drops with `drop_role` — never a hand-rolled helper.**
@@ -503,7 +503,7 @@ Summary and job-history prose, never use em dashes (`—`), double hyphens
 sentence) or a comma instead. **Single hyphens are fine** — they appear in
 compound words (`test-automation`, `end-to-end`, `CI/CD`) and are never
 flagged by the validator. En dashes are only allowed in date ranges
-(`06/2025 – 07/2026`); in prose, treat them like em dashes (replace with a
+(`01/2023 – 12/2024`); in prose, treat them like em dashes (replace with a
 period or comma). Structural lines (company headers, job titles) and
 non-role sections (Technical Proficiencies, Certifications, Education) are
 not subject to the rule. `validate_resume.py` enforces this on the Summary

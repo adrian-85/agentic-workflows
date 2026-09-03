@@ -51,7 +51,7 @@ def body(*ps):
 class StructuralTests(unittest.TestCase):
     def test_clean_region_no_errors(self):
         region = [
-            mk("GEICO, Chevy Chase, MD (Remote)06/2025 – 07/2026",
+            mk("Acme Corp, Springfield, MA (Remote)03/2022 – 02/2023",
                style=mr.COMPANY_STYLE),
             mk("Staff Engineer", style=vr.TITLE_STYLE),
             mk("Bullet one", numId=4),
@@ -61,9 +61,9 @@ class StructuralTests(unittest.TestCase):
 
     def test_dangling_title_is_error(self):
         # A company header was removed but its title survived, sitting right
-        # after the previous role's Tools line (the Epic/Rakuten failure).
+        # after the previous role's Tools line (the orphan-title failure).
         region = [
-            mk("Republic, AZ02/2019 – 04/2020", style=mr.COMPANY_STYLE),
+            mk("Globex, TX08/2014 – 03/2015", style=mr.COMPANY_STYLE),
             mk("Senior QA Engineer", style=vr.TITLE_STYLE),
             mk("bullet", numId=4),
             mk("Tools & Technologies: Java"),
@@ -77,7 +77,7 @@ class StructuralTests(unittest.TestCase):
 
     def test_company_without_title_is_error(self):
         region = [
-            mk("Co A, City01/2019", style=mr.COMPANY_STYLE),
+            mk("Co A, City11/2017", style=mr.COMPANY_STYLE),
             mk("bullet without a title", numId=4),
         ]
         errs = vr._structural_errors(region)
@@ -85,7 +85,7 @@ class StructuralTests(unittest.TestCase):
 
     def test_orphaned_bullets_after_tools_flagged(self):
         region = [
-            mk("Co A, City01/2019", style=mr.COMPANY_STYLE),
+            mk("Co A, City11/2017", style=mr.COMPANY_STYLE),
             mk("Title A", style=vr.TITLE_STYLE),
             mk("bullet A", numId=4),
             mk("Tools & Technologies: Go"),
@@ -97,7 +97,7 @@ class StructuralTests(unittest.TestCase):
     def test_region_stops_at_next_section_heading(self):
         b = body(
             mk("Career Experience", style="SectionHeading"),
-            mk("Co A, City01/2019", style=mr.COMPANY_STYLE),
+            mk("Co A, City11/2017", style=mr.COMPANY_STYLE),
             mk("bullet", numId=4),
             mk("Open Source", style="SectionHeading"),
             mk("an unrelated project bullet", numId=4),
@@ -110,12 +110,12 @@ class StructuralTests(unittest.TestCase):
 class DuplicateTests(unittest.TestCase):
     def test_near_duplicate_detected(self):
         # A merge that left the source's old text beside the rewritten
-        # target — the ASDLC case from real tailoring sessions.
+        # target — a merge-into case from real tailoring sessions.
         region = [
-            mk("Developed an ASDLC integrating Azure CLI, GitHub CLI, "
-               "SonarQube API, and Grafana tooling", numId=4),
-            mk("ASDLC integrations included Azure CLI, GitHub CLI, "
-               "SonarQube API, and Grafana tooling; set up MCP", numId=4),
+            mk("Developed an internal workflow integrating Azure CLI, "
+               "GitHub CLI, and SonarQube API tooling", numId=4),
+            mk("The internal workflow integrated Azure CLI, GitHub CLI, "
+               "and SonarQube API tooling", numId=4),
         ]
         dups = list(vr._near_duplicates(region))
         self.assertEqual(len(dups), 1)
@@ -136,12 +136,12 @@ class ClaimTests(unittest.TestCase):
 
     def test_visible_span_from_company_dates(self):
         headers = [
-            "GEICO, MD (Remote)06/2025 – 07/2026",
-            "Republic, AZ02/2019 – 04/2020",
+            "Acme, MA (Remote)05/2021 – 02/2023",
+            "Globex, TX03/2017 – 04/2018",
         ]
         first, last = mr._visible_span(headers)
-        self.assertAlmostEqual(first, 2019 + 1 / 12, places=2)
-        self.assertAlmostEqual(last, 2026 + 6 / 12, places=2)
+        self.assertAlmostEqual(first, 2017 + 2 / 12, places=2)
+        self.assertAlmostEqual(last, 2023 + 1 / 12, places=2)
 
     def test_undated_region_span_none(self):
         self.assertEqual(mr._visible_span(["plain paragraph"]), (None, None))
@@ -198,7 +198,7 @@ class PunctuationTests(unittest.TestCase):
             ps.append(mk("Summary", style="SectionHeading"))
             ps.append(mk(summary_text, style=vr.SUMMARY_STYLE))
         ps.append(mk("Career Experience", style="SectionHeading"))
-        ps.append(mk("GEICO, MD (Remote)01/2020 – 12/2026",
+        ps.append(mk("Acme, MA (Remote)06/2021 – 05/2026",
                      style=mr.COMPANY_STYLE))
         ps.append(mk(title_text, style=vr.TITLE_STYLE))
         ps.append(mk(bullet_text, numId=4))
@@ -222,10 +222,10 @@ class PunctuationTests(unittest.TestCase):
 
     def test_clean_prose_passes(self):
         region = [
-            mk("GEICO, MD (Remote)01/2020 – 12/2026", style=mr.COMPANY_STYLE),
-            mk("Staff Engineer – Quality Automation & Engineering Enablement",
+            mk("Acme, MA (Remote)06/2021 – 05/2026", style=mr.COMPANY_STYLE),
+            mk("Staff Engineer – Test Automation & Quality Engineering",
                style=vr.TITLE_STYLE),
-            mk("Sole quality resource for the Payments department.", numId=4),
+            mk("Sole quality resource for the core platform team.", numId=4),
             mk("Tools & Technologies: Go, Python, Jenkins"),
         ]
         self.assertEqual(vr._punctuation_errors(region, None), [])
@@ -235,7 +235,7 @@ class PunctuationTests(unittest.TestCase):
             mk("Re-architected test-automation and end-to-end CI/CD pipelines.",
                numId=4),
             mk("Co-presented with a fellow Staff Engineer.", numId=4),
-            mk("Covered releases 06/2025 – 07/2026 while on call.", numId=4),
+            mk("Covered releases 03/2024 – 06/2024 while on call.", numId=4),
         ]
         self.assertEqual(vr._punctuation_errors(region, None), [])
 
@@ -269,8 +269,8 @@ class PunctuationTests(unittest.TestCase):
         # Job titles and company date lines are structural separators, not
         # prose — the title en dash and the date range must NOT flag.
         region = [
-            mk("GEICO, MD (Remote)01/2020 – 12/2026", style=mr.COMPANY_STYLE),
-            mk("Staff Engineer – Quality Automation & Engineering Enablement",
+            mk("Acme, MA (Remote)06/2021 – 05/2026", style=mr.COMPANY_STYLE),
+            mk("Staff Engineer – Test Automation & Quality Engineering",
                style=vr.TITLE_STYLE),
             mk("A clean bullet.", numId=4),
         ]
@@ -305,7 +305,7 @@ class PunctuationTests(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         try:
-            self._docx(path, cert_text="Glenbrook Partners – Issued 03/2026")
+            self._docx(path, cert_text="Test Academy – Issued 11/2025")
             rc, out = self._run(path)
         finally:
             os.unlink(path)
@@ -341,7 +341,7 @@ class JdYearsTests(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         try:
-            self._docx(path, ["01/2016 – 12/2026"])
+            self._docx(path, ["02/2015 – 10/2026"])
             rc, out = self._run(path, 5)
         finally:
             os.unlink(path)
@@ -352,7 +352,7 @@ class JdYearsTests(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         try:
-            self._docx(path, ["01/2020 – 12/2026"])
+            self._docx(path, ["09/2019 – 08/2026"])
             rc, out = self._run(path, 5)
         finally:
             os.unlink(path)
@@ -363,7 +363,7 @@ class JdYearsTests(unittest.TestCase):
 class RoleIntegrityTests(unittest.TestCase):
     """Whole-role removals must be WHOLE (validated against the master):
     kept roles keep title+bullets; removed roles leave no surviving bullets
-    (the Symbols-orphan failure)."""
+    (the orphaned-content failure)."""
 
     @staticmethod
     def _write(path, roles):
@@ -404,7 +404,7 @@ class RoleIntegrityTests(unittest.TestCase):
     def test_clean_tailoring_passes(self):
         roles = [
             ("Co A, City01/2020 – 06/2021", "Title A", ["bullet A1", "b A2"]),
-            ("Co B, City01/2019 – 01/2020", "Title B", ["bullet B1"]),
+            ("Co B, City11/2017 – 06/2018", "Title B", ["bullet B1"]),
         ]
         target = [roles[0]]  # B removed whole, A kept whole
         rc, out = self._run(roles, target)
@@ -414,11 +414,11 @@ class RoleIntegrityTests(unittest.TestCase):
     def test_role_kept_but_bullets_all_removed_is_error(self):
         roles = [
             ("Co A, City01/2020 – 06/2021", "Title A", ["bullet A1"]),
-            ("Co B, City01/2019 – 01/2020", "Title B", ["bullet B1"]),
+            ("Co B, City11/2017 – 06/2018", "Title B", ["bullet B1"]),
         ]
         target = [
             ("Co A, City01/2020 – 06/2021", "Title A", []),  # emptied
-            ("Co B, City01/2019 – 01/2020", "Title B", ["bullet B1"]),
+            ("Co B, City11/2017 – 06/2018", "Title B", ["bullet B1"]),
         ]
         rc, out = self._run(roles, target)
         self.assertEqual(rc, 2)
@@ -427,10 +427,10 @@ class RoleIntegrityTests(unittest.TestCase):
     def test_role_removed_but_bullet_survives_is_error(self):
         roles = [
             ("Co A, City01/2020 – 06/2021", "Title A", ["bullet A1"]),
-            ("Co B, City01/2019 – 01/2020", "Title B", ["orphan B1"]),
+            ("Co B, City11/2017 – 06/2018", "Title B", ["orphan B1"]),
         ]
         # B removed but its bullet text survives under role A (the
-        # Symbols-orphan failure: bullets kept, header/title dropped).
+        # orphaned-content failure: bullets kept, header/title dropped).
         target = [
             ("Co A, City01/2020 – 06/2021", "Title A",
              ["bullet A1", "orphan B1"]),
@@ -476,8 +476,8 @@ class SeniorityGateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             master, target = self._pair(
                 td,
-                ["01/2012 – 12/2014", "01/2015 – 12/2016", "01/2019 – 12/2026"],  # ~14.5y
-                ["01/2019 – 12/2026"],  # ~7.9y  -> shrink ~6.6y
+                ["02/2013 – 01/2015", "03/2016 – 04/2017", "05/2020 – 12/2026"],  # ~13.8y
+                ["05/2020 – 12/2026"],  # ~6.6y  -> shrink ~7.2y
             )
             rc, out = self._run(target, master)
         self.assertEqual(rc, 2)
@@ -488,8 +488,8 @@ class SeniorityGateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             master, target = self._pair(
                 td,
-                ["01/2012 – 12/2014", "01/2015 – 12/2016", "01/2019 – 12/2026"],
-                ["01/2019 – 12/2026"],
+                ["02/2013 – 01/2015", "03/2016 – 04/2017", "05/2020 – 12/2026"],
+                ["05/2020 – 12/2026"],
             )
             rc, out = self._run(target, master, "--seniority-approved")
         self.assertEqual(rc, 0)
@@ -497,7 +497,7 @@ class SeniorityGateTests(unittest.TestCase):
 
     def test_no_elimination_no_gate(self):
         with tempfile.TemporaryDirectory() as td:
-            master, target = self._pair(td, ["01/2019 – 12/2026"], ["01/2019 – 12/2026"])
+            master, target = self._pair(td, ["03/2021 – 12/2026"], ["03/2021 – 12/2026"])
             rc, out = self._run(target, master)
             self.assertEqual(rc, 0)
             self.assertNotIn("whole-role elimination", out)
@@ -507,8 +507,8 @@ class SeniorityGateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             master, target = self._pair(
                 td,
-                ["01/2014 – 12/2026"],
-                ["01/2015 – 12/2026"],
+                ["09/2015 – 12/2026"],
+                ["09/2016 – 12/2026"],
             )
             rc, out = self._run(target, master)
         self.assertEqual(rc, 0)
@@ -545,7 +545,7 @@ class EducationGateTests(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         try:
-            _write_docx(path, ["01/2020 – 12/2026"], education=False)
+            _write_docx(path, ["04/2021 – 09/2026"], education=False)
             rc, out = self._run(path, "--jd", jd, "--jd-years", "5")
         finally:
             os.unlink(path)
@@ -558,7 +558,7 @@ class EducationGateTests(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         try:
-            _write_docx(path, ["01/2020 – 12/2026"], education=False)
+            _write_docx(path, ["04/2021 – 09/2026"], education=False)
             rc, out = self._run(path, "--jd", jd, "--education-approved")
         finally:
             os.unlink(path)
@@ -571,7 +571,7 @@ class EducationGateTests(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         try:
-            _write_docx(path, ["01/2020 – 12/2026"])
+            _write_docx(path, ["04/2021 – 09/2026"])
             rc, out = self._run(path, "--jd", jd)
         finally:
             os.unlink(path)
@@ -586,7 +586,7 @@ class EducationGateTests(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         try:
-            _write_docx(path, ["01/2020 – 12/2026"], education=False)
+            _write_docx(path, ["04/2021 – 09/2026"], education=False)
             rc, out = self._run(path, "--jd", jd, "--jd-years", "5")
         finally:
             os.unlink(path)
@@ -614,7 +614,7 @@ class EducationGateTests(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         try:
-            _write_docx(path, ["01/2020 – 12/2026"], education=False)
+            _write_docx(path, ["04/2021 – 09/2026"], education=False)
             rc, out = self._run(path, "--jd", jd)
         finally:
             os.unlink(path)
