@@ -94,8 +94,9 @@ reference. The non-obvious rules while authoring:
   prefixes, or silent edits on detached elements). Skipped prefixes are
   named in the warning, not a generic `(remove)`. Takes prefix STRINGS
   (the copy-pasteable `find_p` lines from the `--prefixes` dump / DROP
-  PLAN) — passing `find_p(...)` results raises a `TypeError` naming the
-  fix (same guard on `drop_role`/`drop_section`).
+  PLAN); a `find_p(...)` element is also accepted — its own text is
+  derived as the prefix with a stderr note (same on `drop_role`/
+  `drop_section`), so a mixed-API script cannot crash on the mismatch.
 - **`drop_role(body, "<company-header prefix>")`**: removes an ENTIRE role —
   company header, title, bullets, Tools line, trailing spacer — stopping
   BEFORE the next company header or section heading. The library
@@ -649,7 +650,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Guessing WHICH bullets to cut from the reclaim gap | Use measure's DROP PLAN with `--jd "<JD>.txt"` + `--protect "<fact>"`; paste its `find_p` lines, or run `squeeze_resume.py` for the residual gap (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
-| Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | They take prefix STRINGS — paste the `find_p` lines from the DROP PLAN verbatim; an element argument now fails fast with a `TypeError` (Helper library) |
+| Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (stderr note names it). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form and the note noise is zero (Helper library) |
 | Iterating Tools-line trims because a trimmed line still wraps | Rare now: TOOLS LINES THAT WRAP reports the MEASURED budget per line ("value is N chars, wraps after ~M — cut ~N-M chars"), so the first trim lands. Trim to the reported budget, not a tool count — the proportional font makes "~8 tools" unreliable (Step 8) |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 5) |

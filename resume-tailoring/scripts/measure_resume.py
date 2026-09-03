@@ -1415,10 +1415,10 @@ def main():
         print()
         print("TOOLS LINES THAT WRAP (each costs ~1 rendered line; trim to "
               "the measured budget):")
-        for key, value_chars, capacity, preview in wrapped:
-            over = value_chars - capacity
+        for key, value_chars, fit_chars, preview in wrapped:
+            over = value_chars - fit_chars
             print(f"  {key} — value is {value_chars} chars, wraps after "
-                  f"~{capacity} — cut ~{over} chars (≈2-4 tools)")
+                  f"~{fit_chars} — cut ~{over} chars (≈2-4 tools)")
             print(f"    \"{preview}\"")
 
     # Reclaim suggestion: size cuts to the overflow gap, from oldest roles.
