@@ -1133,6 +1133,48 @@ def _layout_hints(matched, pages_text, capacity):
     return out
 
 
+def _sparse_last_page_note(total_pages, target, fills, capacity,
+                           overflow_lines):
+    """Signal to reconsider the page target when the last page is sparse.
+
+    The failure mode (a real session): a senior/Staff resume was built to
+    the agreed 3-page target — "ON target" — and the page-fill table showed
+    the last page at 43%, then 20%, then 13% as compression passes landed.
+    SKILL Step 3's "target 2; accept 3 for senior/Staff" gave no rule for
+    WHEN to accept 3, so the agent waffled through ~8 extra measure/render
+    cycles re-deciding the target mid-flight. The tool CAN see the one
+    signal that settles it: a sparse final page. SKILL Step 3's rule (added
+    alongside this note): re-target one page lower and re-measure BEFORE
+    cutting any JD-matched bullet — cutting JD-matched content to fill a
+    sparse page is the trap.
+
+    Fires whenever the last page fills <50% of capacity on a multi-page
+    document; at/under target the message points one page lower, over
+    target it points out that the reclaim gap is roughly the sparse tail
+    itself and a dead-ending DROP PLAN means the target — not the bullets —
+    is what to revisit.
+    """
+    if not capacity or len(fills) < 2:
+        return None
+    last = fills[-1]
+    pct = 100 * last // capacity
+    if pct >= 50:
+        return None
+    if total_pages > target:
+        return (f"TARGET NOTE: last page is only {pct}% full ({last} of "
+                f"~{capacity} lines). The ~{overflow_lines}-line gap to "
+                f"{target} page(s) is roughly this sparse tail itself; if "
+                f"the DROP PLAN dead-ends on JD-matched content, revisit "
+                f"the page target (one page lower) and re-measure BEFORE "
+                f"cutting JD-matched bullets (SKILL Step 3).")
+    lower = f" Re-target one page lower ({target - 1}) and re-measure" \
+            if target > 1 else " Re-measure against a lower target"
+    return (f"TARGET NOTE: last page is only {pct}% full ({last} of "
+            f"~{capacity} lines) — a sparse final page reads as "
+            f"unpolished.{lower} BEFORE cutting any JD-matched bullet to "
+            f"fill it (SKILL Step 3).")
+
+
 def _measured_lines_per_bullet(matched):
     """Average rendered lines per bullet, measured from THIS render.
 
@@ -1471,6 +1513,11 @@ def main():
     print("Page fill (capacity = fullest page from this render):")
     for line in _layout_hints(matched, pages_text, capacity):
         print(line)
+    sparse = _sparse_last_page_note(total_pages, target,
+                                    _page_fill(pages_text), capacity,
+                                    overflow_lines)
+    if sparse:
+        print(sparse)
 
 
 if __name__ == "__main__":

@@ -1203,6 +1203,58 @@ class TargetNoteTests(unittest.TestCase):
         self.assertEqual(mr._target_from_args(["doc.docx", "3"]), (3, False))
 
 
+class SparseLastPageTests(unittest.TestCase):
+    """TARGET NOTE when the last page fills <50% of capacity: the one
+    settle-it signal for the 2-vs-3 page target. Session failure: a
+    senior resume hit "ON target" at 3 pages with a 43% last page, and
+    ~8 measure/render cycles went into re-deciding the target mid-flight
+    (43% → 20% → 13% → 2 pages). The rule this note encodes (SKILL Step
+    3): re-target one page lower and re-measure BEFORE cutting any
+    JD-matched bullet."""
+
+    CAP = 44
+
+    def test_note_when_at_target_and_last_page_sparse(self):
+        fills = [41, 43, 19]  # 19/44 = 43%
+        note = mr._sparse_last_page_note(3, 3, fills, self.CAP, 0)
+        self.assertIsNotNone(note)
+        self.assertIn("43% full (19 of ~44 lines)", note)
+        self.assertIn("Re-target one page lower (2)", note)
+        self.assertIn("BEFORE cutting any JD-matched bullet", note)
+
+    def test_note_when_over_target_and_last_page_sparse(self):
+        # 3 pages vs target 2 with a 3-line tail: the reclaim gap IS the
+        # sparse tail — name both facts, point at the target, not bullets.
+        fills = [41, 43, 3]
+        note = mr._sparse_last_page_note(3, 2, fills, self.CAP, 3)
+        self.assertIsNotNone(note)
+        self.assertIn("6% full (3 of ~44 lines)", note)
+        self.assertIn("~3-line gap to 2 page(s)", note)
+        self.assertIn("revisit the page target", note)
+
+    def test_no_note_when_last_page_full(self):
+        self.assertIsNone(
+            mr._sparse_last_page_note(2, 2, [41, 43], self.CAP, 0))
+
+    def test_no_note_at_exactly_half(self):
+        # 50% is the boundary — a half-full final page is normal, not a
+        # signal; only strictly-under-50% fires.
+        fills = [41, 22]
+        self.assertIsNone(
+            mr._sparse_last_page_note(2, 2, fills, self.CAP, 0))
+
+    def test_no_note_on_single_page(self):
+        self.assertIsNone(mr._sparse_last_page_note(1, 2, [30], self.CAP, 0))
+
+    def test_no_lower_target_suggestion_for_one_page_target(self):
+        # target 1 with 2 pages is "over target" — the over branch fires;
+        # the at-target branch must not suggest "target 0".
+        fills = [44, 10]
+        note = mr._sparse_last_page_note(2, 1, fills, self.CAP, 10)
+        self.assertIsNotNone(note)
+        self.assertNotIn("page lower (0)", note)
+
+
 class WidowHintTests(unittest.TestCase):
     """The WIDOW note must name the fix: which block to reclaim from and
     how much — the role whose content immediately precedes the stranded

@@ -232,6 +232,16 @@ later edit shows where each was used.
 
 ### 3. Decide length up front
 - **Target 2 pages; accept 3 for senior/Staff; 4 is too long.**
+- **The "accept 3" rule has a settling condition — don't waffle.** After the
+  first build at the agreed target, check the page-fill table: if the LAST
+  page renders under 50% full (measure prints a `TARGET NOTE` for this),
+  re-target one page lower and re-measure BEFORE cutting any JD-matched
+  bullet. A sparse final page reads as unpolished, and cutting JD-matched
+  content to fill it is the trap. The reverse also holds: once the target is
+  chosen, don't revisit it mid-compression unless the TARGET NOTE fires.
+  (Session failure this rule prevents: a 3-page senior build hit "ON target"
+  with a 43% last page; ~8 measure/render cycles went into re-deciding 2 vs 3
+  mid-flight, including re-deriving the same target decision four times.)
 - Length is reclaimed by **compressing the oldest roles**, never the most
   recent. Recruiters weight the most-recent role most; cut from the bottom
   (roles 5+ years back) and keep their 2–3 strongest, quantified bullets.
@@ -612,6 +622,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Mistake | Fix |
 |---|---|
 | Rebuilding the .docx from scratch | Edit XML in place — `python-docx` drops styles, numbering, hyperlinks |
+| Waffling between the 2-page and 3-page target mid-compression | Settle it with the page-fill table: a last page under 50% full means re-target one page lower and re-measure BEFORE cutting JD-matched bullets (measure prints `TARGET NOTE`; Step 3) — don't revisit the target again unless the note fires |
 | Using `set_text` on a `"Label: values"` line | Collapses to all-bold — use `set_labeled` (Helper library) |
 | Hand-counting an edit budget (`expect_edits=N`) | Never count — `save()`'s drift sidecar records the baseline and warns on change |
 | Hand-rolling whole-role removal in the tailor script | Use `drop_role(body, "<company prefix>")` / `drop_section(body, "Education")` — the library owns the block grammar. A hand-rolled helper that appends before checking the boundary (or only treats Heading1/2 as boundaries) swallows the next `SectionHeading` (Education) and strands later edits as "not found" skips |
