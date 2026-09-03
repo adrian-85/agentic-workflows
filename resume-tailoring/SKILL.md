@@ -233,14 +233,11 @@ later edit shows where each was used.
 ### 3. Decide length up front
 - **Target 2 pages; accept 3 for senior/Staff; 4 is too long.**
 - **Present only a feasibility-measured target.** Before recommending a
-  page count to the user, run the what-if (measure `--simulate` with the
-  candidate whole-role drops, at the candidate target) and check the
-  projected page count. A real session recommended "2 pages" up front,
-  the user approved, and the simulation THEN showed 4 pages after the
-  approved drops — forcing either a silent re-target (a trust breach)
-  or mid-flight target waffle. The user's approval is only as good as
-  the numbers it is based on; simulate first, present the measured
-  target, then ask.
+  page count to the user, run the what-if (`measure --simulate` with the
+  candidate whole-role drops at the candidate target) and check the
+  projected page count. The user's approval is only as good as the
+  numbers it is based on; simulate first, present the measured target,
+  then ask.
 - **Don't waffle between page targets.** If the LAST page renders under
   50% full, re-target one page lower BEFORE cutting any JD-matched bullet
   (measure emits `TARGET NOTE`). Once chosen, don't revisit the target
@@ -613,10 +610,9 @@ authority, finish the .docx and give the user this command to run themselves.
 The two flags are independent: `--jd-years` is an
 optional advisory; the gate reads only the approval token.
 `--jd-years` is ONLY for a JD that states a number of years. If the
-posting names no years ask, do NOT pass it (and never invent a value "to
-see what happens"): every span comparison is then measured against a
-fabricated ask, producing false *underqualified* verdicts and a false
-load-bearing education warning. `validate_resume.py` warns when
+posting names no years ask, do NOT pass it: every span comparison is then
+measured against a fabricated ask, producing false *underqualified* verdicts
+and a false load-bearing education warning. `validate_resume.py` warns when
 `--jd-years` is passed but the JD text states no "N+ years" ask.
 
 **Verification is TEXT-ONLY — never render pages to images.** This harness
@@ -681,7 +677,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Guessing WHICH bullets to cut from the reclaim gap | Use measure's DROP PLAN with `--jd "<JD>.txt"` + `--protect "<fact>"`; paste its `find_p` lines, or run `squeeze_resume.py` for the residual gap (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
-| Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (stderr note names it). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form and the note noise is zero (Helper library) |
+| Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (`save()` prints one summary line if element-form was used). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form (Helper library) |
 | Iterating Tools-line trims because a trimmed line still wraps | Rare now: TOOLS LINES THAT WRAP reports the MEASURED budget per line ("value is N chars, wraps after ~M — cut ~N-M chars"), so the first trim lands. Trim to the reported budget, not a tool count — the proportional font makes "~8 tools" unreliable (Step 8) |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 5) |

@@ -705,7 +705,6 @@ def _prefix_arg(prefix, api):
         # stderr warnings. save() emits one summary line (see below).
         _ELEMENT_FORM_DROPS += 1
         return text_of(prefix)
-        return derived
     raise TypeError(
         f"{api}() takes a prefix STRING (a copy-pasteable find_p(ps, '…') "
         f"line from the --prefixes dump / DROP PLAN), got "
