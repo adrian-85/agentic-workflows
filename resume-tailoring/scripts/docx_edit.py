@@ -492,14 +492,30 @@ def replace_text(p, old, new):
     For whole-paragraph rewrites use :func:`set_text`; for ``"Label: values"``
     proficiency lines use :func:`set_labeled`.
 
-    No-op with a stderr warning if ``p`` is ``None`` or ``old`` is not found,
-    so a script still runs when the master changed.
+    No-op with a stderr warning if ``p`` is ``None`` (target paragraph not
+    found) or ``old`` is not in the paragraph (the search text is absent from
+    a paragraph that WAS found). The two cases are warned differently — the
+    latter names the paragraph, not the literal search string, so an author
+    who pointed at the wrong paragraph (their real fix is a different
+    `find_p` prefix, not a text change) can see the mismatch.
     """
     if p is None:
         _warn_missing(old)
         return
     if old not in text_of(p):
-        _warn_missing(old)
+        # Paragraph was found, but the search string isn't in it. The most
+        # likely author error is a mismatched `find_p(...)` prefix pointing at
+        # the wrong paragraph — so name the paragraph, not `old`, and record
+        # the skipped edit so strict mode / drift sidecar still surface it.
+        _SKIPS.append(old)
+        print(
+            f"warning: replace_text({old!r}) targeted a paragraph that does "
+            f"not contain that text; paragraph starts:"
+            f" {text_of(p)[:50]!r} — this usually means the find_p prefix "
+            f"resolved to the wrong paragraph; check the prefix, not the "
+            f"text — edit skipped",
+            file=sys.stderr,
+        )
         return
     if not any(
         old in (t.text or "")

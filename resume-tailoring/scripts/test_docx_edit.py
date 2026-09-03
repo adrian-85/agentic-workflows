@@ -154,21 +154,33 @@ class ReplaceTextTests(unittest.TestCase):
                 self.assertEqual(fmt(p), want_fmt)
 
     def test_not_found_warns_and_no_crash(self):
-        """Both missing-text and None-paragraph cases produce a warning
-        and leave state unchanged — grouped here rather than split into
-        two nearly identical methods."""
-        cases = [
-            ("missing text", mkp(("nothing here", False)), "MISSING", "X"),
-            ("None paragraph", None, "x", "y"),
-        ]
-        for name, p, old, new in cases:
-            with self.subTest(name=name):
-                err = io.StringIO()
-                with contextlib.redirect_stderr(err):
-                    de.replace_text(p, old, new)
-                self.assertIn("target paragraph not found", err.getvalue())
-                if p is not None:
-                    self.assertEqual(de.text_of(p), "nothing here")
+        """A None paragraph warns 'target paragraph not found' and leaves
+        state unchanged; a paragraph that WAS found but lacks the search text
+        warns distinctly, naming the paragraph (not the literal) so an author
+        who targeted the wrong paragraph sees that the PREFIX is the problem.
+        """
+        # None paragraph: find_p() couldn't resolve — the prefix is missing.
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            de.replace_text(None, "x", "y")
+        self.assertIn("target paragraph not found", err.getvalue())
+        self.assertIn("x", de._SKIPS)
+
+        # Paragraph found but the search text is absent from it: the fix is a
+        # DIFFERENT find_p prefix, not a text problem. The warning must name
+        # the paragraph, not the literal old string (session case: target-
+        # wrong-bullet edit misreported as a 'paragraph not found').
+        p = mkp(("nothing here", False))
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            de.replace_text(p, "MISSING", "X")
+        self.assertEqual(de.text_of(p), "nothing here")
+        self.assertEqual(de._APPLIED, 0)
+        out = err.getvalue()
+        self.assertNotIn("target paragraph not found", out)
+        self.assertIn("does not contain that text", out)
+        self.assertIn("'nothing here'", out)  # names the real paragraph
+        self.assertIn("MISSING", de._SKIPS)
 
     def test_spanning_occurrence_skips_without_partial_mutation(self):
         # `old` appears in the joined text but NO single run contains it
