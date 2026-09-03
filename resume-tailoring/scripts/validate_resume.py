@@ -27,6 +27,12 @@ Catches the error classes tailoring sessions actually hit:
      (underqualified), and notes a large overage so the agent can offer the
      Step 3 seniority-alignment option (eliminate oldest roles in
      contiguous blocks + reduce years statements) when it is relevant
+   - JD-TITLE ALIGNMENT (`--jd <JD.txt>`): when the resume headline (the
+     title line under the name) is MORE SENIOR than the JD's named title,
+     warns to apply SKILL Step 4 (set the top title to the JD's exact
+     title and level the Summary's echo). Advisory, never blocking: the
+     JD-title extraction and the seniority ladder are heuristics, and a
+     posting may use a generic title for a senior role
    - SENIORITY GATE: when whole roles were eliminated (visible span >= 2
      years shorter than the master), the run is a blocking error unless
      `--seniority-approved` records the user's approval — and the token's
@@ -507,6 +513,9 @@ def main(argv=None):
             return 2
         education_errors, education_notes = _education_gate(
             jd_text, body, span, jd_years, education_approved)
+        # SKILL Step 4 title alignment (advisory, shared with measure): a
+        # headline MORE SENIOR than the JD's title warns — never blocks.
+        claim_notes.append(mr.title_alignment_notes(body, jd_text))
 
     # Claims: numbers vs master.
     master_path = master or _find_master(path)

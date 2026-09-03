@@ -10,7 +10,9 @@ input provided in its own session.
 
 The pattern (see SKILL.md for the full workflow):
 
-1. Rewrite the Summary to lead with the target's core ask.
+1. Align the top title to the JD's title when it is LESS SENIOR than the
+   headline (e.g. a "Software Test Engineer" posting against "Staff
+   Engineer"); then rewrite the Summary to lead with the target's core ask.
 2. Reorder/retrim Technical Proficiencies so JD-relevant tools lead.
 3. Re-anchor the most-recent/senior role intro around ownership and the
    JD's selling points; weave JD-named tools into the role bullet where they
@@ -86,9 +88,25 @@ def main():
     # ------------------------------------------------------------------ #
     set_text(
         find_p(ps, "<prefix of the Summary paragraph>"),
-        "<Summary that leads with the JD's core ask, mirroring its language. "
-        "Keep verbs truthful — see SKILL.md Accuracy section.>",
+        "<Summary that leads with the JD's core ask, mirroring its language, "
+        "at the title's level set in 1a. Keep verbs truthful — see SKILL.md "
+        "Accuracy section.>",
     )
+
+    # ------------------------------------------------------------------ #
+    # 1a. TOP TITLE — the [Title] line under the name is what a screener
+    #     compares against the posting's level. When the JD's title is LESS
+    #     SENIOR than the headline (e.g. "Software Test Engineer" vs "Staff
+    #     Engineer"), set it to the JD's exact title. Same-level retitles to
+    #     the JD's name are also safe; NEVER adopt a more senior title. The
+    #     top title can share its prefix with a recent role's title, so
+    #     anchor on the name line (after=) or nth=. History-block
+    #     (JobTitleBlock) titles always stay the real titles.
+    # ------------------------------------------------------------------ #
+    # set_text(
+    #     find_p(ps, "<top-title prefix>", after=find_p(ps, "<name line>")),
+    #     "<JD's exact title — only when less senior than the headline>",
+    # )
 
     # ------------------------------------------------------------------ #
     # 1b. SENIORITY ALIGNMENT — ONLY when the JD years are BELOW the

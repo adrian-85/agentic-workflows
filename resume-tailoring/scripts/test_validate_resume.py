@@ -360,6 +360,73 @@ class JdYearsTests(unittest.TestCase):
         self.assertIn("aligned", out)
 
 
+class TitleAlignmentValidateTests(unittest.TestCase):
+    """--jd surfaces the SKILL Step 4 title signal at render time: a
+    resume whose headline is MORE SENIOR than the JD's title warns
+    (advisory — never blocks, exit 0); an already-aligned headline is ok.
+    The check is shared with measure_resume (mr.title_alignment_notes)."""
+
+    def _docx(self, path, headline="Staff Engineer"):
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr(
+                "word/document.xml",
+                '<?xml version="1.0"?><w:document xmlns:w="'
+                + de.XMLNS + '"><w:body/></w:document>',
+            )
+            z.writestr("[Content_Types].xml", "<Types/>")
+        root, body, names, data, _ = de.load(path)
+        ps = [
+            mk("Adrian Alan", style=mr.HEADLINE_STYLE),
+            mk(headline, style=mr.HEADLINE_STYLE),
+            mk("Summary", style="SectionHeading"),
+            mk("Results-driven engineer.", style=vr.SUMMARY_STYLE),
+            mk("Career Experience", style="SectionHeading"),
+            mk("Company, City01/2020 – 12/2024", style=mr.COMPANY_STYLE),
+            mk("Staff Engineer", style=vr.TITLE_STYLE),
+            mk("bullet", numId=4),
+        ]
+        for p in ps:
+            body.append(p)
+        with contextlib.redirect_stdout(io.StringIO()):
+            de.save(path, root, names, data)
+
+    def _run(self, path, jd_text):
+        fd, jd = tempfile.mkstemp(suffix=".txt")
+        os.write(fd, jd_text.encode())
+        os.close(fd)
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):
+                rc = vr.main([path, "--jd", jd])
+        finally:
+            os.unlink(jd)
+        return rc, out.getvalue()
+
+    def test_staff_headline_vs_mid_jd_warns_without_blocking(self):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            self._docx(path)
+            rc, out = self._run(path, "Software Test Engineer\n5+ years")
+        finally:
+            os.unlink(path)
+        self.assertEqual(rc, 0)  # advisory, not a gate
+        self.assertIn("MORE SENIOR", out)
+        self.assertIn("Software Test Engineer", out)
+
+    def test_aligned_headline_ok(self):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            self._docx(path, headline="Software Test Engineer")
+            rc, out = self._run(path, "Software Test Engineer\n5+ years")
+        finally:
+            os.unlink(path)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("MORE SENIOR", out)
+        self.assertIn("matches the JD title", out)
+
+
 class RoleIntegrityTests(unittest.TestCase):
     """Whole-role removals must be WHOLE (validated against the master):
     kept roles keep title+bullets; removed roles leave no surviving bullets

@@ -1191,6 +1191,107 @@ class VisibleSpanTests(unittest.TestCase):
         self.assertEqual(mr._visible_span([]), (None, None))
 
 
+class TitleAlignmentTests(unittest.TestCase):
+    """SKILL Step 4: the headline under the name must not read MORE SENIOR
+    than the JD's named title ('Staff Engineer' vs a mid-level posting is
+    the recurring misalignment). Extraction (_jd_title) and the seniority
+    ladder (_title_rank) are best-effort heuristics, so these helpers only
+    ever advise — they never block a render."""
+
+    def _head_body(self, headline="Staff Engineer"):
+        return _body([
+            _para("Adrian Alan", style=mr.HEADLINE_STYLE),
+            _para(headline, style=mr.HEADLINE_STYLE),
+            _para("Results-driven engineer with 15 years of experience",
+                  style="Summary"),
+            _para(mr.SECTION_CAREER, style="SectionHeading"),
+            _para("Company ABC, City" + _sample_date() + " – 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Staff Engineer – Quality Automation", style="JobTitleBlock"),
+            _para("Led test automation", numId=2),
+        ])
+
+    # -- _jd_title extraction -------------------------------------------
+    def test_jd_title_from_first_line(self):
+        self.assertEqual(
+            mr._jd_title("Software Test Engineer\n\nOwn quality end-to-end."),
+            "Software Test Engineer")
+
+    def test_jd_title_from_label_line(self):
+        self.assertEqual(
+            mr._jd_title("Acme Careers\nJob Title: Software Test Engineer\n"
+                         "Own quality end-to-end."),
+            "Software Test Engineer")
+
+    def test_jd_title_strips_bullet_prefix(self):
+        self.assertEqual(
+            mr._jd_title("  * Senior QA Engineer\nblah blah"),
+            "Senior QA Engineer")
+
+    def test_jd_title_none_for_long_first_line(self):
+        # A first line that is a prose sentence (> TITLE_MAX_WORDS) is not
+        # a title — skip the check rather than guess.
+        self.assertIsNone(mr._jd_title(
+            "We are hiring a Software Test Engineer to own quality across "
+            "our SaaS platform. Come join us."))
+
+    def test_jd_title_none_for_empty(self):
+        self.assertIsNone(mr._jd_title(""))
+
+    # -- seniority ladder ------------------------------------------------
+    def test_title_rank_ladder(self):
+        self.assertEqual(mr._title_rank("Staff Engineer"), 3.0)
+        self.assertEqual(mr._title_rank("Principal Engineer"), 4.0)
+        self.assertEqual(mr._title_rank("Senior QA Engineer"), 2.0)
+        self.assertEqual(mr._title_rank("Software Test Engineer"), 1.0)
+        self.assertEqual(mr._title_rank("Engineering Manager"), 3.0)
+        self.assertEqual(mr._title_rank("Team Lead"), 2.5)
+
+    # -- headline-vs-JD signal ------------------------------------------
+    def _notes(self, body, jd):
+        lvl, msg = mr.title_alignment_notes(body, jd)
+        return {lvl: msg}
+
+    def test_headline_more_senior_warns(self):
+        notes = self._notes(self._head_body(),
+                            "Software Test Engineer\n5+ years QE")
+        self.assertIn("warn", notes)
+        self.assertIn("MORE SENIOR", notes["warn"])
+        self.assertIn("Staff Engineer", notes["warn"])
+        self.assertIn("Software Test Engineer", notes["warn"])
+
+    def test_headline_equals_jd_title_ok(self):
+        notes = self._notes(self._head_body("Software Test Engineer"),
+                            "Software Test Engineer\n5+ years QE")
+        self.assertNotIn("warn", notes)
+        self.assertIn("matches the JD title", notes["ok"])
+
+    def test_same_level_different_name_no_warn(self):
+        notes = self._notes(self._head_body(), "Staff SDET\nStaff-level")
+        self.assertNotIn("warn", notes)
+        self.assertIn("SAME level", notes["ok"])
+
+    def test_jd_more_senior_keeps_headline(self):
+        notes = self._notes(self._head_body(),
+                            "Principal Software Engineer\nStaff+ level")
+        self.assertNotIn("warn", notes)
+        self.assertIn("keep the headline", notes["ok"])
+
+    def test_no_headline_skips(self):
+        body = _body([_para("Adrian Alan", style=mr.HEADLINE_STYLE)])
+        notes = self._notes(body, "Software Test Engineer\n5+ years QE")
+        self.assertNotIn("warn", notes)
+        self.assertIn("no headline title found", notes["note"])
+
+    def test_unextractable_jd_title_notes(self):
+        notes = self._notes(
+            self._head_body(),
+            "Acme is hiring a Software Test Engineer in our Payments group "
+            "to own quality end to end across the platform. Apply today.")
+        self.assertNotIn("warn", notes)
+        self.assertIn("not extractable", notes["note"])
+
+
 class JdReportTests(unittest.TestCase):
     """_jd_report describes the --jd ranking. Its fidelity job: print the
     FULL extracted term list (the old 'e.g.' line truncated at 8) so a term

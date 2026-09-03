@@ -16,7 +16,9 @@ Usage::
 ``--jd`` makes the DROP PLAN JD-aware (see JD_CONCEPTS / JD_STOP below):
 candidate-tech terms that the raw JD also asks for — and JD practice
 phrases like mentorship — are excluded from the cut suggestions and listed
-as "JD-matched (kept)", so the plan never fights the JD.
+as "JD-matched (kept)", so the plan never fights the JD. It also compares
+the JD's title against the resume headline and flags a headline that is
+MORE SENIOR (SKILL Step 4 title alignment) — advisory only.
 
 Reads role/bullet structure from the .docx (via docx_edit) and rendered line
 counts from the PDF (via pdftotext). Requires libreoffice + pdftotext.
@@ -64,6 +66,7 @@ SECTION_EDUCATION = "Education"
 SECTION_PROFICIENCIES = "Technical Proficiencies"
 COMPANY_STYLE = "CompanyBlock"
 VOCAB_STYLE = "JobTitleBlock"  # job-title paragraphs feed the --jd vocabulary
+HEADLINE_STYLE = "Title"  # top-of-resume headline: 2nd 'Title' paragraph after the name
 DATE_RE = re.compile(r"\d{1,2}/\d{4}")  # dates on role headers, e.g. 03/2022
 BULLET_STYLES = ("ListBullet",)  # styles whose bullets carry no paragraph numId
 
@@ -741,6 +744,117 @@ def _jd_report(jd_file, jd_text, jd_terms):
     return lines
 
 
+# ---------------------------------------------------------------------- #
+# JD title vs resume headline (SKILL Step 4).                             #
+#                                                                         #
+# The headline under the name is what a screener compares against the     #
+# posting's level first: "Staff Engineer" against a mid-level posting    #
+# reads overqualified. Compare the headline to the JD's named title       #
+# (best-effort) and warn when the headline is MORE SENIOR. ADVISORY:      #
+# extraction and the ladder are heuristics, and a posting may use a       #
+# generic title for a senior role — so never block, just surface.        #
+# ---------------------------------------------------------------------- #
+TITLE_MAX_WORDS = 10  # a longer first line is prose, not a JD title
+TITLE_LABEL_RE = re.compile(
+    r"^\s*(?:job\s+title|position|role|title)\s*[:：]\s*(.+?)\s*$",
+    re.I,
+)
+# Seniority ladder: rank = MAX of the matched keywords (1 = mid/no level).
+TITLE_RANK_PATTERNS = (
+    (re.compile(r"\bprincipal\b", re.I), 4.0),
+    (re.compile(r"\bstaff\b", re.I), 3.0),
+    (re.compile(r"\bmanager\b", re.I), 3.0),
+    (re.compile(r"\blead\b", re.I), 2.5),
+    (re.compile(r"\bsenior\b", re.I), 2.0),
+)
+
+
+def _title_rank(title):
+    """Seniority rank of a title string (1=mid/none .. 4=principal)."""
+    rank = 1.0
+    for rx, r in TITLE_RANK_PATTERNS:
+        if rx.search(title):
+            rank = max(rank, r)
+    return rank
+
+
+def _jd_title(jd_text):
+    """Best-effort extraction of the JD's position title.
+
+    Prefers an explicit 'Job Title:'-style line anywhere in the posting;
+    otherwise uses the first non-empty line (JDs normally open with the
+    title). Returns None when neither is a plausible single-line title
+    (<= TITLE_MAX_WORDS words, no lowercase sentence continuation) — the
+    posting may be a recruiter message or boilerplate, so the check is
+    skipped, never guessed.
+    """
+    lines = [l.strip() for l in jd_text.splitlines() if l.strip()]
+    if not lines:
+        return None
+    for l in lines:
+        m = TITLE_LABEL_RE.match(l)
+        if m:
+            cand = m.group(1).strip().strip('"').strip("'")
+            if cand and len(cand.split()) <= TITLE_MAX_WORDS:
+                return cand
+    cand = re.sub(r"^[\s\-*•\d.)]+", "", lines[0]).strip()
+    if (cand and len(cand.split()) <= TITLE_MAX_WORDS
+            and not re.search(r"[.!?]\s+[a-z]", cand)):
+        return cand
+    return None
+
+
+def _headline_text(body):
+    """The headline under the name: the SECOND 'Title'-style paragraph
+    (HEADLINE_STYLE); the first is the name line. None when the resume has
+    no headline (zero or one Title-style paragraph)."""
+    titles = [p for p in de.paras(body)
+              if de.style_and_numid(p)[0] == HEADLINE_STYLE]
+    if len(titles) < 2:
+        return None
+    return de.text_of(titles[1]).strip()
+
+
+def title_alignment_notes(body, jd_text):
+    """SKILL Step 4 signal: (severity, message) comparing the resume
+    headline against the JD's named title. Severity in warn|ok|note; never
+    blocks: extraction and the ladder are heuristics, and a posting may use
+    a generic title for a senior role (the message says when to keep the
+    headline)."""
+    headline = _headline_text(body)
+    if headline is None:
+        return ("note", "no headline title found (a second "
+                         f"'{HEADLINE_STYLE}'-style paragraph after the "
+                         "name); skipping the JD-title alignment check")
+    jd_title = _jd_title(jd_text)
+    if jd_title is None:
+        return ("note", f"JD title not extractable (first line or a "
+                         f"'Job Title:'-style label, <= {TITLE_MAX_WORDS} "
+                         f"words); resume headline {headline!r} left "
+                         "unchanged — apply SKILL Step 4 by hand if the "
+                         "posting names a less-senior title")
+    if headline.strip().lower() == jd_title.lower():
+        return ("ok", f"resume headline {headline!r} matches the JD title "
+                       "exactly — aligned")
+    j_rank, h_rank = _title_rank(jd_title), _title_rank(headline)
+    if j_rank < h_rank:
+        return ("warn", f"resume headline {headline!r} is MORE SENIOR than "
+                         f"the JD title {jd_title!r} — apply SKILL Step 4: "
+                         "set the top title to the JD's exact title and "
+                         "level the Summary's first-sentence echo. Never "
+                         "adopt a MORE senior JD title. A generic posting "
+                         "title may understate the level (e.g. 'Software "
+                         "Engineer' for a senior role) — keep the headline "
+                         "when the role is genuinely at that level.")
+    if j_rank > h_rank:
+        return ("ok", f"JD title {jd_title!r} is MORE SENIOR than the "
+                       f"headline {headline!r} — keep the headline (never "
+                       "adopt a more senior title; SKILL Step 4)")
+    return ("ok", f"JD title {jd_title!r} is at the SAME level as the "
+                   f"headline {headline!r} — same-level retitle to the "
+                   "JD's exact name is optional per SKILL Step 4")
+
+
 def _jd_hits(text, jd_terms):
     """Sorted list of JD terms present in ``text`` (WHOLE-WORD match,
     lowercase).
@@ -1355,6 +1469,10 @@ def main():
             jd_terms = _jd_terms(jd_text, body)
             for line in _jd_report(jd_file, jd_text, jd_terms):
                 print(line)
+            print("JD TITLE vs HEADLINE:")
+            lvl, msg = title_alignment_notes(body, jd_text)
+            tag = {"warn": "WARNING", "ok": "ok", "note": "note"}[lvl]
+            print(f"  {tag}: {msg}")
 
         pdf = _render_pdf(docx, td)
         pages_text = _pdf_pages_text(pdf)

@@ -32,7 +32,7 @@ subtractive: cut from the oldest roles, never the most recent.
 | 1 | Read inputs (JD, master, LinkedIn) | `read_profile.sh` |
 | 2 | Extract employer selling points | — |
 | 3 | Decide length + seniority alignment | `measure_resume.py` (TIMELINE) |
-| 4 | Rewrite Summary to lead with JD value | `set_text` |
+| 4 | Align top title to JD title (less senior); rewrite Summary to lead with JD value | `set_text` |
 | 5 | No sections between Summary & Proficiencies | — |
 | 6 | Re-anchor senior role (merge, don't append) | `set_text`, `merge_into` |
 | 7 | Expand role adjacent to JD industry/stage | `set_text` |
@@ -345,11 +345,27 @@ compression when the page budget forces it:
    numbers, and hand the user the exact render command — the PDF is deferred,
    not self-approved.
 
-### 4. Rewrite the Summary to lead with JD-aligned value
-The Summary is the first thing read. Rewrite it so its first sentence hits the
-JD's core ask (e.g. "owns quality end-to-end", "builds QA frameworks from
-scratch rather than working within established ones"). Mirror the user's selling
-points explicitly. Keep it to ~4–5 sentences.
+### 4. Align the top title to the JD's, then rewrite the Summary to lead with JD-aligned value
+The name/title line is what a screener compares against the posting's level
+first. **When the JD names a title LESS SENIOR than the headline** (a
+mid-level "Software Test Engineer" posting against "Staff Engineer"), set the
+`[Title]` paragraph under the name to the JD's exact title
+(`set_text(find_p(ps, "<title prefix>"), "<JD title>")`); same-level retitles
+are also safe. **Never adopt a MORE senior title**; if the JD names no title,
+leave the headline unchanged. Only the positioning headline changes —
+history-block `JobTitleBlock` titles stay the real titles. In this resume the
+top title shares its prefix with the most-recent role's title, so anchor it:
+`find_p(ps, "Staff Engineer", after=find_p(ps, "Adrian Alan"))`.
+
+Level the title's echo in the Summary's first sentence so the pair reads
+consistently ("Results-driven Staff engineer…" → "Results-driven Software Test
+Engineer…"). `measure_resume.py --jd` and `validate_resume.py --jd` print a
+`JD TITLE vs HEADLINE` WARNING when the headline is more senior — act on it.
+
+Then rewrite the Summary so its first sentence hits the JD's core ask (e.g.
+"owns quality end-to-end", "builds QA frameworks from scratch rather than
+working within established ones"). Mirror the user's selling points explicitly.
+Keep it to ~4–5 sentences.
 
 ### 5. Don't insert sections between the Summary and Technical Proficiencies
 
@@ -594,8 +610,9 @@ to inspect content placement.
 
 **Final human review (what the tools can't judge).** After the last render,
 re-read the full `--prefixes` dump top-to-bottom once: every kept bullet still
-serves the JD, whole-role removals still read as a coherent timeline, and the
-Summary's claims still match what the reader sees. Years-vs-timeline is
+serves the JD, whole-role removals still read as a coherent timeline, the top
+title's level matches the JD's title (Step 4), and the Summary's claims still
+match what the reader sees. Years-vs-timeline is
 automated (`validate_resume.py`); JD-fit judgment of kept bullets is not — that
 stays human.
 
@@ -649,6 +666,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Iterating Tools-line trims because a trimmed line still wraps | Rare now: TOOLS LINES THAT WRAP reports the MEASURED budget per line ("value is N chars, wraps after ~M — cut ~N-M chars"), so the first trim lands. Trim to the reported budget, not a tool count — the proportional font makes "~8 tools" unreliable (Step 8) |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 5) |
+| Headline still says "Staff" against a less-senior JD title | Rewrite the top title to the JD's title and level its summary echo (Step 4) — the first line is what the screener compares |
 | Appending bullets when content overlaps an existing one | Merge (`merge_into`) — appending blows the page budget (Step 6) |
 | Overwriting the master resume | Write to `<userName> Resume - <Target>.docx` — never the master filename (Step 10) |
 | Keeping Education when the degree isn't evidence for the JD | Evaluate the drop/keep predicates (Step 3.4) — a BA vs an engineering JD is a 3-line drop |
