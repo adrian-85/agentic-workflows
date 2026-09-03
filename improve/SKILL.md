@@ -112,11 +112,12 @@ The chat is the approval mechanism — there is no approval script.
    - Run the workflow's own tests/verification if it has any
 
 7. **Report completion and stop (hard stop #2 — model switch):**
-   - Summarize what was implemented (commits, files changed, test results)
-   - Tell the user: "Phase 2 requires the review model — please switch
-     to `$REVIEW_MODEL`"
+   - Confirm what was implemented (one line: e.g. "6 improvements
+     committed, 245 tests passing")
+   - Tell the user to switch to `$REVIEW_MODEL` and confirm
    - **STOP.** Do not begin Phase 2 until the user confirms they have
-     switched.
+     switched. Do not re-present the approved changes — the user just
+     reviewed them.
 
 ### Phase 2: Quality Review & Implementation  (model: `reviewModel`)
 
@@ -125,11 +126,13 @@ The chat is the approval mechanism — there is no approval script.
 
 2. **Run code simplicity review:**
    - Invoke the code-simplicity-reviewer skill on the Phase 1 changes
-   - Generate simplification suggestions — **do not apply them yet**
+   - Generate simplification suggestions — **do not apply them yet;
+     record only**. All implementation happens AFTER hard stop #3.
 
 3. **Run writing-skills review:**
    - Invoke the writing-skills skill on the Phase 1 changes
-   - Generate skill-structure improvements — **do not apply them yet**
+   - Generate skill-structure improvements — **do not apply them yet;
+     record only**. All implementation happens AFTER hard stop #3.
 
 4. **Combine findings and stop (hard stop #3):**
    - Merge suggestions from both reviews, prioritized by impact,
