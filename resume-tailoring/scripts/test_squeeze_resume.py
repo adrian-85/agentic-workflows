@@ -161,5 +161,37 @@ class NextBatchTests(unittest.TestCase):
         self.assertEqual(batch, [])
 
 
+class FoldbackTests(unittest.TestCase):
+    """_print_foldback: the paste-ready drop() block replaces the old
+    hand-transcription step (a real session hand-copied 7 prefixes from
+    squeeze.json into the tailor script — an unguarded step where one
+    typo'd prefix silently skips). The full bullet text in each comment is
+    what makes the block reviewable before pasting."""
+
+    def test_block_is_paste_ready_with_reviewable_comments(self):
+        import contextlib, io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            sq._print_foldback([
+                ("Create", "Created performance tests using Gatling."),
+                ("Script", "Scripted Groovy-based Jenkins jobs."),
+            ])
+        out = buf.getvalue()
+        self.assertIn("paste into tailor_<target>.py", out)
+        self.assertIn("ps = drop(body, [", out)
+        self.assertIn("'Create',  # Created performance tests using Gatling.", out)
+        self.assertIn("'Script',  # Scripted Groovy-based Jenkins jobs.", out)
+        self.assertIn("])", out)
+
+    def test_no_cuts_prints_guidance_not_a_block(self):
+        import contextlib, io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            sq._print_foldback([])
+        out = buf.getvalue()
+        self.assertIn("No cuts applied", out)
+        self.assertNotIn("drop(body, [", out)
+
+
 if __name__ == "__main__":
     unittest.main()

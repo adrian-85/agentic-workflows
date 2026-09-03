@@ -23,9 +23,11 @@ Safety and reproducibility:
   - A backup of the pre-squeeze .docx is written to ``<docx>.pre-squeeze.docx``
     before any edit.
   - Every applied cut is logged to ``<docx>.squeeze.json`` as copy-pasteable
-    ``find_p(ps, "...")`` prefixes, so the drops can be folded into the
-    tailor_<target>.py script and the final state reproduced from the
-    untouched master (the tailor script remains the diff-able record).
+    ``find_p(ps, "...")`` prefixes (with full bullet texts), AND printed at
+    the end as a ready-to-paste ``drop(body, [...])`` block — paste it into
+    the tailor_<target>.py script so the final state reproduces from the
+    untouched master (the tailor script remains the diff-able record). No
+    hand-transcription: the printed block is the fold.
 
 Requires libreoffice + pdftotext (like measure_resume.py).
 """
@@ -76,6 +78,23 @@ def _next_batch(roles, plan, all_texts, protect=(), jd_terms=()):
     return out
 
 
+def _print_foldback(foldback):
+    """Print the paste-ready ``drop(body, [...])`` block for the tailor
+    script. ``foldback`` is the in-order list of (prefix, full text) pairs
+    that squeeze applied. The full text in the comment is what makes the
+    block reviewable — an author pasting it can see each bullet they are
+    committing to cut, not just opaque prefixes."""
+    if not foldback:
+        print("No cuts applied — nothing to fold back into the tailor script.")
+        return
+    print("Fold-back block — paste into tailor_<target>.py so the script "
+          "reproduces this exact state:")
+    print("ps = drop(body, [")
+    for prefix, text in foldback:
+        print(f"    {prefix!r},  # {text}")
+    print("])")
+
+
 def main():
     argv = [a for a in sys.argv[1:]]
     protect = []
@@ -122,7 +141,8 @@ def main():
 
     log = {"docx": docx, "target_pages": target, "jd_file": jd_file,
            "protect": list(protect), "jd_terms": sorted(jd_terms),
-           "iterations": [], "final_pages": None}
+           "iterations": [], "drop_texts": [], "final_pages": None}
+    foldback = []  # (prefix, full text) of every applied cut, in order
 
     for it in range(1, max_iters + 1):
         root, body, names, data, _ = de.load(docx)
@@ -168,6 +188,7 @@ def main():
             "iteration": it, "pages_before": total, "applied": applied,
             "skipped": skipped, "drops": [p for p, _ in batch],
         })
+        foldback.extend(batch)
         print(f"  dropped {applied} bullet(s):")
         for prefix, text in batch:
             print(f"    find_p(ps, {prefix!r})  # {text[:64]}")
@@ -176,12 +197,12 @@ def main():
                   "pages — raise SQUEEZE_MAX_ITERS or cut a whole role.",
                   file=sys.stderr)
 
+    log["drop_texts"] = [[p, t] for p, t in foldback]
     log_path = docx + ".squeeze.json"
     with open(log_path, "w", encoding="utf-8") as f:
         json.dump(log, f, indent=2)
     print(f"log: {log_path}")
-    print("Fold the logged find_p prefixes into your tailor_<target>.py "
-          "drop() calls so the script reproduces this exact state.")
+    _print_foldback(foldback)
 
 
 if __name__ == "__main__":

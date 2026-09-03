@@ -469,9 +469,10 @@ JD-matched bullet — the list is deterministic; don't evaluate whether a line
 lines over after the planned old-role cuts, the tool automates the remaining
 cut-render-cut loop: each iteration applies the same JD-aware oldest-first
 DROP PLAN, re-measures, and repeats until on target or no JD-safe cuts remain
-(it backs up to `<docx>.pre-squeeze.docx` and logs every cut to
-`<docx>.squeeze.json` as copy-pasteable `find_p` prefixes to fold back into the
-tailor script). It STOPS — never overriding page pressure — when every
+(it backs up to `<docx>.pre-squeeze.docx`, logs every cut to
+`<docx>.squeeze.json`, and prints a ready-to-paste `ps = drop(body, [...])`
+block at the end — no hand-transcription). It STOPS — never overriding page
+pressure — when every
 remaining bullet is JD-matched/protected, signaling a whole-role drop
 (seniority alignment, Step 3) or a Tools-line trim instead:
 
@@ -479,8 +480,9 @@ remaining bullet is JD-matched/protected, signaling a whole-role drop
 python3 scripts/squeeze_resume.py "<Target>.docx" 2 --jd "<JD>.txt"
 ```
 
-Paste the DROP PLAN / squeeze log's `find_p` prefix strings straight into a
-`drop(body, [...])` call (never re-derive them by hand), re-run the tailor
+Paste the printed fold-back block (or the DROP PLAN's `find_p` prefix strings)
+straight into a `drop(body, [...])` call in the tailor script (never re-derive
+them by hand), re-run the tailor
 script, re-measure once to confirm the gap closed,
 then render to verify. This replaces the cut-render-cut guesswork.
 
