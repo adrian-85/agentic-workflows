@@ -94,9 +94,8 @@ reference. The non-obvious rules while authoring:
   prefixes, or silent edits on detached elements). Skipped prefixes are
   named in the warning, not a generic `(remove)`. Takes prefix STRINGS
   (the copy-pasteable `find_p` lines from the `--prefixes` dump / DROP
-  PLAN); a `find_p(...)` element is also accepted — its own text is
-  derived as the prefix with a stderr note (same on `drop_role`/
-  `drop_section`), so a mixed-API script cannot crash on the mismatch.
+  PLAN); a `find_p(...)` element also works (the code derives the prefix
+  and prints a note — same on `drop_role`/`drop_section`).
 - **`drop_role(body, "<company-header prefix>")`**: removes an ENTIRE role —
   company header, title, bullets, Tools line, trailing spacer — stopping
   BEFORE the next company header or section heading. The library
@@ -233,16 +232,12 @@ later edit shows where each was used.
 
 ### 3. Decide length up front
 - **Target 2 pages; accept 3 for senior/Staff; 4 is too long.**
-- **The "accept 3" rule has a settling condition — don't waffle.** After the
-  first build at the agreed target, check the page-fill table: if the LAST
-  page renders under 50% full (measure prints a `TARGET NOTE` for this),
-  re-target one page lower and re-measure BEFORE cutting any JD-matched
-  bullet. A sparse final page reads as unpolished, and cutting JD-matched
-  content to fill it is the trap. The reverse also holds: once the target is
-  chosen, don't revisit it mid-compression unless the TARGET NOTE fires.
-  (Session failure this rule prevents: a 3-page senior build hit "ON target"
-  with a 43% last page; ~8 measure/render cycles went into re-deciding 2 vs 3
-  mid-flight, including re-deriving the same target decision four times.)
+- **Don't waffle between page targets.** If the LAST page renders under
+  50% full, re-target one page lower BEFORE cutting any JD-matched bullet
+  (measure emits `TARGET NOTE`). Once chosen, don't revisit the target
+  mid-compression unless the note fires. (This prevents the 8-cycle
+  waffle a 3-page senior build triggered when a 43% last page went
+  unaddressed.)
 - Length is reclaimed by **compressing the oldest roles**, never the most
   recent. Recruiters weight the most-recent role most; cut from the bottom
   (roles 5+ years back) and keep their 2–3 strongest, quantified bullets.

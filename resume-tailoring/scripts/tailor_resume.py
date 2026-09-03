@@ -159,12 +159,9 @@ def main():
     #    (GitHub, HIPAA).
     # ------------------------------------------------------------------ #
     trims = [
-        # Each entry's prefix is the TOOLS LINE'S OWN unique text start
-        # (e.g. "Tools & Technologies: MVC,"), NOT the company-header
-        # prefix — find_p matches paragraph text, and the header is a
-        # different paragraph. The --prefixes dump shows each Tools line's
-        # text; its first ~25 chars are unique once the other roles'
-        # tools lines differ.
+        # Each prefix is the TOOLS LINE's own text start (not the company
+        # header — see the --prefixes dump for each line's text). Trim to
+        # the measured wrap budget (TOOLS LINES THAT WRAP in measure output).
         ("<Tools-line's own unique text start, e.g. 'Tools & Technologies: MVC,'>",
          "Tools & Technologies: ",
          "<tools trimmed to the measured wrap budget, one line>"),

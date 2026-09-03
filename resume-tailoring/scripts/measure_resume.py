@@ -1156,7 +1156,7 @@ def _layout_hints(matched, pages_text, capacity):
 
 
 def _sparse_last_page_note(total_pages, target, fills, capacity,
-                           overflow_lines):
+                           overflow_lines=0):
     """Signal to reconsider the page target when the last page is sparse.
 
     The failure mode (a real session): a senior/Staff resume was built to
