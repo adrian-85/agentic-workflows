@@ -1,6 +1,6 @@
 ---
 name: improve
-description: "Use when you want to improve an existing workflow based on actual usage. Analyzes the current session for improvement indicators, implements changes in an isolated worktree, runs quality reviews, and merges approved improvements."
+description: "Use when you want to improve an existing workflow based on how a session actually used it, or when a workflow kept needing clarification, workarounds, or repeated manual steps."
 ---
 
 # Workflow Improvement
@@ -63,7 +63,7 @@ The chat is the approval mechanism — there is no approval script.
 
 ## Prerequisites
 
-- `jq` installed for JSON parsing (python3 fallback exists in load-config.sh)
+- `jq` installed for JSON parsing (required — checkpoint.sh has no fallback)
 - Git 2.5+ for worktree support
 
 ## Workflow Phases
@@ -329,11 +329,8 @@ scripts/checkpoint.sh reset       # clear all state (new run)
 
 State file: `/tmp/improve-workflow-checkpoint.json`.
 
-### Approval mechanism
-There is no approval script and no proposal files. Findings are
-presented directly in chat; the chat is the gate: end your turn and
-wait for the user's reply. The checkpoint script enforces the sequence:
-a phase cannot begin until its prerequisite gate has been passed.
+The checkpoint script makes the hard stops enforceable: a phase cannot
+begin until its prerequisite gate has been passed.
 
 ## Tips
 
