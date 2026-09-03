@@ -516,18 +516,46 @@ class DropTests(unittest.TestCase):
         self.assertNotIn("matches multiple", err.getvalue())
         self.assertEqual([de.text_of(p) for p in ps], ["Unrelated bullet"])
 
-    def test_element_argument_fails_fast_with_typeerror(self):
-        # THE motivating failure (a Principal-level tailoring session): the
-        # author passed find_p(ps, ...) results — paragraph elements —
-        # into drop(), which takes prefix STRINGS. Unguarded, this crashed
-        # deep inside find_p with a raw AttributeError ("'Element' object
-        # has no attribute 'translate'"), costing a debug cycle to trace
-        # the failure back to the call site. The guard fails fast at the
-        # drop() boundary with a message naming the fix.
+    def test_element_argument_converts_to_its_own_text(self):
+        # THE motivating failure (a real tailoring session): set_text/
+        # set_labeled/merge_into take find_p(...) ELEMENTS while drop()
+        # documented prefix STRINGS, so a mixed-API script crashed with a
+        # TypeError on its first strict run and cost a fix-and-rerun cycle.
+        # A paragraph element's own text IS the prefix, so it is converted
+        # (with a stderr note) instead of raising.
         element = de.find_p(de.paras(self.body), "Unrelated bullet")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            ps = de.drop(self.body, [element])
+        self.assertIn("derived its prefix", err.getvalue())
+        self.assertEqual([de.text_of(p) for p in ps],
+                         ["Established a comprehensive test automation approach",
+                          "Established bi-monthly interdepartmental QA meetings"])
+        self.assertEqual(de._APPLIED, 1)
+
+    def test_stale_element_records_skip_under_its_text(self):
+        # An element held from BEFORE an earlier drop() removed its
+        # paragraph must not mutate anything: the derived prefix is
+        # re-resolved against a fresh paras(body), finds nothing, and the
+        # skip is named by the (stale) paragraph's own text.
+        stale = de.find_p(de.paras(self.body), "Unrelated bullet")
+        de.drop(self.body, ["Unrelated bullet"])
+        de._APPLIED = 0  # only the stale-element call below is under test
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            ps = de.drop(self.body, [stale])
+        self.assertIn("Unrelated bullet", err.getvalue())
+        self.assertEqual([de.text_of(p) for p in ps],
+                         ["Established a comprehensive test automation approach",
+                          "Established bi-monthly interdepartmental QA meetings"])
+        self.assertEqual(de._APPLIED, 0)
+
+    def test_junk_argument_still_fails_fast(self):
+        # Element conversion covers the documented authoring slip; a junk
+        # type is a different bug and keeps the fail-fast contract.
         with self.assertRaises(TypeError) as ctx:
-            de.drop(self.body, [element])
-        self.assertIn("prefix STRINGS", str(ctx.exception))
+            de.drop(self.body, [42])
+        self.assertIn("prefix STRING", str(ctx.exception))
         self.assertEqual(de._APPLIED, 0)
         self.assertEqual(len(list(self.body.iter(W + "p"))), 3)
 
@@ -684,19 +712,21 @@ class DropRoleTests(unittest.TestCase):
         finally:
             de._ORIG.clear()
 
-    def test_element_argument_fails_fast_with_typeerror(self):
-        # Same failure mode as DropTests:
-        # drop_role/drop_section take a company/section prefix STRING;
-        # passing a find_p result must fail fast with a named fix, not a
-        # raw AttributeError inside find_p.
+    def test_element_argument_converts_to_its_own_text(self):
+        # Same mixed-API slip as DropTests: drop_role accepts a find_p
+        # element and derives the company-header prefix from its text. The
+        # whole Initech role (header through trailing spacer) goes; the
+        # Education heading that bounds the block survives.
         element = de.find_p(de.paras(self.body), "Initech, Metropolis")
-        with self.assertRaises(TypeError) as ctx:
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
             de.drop_role(self.body, element)
-        self.assertIn("drop_role", str(ctx.exception))
-        self.assertIn("prefix STRING", str(ctx.exception))
-        self.assertEqual(de._APPLIED, 0)
-        # Nothing removed: all 19 setUp paragraphs still present.
-        self.assertEqual(len(list(self.body.iter(W + "p"))), 19)
+        self.assertIn("derived its prefix", err.getvalue())
+        texts = [de.text_of(p) for p in de.paras(self.body)]
+        self.assertNotIn("Initech, Metropolis01/2017 - 06/2018", texts)
+        self.assertNotIn("Primary test engineer for the flagship project", texts)
+        self.assertIn("Education", texts)
+        self.assertEqual(de._APPLIED, 5)
 
 
 class DropSectionTests(unittest.TestCase):

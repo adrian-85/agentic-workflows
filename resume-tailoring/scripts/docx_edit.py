@@ -639,15 +639,14 @@ def drop(body, prefixes):
     Returns the refreshed paragraph list; assign it back::
 
         ps = drop(body, ["prefix one", "prefix two"])
+
+    Each entry is the prefix STRING; a ``find_p(ps, …)`` paragraph element is
+    also accepted (its own text is derived as the prefix — see
+    :func:`_prefix_arg`), so a script that mixes element-taking and
+    string-taking APIs cannot crash on the mismatch.
     """
     for prefix in prefixes:
-        if not isinstance(prefix, str):
-            raise TypeError(
-                "drop() takes prefix STRINGS (copy-pasteable find_p(ps, '…') "
-                "lines from the --prefixes dump / DROP PLAN), not paragraph "
-                "elements. Got "
-                f"{type(prefix).__name__}; pass the prefix text itself."
-            )
+        prefix = _prefix_arg(prefix, "drop")
         p = find_p(paras(body), prefix)
         if p is None:
             # find_p already warned (missing or ambiguous, record=False);
@@ -670,19 +669,41 @@ _BLOCK_BOUNDARY_STYLES = ("CompanyBlock", "SectionHeading",
 
 
 def _prefix_arg(prefix, api):
-    """Guard the whole-role/section removers: they take a prefix STRING.
+    """Normalize the prefix argument of drop()/drop_role()/drop_section().
 
-    A common authoring slip (seen in a real tailoring session) is passing the
-    result of ``find_p(...)`` — an lxml/ElementTree element — where the prefix
-    text belongs. Fail immediately with a message naming the fix instead of a
-    raw ``AttributeError`` deep inside ``find_p``."""
-    if not isinstance(prefix, str):
-        raise TypeError(
-            f"{api}() takes a prefix STRING (a copy-pasteable find_p line "
-            f"from the --prefixes dump), not a paragraph element; got "
-            f"{type(prefix).__name__}. Pass the prefix text itself."
+    The documented form is the prefix STRING — copy-pasteable from the
+    --prefixes dump / DROP PLAN. A find_p(...) paragraph ELEMENT is also
+    accepted: its own text IS the prefix, so deriving it (instead of
+    raising) spares the author the crash-and-retype cycle that a mixed-API
+    script invites — set_text/set_labeled/merge_into take elements, and a
+    script that edits both ways will eventually pass one to drop(). A
+    stderr note names the derived prefix so the string convention stays
+    visible. Any other type still fails fast: an int/None here is an
+    authoring bug, not a conversion case.
+
+    Deriving is safe for STALE elements too: the derived prefix resolves
+    through find_p against a FRESH paras(body), so an already-removed
+    paragraph's element records a skip named by its own text instead of
+    mutating some other paragraph.
+    """
+    if isinstance(prefix, str):
+        return prefix
+    tag = getattr(prefix, "tag", None)
+    if isinstance(tag, str):
+        derived = text_of(prefix)
+        print(
+            f"note: {api}() derived its prefix from the paragraph element "
+            f"passed instead of the prefix string; derived "
+            f"{derived[:50]!r} — elements work, but the copy-pasteable "
+            f"prefix string is the documented form",
+            file=sys.stderr,
         )
-    return prefix
+        return derived
+    raise TypeError(
+        f"{api}() takes a prefix STRING (a copy-pasteable find_p(ps, '…') "
+        f"line from the --prefixes dump / DROP PLAN), got "
+        f"{type(prefix).__name__}."
+    )
 
 
 def _block(body, prefix, anchor_style, boundary_styles):
@@ -731,9 +752,10 @@ def drop_role(body, company_prefix, company_style=ROLE_STYLE,
     (the block is contiguous from the role's OWN header).
 
     For a resume whose style names differ, pass ``company_style`` and
-    ``boundary_styles`` explicitly. Returns the refreshed paragraph list;
-    a missing/ambiguous/wrong-style prefix records a skip
-    (``drop_role: <prefix>``) and mutates nothing."""
+    ``boundary_styles`` explicitly. The prefix is the company header's
+    STRING; a ``find_p`` element is accepted (see :func:`_prefix_arg`).
+    Returns the refreshed paragraph list; a missing/ambiguous/wrong-style
+    prefix records a skip (``drop_role: <prefix>``) and mutates nothing."""
     block = _block(body, _prefix_arg(company_prefix, "drop_role"),
                    company_style, boundary_styles)
     if block is None:
@@ -750,9 +772,11 @@ def drop_section(body, heading_prefix, heading_style=SECTION_STYLE,
     ``heading_prefix`` through every paragraph up to (excluding) the next
     section heading — e.g. dropping Education when the JD gives the degree
     no evidentiary weight (SKILL Step 3.4). The boundary heading is excluded
-    for the same reason as :func:`drop_role`'s. Returns the refreshed
-    paragraph list; a missing/ambiguous/wrong-style prefix records a skip
-    (named ``drop_section: <prefix>``) and mutates nothing."""
+    for the same reason as :func:`drop_role`'s. The prefix is the section
+    heading's STRING; a ``find_p`` element is accepted (see
+    :func:`_prefix_arg`). Returns the refreshed paragraph list; a
+    missing/ambiguous/wrong-style prefix records a skip (named
+    ``drop_section: <prefix>``) and mutates nothing."""
     block = _block(body, _prefix_arg(heading_prefix, "drop_section"),
                    heading_style, boundary_styles)
     if block is None:
