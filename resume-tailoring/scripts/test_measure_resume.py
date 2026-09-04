@@ -1159,34 +1159,34 @@ class ApplySimulateTests(unittest.TestCase):
 class RoleJdEvidenceTests(unittest.TestCase):
     """_role_jd_evidence_lines: --simulate must surface the JD evidence a
     whole-role drop would lose, so the trade-off is visible before approval
-    (a real session dropped the strongest FDA role for an FDA-heavy JD)."""
+    (a real session dropped the strongest-evidence role for a JD that named
+    that evidence). Generic data throughout: these tests verify the
+    function's behavior, not any particular person's resume."""
 
     ROLES = [
-        {"raw": "Illumina, San Diego, CA02/2012 – 10/2014",
+        {"raw": "OldCorp, Springfield01/2010 – 12/2011",
          "bullet_texts": [
-             "Served as tester for one of company's initial FDA approved "
-             "products.",
-             "Developed test protocols and traceability matrices for "
-             "regulated projects.",
-             "Wrote internal tooling dashboards for the lab.",
+             "Tested one of the company's first FDA cleared products.",
+             "Built traceability matrices for regulated projects.",
+             "Maintained internal lab dashboards.",
          ]},
-        {"raw": "Trove, San Francisco, CA (Remote)05/2020 – 02/2021",
+        {"raw": "RecentCo, Austin, TX (Remote)05/2020 – 02/2021",
          "bullet_texts": ["Built CI pipelines.", "Cut release time."]},
     ]
 
     def test_jd_evidence_loss_warned(self):
         lines = mr._role_jd_evidence_lines(
-            self.ROLES, "Illumina, San Diego, CA02/2012 – 10/2014",
+            self.ROLES, "OldCorp, Springfield01/2010 – 12/2011",
             {"fda", "traceability"})
         self.assertTrue(
             any("JD EVIDENCE LOST" in l and "2 JD-matched" in l
                 for l in lines),
             f"expected evidence-loss warning, got: {lines}")
-        self.assertTrue(any("FDA approved" in l for l in lines))
+        self.assertTrue(any("FDA cleared" in l for l in lines))
 
     def test_clean_drop_candidate_noted(self):
         lines = mr._role_jd_evidence_lines(
-            self.ROLES, "Trove, San Francisco, CA (Remote)05/2020 – 02/2021",
+            self.ROLES, "RecentCo, Austin, TX (Remote)05/2020 – 02/2021",
             {"fda"})
         self.assertEqual(len(lines), 1)
         self.assertIn("clean drop candidate", lines[0])
@@ -1196,8 +1196,8 @@ class RoleJdEvidenceTests(unittest.TestCase):
             mr._role_jd_evidence_lines(self.ROLES, "No Such", {"fda"}), [])
         self.assertEqual(
             mr._role_jd_evidence_lines(
-                self.ROLES, "Trove, San Francisco, CA (Remote)05/2020 – "
-                "02/2021", set()), [])
+                self.ROLES,
+                "RecentCo, Austin, TX (Remote)05/2020 – 02/2021", set()), [])
 
 
 class GapIfDroppedTests(unittest.TestCase):

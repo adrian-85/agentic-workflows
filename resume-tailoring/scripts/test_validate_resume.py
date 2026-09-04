@@ -315,13 +315,15 @@ class PunctuationTests(unittest.TestCase):
 
 class TextIntegrityTests(unittest.TestCase):
     """_text_integrity_errors: mangling artifacts in generated prose —
-    unexpected non-ASCII (CJK/Cyrillic), doubled punctuation, doubled words."""
+    unexpected non-ASCII (CJK/Cyrillic), doubled punctuation, doubled words.
+    Generic data throughout: these tests verify the artifact classes, not
+    any particular person's resume."""
 
     def test_clean_prose_passes(self):
         region = [
             mk("Acme, MA (Remote)06/2021 – 05/2026", style=mr.COMPANY_STYLE),
             mk("Staff Engineer – Test Automation", style=vr.TITLE_STYLE),
-            mk("Sole quality resource for the payments platform team.",
+            mk("Sole quality resource for the core platform team.",
                numId=4),
             mk("Tools & Technologies: Go, Python, Jenkins"),
         ]
@@ -332,16 +334,15 @@ class TextIntegrityTests(unittest.TestCase):
         self.assertEqual(vr._text_integrity_errors([], s), [])
 
     def test_cjk_mangling_flagged(self):
-        # The real failure: a mangled CJK char replaced " and " in a bullet.
-        p = mk("Department leader\u4e00a leader across the org for AI "
-               "adoption.")
+        # The failure class: a mangled CJK char replacing " and " mid-bullet.
+        p = mk("Owned quality\u4e00and release across the org.")
         errs = vr._text_integrity_errors([], p)
         self.assertTrue(
             any("non-ASCII" in e and "U+4E00" in e for e in errs),
             f"expected non-ASCII error, got: {errs}")
 
     def test_cyrillic_mangling_flagged(self):
-        p = mk("Results driven engineer with мій years of experience.")
+        p = mk("Engineer with мій years of experience.")
         errs = vr._text_integrity_errors([], p)
         self.assertTrue(any("non-ASCII" in e for e in errs),
                         f"expected non-ASCII error, got: {errs}")
