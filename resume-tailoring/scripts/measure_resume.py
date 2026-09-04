@@ -38,6 +38,8 @@ BEFORE the compression cuts, to plan them. Re-run render_pdf.sh after cutting
 to verify.
 """
 
+import contextlib
+import io
 import math
 import os
 import re
@@ -1100,7 +1102,16 @@ def _apply_simulate(docx_path, drop_prefixes, out_path):
         de.drop_role(body, prefix)
         if len(de.paras(body)) < before:
             dropped.append(header)
-    de.save(out_path, root, names, data, drift_key="simulate-temp")
+    # docx_edit.save's "applied N edits" line describes the temp copy —
+    # printed unqualified it reads like the user's file was mutated, so
+    # capture and relabel it.
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        de.save(out_path, root, names, data, drift_key="simulate-temp")
+    m = re.search(r"applied (\d+) edits", buf.getvalue())
+    if m:
+        print(f"simulated {m.group(1)} drop edit(s) — applied to the temp "
+              f"copy only")
     return out_path, dropped
 
 
