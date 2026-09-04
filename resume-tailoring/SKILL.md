@@ -238,7 +238,13 @@ list rather than a JD, those skills/tools ARE the selling points** — every
 later edit shows where each was used.
 
 ### 3. Decide length up front
-- **Target 2 pages; accept 3 for senior/Staff; 4 is too long.**
+- **Target 2 pages; accept 3 for senior/Staff; 4 is too long.** "Senior"
+  is mechanical, not a judgment call: the JD's stated title is
+  Senior/Staff/Principal, OR the candidate's visible background is
+  Staff-level — EITHER condition targets 3. A JD asking "7-10 years" (a
+  range starting at 7) is itself a seniority signal favoring 3. A session
+  leaned 2 pages for a Senior-titled JD against a Staff background and the
+  user had to correct it to 3.
 - **Present only a feasibility-measured target.** Before recommending a
   page count to the user, run the what-if (`measure --simulate` with the
   candidate whole-role drops at the candidate target) and check the
@@ -348,9 +354,17 @@ compression when the page budget forces it:
    This is distinct from Step 3's keep-under-substitution-clause rule: that
    rule is about making a *shorter experience timeline* defensible; this one is
    about whether the degree is evidence at all for THIS JD.
-5. **Raise it to the user before acting.** Dropping whole roles changes the
-   narrative materially. Present the choice with the numbers (JD asks N+,
-   candidate has Y, propose showing ~Z contiguous years), get a yes/no.
+5. **Raise it to the user before acting — the DROP LIST, not just the span,
+   as ONE question, before authoring the tailor script.** Whole-role
+   elimination changes the narrative materially; a plan the user corrects
+   piecemeal mid-build ("target 3 pages", then "keep Rakuten") costs a
+   re-simulation and a re-plan of every downstream cut. Present in ONE
+   message: the measured target page count, each proposed whole-role drop
+   BY NAME with its years, and the resulting visible span — then wait for
+   the reply before writing the tailor script. Steering replies (a page
+   target, "keep X") are NOT seniority approval. Present the choice with
+   the numbers (JD asks N+, candidate has Y, propose showing ~Z contiguous
+   years), get a yes/no.
    **Enforced, not a habit:** `validate_resume.py` detects whole-role elimination
    (visible span ≥2 years shorter than the master) and `render_pdf.sh` blocks the
    PDF until the approval is recorded with `--seniority-approved` (Step 11) — you
@@ -381,6 +395,9 @@ vs "Staff Engineer – Quality Automation & Engineering Enablement"), so
 this paragraph in document order", not "the next paragraph", and both
 candidates sit after the name line. Anchor by occurrence instead:
 `find_p(ps, "Staff Engineer", nth=1)` — the headline is the FIRST match.
+The `--prefixes` dump marks it for you (`# HEADLINE (positioning title,
+not the name)`) — the name line shares the Title style, so the mark, not
+the index, tells you which Title is the headline.
 
 Level the title's echo in the Summary's first sentence so the pair reads
 consistently ("Results-driven Staff engineer…" → "Results-driven Software Test
@@ -506,6 +523,16 @@ cutting JD-matched content — measure flags these at the top
 the TOP-BLOCK candidates, a Tools-line trim, or a whole-role drop — NOT
 slicing kept bullets to fill the gap.
 
+**"No unprotected bullet to give" is not "no bullet to cut."** JD-matching
+has false positives on generic terms ("new", "build", "control" match
+almost any bullet). When the most-recent role is fully protected and the
+gap is still open, measure lists the TOP-ROLE PROTECTED BULLETS with the
+matched term next to each. A match on a generic term is weak evidence:
+the human rule below (keep quantified/framework-ownership bullets, drop
+generic process bullets) extends to OVERRIDING protection, with the
+printed terms as the evidence — that is the sanctioned top-role trim, not
+hand-picking.
+
 **Also check the TOP-BLOCK RECLAIM CANDIDATES** in the same measure output:
 every Technical Proficiencies or Certifications line with no JD evidence, as a
 copy-pasteable `find_p` cut (~1 line each). Cut those before touching any
@@ -515,23 +542,31 @@ JD-matched bullet — the list is deterministic; don't evaluate whether a line
 **Residual gap: run `squeeze_resume.py`, don't trim by hand.** When only a few
 lines over after the planned old-role cuts, the tool automates the remaining
 cut-render-cut loop: each iteration applies the same JD-aware oldest-first
-DROP PLAN, re-measures, and repeats until on target or no JD-safe cuts remain
-(it backs up to `<docx>.pre-squeeze.docx`, logs every cut to
-`<docx>.squeeze.json`, and prints a ready-to-paste `ps = drop(body, [...])`
-block at the end — no hand-transcription). It STOPS — never overriding page
+DROP PLAN, re-measures, and repeats until on target or no JD-safe cuts remain.
+It STOPS — never overriding page
 pressure — when every
 remaining bullet is JD-matched/protected, signaling a whole-role drop
-(seniority alignment, Step 3) or a Tools-line trim instead:
+(seniority alignment, Step 3) or a Tools-line trim instead.
+
+**Harvest the plan with `--plan-only` BEFORE the tailor script's first run.**
+Apply mode rewrites the .docx directly — running it on the tailored output
+leaves the script unable to reproduce the state, and folding the cuts back
+in by hand costs a repair cycle. `--plan-only` runs the identical loop
+against a throwaway in-memory copy and prints the same fold-back block
+WITHOUT touching the .docx (no backup, no log, no edit):
 
 ```bash
-python3 scripts/squeeze_resume.py "<Target>.docx" 2 --jd "<JD>.txt"
+python3 scripts/squeeze_resume.py "<Target>.docx" 3 --jd "<JD>.txt" --plan-only
 ```
+
+(Without `--plan-only`, it backs up to `<docx>.pre-squeeze.docx` and logs
+every cut to `<docx>.squeeze.json`; reserve apply mode for a doc you will
+NOT regenerate from the tailor script.)
 
 Paste the printed fold-back block (or the DROP PLAN's `find_p` prefix strings)
 straight into a `drop(body, [...])` call in the tailor script (never re-derive
-them by hand), re-run the tailor
-script, re-measure once to confirm the gap closed,
-then render to verify. This replaces the cut-render-cut guesswork.
+them by hand), re-run the tailor script, re-measure once to confirm the gap
+closed, then render to verify. This replaces the cut-render-cut guesswork.
 
 **Human rule still applies on top:** keep (or protect) the 2–3 bullets with hard
 numbers or framework-ownership signal; drop generic process bullets
@@ -695,6 +730,8 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Verifying the PDF by rendering pages to images | Never works — this harness reads no images. Use `render_pdf.sh --verbose` (page map, last-page tail), `measure_resume.py`'s page-fill table, and `pdftotext` |
 | Chasing a skip warning as a library bug | Re-dump `--prefixes` on the master FIRST — it may have been edited since your dump (the `MASTER CHANGED:` sidecar warning fires on this); a prefix can also match a paragraph an earlier `drop` already removed if you thread a stale `ps` list — use `ps = drop(body, [...])` |
 | Guessing WHICH bullets to cut from the reclaim gap | Use measure's DROP PLAN with `--jd "<JD>.txt"` + `--protect "<fact>"`; paste its `find_p` lines, or run `squeeze_resume.py` for the residual gap (Step 8) |
+| Reading "no unprotected bullet to give" as a dead end while the most-recent role carries off-JD content | JD-matching false-positives on generic terms — read the TOP-ROLE PROTECTED BULLETS list (matched term per bullet) and override weak matches deliberately; that is the sanctioned top-role trim, not hand-picking (Step 8) |
+| Running squeeze in apply mode on the tailored .docx and then folding cuts back into the script by hand | Harvest with `--plan-only` BEFORE the script's first run — same loop, same fold-back block, file untouched (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
 | Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (`save()` prints one summary line if element-form was used). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form (Helper library) |
