@@ -1059,6 +1059,49 @@ class TopBlockCandidatesTests(unittest.TestCase):
         self.assertFalse(any(t == "Bullet one" for t in texts))
 
 
+def _docx_with_roles():
+    fd, path = tempfile.mkstemp(suffix=".docx")
+    os.close(fd)
+
+    def p(text, style=None, numid=None):
+        pPr = ""
+        if style or numid:
+            inner = ""
+            if style:
+                inner += f'<w:pStyle w:val="{style}"/>'
+            if numid:
+                inner += (f'<w:numPr><w:numId w:val="{numid}"/></w:numPr>')
+            pPr = f'<w:pPr>{inner}</w:pPr>'
+        return (f'<w:p>{pPr}<w:r><w:t xml:space="preserve">'
+                f'{text}</w:t></w:r></w:p>')
+
+    paras = [
+        p(mr.SECTION_CAREER, style="SectionHeading"),
+        p("Acme Corp, Springfield03/2022 – 02/2023", style=mr.COMPANY_STYLE),
+        p("Staff Engineer", style="JobTitleBlock"),
+        p("Led QA", style="BodyText", numid=4),
+        p("Tools &amp; Technologies: Go", style="BodyText"),
+        p("", style="BodyText"),
+        p("Initech, Metropolis01/2017 – 06/2018", style=mr.COMPANY_STYLE),
+        p("Software Test Engineer I", style="JobTitleBlock"),
+        p("Tested data pipelines", style="BodyText", numid=8),
+        p("Tools &amp; Technologies: MS Test", style="BodyText"),
+        p("", style="BodyText"),
+        p(mr.SECTION_EDUCATION, style="SectionHeading"),
+        p("Some College", style=mr.COMPANY_STYLE),
+        p("Bachelor's Degree", style="JobTitleBlock"),
+    ]
+    doc = (
+        '<?xml version="1.0"?>'
+        '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
+        + "".join(paras) + '</w:body></w:document>'
+    )
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("word/document.xml", doc)
+        z.writestr("[Content_Types].xml", "<Types/>")
+    return path
+
+
 class ApplySimulateTests(unittest.TestCase):
     """_apply_simulate: seniority-alignment what-if — drop whole roles in a
     TEMP COPY and measure that, so the resulting visible timeline span is
@@ -1066,49 +1109,10 @@ class ApplySimulateTests(unittest.TestCase):
     never be modified."""
 
     def _docx_with_roles(self):
-        fd, path = tempfile.mkstemp(suffix=".docx")
-        os.close(fd)
-
-        def p(text, style=None, numid=None):
-            pPr = ""
-            if style or numid:
-                inner = ""
-                if style:
-                    inner += f'<w:pStyle w:val="{style}"/>'
-                if numid:
-                    inner += (f'<w:numPr><w:numId w:val="{numid}"/></w:numPr>')
-                pPr = f'<w:pPr>{inner}</w:pPr>'
-            return (f'<w:p>{pPr}<w:r><w:t xml:space="preserve">'
-                    f'{text}</w:t></w:r></w:p>')
-
-        paras = [
-            p(mr.SECTION_CAREER, style="SectionHeading"),
-            p("Acme Corp, Springfield03/2022 – 02/2023", style=mr.COMPANY_STYLE),
-            p("Staff Engineer", style="JobTitleBlock"),
-            p("Led QA", style="BodyText", numid=4),
-            p("Tools &amp; Technologies: Go", style="BodyText"),
-            p("", style="BodyText"),
-            p("Initech, Metropolis01/2017 – 06/2018", style=mr.COMPANY_STYLE),
-            p("Software Test Engineer I", style="JobTitleBlock"),
-            p("Tested data pipelines", style="BodyText", numid=8),
-            p("Tools &amp; Technologies: MS Test", style="BodyText"),
-            p("", style="BodyText"),
-            p(mr.SECTION_EDUCATION, style="SectionHeading"),
-            p("Some College", style=mr.COMPANY_STYLE),
-            p("Bachelor's Degree", style="JobTitleBlock"),
-        ]
-        doc = (
-            '<?xml version="1.0"?>'
-            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
-            + "".join(paras) + '</w:body></w:document>'
-        )
-        with zipfile.ZipFile(path, "w") as z:
-            z.writestr("word/document.xml", doc)
-            z.writestr("[Content_Types].xml", "<Types/>")
-        return path
+        return _docx_with_roles()
 
     def test_drops_role_in_copy_original_untouched(self):
-        src = self._docx_with_roles()
+        src = _docx_with_roles()
         try:
             with open(src, "rb") as f:
                 before = f.read()
@@ -1138,7 +1142,7 @@ class ApplySimulateTests(unittest.TestCase):
             os.unlink(src)
 
     def test_missing_prefix_reported_not_dropped(self):
-        src = self._docx_with_roles()
+        src = _docx_with_roles()
         try:
             out = tempfile.mktemp(suffix=".docx")
             try:
@@ -1198,6 +1202,46 @@ class RoleJdEvidenceTests(unittest.TestCase):
             mr._role_jd_evidence_lines(
                 self.ROLES,
                 "RecentCo, Austin, TX (Remote)05/2020 – 02/2021", set()), [])
+
+
+class ResolvedJdTermsTests(unittest.TestCase):
+    """_resolved_jd_terms: --jd must stay JD-aware WITHOUT --simulate.
+
+    Regression: main computed jd_terms only inside the --simulate block,
+    so a plain `measure --jd` silently fell back to the JD-blind DROP
+    PLAN (the "falling back to the JD-blind ranking" message looked like
+    a file problem, not a tool bug). A real session misdiagnosed it as an
+    extractor limitation and burned several tool calls debugging the
+    wrong layer; the next session re-hit it."""
+
+    def _body(self):
+        path = _docx_with_roles()
+        try:
+            _root, body, _names, _data, _ = de.load(path)
+            return body
+        finally:
+            os.unlink(path)
+
+    def test_without_simulate_terms_computed_from_body(self):
+        # "Software Test Engineer I" is JobTitleBlock vocab; a JD naming
+        # it must yield that term even with no --simulate passed.
+        terms = mr._resolved_jd_terms(
+            "Senior software role; testing required.", self._body(),
+            False, None)
+        self.assertIn("software", terms)
+
+    def test_with_simulate_uses_pre_drop_terms(self):
+        # The simulate block pre-computes terms from the PRE-DROP body;
+        # the helper passes them through untouched.
+        self.assertEqual(
+            mr._resolved_jd_terms(None, None, True, {"python"}), {"python"})
+
+    def test_with_simulate_and_no_jd_yields_empty(self):
+        self.assertEqual(mr._resolved_jd_terms(None, None, True, None), set())
+
+    def test_no_jd_text_yields_empty_without_simulate(self):
+        self.assertEqual(
+            mr._resolved_jd_terms(None, self._body(), False, None), set())
 
 
 class GapIfDroppedTests(unittest.TestCase):

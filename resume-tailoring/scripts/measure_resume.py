@@ -1444,6 +1444,22 @@ def _default_target_note(total_pages, target, is_default):
             "= 3) so the reclaim plan measures the goal actually agreed on.")
 
 
+def _resolved_jd_terms(jd_text, body, simulate, sim_jd_terms):
+    """JD terms the --jd report and DROP PLAN rank with.
+
+    With ``--simulate`` the terms were computed from the PRE-DROP body in
+    main's simulate block (whole-role drops would otherwise hide the very
+    vocabulary the ranking matches). Without ``--simulate`` they must be
+    derived from the real body here: computing them only inside the
+    simulate block made ``--jd`` silently JD-blind whenever ``--simulate``
+    was absent — the DROP PLAN fell back to JD-blind protection with no
+    hint anything was wrong (a real session misdiagnosed the fallback as
+    an extractor limitation and burned several tool calls on it)."""
+    if simulate:
+        return set(sim_jd_terms) if sim_jd_terms is not None else set()
+    return _jd_terms(jd_text, body) if jd_text else set()
+
+
 def main():
     argv = [a for a in sys.argv[1:]]
     protect = []
@@ -1528,14 +1544,15 @@ def main():
             if not jd_file:
                 print("  (no --jd passed — JD evidence in the dropped roles "
                       "cannot be assessed; pass --jd <JD.txt> to see it)")
-            print("  Compare the TIMELINE below against the JD's ask; run "
-                  "without --simulate to apply the drops for real.")
+            print("  Compare the TIMELINE below against the JD's ask; apply "
+                  "the drops for real via drop_role() in the per-target "
+                  "tailor script (SKILL Step 3).")
             print()
 
         root, body, _, _, _ = de.load(docx)
         roles = _roles(body)
 
-        jd_terms = set(sim_jd_terms) if sim_jd_terms is not None else set()
+        jd_terms = _resolved_jd_terms(jd_text, body, simulate, sim_jd_terms)
         if jd_file:
             for line in _jd_report(jd_file, jd_text, jd_terms):
                 print(line)
