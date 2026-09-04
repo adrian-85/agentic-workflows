@@ -1272,7 +1272,7 @@ class TitleAlignmentTests(unittest.TestCase):
 
     def _head_body(self, headline="Staff Engineer"):
         return _body([
-            _para("Adrian Alan", style=mr.HEADLINE_STYLE),
+            _para("Jane Doe", style=mr.HEADLINE_STYLE),
             _para(headline, style=mr.HEADLINE_STYLE),
             _para("Results-driven engineer with 15 years of experience",
                   style="Summary"),
@@ -1350,7 +1350,7 @@ class TitleAlignmentTests(unittest.TestCase):
         self.assertIn("keep the headline", notes["ok"])
 
     def test_no_headline_skips(self):
-        body = _body([_para("Adrian Alan", style=mr.HEADLINE_STYLE)])
+        body = _body([_para("Jane Doe", style=mr.HEADLINE_STYLE)])
         notes = self._notes(body, "Software Test Engineer\n5+ years QE")
         self.assertNotIn("warn", notes)
         self.assertIn("no headline title found", notes["note"])

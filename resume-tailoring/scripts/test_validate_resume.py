@@ -454,7 +454,7 @@ class TitleAlignmentValidateTests(unittest.TestCase):
             z.writestr("[Content_Types].xml", "<Types/>")
         root, body, names, data, _ = de.load(path)
         ps = [
-            mk("Adrian Alan", style=mr.HEADLINE_STYLE),
+            mk("Jane Doe", style=mr.HEADLINE_STYLE),
             mk(headline, style=mr.HEADLINE_STYLE),
             mk("Summary", style="SectionHeading"),
             mk("Results-driven engineer.", style=vr.SUMMARY_STYLE),

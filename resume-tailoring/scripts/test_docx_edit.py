@@ -1438,7 +1438,7 @@ class PrefixesHeadlineTests(unittest.TestCase):
 
     def test_marks_the_last_title_of_the_leading_run(self):
         lines = self._lines([
-            ("Adrian Alan", de.TITLE_STYLE),
+            ("Jane Doe", de.TITLE_STYLE),
             ("Staff Engineer", de.TITLE_STYLE),
             ("Results-driven software engineer with 10 years", None),
         ])
@@ -1449,7 +1449,7 @@ class PrefixesHeadlineTests(unittest.TestCase):
 
     def test_later_title_styled_paragraphs_are_not_marked(self):
         lines = self._lines([
-            ("Adrian Alan", de.TITLE_STYLE),
+            ("Jane Doe", de.TITLE_STYLE),
             ("Staff Engineer", de.TITLE_STYLE),
             ("Acme Corp", de.ROLE_STYLE),
             ("Staff Engineer - Quality Automation", None),
@@ -1458,7 +1458,7 @@ class PrefixesHeadlineTests(unittest.TestCase):
 
     def test_no_title_run_no_mark(self):
         lines = self._lines([
-            ("Adrian Alan", None),
+            ("Jane Doe", None),
             ("Staff Engineer", None),
         ])
         self.assertFalse(any("HEADLINE" in line for line in lines))
