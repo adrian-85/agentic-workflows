@@ -199,6 +199,12 @@ manual habits are:
    /tmp/measure.txt 2>&1`), then read the file with grep/sed. Never pipe a dump you will
    author from through `head`: the tail is silently lost and the missing paragraphs resurface
    as skipped edits.
+6. **Syntax-check a tailor script the moment it is written.** Run
+   `python3 -c "import ast; ast.parse(open('scripts/tailor_<target>.py').read())"` right
+   after authoring — a real session burned three fix cycles on a corrupted write
+   (stray `">`, unmatched brackets) before checking syntax. On corruption, do not
+   repair incrementally with `edit`: rewrite the whole file in one bash heredoc
+   (which carried clean bytes in that session) and re-check.
 
 Tool-enforced (no instruction needed): `render_pdf.sh` refuses broken or unapproved-elimination
 docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
@@ -215,21 +221,30 @@ with copy-pasteable `find_p` cut lines, and flags page widows / underfilled page
 - Read the **master resume**. If it is a `.docx`, use `docx_edit.py` to edit. If
   only a PDF is available, ask for the `.docx` source — PDFs can be read but
   not edited precisely.
-- **Read the LinkedIn source before editing.** The resume is a compressed
-  view; the LinkedIn data export has the richer detail that lets you enrich
-  and merge bullets. Read the export folder `Basic_LinkedInDataExport_*/`:
+- **Read the LinkedIn source before editing — the WHOLE export, via the
+  script.** The resume is a compressed view; the LinkedIn data export has
+  the richer detail that lets you enrich and merge bullets. Run the dump
+  ONCE and read the file — never hand-`cat` individual CSVs (a session
+  read only Skills + Profile, missing Positions' role detail and
+  Certifications/Recommendations evidence, and judged regulated-industry
+  strength from skill keywords alone):
+
+  ```bash
+  ./scripts/read_profile.sh > /tmp/profile.txt   # the whole export, one stream
+  ```
+
+  What each section of the dump is for:
   - `Positions.csv` — the full role history with description bullets: the
     richest source for restoring sub-roles and extra bullets the resume
     compressed away.
   - `Profile.csv` — headline and career summary.
-  - `Skills.csv` / `Certifications.csv` / `Education.csv` — skills, certs, degrees.
-  The CSVs are plain text. If you want them as one readable stream, dump the
-  folder with the wrapper script:
-
-  ```bash
-  ./scripts/read_profile.sh            # print to stdout
-  ./scripts/read_profile.sh > /tmp/profile.txt
-  ```
+  - `Skills.csv` — the candidate-tech vocabulary; keyword evidence only —
+    never a substitute for the role detail above it.
+  - `Certifications.csv` / `Education.csv` — certs and degrees (the
+    validator's education gate needs the degree line).
+  - `Recommendations_Received.csv` / `Endorsement_Received_Info.csv` —
+    third-party evidence for themes the resume claims (quotable support
+    for regulated/leadership claims a JD emphasizes).
 
 ### 2. Extract the employer's selling points
 Ask the user (or infer from the JD) the handful of themes to sell on; these
@@ -276,13 +291,22 @@ compression when the page budget forces it:
 1. **Compare the candidate's total years to the JD's ask.** `measure_resume.py`
    prints the resume's visible TIMELINE span; that — not the candidate's full
    history — is what a recruiter/screener compares against the JD line.
-2. **Eliminate older work experience in contiguous blocks.** Remove *entire*
-   oldest roles (header, job title, bullets, Tools line) so the visible
-   timeline stays gapless and lands at roughly the JD's ask plus a buffer
-   (e.g. "5+ years" → show ~7–8 years). Deleting a few bullets from a
-   15-year span does not align the resume — the *years shown* are what a
-   screener sees. The structural validator catches any orphaned title/bullets
-   after each whole-role removal.
+2. **Eliminate older work experience in contiguous blocks — but only roles
+   that carry no JD evidence.** Age is the tiebreaker, JD evidence is the
+   rule: a whole-role drop must not remove the resume's strongest evidence
+   for a JD-named requirement. A real session dropped the two oldest roles
+   for an FDA-heavy JD — and one of them (Illumina) carried the resume's
+   strongest FDA evidence; the user caught it in chat and forced a second
+   build. So: before dropping, run the what-if WITH `--jd` — measure now
+   prints each dropped role's JD-matched bullets (`JD EVIDENCE LOST:`).
+   A role flagged with evidence is **trimmed to its JD-relevant bullets**, not
+   dropped whole; pick whole-role drops from roles reported as clean.
+   Remove *entire* roles (header, job title, bullets, Tools line) so the
+   visible timeline stays gapless and lands at roughly the JD's ask plus
+   a buffer (e.g. "5+ years" → show ~7–8 years). Deleting a few bullets
+   from a 15-year span does not align the resume — the *years shown* are
+   what a screener sees. The structural validator catches any orphaned
+   title/bullets after each whole-role removal.
 
    **Compute the resulting span BEFORE editing.** Pass each whole-role drop
    to measure as a what-if — it drops the roles in a temp copy, renders
@@ -293,6 +317,12 @@ compression when the page budget forces it:
    python3 scripts/measure_resume.py "<Master>.docx" 3 --jd "<JD>.txt" \
        --simulate "Acme Corp, Austin, TX" --simulate "Globex, Chicago, IL"
    ```
+
+   With `--jd` the simulation also prints each drop's JD-evidence cost.
+   A `JD EVIDENCE LOST:` line means: restore that role trimmed to its
+   JD bullets instead of eliminating it — and expect the restored years
+   to keep the span above the JD's ask (that is fine; the years carry
+   the evidence).
 
    **Apply the drops with `drop_role` — never a hand-rolled helper.**
    Whole-role removal is a library primitive (`docx_edit.drop_role`): it
@@ -599,6 +629,22 @@ Common catches: `to improving` → `improving` (infinitive),
 `companies goal` → `company's goal`, `HIPPA` → `HIPAA`, `evangalist` →
 `evangelist`, `testzing` → `testing`, `Github` → `GitHub` (official casing).
 Don't rely on spellcheck for these — grep the text.
+
+**Re-read every paragraph you generated — the Summary first.** Agent-
+generated prose is where mangling artifacts enter (a session shipped a
+mangled CJK char replacing " and " inside a bullet, and the user had to
+hand-clean typos in the Summary). Before declaring the build done, dump
+the full text of each `set_text`-rewritten paragraph with
+`docx_edit.py "<docx>" <idx> --full` and actually read it — word by
+word, not a skim. The Summary is the highest-visibility text in the
+resume; read it twice.
+
+**Text-integrity rule — what the validator's TEXT INTEGRITY section
+blocks on.** Unexpected non-ASCII characters (anything that is not a
+Latin letter or a standard typographic mark — CJK, Cyrillic, fullwidth
+forms), doubled punctuation (`,,`), and doubled words (`the the`) are
+blocking errors. These are the artifact classes generated text actually
+produces; the check exists so the user never proofreads for you.
 
 **Punctuation rule — no em dashes, double hyphens, or semicolons.** In the
 Summary and job-history prose, never use em dashes (`—`), double hyphens
