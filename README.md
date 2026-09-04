@@ -11,6 +11,7 @@ Claude). Each subdirectory is self-contained — own docs, own scripts.
 | [`resume-tailoring/`](resume-tailoring/) | Workflow for tailoring a master `.docx` resume to a specific job posting or recruiter message. Edits the Word XML in place so fonts, styles, numbering, and hyperlinks survive; compression is subtractive (cut oldest roles first, never the most recent). |
 | [`writing-skills/`](writing-skills/) | Guidance for authoring, testing, and deploying `SKILL.md` files — TDD applied to process documentation (write a pressure scenario, watch an agent fail without the skill, write the skill, verify compliance). |
 | [`code-simplicity-reviewer/`](code-simplicity-reviewer/) | A skill that reviews code through a minimalism/YAGNI lens: flags unnecessary complexity, redundant code, and premature abstractions. |
+| [`improve/`](improve/) | Self-improvement workflow that mines a session transcript for friction (clarifications, repetition, gaps in the skill file), turns it into evidence-backed suggestions, and implements approved ones in an isolated git worktree across four approval gates — including improving itself. |
 
 ## Documentation
 
@@ -22,6 +23,7 @@ Each component carries its own deep docs — start there:
   — directory layout, requirements, quick start, resume-format assumptions
 - **writing-skills** → [`writing-skills/SKILL.md`](writing-skills/SKILL.md)
 - **code-simplicity-reviewer** → [`code-simplicity-reviewer/SKILL.md`](code-simplicity-reviewer/SKILL.md)
+- **improve** → [`improve/README.md`](improve/README.md) — the four hard stops, two-model split, worktree isolation, checkpoint commands
 
 ## Privacy
 

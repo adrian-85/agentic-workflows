@@ -88,12 +88,15 @@ python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test
 ## Resume format assumptions
 
 `measure_resume.py` is the only script coupled to a resume's structure. It
-keys off five constants at the top of that file, with defaults matching the
-reference layout:
+keys off eight layout constants at the top of that file, with defaults matching
+the reference layout:
 
 - `SECTION_CAREER` — the section heading that opens the roles (default `Career Experience`)
 - `SECTION_EDUCATION` — the section heading that closes the roles (default `Education`)
+- `SECTION_PROFICIENCIES` — the proficiencies heading that brackets the roles' top (default `Technical Proficiencies`)
 - `COMPANY_STYLE` — the paragraph style of role-header lines (default `CompanyBlock`)
+- `VOCAB_STYLE` — the paragraph style of job-title lines, which feed the `--jd` vocabulary (default `JobTitleBlock`)
+- `HEADLINE_STYLE` — the style of the top-of-resume headline, used for the JD-title-vs-headline seniority check (default `Title`; the 2nd such paragraph after the name)
 - `DATE_RE` — the date format on role headers (default `MM/YYYY`)
 - `BULLET_STYLES` — paragraph styles whose bullets carry no per-paragraph numbering (default `ListBullet`)
 
