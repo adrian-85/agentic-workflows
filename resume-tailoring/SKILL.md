@@ -362,9 +362,7 @@ compression when the page budget forces it:
    message: the measured target page count, each proposed whole-role drop
    BY NAME with its years, and the resulting visible span — then wait for
    the reply before writing the tailor script. Steering replies (a page
-   target, "keep X") are NOT seniority approval. Present the choice with
-   the numbers (JD asks N+, candidate has Y, propose showing ~Z contiguous
-   years), get a yes/no.
+   target, "keep X") are NOT seniority approval.
    **Enforced, not a habit:** `validate_resume.py` detects whole-role elimination
    (visible span ≥2 years shorter than the master) and `render_pdf.sh` blocks the
    PDF until the approval is recorded with `--seniority-approved` (Step 11) — you
