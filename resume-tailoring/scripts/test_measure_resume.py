@@ -514,6 +514,34 @@ class TopRoleBatchTests(unittest.TestCase):
             jd_terms=("playwright",))
         self.assertIsNone(batch)
 
+    def test_protected_section_lists_top_role_bullets_with_terms(self):
+        # The fallback for a fully-protected top role: every matched bullet
+        # with ITS OWN matched terms, so a generic-match false positive
+        # ('new', 'build') is visibly weak and the human rule can override
+        # protection deliberately. This is the evidence the session that
+        # motivated it lacked — the tool said 'no unprotected bullet to
+        # give' and the author hand-picked cuts with no data.
+        section = mr._protected_top_role_section(self.matched, self.jd)
+        self.assertIsNotNone(section)
+        self.assertIn("TOP-ROLE PROTECTED BULLETS", section)
+        self.assertIn("Landed Playwright as the company UI testing tool",
+                      section)
+        self.assertIn("[playwright]", section)
+        # Off-JD bullets of the top role are NOT listed (they were already
+        # available as cuttable; the listing covers only protected ones).
+        self.assertNotIn("Wrote scripts for storing build artifacts",
+                         section)
+
+    def test_protected_section_none_without_jd(self):
+        self.assertIsNone(mr._protected_top_role_section(self.matched, set()))
+
+    def test_protected_section_none_when_no_matches(self):
+        matched = [({"key": "Recent", "bullets": 1, "has_tools": True,
+                     "bullet_texts": ["Updated the team wiki page weekly"]},
+                    1, 1, 5)]
+        self.assertIsNone(mr._protected_top_role_section(
+            matched, ("playwright",)))
+
     def test_superseded_top_role_entry_removed_from_plan(self):
         # If the oldest-first loop reached the top role with a dead-end
         # budget, the batch replaces it (one authoritative sizing).

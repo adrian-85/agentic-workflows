@@ -1174,6 +1174,38 @@ def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):
     return sections
 
 
+def _protected_top_role_section(matched, jd_terms):
+    """Fallback listing when the top role has NO unprotected bullet to give
+    (batch is ``None``) while the gap is still open: every JD-matched
+    bullet of the top role, each with the terms that matched.
+
+    JD-matching has false positives on generic terms ('new', 'build',
+    'control' match almost any bullet), so 'fully protected' must not read
+    as a dead end. The listing puts each match's evidence on the page — a
+    generic term is visibly weak — so the human rule ('the scorer only
+    ranks — you confirm against the JD') can OVERRIDE protection
+    deliberately instead of the author hand-picking cuts with no data.
+    Returns ``None`` when there is nothing to review (no --jd, or the top
+    role carries no matched bullet)."""
+    if not matched or not jd_terms:
+        return None
+    bullets = matched[0][0].get("bullet_texts") or []
+    jd_kept = [(b, _jd_hits(b, jd_terms)) for b in bullets
+               if _jd_hits(b, jd_terms)]
+    concept_kept = [(b, _concept_hits(b)) for b in bullets
+                    if _concept_hits(b) and not _jd_hits(b, jd_terms)]
+    if not jd_kept and not concept_kept:
+        return None
+    lines = ["TOP-ROLE PROTECTED BULLETS (no unprotected bullet to give; "
+             "matched terms shown — a generic match like 'new' or 'build' "
+             "is weak evidence, the human rule may override protection):"]
+    for b, hits in jd_kept:
+        lines.append(f"    - {b[:68]}  [{' , '.join(hits)}]")
+    for b, hits in concept_kept:
+        lines.append(f"    - {b[:68]}  [practice: {', '.join(hits)}]")
+    return "\n".join(lines)
+
+
 def _batch_section(batch, role, header, all_texts=None, protect=(),
                    jd_terms=()):
     """Render the TOP-ROLE TRIM BATCH section — the residual-gap closer.
@@ -1587,6 +1619,11 @@ def main():
         elif remaining > 0:
             print(f"  (still ~{remaining:.0f} line(s) over plan — cut past the "
                   f"listed bullet(s) or trim Tools lines)")
+            if residual > 0:
+                protected = _protected_top_role_section(matched, jd_terms)
+                if protected:
+                    print()
+                    print(protected)
         print("  Generic savings: drop blank inter-role spacers via "
               "remove_empty (~1 line each)")
 
