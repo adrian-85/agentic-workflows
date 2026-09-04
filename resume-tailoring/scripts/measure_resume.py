@@ -1458,14 +1458,10 @@ def _default_target_note(total_pages, target, is_default):
 def _resolved_jd_terms(jd_text, body, simulate, sim_jd_terms):
     """JD terms the --jd report and DROP PLAN rank with.
 
-    With ``--simulate`` the terms were computed from the PRE-DROP body in
-    main's simulate block (whole-role drops would otherwise hide the very
-    vocabulary the ranking matches). Without ``--simulate`` they must be
-    derived from the real body here: computing them only inside the
-    simulate block made ``--jd`` silently JD-blind whenever ``--simulate``
-    was absent — the DROP PLAN fell back to JD-blind protection with no
-    hint anything was wrong (a real session misdiagnosed the fallback as
-    an extractor limitation and burned several tool calls on it)."""
+    With ``--simulate`` the terms come from the PRE-DROP body (computed
+    in main's simulate block). Without ``--simulate`` they are derived
+    from the real body here — computing them only in the simulate block
+    made ``--jd`` silently JD-blind when ``--simulate`` was absent."""
     if simulate:
         return set(sim_jd_terms) if sim_jd_terms is not None else set()
     return _jd_terms(jd_text, body) if jd_text else set()

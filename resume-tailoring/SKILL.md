@@ -712,9 +712,7 @@ and a false load-bearing education warning. `validate_resume.py` warns when
 skill misbehaves or contradicts its documented behavior, do not route
 around it: fix the script and add a regression test in the same session
 (then continue the tailoring run on the fixed tool). A workaround leaves
-the bug armed for the next session — a real `--simulate`/`--jd`
-interaction bug was diagnosed twice in two sessions before it was fixed
-because the first session only worked around it.
+the bug armed for the next session.
 
 **Verification is TEXT-ONLY — never render pages to images.** This harness
 reads no images, so converting the PDF to PNGs and "viewing" them fails

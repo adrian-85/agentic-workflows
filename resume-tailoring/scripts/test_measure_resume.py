@@ -1108,9 +1108,6 @@ class ApplySimulateTests(unittest.TestCase):
     computed by the tool instead of by hand in chat. The original file must
     never be modified."""
 
-    def _docx_with_roles(self):
-        return _docx_with_roles()
-
     def test_drops_role_in_copy_original_untouched(self):
         src = _docx_with_roles()
         try:
