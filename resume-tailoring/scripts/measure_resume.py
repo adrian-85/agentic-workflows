@@ -1105,17 +1105,9 @@ def _apply_simulate(docx_path, drop_prefixes, out_path):
 
 
 def _role_jd_evidence_lines(roles, header_text, jd_terms):
-    """Per-dropped-role JD-evidence report for ``--simulate``.
-
-    Whole-role elimination previously reported only the year math, so a
-    drop could silently trade away the JD's named evidence — a session
-    dropped the two oldest roles (the strongest FDA evidence) for an
-    FDA-heavy JD and the user caught it in chat. This makes the trade-off
-    visible BEFORE approval: a role whose bullets carry JD-matched terms
-    or JD practice phrases should be trimmed to those bullets (SKILL Step
-    3: age is the tiebreaker, JD evidence is the rule), not dropped whole.
-    Returns warning lines (empty when the role carries no JD evidence or
-    no terms were extractable)."""
+    """Per-dropped-role JD-evidence report for ``--simulate``. Returns
+    warning lines listing each JD-matched bullet a drop would lose, or a
+    clean-drop note when no evidence matches."""
     role = next((r for r in roles if r["raw"] == header_text), None)
     if role is None or not jd_terms:
         return []

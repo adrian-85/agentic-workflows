@@ -168,6 +168,20 @@ def _summary_paragraph(body):
     return None
 
 
+def _prose_paragraphs(region, summary):
+    """Non-empty prose paragraphs in document order: the Summary (if
+    present) followed by bullets and role-intro text, excluding company
+    headers and job titles. Yields (paragraph, text) pairs."""
+    candidates = ([summary] if summary is not None else []) + [
+        p for p in region
+        if de.style_and_numid(p)[0] not in (mr.COMPANY_STYLE, TITLE_STYLE)
+    ]
+    for p in candidates:
+        text = de.text_of(p)
+        if text.strip():
+            yield p, text
+
+
 def _structural_errors(region):
     """Structural failures (exit 2) in the career region: orphan job titles,
     companies without a title, and content orphaned after a Tools line."""
@@ -263,14 +277,7 @@ def _punctuation_errors(region, summary):
     anything outside the Summary and the career region (proficiencies,
     certifications, education)."""
     errors = []
-    candidates = ([summary] if summary is not None else []) + [
-        p for p in region
-        if de.style_and_numid(p)[0] not in (mr.COMPANY_STYLE, TITLE_STYLE)
-    ]
-    for p in candidates:
-        text = de.text_of(p)
-        if not text.strip():
-            continue
+    for _, text in _prose_paragraphs(region, summary):
         probe = DATE_RANGE.sub(" ", text)  # date ranges are exempt
         for pat, name in (
             (re.compile(r"—"), "em dash"),
@@ -289,11 +296,8 @@ def _punctuation_errors(region, summary):
     return errors
 
 
-# Non-ASCII characters allowed in prose: typographic marks Word documents
-# legitimately carry (curly apostrophes/quotes, dashes, ellipsis). Latin
-# letters with diacritics are allowed via their Unicode name; everything
-# else (CJK, Cyrillic, fullwidth forms, symbol blocks) is a mangling
-# artifact — a session had a CJK char silently replace " and " in a bullet.
+# Non-ASCII characters allowed in prose: typographic marks (curly
+# apostrophes/quotes, dashes, ellipsis) and accented Latin letters.
 _ASCII_OK_CHARS = "‘’“”–—‐‑‥…"
 
 
@@ -303,14 +307,7 @@ def _text_integrity_errors(region, summary):
     mangling artifacts: unexpected non-ASCII characters, doubled
     punctuation, and doubled words."""
     errors = []
-    candidates = ([summary] if summary is not None else []) + [
-        p for p in region
-        if de.style_and_numid(p)[0] not in (mr.COMPANY_STYLE, TITLE_STYLE)
-    ]
-    for p in candidates:
-        text = de.text_of(p)
-        if not text.strip():
-            continue
+    for _, text in _prose_paragraphs(region, summary):
         for i, ch in enumerate(text):
             if ord(ch) < 128 or ch in _ASCII_OK_CHARS:
                 continue

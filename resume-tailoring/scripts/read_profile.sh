@@ -5,11 +5,7 @@
 # bullets). The CSVs are plain text, so no pdftotext is needed.
 #
 # THIS WHOLE DUMP is the unit of work for SKILL Step 1 — run it once into a
-# file and read the file. Do not hand-`cat` individual CSVs: a session read
-# only Skills.csv + Profile.csv, missing Positions.csv role detail and
-# Certifications/Recommendations evidence, and judged regulated-industry
-# strength from skill keywords alone. The dump prints one labeled section
-# per CSV so every file is at least seen.
+# file and read the file. Do not hand-`cat` individual CSVs.
 #
 # Usage:
 #   ./scripts/read_profile.sh                      # the default export folder

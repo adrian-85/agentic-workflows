@@ -200,11 +200,9 @@ manual habits are:
    author from through `head`: the tail is silently lost and the missing paragraphs resurface
    as skipped edits.
 6. **Syntax-check a tailor script the moment it is written.** Run
-   `python3 -c "import ast; ast.parse(open('scripts/tailor_<target>.py').read())"` right
-   after authoring — a real session burned three fix cycles on a corrupted write
-   (stray `">`, unmatched brackets) before checking syntax. On corruption, do not
-   repair incrementally with `edit`: rewrite the whole file in one bash heredoc
-   (which carried clean bytes in that session) and re-check.
+   `python3 -c "import ast; ast.parse(open('scripts/tailor_<target>.py').read())"`
+   immediately after authoring. On corruption, do not repair incrementally
+   with `edit` — rewrite the whole file in one bash heredoc and re-check.
 
 Tool-enforced (no instruction needed): `render_pdf.sh` refuses broken or unapproved-elimination
 docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
@@ -294,12 +292,9 @@ compression when the page budget forces it:
 2. **Eliminate older work experience in contiguous blocks — but only roles
    that carry no JD evidence.** Age is the tiebreaker, JD evidence is the
    rule: a whole-role drop must not remove the resume's strongest evidence
-   for a JD-named requirement. A real session dropped the two oldest roles
-   for an FDA-heavy JD — and one of them (Illumina) carried the resume's
-   strongest FDA evidence; the user caught it in chat and forced a second
-   build. So: before dropping, run the what-if WITH `--jd` — measure now
-   prints each dropped role's JD-matched bullets (`JD EVIDENCE LOST:`).
-   A role flagged with evidence is **trimmed to its JD-relevant bullets**, not
+   for a JD-named requirement. Run the what-if WITH `--jd` — measure prints
+   each dropped role's JD-matched bullets (`JD EVIDENCE LOST:`). A role
+   flagged with evidence is **trimmed to its JD-relevant bullets**, not
    dropped whole; pick whole-role drops from roles reported as clean.
    Remove *entire* roles (header, job title, bullets, Tools line) so the
    visible timeline stays gapless and lands at roughly the JD's ask plus
@@ -630,21 +625,13 @@ Common catches: `to improving` → `improving` (infinitive),
 `evangelist`, `testzing` → `testing`, `Github` → `GitHub` (official casing).
 Don't rely on spellcheck for these — grep the text.
 
-**Re-read every paragraph you generated — the Summary first.** Agent-
-generated prose is where mangling artifacts enter (a session shipped a
-mangled CJK char replacing " and " inside a bullet, and the user had to
-hand-clean typos in the Summary). Before declaring the build done, dump
-the full text of each `set_text`-rewritten paragraph with
-`docx_edit.py "<docx>" <idx> --full` and actually read it — word by
-word, not a skim. The Summary is the highest-visibility text in the
-resume; read it twice.
-
-**Text-integrity rule — what the validator's TEXT INTEGRITY section
-blocks on.** Unexpected non-ASCII characters (anything that is not a
-Latin letter or a standard typographic mark — CJK, Cyrillic, fullwidth
-forms), doubled punctuation (`,,`), and doubled words (`the the`) are
-blocking errors. These are the artifact classes generated text actually
-produces; the check exists so the user never proofreads for you.
+**Re-read every paragraph you generated — the Summary first.** Before
+declaring the build done, dump each `set_text`-rewritten paragraph with
+`docx_edit.py "<docx>" <idx> --full` and verify it reads clean. The Summary
+is the highest-visibility text; read it twice. The validator's TEXT
+INTEGRITY section (non-ASCII mangling, doubled punctuation, doubled
+words) catches the mechanical classes; the re-read catches everything
+else — awkward phrasing, missing words, wrong tense.
 
 **Punctuation rule — no em dashes, double hyphens, or semicolons.** In the
 Summary and job-history prose, never use em dashes (`—`), double hyphens
