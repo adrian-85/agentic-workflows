@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+reports/
+runs/
+*.jsonl
+.pytest_cache/
+.gitconfig
