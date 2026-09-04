@@ -198,8 +198,7 @@ manual habits are:
    page-fill table, a full `--prefixes` dump — goes to a file once (`measure_resume.py … >
    /tmp/measure.txt 2>&1`), then read the file with grep/sed. Never pipe a dump you will
    author from through `head`: the tail is silently lost and the missing paragraphs resurface
-   as skipped edits (observed: `--prefixes | head -150` cost a second dump, and three
-   consecutive measure re-runs differed only in their grep).
+   as skipped edits.
 
 Tool-enforced (no instruction needed): `render_pdf.sh` refuses broken or unapproved-elimination
 docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
@@ -312,13 +311,8 @@ compression when the page budget forces it:
    mechanically whether the JD requires a degree at all before applying the
    predicates below** — grep the JD text for degree language (`degree`,
    `Master`, `Bachelor`, `will accept`, `H-1B`). Visa-attestation boilerplate
-   is easy to misread as not-a-degree-requirement, and a drop that survives
-   authoring only to be flagged at validation time costs a script rewrite,
-   an unused-import cleanup, and a re-verification cycle (observed: a script
-   authored with `drop_section("Education")` against a JD reading "will
-   accept a Master's degree … and 8 years of experience"; the validator is
-   the gate, this grep only saves the cycle). Then decide by
-   observable predicates, not habit:
+   is easy to misread; the validator is the gate, this grep only saves the
+   cycle. Then decide by observable predicates, not habit:
 
    - **DROP** when ALL hold: the JD states *no* degree requirement, the degree
      does not evidence the role's core asks (e.g. a Bachelor of Arts against a
@@ -341,14 +335,10 @@ compression when the page budget forces it:
      enforces this: a degree-requiring JD blocks the render when Education
      was dropped (`--education-approved` records the override), and warns
      when an equivalent clause is load-bearing.
-   - **"AND" is not "OR":** the clause grammar decides which predicate
-     applies. Visa/attestation boilerplate like "will accept a Master's
-     degree … **and** N years of experience" (Oracle postings) is a degree
-     REQUIREMENT with no substitution path — the degree does not alternate
-     with experience — so Education is KEEP and the years ask is handled by
-     seniority alignment (Step 3.2), not by reading the span as satisfying
-     the clause. Only an **OR** construction ("degree OR N years") opens
-     the substitution path above.
+   - **"AND" is not "OR":** an AND construction ("degree AND N years",
+     e.g. visa attestation) is a degree REQUIREMENT with no substitution
+     path — Education is KEEP regardless of the span. Only an OR
+     construction ("degree OR N years") opens the substitution path above.
    - Removing Education is a structural change (the Education section heading
      and entries are removed together; `validate_resume.py` treats a resume
      ending at the last role's Tools line as clean). Remind yourself this is
@@ -619,9 +609,7 @@ Fix the errors, then render. The rendered PDF lands next to the `.docx`.
 **The two gates have different trigger conditions.** The seniority gate runs
 unconditionally; the education gate runs ONLY when `--jd` is passed (via
 `RESUME_VALIDATE_ARGS`) — `render_pdf.sh` prints a NOTE whenever the
-education gate did not run. Never read "only the seniority blocker" from a
-render without `--jd` as "the degree clause is satisfied" (observed misread
-that was re-litigated two cycles later).
+education gate did not run.
 
 **When the JD specifies years of experience** (Step 3), confirm alignment and
 record approval in one command:

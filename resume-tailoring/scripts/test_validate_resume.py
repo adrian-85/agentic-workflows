@@ -641,10 +641,7 @@ class EducationGateTests(unittest.TestCase):
             os.unlink(jd)
         self.assertEqual(rc, 2)
         self.assertIn("Education", out)
-        # The error states the clause classification so the agent never
-        # re-derives whether the visible span satisfies a substitution
-        # clause (observed: that re-derivation cost a full reasoning cycle).
-        self.assertIn("no 'or equivalent' substitution", out)
+        self.assertIn("no 'or equivalent' substitution clause", out)
 
     def test_degree_required_education_dropped_approved_passes(self):
         jd = self._jd(self.JD_DEGREE)

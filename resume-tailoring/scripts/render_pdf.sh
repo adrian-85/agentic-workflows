@@ -78,11 +78,8 @@ VALIDATE_OUT="$(python3 "$SELF_DIR/validate_resume.py" "$INPUT" \
     && VALIDATE_RC=0 \
     || VALIDATE_RC=$?
 
-# The education gate (Step 3.4) runs only when --jd is passed; the seniority
-# gate runs unconditionally. Say so on every render — a clean validation
-# without --jd must not be read as "the degree clause is satisfied" (observed:
-# a render reporting only the seniority blocker was taken as education
-# clearance, and the dropped Education had to be re-litigated later).
+# The education gate runs only with --jd; the seniority gate runs always.
+# render_pdf.sh prints a NOTE when the education gate did not run.
 case " ${RESUME_VALIDATE_ARGS:-} " in
     *" --jd "*) ;;
     *)

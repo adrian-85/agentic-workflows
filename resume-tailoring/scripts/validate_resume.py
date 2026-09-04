@@ -464,12 +464,11 @@ def _education_gate(jd_text, body, span, jd_years, approved):
     else:
         errors.append(
             "the JD requires a degree (no 'or equivalent' substitution "
-            "clause — the visible span cannot satisfy it) but Education "
-            "was dropped — restore the section from the master (it is ~3 "
-            "rendered lines there), or record a USER-GRANTED override with "
-            "--education-approved: approval may come only from the user's "
-            "chat reply or pre-authorization in the original request — do "
-            "NOT pass the flag on your own authority"
+            "clause) but Education was dropped — restore the section from "
+            "the master (it is ~3 rendered lines there), or record a "
+            "USER-GRANTED override with --education-approved: approval may "
+            "come only from the user's chat reply or pre-authorization in "
+            "the original request — do NOT pass the flag on your own authority"
         )
     return errors, notes
 
