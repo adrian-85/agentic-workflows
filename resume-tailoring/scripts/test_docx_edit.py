@@ -1415,6 +1415,113 @@ class MergeIntoTests(unittest.TestCase):
         self.assertIn(p, list(body))
 
 
+class PrefixesHeadlineTests(unittest.TestCase):
+    """--prefixes marks the positioning headline so the script author does
+    not have to re-derive the name-vs-headline distinction from the skill
+    text (a session anchored set_text on the wrong Title — the name line
+    and the headline share the Title style — and spent two calls reading
+    find_p's source to recover)."""
+
+    def _lines(self, styled):
+        # styled: (text, style) pairs; None style = no pPr
+        body = ET.Element(W + "body")
+        for text, style in styled:
+            p = ET.SubElement(body, W + "p")
+            if style is not None:
+                pPr = ET.SubElement(p, W + "pPr")
+                st = ET.SubElement(pPr, W + "pStyle")
+                st.set(W + "val", style)
+            r = ET.SubElement(p, W + "r")
+            t = ET.SubElement(r, W + "t")
+            t.text = text
+        return de.prefixes(body)
+
+    def test_marks_the_last_title_of_the_leading_run(self):
+        lines = self._lines([
+            ("Adrian Alan", de.TITLE_STYLE),
+            ("Staff Engineer", de.TITLE_STYLE),
+            ("Results-driven software engineer with 10 years", None),
+        ])
+        self.assertIn("HEADLINE (positioning title, not the name): "
+                      "Staff Engineer", lines[1])
+        # The name line is Title-styled too — it must NOT be marked.
+        self.assertNotIn("HEADLINE", lines[0])
+
+    def test_later_title_styled_paragraphs_are_not_marked(self):
+        lines = self._lines([
+            ("Adrian Alan", de.TITLE_STYLE),
+            ("Staff Engineer", de.TITLE_STYLE),
+            ("Acme Corp", de.ROLE_STYLE),
+            ("Staff Engineer - Quality Automation", None),
+        ])
+        self.assertNotIn("HEADLINE", lines[3])
+
+    def test_no_title_run_no_mark(self):
+        lines = self._lines([
+            ("Adrian Alan", None),
+            ("Staff Engineer", None),
+        ])
+        self.assertFalse(any("HEADLINE" in line for line in lines))
+
+
+class CommaListRangeTests(unittest.TestCase):
+    """cli() range argument accepts comma-separated indexes (61,63,65,70-72)
+    — reading scattered bullets used to cost one subprocess per index."""
+
+    def _docx_with(self, *texts):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        doc = (
+            '<?xml version="1.0"?>'
+            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
+        )
+        for t in texts:
+            doc += (
+                f'<w:p><w:r><w:t xml:space="preserve">{t}</w:t></w:r></w:p>'
+            )
+        doc += '</w:body></w:document>'
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr("word/document.xml", doc)
+            z.writestr("[Content_Types].xml", "<Types/>")
+        return path
+
+    def _map(self, path, rng):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = de.cli(["docx_edit.py", path, rng])
+        self.assertEqual(rc, 0)
+        return out.getvalue()
+
+    def test_comma_list_prints_only_the_named_paragraphs(self):
+        path = self._docx_with("zero", "one", "two", "three", "four")
+        try:
+            lines = self._map(path, "1,3").splitlines()
+            self.assertEqual(len(lines), 2)
+            self.assertIn("one", lines[0])
+            self.assertIn("three", lines[1])
+        finally:
+            os.unlink(path)
+
+    def test_comma_list_mixes_singles_and_ranges(self):
+        path = self._docx_with("zero", "one", "two", "three", "four")
+        try:
+            lines = self._map(path, "0,2-3").splitlines()
+            self.assertEqual(len(lines), 3)
+            self.assertIn("zero", lines[0])
+            self.assertIn("two", lines[1])
+            self.assertIn("three", lines[2])
+        finally:
+            os.unlink(path)
+
+    def test_comma_list_is_clamped_to_the_document(self):
+        path = self._docx_with("zero", "one")
+        try:
+            lines = self._map(path, "1,9").splitlines()
+            self.assertEqual(len(lines), 1)
+            self.assertIn("one", lines[0])
+        finally:
+            os.unlink(path)
+
 
 if __name__ == "__main__":
     unittest.main()

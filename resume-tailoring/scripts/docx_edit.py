@@ -673,6 +673,7 @@ def drop(body, prefixes):
 # so documents that use real heading styles instead of SectionHeading work.
 ROLE_STYLE = "CompanyBlock"
 SECTION_STYLE = "SectionHeading"
+TITLE_STYLE = "Title"
 _BLOCK_BOUNDARY_STYLES = ("CompanyBlock", "SectionHeading",
                           "Heading1", "Heading2")
 
@@ -890,6 +891,25 @@ def shortest_unique_prefix(texts, idx, min_len=1):
     return target if target else None
 
 
+def _headline_index(styles):
+    """Index of the positioning headline among the paragraphs, or ``None``.
+
+    The headline is the LAST paragraph of the document's leading run of
+    ``TITLE_STYLE`` paragraphs — the name line shares the style, so the
+    first Title is the NAME, not the headline. Marking it in the
+    ``--prefixes`` dump moves the name-vs-headline distinction out of the
+    skill text and into the tool output the script author is actually
+    reading (a session authored the anchor against the wrong Title and
+    spent two calls inspecting find_p's source to recover). Returns None
+    when the document does not open with a Title run."""
+    if not styles or styles[0] != TITLE_STYLE:
+        return None
+    i = 0
+    while i + 1 < len(styles) and styles[i + 1] == TITLE_STYLE:
+        i += 1
+    return i
+
+
 def prefixes(body, min_len=30, max_len=70):
     """Return copy-pasteable ``find_p(ps, "…")`` prefixes for every paragraph.
 
@@ -909,6 +929,8 @@ def prefixes(body, min_len=30, max_len=70):
     """
     ps = paras(body)
     texts = [text_of(p) for p in ps]
+    styles = [style_and_numid(p)[0] for p in ps]
+    headline_idx = _headline_index(styles)
     out = []
     for i, txt in enumerate(texts):
         if not txt:
@@ -927,7 +949,9 @@ def prefixes(body, min_len=30, max_len=70):
                 1 for t in texts if t.startswith(chosen)
             ) > 1
         flag = "*" if ambiguous else " "
-        out.append(f'{i:2}{flag}| find_p(ps, {chosen!r})  # {txt}')
+        note = "HEADLINE (positioning title, not the name): " \
+            if i == headline_idx else ""
+        out.append(f'{i:2}{flag}| find_p(ps, {chosen!r})  # {note}{txt}')
     return out
 
 
@@ -963,8 +987,9 @@ def cli(argv):
               file=sys.stderr)
         print("  print find_p prefixes, clone a bullet, or rewrite a paragraph.",
               file=sys.stderr)
-        print("  range: N-M (paragraphs N..M inclusive) or N (just paragraph N)",
+        print("  range: N-M (paragraphs N..M inclusive), N (just paragraph N),",
               file=sys.stderr)
+        print("         or a comma-separated list, e.g. 3,7,10-12", file=sys.stderr)
         print("  --full:     show full text instead of truncating at 90 chars",
               file=sys.stderr)
         print("  --prefixes: print uniqueness-checked find_p(ps, \"\u2026\") prefixes",
@@ -1027,10 +1052,28 @@ def cli(argv):
             and a != style_filter]
     width = None if full else 90
     rng = None
+    idxs = None
     for a in args:
         if "-" in a and a.split("-", 1)[0].isdigit() and a.split("-", 1)[1].isdigit():
             lo, hi = a.split("-", 1)
             rng = (int(lo), int(hi))
+        elif "," in a and all(
+            p.isdigit()
+            or ("-" in p and p.split("-", 1)[0].isdigit()
+                and p.split("-", 1)[1].isdigit())
+            for p in a.split(",")
+        ):
+            # Comma list — sparse, non-contiguous indexes (61,63,65,70-72).
+            # The per-index subprocess loop this replaces issues one
+            # python-per-paragraph; a session read 9 scattered bullets that
+            # way because the range form could not express gaps.
+            idxs = set()
+            for part in a.split(","):
+                if "-" in part:
+                    lo, hi = part.split("-", 1)
+                    idxs.update(range(int(lo), int(hi) + 1))
+                else:
+                    idxs.add(int(part))
         elif a.isdigit():
             rng = (int(a), int(a))
     root, body, names, data, _ = load(path)
@@ -1045,7 +1088,11 @@ def cli(argv):
                 lines.append(f"{i:2} [{st}] num={numid} | {txt}")
     else:
         lines = paragraph_map(body, width=width)
-    if rng:
+    if idxs:
+        hi = len(lines) - 1
+        lines = [line for i, line in enumerate(lines)
+                 if i in idxs and i <= hi]
+    elif rng:
         lo, hi = rng
         lo = max(0, lo)
         hi = min(hi, len(lines) - 1)
