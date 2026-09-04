@@ -310,8 +310,14 @@ compression when the page budget forces it:
 
    ```bash
    python3 scripts/measure_resume.py "<Master>.docx" 3 --jd "<JD>.txt" \
+       --jd-years <N> \
        --simulate "Acme Corp, Austin, TX" --simulate "Globex, Chicago, IL"
    ```
+
+   Pass `--jd-years <N>` here whenever the JD states a years ask (e.g.
+   "8+ years"): the TIMELINE is then compared against the real ask at
+   measure time, not first at render time — this is also what makes the
+   Education equivalent-experience check give a correct verdict.
 
    With `--jd` the simulation also prints each drop's JD-evidence cost.
    A `JD EVIDENCE LOST:` line means: restore that role trimmed to its
@@ -701,6 +707,14 @@ posting names no years ask, do NOT pass it: every span comparison is then
 measured against a fabricated ask, producing false *underqualified* verdicts
 and a false load-bearing education warning. `validate_resume.py` warns when
 `--jd-years` is passed but the JD text states no "N+ years" ask.
+
+**Fix tool bugs in the session that finds them.** If a script in this
+skill misbehaves or contradicts its documented behavior, do not route
+around it: fix the script and add a regression test in the same session
+(then continue the tailoring run on the fixed tool). A workaround leaves
+the bug armed for the next session — a real `--simulate`/`--jd`
+interaction bug was diagnosed twice in two sessions before it was fixed
+because the first session only worked around it.
 
 **Verification is TEXT-ONLY — never render pages to images.** This harness
 reads no images, so converting the PDF to PNGs and "viewing" them fails
