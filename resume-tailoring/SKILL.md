@@ -242,9 +242,10 @@ later edit shows where each was used.
   is mechanical, not a judgment call: the JD's stated title is
   Senior/Staff/Principal, OR the candidate's visible background is
   Staff-level — EITHER condition targets 3. A JD asking "7-10 years" (a
-  range starting at 7) is itself a seniority signal favoring 3. A session
-  leaned 2 pages for a Senior-titled JD against a Staff background and the
-  user had to correct it to 3.
+  range starting at 7) is itself a seniority signal favoring 3. When in
+  doubt, default to 3 and let the measure's page-fill table decide (an
+  underfilled last page below 50% full means re-target one page lower
+  BEFORE cutting JD-matched bullets).
 - **Present only a feasibility-measured target.** Before recommending a
   page count to the user, run the what-if (`measure --simulate` with the
   candidate whole-role drops at the candidate target) and check the
@@ -357,7 +358,7 @@ compression when the page budget forces it:
 5. **Raise it to the user before acting — the DROP LIST, not just the span,
    as ONE question, before authoring the tailor script.** Whole-role
    elimination changes the narrative materially; a plan the user corrects
-   piecemeal mid-build ("target 3 pages", then "keep Rakuten") costs a
+   piecemeal mid-build ("target 3 pages", then "keep Company X") costs a
    re-simulation and a re-plan of every downstream cut. Present in ONE
    message: the measured target page count, each proposed whole-role drop
    BY NAME with its years, and the resulting visible span — then wait for
