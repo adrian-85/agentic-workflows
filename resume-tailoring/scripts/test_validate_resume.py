@@ -313,6 +313,61 @@ class PunctuationTests(unittest.TestCase):
         self.assertIn("ok (periods and commas", out)
 
 
+class TextIntegrityTests(unittest.TestCase):
+    """_text_integrity_errors: mangling artifacts in generated prose —
+    unexpected non-ASCII (CJK/Cyrillic), doubled punctuation, doubled words."""
+
+    def test_clean_prose_passes(self):
+        region = [
+            mk("Acme, MA (Remote)06/2021 – 05/2026", style=mr.COMPANY_STYLE),
+            mk("Staff Engineer – Test Automation", style=vr.TITLE_STYLE),
+            mk("Sole quality resource for the payments platform team.",
+               numId=4),
+            mk("Tools & Technologies: Go, Python, Jenkins"),
+        ]
+        self.assertEqual(vr._text_integrity_errors(region, None), [])
+
+    def test_typographic_marks_and_accents_allowed(self):
+        s = mk("Owned end-to-end quality for Müller’s platform team.")
+        self.assertEqual(vr._text_integrity_errors([], s), [])
+
+    def test_cjk_mangling_flagged(self):
+        # The real failure: a mangled CJK char replaced " and " in a bullet.
+        p = mk("Department leader\u4e00a leader across the org for AI "
+               "adoption.")
+        errs = vr._text_integrity_errors([], p)
+        self.assertTrue(
+            any("non-ASCII" in e and "U+4E00" in e for e in errs),
+            f"expected non-ASCII error, got: {errs}")
+
+    def test_cyrillic_mangling_flagged(self):
+        p = mk("Results driven engineer with мій years of experience.")
+        errs = vr._text_integrity_errors([], p)
+        self.assertTrue(any("non-ASCII" in e for e in errs),
+                        f"expected non-ASCII error, got: {errs}")
+
+    def test_doubled_punctuation_flagged(self):
+        p = mk("Owned quality,, release, and testing changes.")
+        errs = vr._text_integrity_errors([], p)
+        self.assertTrue(any("doubled punctuation" in e for e in errs),
+                        f"expected doubled-punctuation error, got: {errs}")
+
+    def test_doubled_word_flagged(self):
+        p = mk("Owned the the quality process across five teams.")
+        errs = vr._text_integrity_errors([], p)
+        self.assertTrue(any("doubled word" in e for e in errs),
+                        f"expected doubled-word error, got: {errs}")
+
+    def test_structural_lines_not_scanned(self):
+        region = [
+            mk("Müller Corp, MA (Remote)06/2021 – 05/2026",
+               style=mr.COMPANY_STYLE),
+            mk("Staff Engineer – Test Automation", style=vr.TITLE_STYLE),
+            mk("bullet", numId=4),
+        ]
+        self.assertEqual(vr._text_integrity_errors(region, None), [])
+
+
 class JdYearsTests(unittest.TestCase):
     """--jd-years N compares the visible span against the JD's years ask:
     under -> warn (underqualified), far over -> advisory note."""

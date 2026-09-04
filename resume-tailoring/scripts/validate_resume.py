@@ -56,9 +56,17 @@ Catches the error classes tailoring sessions actually hit:
    (company headers, job titles) and out-of-region sections
    (proficiencies, certifications, education) are not scanned.
 
-Structural, punctuation, seniority-gate, and education-gate errors exit 2 —
-render_pdf.sh refuses to render. Near-duplicate and claim warnings exit 0
-unless --strict (exit 1).
+4. TEXT INTEGRITY — generated-prose mangling artifacts. Enforced on the
+   same paragraphs as PUNCTUATION: non-ASCII characters that are not
+   Latin letters or standard typographic marks (a real session had a
+   mangled CJK char replace " and " inside a bullet), doubled punctuation
+   (,, / ;;), and doubled words ("the the"). These are the artifact
+   classes that reach the Summary and bullets through generated text;
+   catching them mechanically replaces a user's manual proofread.
+
+Structural, punctuation, text-integrity, seniority-gate, and
+education-gate errors exit 2 — render_pdf.sh refuses to render.
+Near-duplicate and claim warnings exit 0 unless --strict (exit 1).
 
 The master file is auto-detected as the "X Master Resume.docx" next to the
 input; override with --master <path>.
@@ -72,6 +80,7 @@ Usage:
 import os
 import re
 import sys
+import unicodedata
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import docx_edit as de  # noqa: E402
@@ -277,6 +286,53 @@ def _punctuation_errors(region, summary):
                     f"{name} in prose — use periods and commas: "
                     f"...{probe[s:e]}..."
                 )
+    return errors
+
+
+# Non-ASCII characters allowed in prose: typographic marks Word documents
+# legitimately carry (curly apostrophes/quotes, dashes, ellipsis). Latin
+# letters with diacritics are allowed via their Unicode name; everything
+# else (CJK, Cyrillic, fullwidth forms, symbol blocks) is a mangling
+# artifact — a session had a CJK char silently replace " and " in a bullet.
+_ASCII_OK_CHARS = "‘’“”–—‐‑‥…"
+
+
+def _text_integrity_errors(region, summary):
+    """Step 9 text-integrity rule: generated prose must be clean. Scans the
+    Summary and job-history prose (same scope as _punctuation_errors) for
+    mangling artifacts: unexpected non-ASCII characters, doubled
+    punctuation, and doubled words."""
+    errors = []
+    candidates = ([summary] if summary is not None else []) + [
+        p for p in region
+        if de.style_and_numid(p)[0] not in (mr.COMPANY_STYLE, TITLE_STYLE)
+    ]
+    for p in candidates:
+        text = de.text_of(p)
+        if not text.strip():
+            continue
+        for i, ch in enumerate(text):
+            if ord(ch) < 128 or ch in _ASCII_OK_CHARS:
+                continue
+            if "LATIN" in unicodedata.name(ch, ""):
+                continue  # accented Latin letters are legitimate
+            s, e = max(0, i - 30), min(len(text), i + 30)
+            errors.append(
+                f"non-ASCII {ch!r} (U+{ord(ch):04X} "
+                f"{unicodedata.name(ch, '?')}) in prose — likely a mangling "
+                f"artifact: ...{text[s:e]}..."
+            )
+        for m in re.finditer(r"(,|;|:)\1", text):
+            s, e = max(0, m.start() - 30), min(len(text), m.end() + 30)
+            errors.append(
+                f"doubled punctuation {m.group(0)!r} in prose: ...{text[s:e]}..."
+            )
+        for m in re.finditer(
+                r"\b(\w+)\s+\1\b", text, re.IGNORECASE):
+            s, e = max(0, m.start() - 30), min(len(text), m.end() + 30)
+            errors.append(
+                f"doubled word {m.group(0)!r} in prose: ...{text[s:e]}..."
+            )
     return errors
 
 
@@ -510,6 +566,7 @@ def main(argv=None):
 
     errors = _structural_errors(region)
     punct_errors = _punctuation_errors(region, summary)
+    integrity_errors = _text_integrity_errors(region, summary)
     dups = list(_near_duplicates(region))
 
     # Visible timeline span (shared with measure_resume.py): the number a
@@ -690,6 +747,12 @@ def main(argv=None):
     if not punct_errors:
         print("  ok (periods and commas only — no em dashes, double hyphens, "
               "or semicolons in Summary/job-history prose)")
+    print("== TEXT INTEGRITY ==")
+    for e in integrity_errors:
+        print(f"  ERROR: {e}")
+    if not integrity_errors:
+        print("  ok (no mangling artifacts — clean ASCII/Latin prose, no "
+              "doubled punctuation or words)")
     print("== SENIORITY ==")
     for e in seniority_errors:
         print(f"  ERROR: {e}")
@@ -720,8 +783,8 @@ def main(argv=None):
         len(dups)
         + sum(1 for lvl, _ in claim_notes if lvl == "warn")
     )
-    blocking = (len(errors) + len(punct_errors) + len(seniority_errors)
-                + len(education_errors))
+    blocking = (len(errors) + len(punct_errors) + len(integrity_errors)
+                + len(seniority_errors) + len(education_errors))
     if blocking:
         print(f"RESULT: {blocking} blocking error(s) — fix before rendering (exit 2)")
         return 2
