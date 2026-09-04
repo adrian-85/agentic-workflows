@@ -1104,6 +1104,36 @@ def _apply_simulate(docx_path, drop_prefixes, out_path):
     return out_path, dropped
 
 
+def _role_jd_evidence_lines(roles, header_text, jd_terms):
+    """Per-dropped-role JD-evidence report for ``--simulate``.
+
+    Whole-role elimination previously reported only the year math, so a
+    drop could silently trade away the JD's named evidence — a session
+    dropped the two oldest roles (the strongest FDA evidence) for an
+    FDA-heavy JD and the user caught it in chat. This makes the trade-off
+    visible BEFORE approval: a role whose bullets carry JD-matched terms
+    or JD practice phrases should be trimmed to those bullets (SKILL Step
+    3: age is the tiebreaker, JD evidence is the rule), not dropped whole.
+    Returns warning lines (empty when the role carries no JD evidence or
+    no terms were extractable)."""
+    role = next((r for r in roles if r["raw"] == header_text), None)
+    if role is None or not jd_terms:
+        return []
+    kept = [b for b in role["bullet_texts"] if _jd_kept(b, jd_terms)]
+    if not kept:
+        return [f"JD evidence: none of this role's "
+                f"{len(role['bullet_texts'])} bullet(s) match the JD — "
+                f"a clean drop candidate"]
+    lines = [
+        f"JD EVIDENCE LOST: this role carries {len(kept)} JD-matched "
+        f"bullet(s) — trimming it to those bullets may beat dropping it "
+        f"whole (SKILL Step 3):",
+    ]
+    for b in kept:
+        lines.append(f"    - {b[:90]}")
+    return lines
+
+
 def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):
     """Turn a BATCH RECLAIM PLAN into per-role DROP PLAN sections.
 
@@ -1464,24 +1494,48 @@ def main():
         print("  --simulate: pass repeatedly; drops each named WHOLE role "
               "(company-header prefix) in a temp copy and measures THAT — "
               "the seniority-alignment what-if. The file on disk is never "
-              "modified; compare the printed TIMELINE against the JD's ask.",
+              "modified; compare the printed TIMELINE against the JD's ask. "
+              "With --jd it also reports JD-matched bullets each drop would "
+              "lose — trim those roles to their JD bullets instead of "
+              "dropping whole.",
               file=sys.stderr)
         sys.exit(2)
     docx = kept[0]
     target, default_target = _target_from_args(kept)
 
+    jd_text = None
+    if jd_file:
+        try:
+            with open(jd_file, encoding="utf-8", errors="replace") as f:
+                jd_text = f.read()
+        except OSError as e:
+            print(f"error: cannot read --jd file {jd_file}: {e}",
+                  file=sys.stderr)
+            sys.exit(2)
+
     with tempfile.TemporaryDirectory() as td:
+        sim_jd_terms = None  # sentinel: no --jd passed
         if simulate:
+            pre_root, pre_body, _, _, _ = de.load(docx)
+            pre_roles = _roles(pre_body)
+            if jd_file:
+                sim_jd_terms = _jd_terms(jd_text, pre_body)
             sim_path = os.path.join(td, "simulated.docx")
             docx, dropped = _apply_simulate(docx, simulate, sim_path)
             print("SIMULATED seniority alignment — the file on disk was "
                   "NOT modified:")
             for header in dropped:
                 print(f"  dropped whole role: {header}")
+                for line in _role_jd_evidence_lines(
+                        pre_roles, header, sim_jd_terms or set()):
+                    print(f"    {line}")
             missing = len(simulate) - len(dropped)
             if missing:
                 print(f"  ({missing} prefix(es) matched nothing — see "
                       f"warnings above)")
+            if not jd_file:
+                print("  (no --jd passed — JD evidence in the dropped roles "
+                      "cannot be assessed; pass --jd <JD.txt> to see it)")
             print("  Compare the TIMELINE below against the JD's ask; run "
                   "without --simulate to apply the drops for real.")
             print()
@@ -1489,16 +1543,8 @@ def main():
         root, body, _, _, _ = de.load(docx)
         roles = _roles(body)
 
-        jd_terms = set()
+        jd_terms = set(sim_jd_terms) if sim_jd_terms is not None else set()
         if jd_file:
-            try:
-                with open(jd_file, encoding="utf-8", errors="replace") as f:
-                    jd_text = f.read()
-            except OSError as e:
-                print(f"error: cannot read --jd file {jd_file}: {e}",
-                      file=sys.stderr)
-                sys.exit(2)
-            jd_terms = _jd_terms(jd_text, body)
             for line in _jd_report(jd_file, jd_text, jd_terms):
                 print(line)
             print("JD TITLE vs HEADLINE:")

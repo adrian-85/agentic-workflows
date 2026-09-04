@@ -1156,6 +1156,50 @@ class ApplySimulateTests(unittest.TestCase):
             os.unlink(src)
 
 
+class RoleJdEvidenceTests(unittest.TestCase):
+    """_role_jd_evidence_lines: --simulate must surface the JD evidence a
+    whole-role drop would lose, so the trade-off is visible before approval
+    (a real session dropped the strongest FDA role for an FDA-heavy JD)."""
+
+    ROLES = [
+        {"raw": "Illumina, San Diego, CA02/2012 – 10/2014",
+         "bullet_texts": [
+             "Served as tester for one of company's initial FDA approved "
+             "products.",
+             "Developed test protocols and traceability matrices for "
+             "regulated projects.",
+             "Wrote internal tooling dashboards for the lab.",
+         ]},
+        {"raw": "Trove, San Francisco, CA (Remote)05/2020 – 02/2021",
+         "bullet_texts": ["Built CI pipelines.", "Cut release time."]},
+    ]
+
+    def test_jd_evidence_loss_warned(self):
+        lines = mr._role_jd_evidence_lines(
+            self.ROLES, "Illumina, San Diego, CA02/2012 – 10/2014",
+            {"fda", "traceability"})
+        self.assertTrue(
+            any("JD EVIDENCE LOST" in l and "2 JD-matched" in l
+                for l in lines),
+            f"expected evidence-loss warning, got: {lines}")
+        self.assertTrue(any("FDA approved" in l for l in lines))
+
+    def test_clean_drop_candidate_noted(self):
+        lines = mr._role_jd_evidence_lines(
+            self.ROLES, "Trove, San Francisco, CA (Remote)05/2020 – 02/2021",
+            {"fda"})
+        self.assertEqual(len(lines), 1)
+        self.assertIn("clean drop candidate", lines[0])
+
+    def test_unknown_header_and_empty_terms_return_nothing(self):
+        self.assertEqual(
+            mr._role_jd_evidence_lines(self.ROLES, "No Such", {"fda"}), [])
+        self.assertEqual(
+            mr._role_jd_evidence_lines(
+                self.ROLES, "Trove, San Francisco, CA (Remote)05/2020 – "
+                "02/2021", set()), [])
+
+
 class GapIfDroppedTests(unittest.TestCase):
     """_gap_if_dropped: interior whole-role drops open employment gaps."""
 
