@@ -3,9 +3,11 @@
 A workflow for tailoring a master `.docx` resume to a specific job posting or
 recruiter message without destroying its formatting. The master is edited via
 its Word XML in place (fonts, sizes, paragraph styles, list/bullet numbering,
-and hyperlinks all survive), and tailoring is **subtractive**: content is
-compressed toward the target role by cutting from the oldest roles, never the
-most recent.
+and hyperlinks all survive), and tailoring is **subtractive and JD-driven**:
+every role — including the most recent — is pruned to its JD-relevant bullets
+under a hard per-role bullet cap; whole-role cuts come from the oldest roles
+when seniority alignment calls for them. JD alignment first, readability
+second; time-in-role and recency are only tiebreakers.
 
 The full 11-step workflow — reading inputs, rewriting the Summary, weaving
 JD-required tools into role bullets, measuring before cutting, grammar passes,
@@ -22,7 +24,7 @@ and PDF verification — is documented in [`SKILL.md`](SKILL.md).
 | `scripts/render_pdf.sh` | Renders the `.docx` to PDF (LibreOffice headless), verifies page count, flags a sparse last page, and reports overflow past `TARGET_PAGES` with a reclaim hint. Compact by default; add `--verbose` for the page-boundary map and spilled-content dump. |
 | `scripts/squeeze_resume.py` | Auto-tightens a tailored resume to a page budget, ending the cut-render-cut-render loop. Each iteration renders, applies the JD-aware oldest-first DROP PLAN, and repeats until on target or no JD-safe cuts remain — at which point it signals a whole-role drop (seniority alignment) or a Tools-line trim. Logs every cut to `<docx>.squeeze.json` as copy-pasteable `find_p` prefixes to fold back into the tailor script. |
 | `scripts/diff_resume.py` | Diffs a user-edited tailored `.docx` against a fresh regenerate so manual edits surface as text and can be folded back into the tailor script. `--tailor <script>` auto-regenerates to a temp file and diffs in one command. |
-| `scripts/validate_resume.py` | Structural validator: catches orphan job titles, company blocks without titles, orphaned content after a Tools line, **role-integrity violations** (kept roles missing title or bullets; removed roles whose bullets survive), unapproved whole-role elimination, and quantified-claim mismatches against the master. With `--jd` it also warns when the resume headline is **MORE SENIOR** than the JD's named title (SKILL Step 4 title alignment; advisory) and gates Education drops against degree-requiring JDs. Enforces the punctuation rule (periods and commas only in Summary/job-history prose — no em dashes, double hyphens, or semicolons; compound hyphens and date-range en dashes exempt). `render_pdf.sh` runs it before rendering and refuses broken output. |
+| `scripts/validate_resume.py` | Structural validator: catches orphan job titles, company blocks without titles, orphaned content after a Tools line, **role-integrity violations** (kept roles missing title or bullets; removed roles whose bullets survive), unapproved whole-role elimination, and quantified-claim mismatches against the master. With `--jd` it also warns when the resume headline is **MORE SENIOR** than the JD's named title (SKILL Step 4 title alignment; advisory) and gates Education drops against degree-requiring JDs. Enforces the punctuation rule (periods and commas only in Summary/job-history prose — no em dashes, double hyphens, semicolons, colons, or ellipses; compound hyphens, date-range en dashes, and the Tools line's `Label: values` colon exempt). `render_pdf.sh` runs it before rendering and refuses broken output. |
 | `scripts/read_profile.sh` | Dumps the LinkedIn data-export folder (`Basic_LinkedInDataExport_*/` CSVs) as one readable stream, used as a content cross-reference. |
 | `scripts/test_docx_edit.py` | Unit tests for `docx_edit.py`. |
 | `scripts/test_measure_resume.py` | Unit tests pinning `measure_resume.py`'s default format assumptions and proving the constants adapt to a different resume. |
@@ -79,8 +81,9 @@ python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test
    TARGET_PAGES=2 ./scripts/render_pdf.sh "<userName> Resume - <Target>.docx"
    ```
 
-   Measure before cutting with `measure_resume.py` to plan the oldest-role
-   cuts as a batch; `--simulate "<company prefix>"` what-ifs a whole-role
+   Measure before cutting with `measure_resume.py` to plan every role's cuts
+   as a batch (its weak-match listing names generic-term matches that no
+   longer protect); `--simulate "<company prefix>"` what-ifs a whole-role
    drop (seniority alignment) without touching the file. Verification is
    text-only — `--verbose` page map, page-fill table, `pdftotext` — never
    rendered page images.
