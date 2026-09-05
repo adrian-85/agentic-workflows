@@ -15,7 +15,10 @@ styles, list/bullet numbering, and hyperlinks all survive.
 from it and compress to ≤3 pages.** Copy the master, edit that copy's Word XML
 in place (so formatting survives), and never overwrite the master — every run
 writes a new file (e.g. `John Doe Resume - <Target>.docx`). Compression is
-subtractive: cut from the oldest roles, never the most recent.
+subtractive and JD-driven: **every role is pruned to its JD-relevant bullets,
+including the most recent**, under a hard per-role bullet cap (Step 8).
+JD alignment is king, readability second; time-in-role and recency are only
+tiebreakers, never a cut signal and never an exemption.
 
 ## When to Use
 
@@ -36,7 +39,7 @@ subtractive: cut from the oldest roles, never the most recent.
 | 5 | No sections between Summary & Proficiencies | — |
 | 6 | Re-anchor senior role (merge, don't append) | `set_text`, `merge_into` |
 | 7 | Expand role adjacent to JD industry/stage | `set_text` |
-| 8 | Compress any section (measure first): oldest-role bullets, then off-JD proficiencies/certs | `measure_resume.py` `--jd` (DROP PLAN + TOP-BLOCK CANDIDATES); `squeeze_resume.py` for the residual gap |
+| 8 | Compress any section, any role (measure first): every role's off-JD bullets under the per-role cap, then off-JD proficiencies/certs | `measure_resume.py` `--jd` (DROP PLAN + weak-match listing + TOP-BLOCK CANDIDATES); `squeeze_resume.py` for the residual gap |
 | 9 | Fix grammar, typos, punctuation | grep + `validate_resume.py` |
 | 10 | Save tailored copy (never overwrite master) | `save()` |
 | 11 | Render + verify PDF | `render_pdf.sh` |
@@ -271,14 +274,16 @@ later edit shows where each was used.
   mid-compression unless the note fires. (This prevents the 8-cycle
   waffle a 3-page senior build triggered when a 43% last page went
   unaddressed.)
-- Length is reclaimed by **compressing the oldest roles**, never the most
-  recent. Recruiters weight the most-recent role most; cut from the bottom
-  (roles 5+ years back) and keep their 2–3 strongest, quantified bullets.
+- Length is reclaimed by **pruning every role to its JD-relevant bullets**
+  (Step 8), then by whole-role drops at the bottom when seniority alignment
+  calls for them. Recency and time-in-role are tiebreakers only — they decide
+  which of two otherwise-equal bullets survives, never whether the
+  most-recent role is exempt from pruning.
 - Don't bloat the top to "add content" — instead *reallocate*: expand the
-  senior role with JD-aligned content AND compress the oldest roles to make
-  room. Done right, the resume gets *shorter* while the important part gets
-  stronger. Decide the target page count now (Step 8 measures it before
-  cutting).
+  senior role with JD-aligned content AND prune every role (including that
+  one) under the per-role cap to make room. Done right, the resume gets
+  *shorter* while the important part gets stronger. Decide the target page
+  count now (Step 8 measures it before cutting).
 
 **Seniority alignment — when the JD specifies fewer years than the candidate
 has** (this session's case: a mid-level "Software Test Engineer" JD asking
@@ -437,7 +442,11 @@ Engineer…"). `measure_resume.py --jd` and `validate_resume.py --jd` print a
 Then rewrite the Summary so its first sentence hits the JD's core ask (e.g.
 "owns quality end-to-end", "builds QA frameworks from scratch rather than
 working within established ones"). Mirror the user's selling points explicitly.
-Keep it to ~4–5 sentences.
+Keep it to ~3–4 tight sentences. The Summary is the intro a human reviewer
+reads first — an overlong intro risks the reviewer never reaching the bullets.
+Every Summary claim must be re-evidenced by a kept bullet below; cut Summary
+content that duplicates what a role block already says and let that block
+speak for itself.
 
 ### 5. Don't insert sections between the Summary and Technical Proficiencies
 
@@ -457,6 +466,14 @@ evidence, not a bare list.
 That role carries the most weight. Rewrite its intro to emphasize
 **ownership** and the JD's selling points.
 
+**The most-recent role is NOT exempt from JD-fit pruning.** Weight is not
+immunity: recency protects a role from whole-role elimination, never from
+bullet selection. A 1-year Staff role with heavy AI leverage can genuinely
+accomplish more than a 3-year one — time served is never a cut signal, and
+volume of accomplishment never justifies keeping a bullet. Prune its off-JD
+bullets under the same hard cap and priority order as every other role
+(Step 8).
+
 Enrich its bullets with the strongest missing content from LinkedIn. Where new
 content overlaps an existing bullet, **merge** rather than append — appending
 blows the page budget; merging keeps the role tight.
@@ -475,12 +492,27 @@ have, fold that content into the master first (real experience lives in the
 master, not per-target scripts).
 
 ### 8. Compress — the WHOLE resume tailors to the JD
-**Cuts can come from ANY section, not just job bullets.** Technical
-Proficiencies lines, Certifications, Tools lines, blank spacers, and
-role bullets are all first-class cuts — the same rendered line cost.
-Compression order: (1) oldest-role bullets via DROP PLAN, (2) TOP-BLOCK
-CANDIDATES lines (off-JD proficiencies/certs), (3) Tools line trims, (4)
-blank spacers. Go in that order; don't hand-pick.
+**Cuts can come from ANY section, not just job bullets — and from ANY role,
+including the most recent.** Technical Proficiencies lines, Certifications,
+Tools lines, blank spacers, and role bullets are all first-class cuts — the
+same rendered line cost. Priority order for every cut/keep decision:
+(1) **JD alignment** — a bullet that does not serve THIS JD is cut wherever
+it sits; (2) **readability** — concise, spaced, within the per-role bullet
+cap below; only then (3) time-in-role and recency as tiebreakers between
+otherwise-equal bullets. Compression order: (1) JD-fit pruning of EVERY
+role via DROP PLAN, (2) TOP-BLOCK CANDIDATES lines (off-JD
+proficiencies/certs), (3) Tools line trims, (4) blank spacers. Go in that
+order; don't hand-pick.
+
+**Hard bullet cap per role — enforced by count, not by judgment.** The
+cap applies regardless of tenure or accomplishment; the master keeps
+everything, the tailored resume re-selects. Cap by page target: 2 pages →
+~6 kept bullets per role; 3 pages → ~10. The most-recent role competes
+under the same cap — a 1-year role whose master block carries 20+ bullets
+selects its strongest JD-aligned ones like everyone else. Distribute the
+budget so the page breathes: a role carrying several times another role's
+bullet count crowds the page, and a reviewer who hits a wall of text skips
+bullets they needed to read.
 
 **The plan is a sum of REMOVALS, and measure emits it.** Every line in
 the plan's math is a paragraph the tailor script deletes. When the
@@ -555,13 +587,18 @@ slicing kept bullets to fill the gap.
 
 **"No unprotected bullet to give" is not "no bullet to cut."** JD-matching
 has false positives on generic terms ("new", "build", "control" match
-almost any bullet). When the most-recent role is fully protected and the
-gap is still open, measure lists the TOP-ROLE PROTECTED BULLETS with the
-matched term next to each. A match on a generic term is weak evidence:
-the human rule below (keep quantified/framework-ownership bullets, drop
-generic process bullets) extends to OVERRIDING protection, with the
-printed terms as the evidence — that is the sanctioned top-role trim, not
-hand-picking.
+almost any bullet). measure now classifies this mechanically: a term that
+hits MORE THAN HALF a role's own bullets is weak evidence (it cannot
+arbitrate between that role's bullets), displayed as `[weak: term]` under
+a `weak-match (cuttable)` listing, and it does NOT protect — those bullets
+appear in the DROP PLAN like any other. Specific technology nouns (API,
+SQL, Playwright, ...) are exempt: a core JD-named tool matching every
+bullet of a role is genuine evidence a cut must not remove. When the gap
+is still open after weak matches, measure lists the TOP-ROLE PROTECTED
+BULLETS with the matched term next to each — the human rule below (keep
+quantified/framework-ownership bullets, drop generic process bullets)
+extends to OVERRIDING remaining protection, with the printed terms as the
+evidence — that is the sanctioned top-role trim, not hand-picking.
 
 **Also check the TOP-BLOCK RECLAIM CANDIDATES** in the same measure output:
 every Technical Proficiencies or Certifications line with no JD evidence, as a
@@ -602,6 +639,9 @@ closed, then render to verify. This replaces the cut-render-cut guesswork.
 numbers or framework-ownership signal; drop generic process bullets
 ("established meetings", "enhanced documentation", "coordinated across teams")
 before quantified ones. The scorer only ranks — you confirm against the JD.
+And JD alignment outranks recency: when a most-recent-role bullet and an
+older-role bullet are equally JD-aligned, the hard cap and readability
+decide — not which role is newer.
 
 The reclaim plan may also suggest **dropping a whole oldest role** (cleanest
 page math). That is Step 3 seniority-alignment territory: confirm with the
@@ -639,17 +679,20 @@ INTEGRITY section (non-ASCII mangling, doubled punctuation, doubled
 words) catches the mechanical classes; the re-read catches everything
 else — awkward phrasing, missing words, wrong tense.
 
-**Punctuation rule — no em dashes, double hyphens, or semicolons.** In the
-Summary and job-history prose, never use em dashes (`—`), double hyphens
-(`--`), or semicolons (`;`). Rejoin with a period (split into a new
+**Punctuation rule — periods and commas only.** In the Summary and
+job-history prose, never use em dashes (`—`), double hyphens (`--`),
+semicolons (`;`), colons (`:`), or ellipses (`...` or the `…` character).
+Rejoin with a period (split into a new
 sentence) or a comma instead. **Single hyphens are fine** — they appear in
 compound words (`test-automation`, `end-to-end`, `CI/CD`) and are never
 flagged by the validator. En dashes are only allowed in date ranges
 (`01/2023 – 12/2024`); in prose, treat them like em dashes (replace with a
-period or comma). Structural lines (company headers, job titles) and
-non-role sections (Technical Proficiencies, Certifications, Education) are
-not subject to the rule. `validate_resume.py` enforces this on the Summary
-and job-history prose — a violation blocks the PDF render (Step 11).
+period or comma). Exempt from the rule: structural lines (company headers,
+job titles), non-role sections (Technical Proficiencies, Certifications,
+Education), and the Tools line's `Label: values` colon — the colon there
+separates a bold label from a value list, it is not prose punctuation.
+`validate_resume.py` enforces this on the Summary and job-history prose —
+a violation blocks the PDF render (Step 11).
 
 ### 10. Save the tailored copy (as .docx, the working format)
 Write to `<userName> Resume - <Target>.docx` (drop "Master" from the
@@ -777,6 +820,9 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Reading "no unprotected bullet to give" as a dead end while the most-recent role carries off-JD content | JD-matching false-positives on generic terms — read the TOP-ROLE PROTECTED BULLETS list (matched term per bullet) and override weak matches deliberately; that is the sanctioned top-role trim, not hand-picking (Step 8) |
 | Running squeeze in apply mode on the tailored .docx and then folding cuts back into the script by hand | Harvest with `--plan-only` BEFORE the script's first run — same loop, same fold-back block, file untouched (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
+| Pruning only the oldest roles while the most-recent role keeps 15+ bullets | The hard per-role cap applies to EVERY role: a 1-year role whose master block carries 20+ bullets selects its strongest JD-aligned ones like everyone else — check the DROP PLAN's weak-match (cuttable) listing for the top role (Steps 6, 8) |
+| Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 3, 8) |
+| Trusting a JD-matched (kept) listing that protected everything | A term matching half a role's bullets is shown as `[weak: term]` and protects nothing; specific tech nouns stay strong — read the weak-match (cuttable) listing before calling a role a dead end (Step 8) |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
 | Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (`save()` prints one summary line if element-form was used). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form (Helper library) |
 | Iterating Tools-line trims because a trimmed line still wraps | Rare now: TOOLS LINES THAT WRAP reports the MEASURED budget per line ("value is N chars, wraps after ~M — cut ~N-M chars"), so the first trim lands. Trim to the reported budget, not a tool count — the proportional font makes "~8 tools" unreliable (Step 8) |
@@ -788,5 +834,5 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Keeping Education when the degree isn't evidence for the JD | Evaluate the drop/keep predicates (Step 3.4) — a BA vs an engineering JD is a 3-line drop |
 | Reading a clean render (no `--jd`) as education-clause clearance | The education gate runs only with `--jd`; the seniority gate always — render_pdf.sh NOTEs when the education gate did not run (Step 11) |
 | Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 9) |
-| Em dash / double dash / semicolon in rewritten Summary or bullet prose | No em dashes, double hyphens, or semicolons — split into a new sentence or use a comma; single hyphens in compound words are fine (Step 9). `validate_resume.py` blocks the render |
+| Colon or ellipsis in rewritten Summary or bullet prose | Periods and commas ONLY — no em dashes, double hyphens, semicolons, colons, or ellipses (`...`); split into a new sentence or use a comma. The Tools line's `Label: values` colon is the one exempt structural colon (Step 9). `validate_resume.py` blocks the render |
 | JD asks for fewer years than the candidate has | Offer Step 3 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it. The token needs the user's authority: their chat reply or pre-authorization in the request; never pass it on your own |

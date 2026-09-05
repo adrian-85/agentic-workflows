@@ -17,8 +17,11 @@ The pattern (see SKILL.md for the full workflow):
 3. Re-anchor the most-recent/senior role intro around ownership and the
    JD's selling points; weave JD-named tools into the role bullet where they
    were actually used (merge, don't append).
-4. Compress every role to its most JD-aligned/quantified bullets via `drop`,
-   cutting from the oldest roles first (never the most recent).
+4. Compress EVERY role to its most JD-aligned/quantified bullets via `drop`,
+   under a hard per-role bullet cap (~6 kept per role at 2 pages, ~10 at 3).
+   Priority order: JD alignment, then readability; time-in-role and recency
+   are tiebreakers only — never a cut signal, never an exemption for the
+   most-recent role.
 5. Trim the oldest roles' exhaustive Tools lines to one line each.
 6. Drop blank inter-role spacer paragraphs to reclaim vertical space.
 7. Save, render the PDF, and iterate until ≤3 pages with a full last page.
@@ -83,8 +86,10 @@ def main():
 
     # ------------------------------------------------------------------ #
     # 1. SUMMARY — lead with the JD's core ask. Mirror the employer's
-    #    language and the user's selling points for THIS role. ~4-5
-    #    sentences. Use set_text (preserves the first run's formatting).
+    #    language and the user's selling points for THIS role. ~3-4
+    #    tight sentences — an overlong intro risks the reviewer never
+    #    reaching the bullets. Use set_text (preserves the first run's
+    #    formatting).
     # ------------------------------------------------------------------ #
     set_text(
         find_p(ps, "<prefix of the Summary paragraph>"),
@@ -158,12 +163,17 @@ def main():
     ])
 
     # ------------------------------------------------------------------ #
-    # 4. COMPRESS OLDER ROLES — drop the weakest bullets from roles 5+ years
-    #    back first; keep the 2-3 with hard numbers or framework-ownership
-    #    signal. Never cut the most-recent role to make room — reallocate.
+    # 4. COMPRESS EVERY ROLE — under the hard per-role bullet cap (~6 kept
+    #    per role at 2 pages, ~10 at 3), prune each role's off-JD bullets.
+    #    Priority order: JD alignment, then readability; time-in-role and
+    #    recency are tiebreakers only. The most-recent role is NOT exempt
+    #    — recency protects it from whole-role elimination, never from
+    #    bullet selection. Use measure's DROP PLAN find_p lines (its
+    #    weak-match (cuttable) listing names generic-term matches that no
+    #    longer protect).
     # ------------------------------------------------------------------ #
     # ps = drop(body, [
-    #     "<oldest-role bullet to drop>",
+    #     "<off-JD bullet to drop, weakest first — any role>",
     #     # ...
     # ])
 
