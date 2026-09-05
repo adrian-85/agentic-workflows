@@ -71,7 +71,8 @@ Catches the error classes tailoring sessions actually hit:
    catching them mechanically replaces a user's manual proofread.
 
 6. GUIDANCE — readability signals the agent should act on (advisory).
-   Summary sentence count vs the ~3–4 guideline; sections inserted between
+   Word-count cap — no prose paragraph or individual bullet over 40 words
+   (<=40 acceptable; SKILL Step 4) — and sections inserted between the
    Summary and Technical Proficiencies (SKILL Step 5 forbids this). These
    are warnings, not blocking errors — the agent may have a reason to
    deviate, but the validator flags the deviation so it cannot go unnoticed.
@@ -142,6 +143,15 @@ DATE_RANGE = re.compile(r"\d{1,2}/\d{4}\s*[–\-]\s*\d{1,2}/\d{4}")
 # page target, or accomplishment. The master intentionally keeps everything;
 # a tailored resume re-selects. Enforced as a blocking render gate below.
 MAX_BULLETS_PER_ROLE = 8
+
+# SKILL Step 4: readability word cap — no prose paragraph or individual
+# bullet over 40 words (<=40 is acceptable). Word count, not sentence
+# count: a 3-sentence Summary measured ~84 words in a real session and
+# still read as a wall. Prose only — Tools lines are keyword lists
+# governed by measure's wrap budget, not by this cap. The master input is
+# exempt, like the bullet cap: it keeps everything, the tailored resume
+# re-selects.
+PARA_WORD_CAP = 40
 
 
 def _is_bullet(p):
@@ -630,34 +640,39 @@ def _extract_flag(argv, flag):
     return None
 
 
-def _summary_guidance(body, summary):
-    """Advisory readability checks on the Summary paragraph.
+def _readability_guidance(body, summary, *, master_input=False):
+    """Advisory readability checks (SKILL Step 4 word cap + Step 5).
+
+    Word cap: no prose paragraph or individual bullet over PARA_WORD_CAP
+    words — <=40 is acceptable. Word count, not sentence count. Tools
+    lines are exempt (keyword lists governed by measure's wrap budget);
+    the master input is exempt too (it intentionally keeps everything).
 
     Returns [(severity, message)] — severity in warn|ok.
     These are NOT blocking (the agent may have a good reason to exceed
-    the guideline); they surface when the agent overwrites the Summary
+    the cap); they surface when the agent writes a paragraph or bullet
     without applying the SKILL's readability guidance.
     """
     notes = []
-    if summary is None:
-        return notes
-    text = de.text_of(summary).strip()
-    if not text:
-        return notes
-
-    # Sentence count: split on sentence-ending punctuation followed by
-    # whitespace or end-of-string.  "e.g." false-positives are rare in
-    # resume summaries; the heuristic is good enough for a warning.
-    sentences = re.findall(r"[^\s.!?]+[.!?]+", text)
-    n = max(len(sentences), 1)
-    if n > 4:
-        notes.append(("warn",
-            f"Summary has {n} sentences (recommended ~3–4 tight sentences, "
-            f"SKILL Step 4): an overlong intro risks the reviewer never "
-            f"reaching the bullets"))
-    elif n >= 3:
-        notes.append(("ok",
-            f"Summary has {n} sentences — within the ~3–4 guideline"))
+    if not master_input:
+        for p, text in _prose_paragraphs(_region(body), summary):
+            if _is_tools(p):
+                continue
+            n = len(text.split())
+            if n <= PARA_WORD_CAP:
+                continue
+            kind = ("Summary" if p is summary
+                    else "Bullet" if _is_bullet(p) else "Paragraph")
+            snippet = " ".join(text.split())[:60]
+            notes.append(("warn",
+                f"{kind} has {n} words (cap {PARA_WORD_CAP}, SKILL Step 4): "
+                f"{snippet!r}... — split or trim to {PARA_WORD_CAP} words"))
+    if summary is not None:
+        text = de.text_of(summary).strip()
+        if text and len(text.split()) <= PARA_WORD_CAP:
+            notes.append(("ok",
+                f"Summary has {len(text.split())} words — within the "
+                f"{PARA_WORD_CAP}-word cap"))
 
     # Section between Summary and Technical Proficiencies: the SKILL
     # forbids inserting Core Strengths, Top Skills, or keyword-mirror
@@ -727,7 +742,8 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,
     span = (last - first) if (first is not None and last is not None) else None
 
     claim_notes = []  # (severity, message); severity in warn|ok|note
-    guidance_notes = _summary_guidance(body, summary)
+    guidance_notes = _readability_guidance(body, summary,
+                                           master_input=is_master_input)
 
     # Education gate (Step 3.4, needs --jd): a degree-requiring JD blocks
     # the render when the section was dropped (--education-approved

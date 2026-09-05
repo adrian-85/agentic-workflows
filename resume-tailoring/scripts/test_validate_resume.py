@@ -948,9 +948,10 @@ class EducationGateTests(unittest.TestCase):
 
 
 class GuidanceTests(unittest.TestCase):
-    """Advisory readability checks: Summary sentence count and the Step 5
-    no-sections-between rule. These are warnings (not blocking) so the
-    agent sees the signal without a build failure."""
+    """Advisory readability checks: the Step 4 word cap (no prose
+    paragraph or individual bullet over 40 words — <=40 acceptable) and
+    the Step 5 no-sections-between rule. These are warnings (not blocking)
+    so the agent sees the signal without a build failure."""
 
     def _body_with(self, summary_text, extra_sections=None):
         """Build a body with a Summary, optional extra SectionHeadings,
@@ -971,29 +972,57 @@ class GuidanceTests(unittest.TestCase):
         return b, summary_p
 
     def test_long_summary_warns(self):
-        b, s = self._body_with(
-            "First sentence. Second sentence. Third sentence. "
-            "Fourth sentence. Fifth sentence. Sixth sentence.")
-        notes = vr._summary_guidance(b, s)
+        over = " ".join(f"w{i}" for i in range(45)) + "."
+        b, s = self._body_with(over)
+        notes = vr._readability_guidance(b, s)
         warns = [c for lvl, c in notes if lvl == "warn"]
-        self.assertTrue(any("6 sentences" in w for w in warns), warns)
+        self.assertTrue(any("Summary has 45 words" in w for w in warns), warns)
+
+    def test_summary_at_cap_is_ok(self):
+        exactly = " ".join(f"w{i}" for i in range(40)) + "."
+        b, s = self._body_with(exactly)
+        notes = vr._readability_guidance(b, s)
+        self.assertFalse(any(lvl == "warn" for lvl, _ in notes), notes)
+        self.assertTrue(any("within the 40-word cap" in c
+                            for lvl, c in notes if lvl == "ok"), notes)
+
+    def test_over_cap_bullet_warns(self):
+        summary = mk("Clean summary.", style=vr.SUMMARY_STYLE)
+        ps = [
+            mk(mr.SECTION_PROFICIENCIES, style="SectionHeading"),
+            mk("Programming Languages: Java", style="BodyText"),
+            mk(mr.SECTION_CAREER, style="SectionHeading"),
+            mk("Acme, MA (Remote)01/2024 – 12/2026", style=mr.COMPANY_STYLE),
+            mk("Engineer", style=vr.TITLE_STYLE),
+            mk(" ".join(f"w{i}" for i in range(43)) + ".", numId=4),
+        ]
+        b = body(summary, *ps)
+        notes = vr._readability_guidance(b, summary)
+        warns = [c for lvl, c in notes if lvl == "warn"]
+        self.assertTrue(any("Bullet has 43 words" in w for w in warns), warns)
+
+    def test_master_input_exempt_from_word_cap(self):
+        over = " ".join(f"w{i}" for i in range(45)) + "."
+        b, s = self._body_with(over)
+        notes = vr._readability_guidance(b, s, master_input=True)
+        self.assertFalse(any(lvl == "warn" for lvl, _ in notes), notes)
 
     def test_brief_summary_ok(self):
         b, s = self._body_with(
             "First sentence. Second sentence. Third sentence.")
-        notes = vr._summary_guidance(b, s)
+        notes = vr._readability_guidance(b, s)
         self.assertFalse(any(lvl == "warn" for lvl, _ in notes), notes)
 
     def test_section_between_summary_and_proficiencies_warns(self):
         b, s = self._body_with(
             "Clean summary.", extra_sections=["Core Strengths"])
-        notes = vr._summary_guidance(b, s)
+        notes = vr._readability_guidance(b, s)
         warns = [c for lvl, c in notes if lvl == "warn"]
         self.assertTrue(any("Core Strengths" in w for w in warns), warns)
 
     def test_no_section_between_ok(self):
         b, s = self._body_with("Clean summary.")
-        notes = vr._summary_guidance(b, s)
+        notes = vr._readability_guidance(b, s)
         self.assertFalse(any(lvl == "warn" for lvl, _ in notes), notes)
 
     def test_guidance_appears_in_report(self):
@@ -1008,7 +1037,7 @@ class GuidanceTests(unittest.TestCase):
                 z.writestr("[Content_Types].xml", "<Types/>")
             root, body_el, names, data, _ = de.load(path)
             b, s = self._body_with(
-                "S1. S2. S3. S4. S5. S6.",
+                " ".join(f"w{i}" for i in range(45)) + ".",
                 extra_sections=["Top Skills"])
             for p in list(b):
                 body_el.append(p)
@@ -1017,7 +1046,7 @@ class GuidanceTests(unittest.TestCase):
             result = vr.validate_tree(path, body_el)
             report = "\n".join(result["lines"])
             self.assertIn("== GUIDANCE ==", report)
-            self.assertIn("6 sentences", report)
+            self.assertIn("Summary has 45 words", report)
             self.assertIn("Top Skills", report)
             self.assertGreater(result["warnings"], 0)
         finally:
