@@ -16,7 +16,8 @@ from it and compress to ≤3 pages.** Copy the master, edit that copy's Word XML
 in place (so formatting survives), and never overwrite the master — every run
 writes a new file (e.g. `John Doe Resume - <Target>.docx`). Compression is
 subtractive and JD-driven: **every role is pruned to its JD-relevant bullets,
-including the most recent**, under a hard per-role bullet cap (Step 8).
+including the most recent**, under a hard per-role bullet cap of 8 kept
+bullets (Step 8).
 JD alignment is king, readability second; time-in-role and recency are only
 tiebreakers, never a cut signal and never an exemption.
 
@@ -504,15 +505,15 @@ role via DROP PLAN, (2) TOP-BLOCK CANDIDATES lines (off-JD
 proficiencies/certs), (3) Tools line trims, (4) blank spacers. Go in that
 order; don't hand-pick.
 
-**Hard bullet cap per role — enforced by count, not by judgment.** The
-cap applies regardless of tenure or accomplishment; the master keeps
-everything, the tailored resume re-selects. Cap by page target: 2 pages →
-~6 kept bullets per role; 3 pages → ~10. The most-recent role competes
+**Hard bullet cap per role: never more than 8 kept bullets.** Enforced by
+count, not by judgment, and independent of page target, tenure, or
+accomplishment — the master keeps everything, the tailored resume
+re-selects. The cap is a ceiling, not a quota: measure's page math and JD
+alignment decide actual counts below it. The most-recent role competes
 under the same cap — a 1-year role whose master block carries 20+ bullets
-selects its strongest JD-aligned ones like everyone else. Distribute the
-budget so the page breathes: a role carrying several times another role's
-bullet count crowds the page, and a reviewer who hits a wall of text skips
-bullets they needed to read.
+selects its strongest JD-aligned ones like everyone else. A role at the
+cap while others sit far below it still crowds the page; a reviewer who
+hits a wall of text skips bullets they needed to read.
 
 **The plan is a sum of REMOVALS, and measure emits it.** Every line in
 the plan's math is a paragraph the tailor script deletes. When the

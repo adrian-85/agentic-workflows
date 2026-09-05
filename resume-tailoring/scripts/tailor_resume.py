@@ -18,7 +18,7 @@ The pattern (see SKILL.md for the full workflow):
    JD's selling points; weave JD-named tools into the role bullet where they
    were actually used (merge, don't append).
 4. Compress EVERY role to its most JD-aligned/quantified bullets via `drop`,
-   under a hard per-role bullet cap (~6 kept per role at 2 pages, ~10 at 3).
+   under a hard per-role bullet cap of 8 kept bullets.
    Priority order: JD alignment, then readability; time-in-role and recency
    are tiebreakers only — never a cut signal, never an exemption for the
    most-recent role.
@@ -163,8 +163,8 @@ def main():
     ])
 
     # ------------------------------------------------------------------ #
-    # 4. COMPRESS EVERY ROLE — under the hard per-role bullet cap (~6 kept
-    #    per role at 2 pages, ~10 at 3), prune each role's off-JD bullets.
+    # 4. COMPRESS EVERY ROLE — under the hard per-role bullet cap (never
+    #    more than 8 kept bullets), prune each role's off-JD bullets.
     #    Priority order: JD alignment, then readability; time-in-role and
     #    recency are tiebreakers only. The most-recent role is NOT exempt
     #    — recency protects it from whole-role elimination, never from

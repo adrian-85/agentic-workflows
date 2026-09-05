@@ -5,9 +5,9 @@ recruiter message without destroying its formatting. The master is edited via
 its Word XML in place (fonts, sizes, paragraph styles, list/bullet numbering,
 and hyperlinks all survive), and tailoring is **subtractive and JD-driven**:
 every role — including the most recent — is pruned to its JD-relevant bullets
-under a hard per-role bullet cap; whole-role cuts come from the oldest roles
-when seniority alignment calls for them. JD alignment first, readability
-second; time-in-role and recency are only tiebreakers.
+under a hard per-role bullet cap of 8 kept bullets; whole-role cuts come
+from the oldest roles when seniority alignment calls for them. JD alignment
+first, readability second; time-in-role and recency are only tiebreakers.
 
 The full 11-step workflow — reading inputs, rewriting the Summary, weaving
 JD-required tools into role bullets, measuring before cutting, grammar passes,
