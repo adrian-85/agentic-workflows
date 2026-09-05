@@ -925,9 +925,68 @@ def _is_protected(text, protect):
     return any(p.lower() in low for p in protect)
 
 
-def _jd_kept(text, jd_terms):
-    """True if JD evidence (a matched JD term or a JD practice phrase)."""
-    return bool(_jd_hits(text, jd_terms)) or bool(_concept_hits(text))
+def _weak_jd_terms(bullets, jd_terms):
+    """JD terms whose whole-word match hits MORE than half of ``bullets``.
+
+    Inside that corpus the term cannot arbitrate between bullets — every
+    "test engineer" bullet matches a testing JD's ``test`` — so a hit on a
+    weak term is weak protection evidence (SKILL Step 8): it is displayed
+    as ``[weak: term]`` and does NOT make a bullet immune to the DROP
+    PLAN. Per-role, not global: ``test`` stays strong evidence in a role
+    where it discriminates and is weak in a role where every bullet
+    carries it. The global >50% guard in ``_jd_terms`` still removes
+    resume-wide flood terms before this runs.
+
+    CORE_TECH_NOUNS (api, sql, playwright, ...) are exempt — a specific
+    technology noun matching every bullet of a role is genuine evidence,
+    exactly what a whole-role drop must not remove (SKILL Step 3). The
+    weak class is for generic single words (test, code, new, build, ...)
+    whose resume-wide match rate is what made two real sessions shield a
+    1-year role's 16+ bullets while JD-relevant older-role bullets died.
+    """
+    if not jd_terms or not bullets:
+        return set()
+    low = [b.lower() for b in bullets]
+    weak = set()
+    for t in jd_terms:
+        if t in CORE_TECH_NOUNS:
+            continue
+        hits = sum(1 for b in low if _jd_hits(b, {t}))
+        if hits > 0.5 * len(low):
+            weak.add(t)
+    return weak
+
+
+def _jd_hits_classified(text, jd_terms, corpus):
+    """(strong_hits, weak_hits) for ``text`` against ``jd_terms``.
+
+    A hit is weak when its term matches >50% of ``corpus`` (the role's own
+    bullets — see :func:`_weak_jd_terms`). Strong hits protect; weak hits
+    are display-only evidence that the human rule may override.
+    """
+    hits = _jd_hits(text, jd_terms)
+    if not hits:
+        return [], []
+    weak = _weak_jd_terms(corpus, jd_terms)
+    strong = [h for h in hits if h not in weak]
+    return strong, [h for h in hits if h in weak]
+
+
+def _jd_kept(text, jd_terms, corpus=None):
+    """True if STRONG JD evidence (a non-weak matched term or a JD practice
+    phrase).
+
+    ``corpus`` (the role's own bullet list) makes a matched term weak when
+    it hits >half the role's bullets: such a match protects nothing (every
+    bullet in the role matches it), so a bullet whose ONLY matches are
+    weak is NOT kept — it stays cuttable and the plan names it directly
+    instead of dead-ending on nominal protection.
+    """
+    if corpus is None:
+        strong = _jd_hits(text, jd_terms)
+    else:
+        strong, _ = _jd_hits_classified(text, jd_terms, corpus)
+    return bool(strong) or bool(_concept_hits(text))
 
 
 def _suggest_drops(bullet_texts, budget, protect=(), jd_terms=()):
@@ -935,17 +994,21 @@ def _suggest_drops(bullet_texts, budget, protect=(), jd_terms=()):
 
     Bullets containing a ``protect`` phrase are **never** suggested — the
     budget is filled exclusively from unprotected bullets.  With ``jd_terms``
-    (from --jd), bullets carrying JD evidence (a matched term or a JD
-    practice phrase) are excluded the same way, while any non-JD bullet
-    remains — so a Cypress bullet stops being cuttable the moment the JD
-    asks for Cypress.  When the budget exceeds the unprotected supply,
+    (from --jd), bullets carrying STRONG JD evidence (a non-weak matched
+    term or a JD practice phrase) are excluded the same way, while any
+    non-JD bullet remains — so a Cypress bullet stops being cuttable the
+    moment the JD asks for Cypress, while a bullet matched only by a term
+    that hits half its own role (generic 'test' in a tester's role) stays
+    cuttable.  Weakness is judged against ``bullet_texts`` (the role's own
+    bullets).  When the budget exceeds the unprotected supply,
     returns only what is available (a short list); callers should surface
     the shortfall to the user.
     """
     if budget <= 0 or not bullet_texts:
         return []
     cuttable = [t for t in bullet_texts
-                if not _is_protected(t, protect) and not _jd_kept(t, jd_terms)]
+                if not _is_protected(t, protect)
+                and not _jd_kept(t, jd_terms, corpus=bullet_texts)]
     ranked = sorted(cuttable, key=_weakness_key)
     return ranked[:budget]
 
@@ -995,10 +1058,16 @@ _DROP_ACTION = re.compile(r"^drop (\d+) bullet\(s\)")
 
 
 def _protected_count(bullets, protect=(), jd_terms=()):
-    """How many of ``bullets`` carry JD/protect evidence (never suggested
-    for cutting while weaker bullets remain)."""
+    """How many of ``bullets`` carry STRONG JD/protect evidence (never
+    suggested for cutting while weaker bullets remain). Weak matches — a
+    term that hits half the role's own bullets — do not protect: every
+    bullet in the role carries them, so counting them would shield the
+    whole role from the plan (the exact over-protection two real sessions
+    hit, where a 1-year role kept 16+ bullets and old JD-relevant bullets
+    died instead)."""
     return sum(1 for b in bullets
-               if _is_protected(b, protect) or _jd_kept(b, jd_terms))
+               if _is_protected(b, protect)
+               or _jd_kept(b, jd_terms, corpus=bullets))
 
 
 def _dead_end_roles(plan, roles, protect=(), jd_terms=()):
@@ -1122,7 +1191,8 @@ def _role_jd_evidence_lines(roles, header_text, jd_terms):
     role = next((r for r in roles if r["raw"] == header_text), None)
     if role is None or not jd_terms:
         return []
-    kept = [b for b in role["bullet_texts"] if _jd_kept(b, jd_terms)]
+    kept = [b for b in role["bullet_texts"]
+            if _jd_kept(b, jd_terms, corpus=role["bullet_texts"])]
     if not kept:
         return [f"JD evidence: none of this role's "
                 f"{len(role['bullet_texts'])} bullet(s) match the JD — "
@@ -1134,6 +1204,45 @@ def _role_jd_evidence_lines(roles, header_text, jd_terms):
     ]
     for b in kept:
         lines.append(f"    - {b[:90]}")
+    return lines
+
+
+def _jd_listing_lines(bullets, jd_terms):
+    """Display lines for a role's JD-evidence bullets.
+
+    'JD-matched (kept)' lists STRONG matches — they protect the bullet
+    from the DROP PLAN. 'weak-match (cuttable)' lists bullets whose ONLY
+    term hits are weak (each term hits >half the role's own bullets, so
+    the match discriminates nothing — see :func:`_weak_jd_terms`): they
+    stay cuttable, and the listing makes that visible instead of nominal
+    protection. JD practice-phrase matches (mentorship, traceability, ...)
+    are always strong.
+    """
+    if not jd_terms:
+        return []
+    strong_kept, weak_only, concept_kept = [], [], []
+    for b in bullets:
+        strong, weak_hits = _jd_hits_classified(b, jd_terms, bullets)
+        if strong:
+            strong_kept.append((b, strong))
+        elif weak_hits:
+            weak_only.append((b, weak_hits))
+        elif _concept_hits(b):
+            concept_kept.append((b, _concept_hits(b)))
+    lines = []
+    if strong_kept or concept_kept:
+        lines.append("  JD-matched (kept) — never suggested while weaker "
+                     "bullets remain:")
+        for b, hits in strong_kept:
+            lines.append(f"    - {b[:68]}  [{' , '.join(hits)}]")
+        for b, hits in concept_kept:
+            lines.append(f"    - {b[:68]}  [practice: {', '.join(hits)}]")
+    if weak_only:
+        lines.append("  weak-match (cuttable — each term below hits half "
+                     "this role's bullets, so it protects nothing; the "
+                     "human rule may still keep specific bullets):")
+        for b, hits in weak_only:
+            lines.append(f"    - {b[:68]}  [weak: {' , '.join(hits)}]")
     return lines
 
 
@@ -1161,27 +1270,13 @@ def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):
             continue
         n = int(m.group(1))
         bullets = role.get("bullet_texts") or []
-        jd_kept = [(b, _jd_hits(b, jd_terms)) for b in bullets
-                   if _jd_hits(b, jd_terms)]
-        concept_kept = [(b, _concept_hits(b)) for b in bullets
-                        if _concept_hits(b) and not _jd_hits(b, jd_terms)]
         protected_count = _protected_count(bullets, protect=protect,
                                            jd_terms=jd_terms)
         unprotected_count = len(bullets) - protected_count
         lines = _drop_plan_lines(bullets, n, all_texts=all_texts,
                                  protect=protect, jd_terms=jd_terms)
         section = [f"DROP PLAN ({key}): drop {n} of {len(bullets)} bullets"]
-        if jd_kept or concept_kept:
-            section.append(
-                "  JD-matched (kept) — never suggested while weaker "
-                "bullets remain:"
-            )
-            for b, hits in jd_kept:
-                section.append(f"    - {b[:68]}  [{' , '.join(hits)}]")
-            for b, hits in concept_kept:
-                section.append(
-                    f"    - {b[:68]}  [practice: {', '.join(hits)}]"
-                )
+        section.extend(_jd_listing_lines(bullets, jd_terms))
         if n > unprotected_count and protected_count > 0:
             if not lines:
                 section.append(
@@ -1223,20 +1318,14 @@ def _protected_top_role_section(matched, jd_terms):
     if not matched or not jd_terms:
         return None
     bullets = matched[0][0].get("bullet_texts") or []
-    jd_kept = [(b, _jd_hits(b, jd_terms)) for b in bullets
-               if _jd_hits(b, jd_terms)]
-    concept_kept = [(b, _concept_hits(b)) for b in bullets
-                    if _concept_hits(b) and not _jd_hits(b, jd_terms)]
-    if not jd_kept and not concept_kept:
+    lines = _jd_listing_lines(bullets, jd_terms)
+    if not lines:
         return None
-    lines = ["TOP-ROLE PROTECTED BULLETS (no unprotected bullet to give; "
-             "matched terms shown — a generic match like 'new' or 'build' "
-             "is weak evidence, the human rule may override protection):"]
-    for b, hits in jd_kept:
-        lines.append(f"    - {b[:68]}  [{' , '.join(hits)}]")
-    for b, hits in concept_kept:
-        lines.append(f"    - {b[:68]}  [practice: {', '.join(hits)}]")
-    return "\n".join(lines)
+    return "\n".join([
+        "TOP-ROLE PROTECTED BULLETS (no unprotected bullet to give; "
+        "matched terms shown — a generic match like 'new' or 'build' "
+        "is weak evidence, the human rule may override protection):"
+    ] + lines)
 
 
 def _batch_section(batch, role, header, all_texts=None, protect=(),
@@ -1254,22 +1343,10 @@ def _batch_section(batch, role, header, all_texts=None, protect=(),
         return None
     n = int(m.group(1))
     bullets = role.get("bullet_texts") or []
-    jd_kept = [(b, _jd_hits(b, jd_terms)) for b in bullets
-               if _jd_hits(b, jd_terms)]
-    concept_kept = [(b, _concept_hits(b)) for b in bullets
-                    if _concept_hits(b) and not _jd_hits(b, jd_terms)]
     lines = _drop_plan_lines(bullets, n, all_texts=all_texts,
                              protect=protect, jd_terms=jd_terms)
     section = [header]
-    if jd_kept or concept_kept:
-        section.append("  JD-matched (kept) — never suggested while weaker "
-                       "bullets remain:")
-        for b, hits in jd_kept:
-            section.append(f"    - {b[:68]}  [{' , '.join(hits)}]")
-        for b, hits in concept_kept:
-            section.append(
-                f"    - {b[:68]}  [practice: {', '.join(hits)}]"
-            )
+    section.extend(_jd_listing_lines(bullets, jd_terms))
     if lines:
         section.append("  weakest-first (generic/no-number first — review each")
         section.append("  against the JD before cutting):")

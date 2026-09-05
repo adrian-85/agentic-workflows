@@ -765,6 +765,71 @@ class JDAwareTests(unittest.TestCase):
         self.assertEqual(len(lines), 1)
         self.assertIn("Some generic bullet", lines[0])
 
+    def test_weak_match_does_not_protect(self):
+        # A term matching MORE than half a role's own bullets is weak
+        # evidence (it cannot arbitrate between the role's bullets), so
+        # bullets matched only by it stay cuttable. Motivating failure
+        # (session 01a06fab): a testing JD's 'test' protected every bullet
+        # of a tester role, the DROP PLAN dead-ended, and a 1-year top role
+        # kept 16+ bullets while JD-relevant older-role bullets died.
+        bullets = [
+            "Primary test engineer for the NextGen platform.",
+            "Coordinated test release images with internal IT.",
+            "Proposed a continuous test plan to the department.",
+            "Served as one of the first test engineers on the FDA product.",
+        ]
+        # 4 of 4 bullets contain the whole word 'test' -> weak -> unprotected.
+        self.assertEqual(mr._protected_count(bullets, jd_terms={"test"}), 0)
+        drops = mr._suggest_drops(bullets, 2, jd_terms={"test"})
+        self.assertEqual(len(drops), 2)
+        self.assertTrue(all(d in bullets for d in drops))
+
+    def test_core_tech_noun_stays_strong_when_it_hits_all_bullets(self):
+        # The weak rule must never weaken a specific technology noun:
+        # a whole-role drop must not remove genuine 'playwright' evidence
+        # just because the role is small (SKILL Step 3: JD evidence is the
+        # rule, age the tiebreaker).
+        bullets = [
+            "Landed Playwright as the company UI testing tool",
+            "Configured Playwright pipelines for cross-repo runs",
+        ]
+        self.assertEqual(mr._protected_count(bullets, jd_terms={"playwright"}), 2)
+        drops = mr._suggest_drops(bullets, 1, jd_terms={"playwright"})
+        self.assertEqual(drops, [])
+
+    def test_drop_sections_lists_weak_matches_as_cuttable(self):
+        plan = [("Company ABC, City", "drop 2 bullet(s) (saves ~4 lines)", 4.0)]
+        bullets = [
+            "Primary test engineer for the NextGen platform.",
+            "Proposed a continuous test plan to the department.",
+        ]
+        sections = mr._drop_sections(
+            plan, [{"key": "Company ABC, City", "bullet_texts": bullets}],
+            jd_terms={"test"},
+        )
+        self.assertIn("weak-match (cuttable", sections[0])
+        self.assertIn("[weak: test]", sections[0])
+        dropped = [l for l in sections[0].splitlines() if "find_p(ps," in l]
+        self.assertEqual(len(dropped), 2)  # both weak-match bullets cuttable
+
+    def test_drop_sections_strong_match_still_listed_as_kept(self):
+        plan = [("Company ABC, City", "drop 1 bullet(s) (saves ~2 lines)", 2.0)]
+        bullets = [
+            "Landed Playwright as the company UI testing tool",
+            "Primary test engineer for the NextGen platform.",
+            "Proposed a continuous test plan to the department.",
+            "Coordinated test release images with internal IT.",
+        ]
+        sections = mr._drop_sections(
+            plan, [{"key": "Company ABC, City", "bullet_texts": bullets}],
+            jd_terms={"playwright", "test"},
+        )
+        self.assertIn("JD-matched (kept)", sections[0])
+        self.assertIn("Landed Playwright", sections[0])
+        self.assertIn("[weak: test]", sections[0])
+        dropped = [l for l in sections[0].splitlines() if "find_p(ps," in l]
+        self.assertEqual(len(dropped), 1)  # only the strong bullet protected
+
 
 class JdHitsTests(unittest.TestCase):
     """_jd_hits: whole-word matching with plural tolerance."""
