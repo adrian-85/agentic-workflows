@@ -412,9 +412,11 @@ compression when the page budget forces it:
    judgment call — it is a bypass that turns the gate into decoration. Same rule
    for `--education-approved` (Step 3.4). In a single-turn/autonomous session
    (the whole task arrived in one message and no user turn is available):
-   complete everything EXCEPT the final PDF, report the proposed span with the
-   numbers, and hand the user the exact render command — the PDF is deferred,
-   not self-approved.
+   present the proposed span with the numbers and STOP — the deliverable gate
+   (Step 10) refuses to write the .docx itself without the token, so there is
+   no file to hand over and nothing to convert by hand. After the user
+   approves, re-run the tailor script with the token in `RESUME_VALIDATE_ARGS`
+   (it writes then), then render.
 
 ### 4. Align the top title to the JD's, then rewrite the Summary to lead with JD-aligned value
 The name/title line is what a screener compares against the posting's level
@@ -701,6 +703,19 @@ a violation blocks the PDF render (Step 11).
 ### 10. Save the tailored copy (as .docx, the working format)
 Write to `<userName> Resume - <Target>.docx` (drop "Master" from the
 master's name). Never overwrite the master.
+**The deliverable gate runs at save time.** A tailor script's `save(..., src=SRC)`
+validates the in-memory result BEFORE writing: any state `validate_resume.py`
+would refuse to render — punctuation-rule prose, a role over the 8-bullet cap,
+unapproved whole-role elimination, structural breakage — is never written at
+all, and the gate removes the stale master copy the script's `shutil.copy`
+left at the path. There is no `.docx` on disk in a gated state, so nothing
+can be converted to PDF by hand: the gate blocks ALL deliverables, not just
+the render. Approval-requiring decisions (seniority alignment, education
+override) carry the user's token in `RESUME_VALIDATE_ARGS` — the same env
+var the render gate reads — so one approval environment governs both gates.
+Tool-internal saves (measure `--simulate`, squeeze, tests) pass no `src` and
+are never gated; writes to the master itself are exempt (it intentionally
+keeps everything).
 The `.docx` is the working file for the session — iterate on it while tuning
 the rendered PDF, then delete both after the resume is submitted. The master
 is the permanent artifact; tailored copies are temp files scoped to the
@@ -746,7 +761,9 @@ overshoot — the signal to offer Step 3's gapless oldest-role elimination.
 eliminated — without it the render is blocked, so the user-approved decision is
 recorded, not assumed. **Pass it only with the user's authority** (their chat
 reply, or pre-authorization in the original request — Step 3.5). Without that
-authority, finish the .docx and give the user this command to run themselves.
+authority, the deliverable gate has already refused to write the .docx (Step
+10) — present the plan, and after the user's reply re-run the tailor script
+with the token in `RESUME_VALIDATE_ARGS`, then render.
 The two flags are independent: `--jd-years` is an
 optional advisory; the gate reads only the approval token.
 `--jd-years` is ONLY for a JD that states a number of years. If the

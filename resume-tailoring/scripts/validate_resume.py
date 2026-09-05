@@ -403,7 +403,9 @@ def _find_master(docx_path):
 def _master_texts(master_path):
     if not master_path or not os.path.exists(master_path):
         return None
-    root, body, names, data, _ = de.load(master_path)
+    _root, body = _load_master_body(master_path)
+    if body is None:
+        return None
     return [de.text_of(p) for p in de.paras(body)]
 
 
@@ -453,6 +455,22 @@ def _norm_text(s):
     return re.sub(r"\s+", " ", s).strip().lower()
 
 
+def _load_master_body(master_path):
+    """(root, body) of the master, or (None, None) when missing or unreadable.
+
+    A corrupt/unreadable master degrades to 'no master found' (the claims
+    note already covers that case) instead of crashing validation — a
+    broken master must not take the whole gate down.
+    """
+    if not master_path or not os.path.exists(master_path):
+        return None, None
+    try:
+        root, mbody, _n, _d, _ = de.load(master_path)
+        return root, mbody
+    except Exception:
+        return None, None
+
+
 def _role_integrity_errors(master_path, body):
     """Whole-role removals must be WHOLE. Compared against the master:
 
@@ -465,7 +483,9 @@ def _role_integrity_errors(master_path, body):
     """
     if not master_path or not os.path.exists(master_path):
         return []
-    root, mbody, _n, _d, _ = de.load(master_path)
+    _root, mbody = _load_master_body(master_path)
+    if mbody is None:
+        return []
     master_groups = _role_groups(mbody)
     out_groups = _role_groups(body)
     out_by_key = {}
@@ -502,9 +522,9 @@ def _role_integrity_errors(master_path, body):
 
 def _master_span(master_path):
     """Visible (start, end) span of the master's role dates, else (None, None)."""
-    if not master_path or not os.path.exists(master_path):
+    _root, body = _load_master_body(master_path)
+    if body is None:
         return None, None
-    root, body, names, data, _ = de.load(master_path)
     return mr._visible_span(_company_headers(body))
 
 
@@ -603,20 +623,24 @@ def _extract_flag(argv, flag):
     return None
 
 
-def main(argv=None):
-    argv = list(sys.argv[1:] if argv is None else argv)
-    strict = _parse_flag(argv, "--strict")
-    master = _extract_flag(argv, "--master")
-    jd_years = float(_extract_flag(argv, "--jd-years")) if "--jd-years" in argv else None
-    jd_path = _extract_flag(argv, "--jd")
-    seniority_approved = _parse_flag(argv, "--seniority-approved")
-    education_approved = _parse_flag(argv, "--education-approved")
-    if not argv:
-        print(__doc__)
-        return 2
-    path = argv[0]
+def validate_tree(path, body, *, master_path=None, jd_path=None,
+                  jd_years=None, seniority_approved=False,
+                  education_approved=False):
+    """Run every check against an ALREADY-LOADED document tree.
 
-    root, body, names, data, _ = de.load(path)
+    Returns ``{"blocking": int, "warnings": int, "lines": [str]}`` — the
+    blocking-error count, the advisory-warning count, and the full report
+    lines. The CLI (main) prints the lines and maps the counts to exit
+    codes; ``docx_edit.save``'s deliverable gate calls this in memory
+    BEFORE writing the .docx, so a gated state never becomes a file on
+    disk (the render gate alone is bypassable — the user can convert the
+    .docx themselves).
+
+    ``path`` locates the master for the claims/role-integrity/seniority
+    checks when ``master_path`` is None (pass ``src`` from save()). The
+    education gate runs only when ``jd_path`` is given; ``*_approved``
+    record user-granted overrides (never self-granted).
+    """
     region = _region(body)
     summary = _summary_paragraph(body)
 
@@ -669,7 +693,8 @@ def main(argv=None):
         claim_notes.append(mr.title_alignment_notes(body, jd_text))
 
     # Claims: numbers vs master.
-    master_path = master or _find_master(path)
+    # Claims: numbers vs master.
+    master_path = master_path or _find_master(path)
     master_texts = _master_texts(master_path)
     master_blob = " ".join(master_texts) if master_texts is not None else None
 
@@ -797,59 +822,61 @@ def main(argv=None):
                 f"— aligned",
             ))
 
-    # Print.
-    print("== STRUCTURE ==")
+    # Build the report lines (returned; the CLI prints them, the save-time
+    # deliverable gate surfaces only the blocking ones).
+    lines = []
+    lines.append("== STRUCTURE ==")
     for e in errors:
-        print(f"  ERROR: {e}")
+        lines.append(f"  ERROR: {e}")
     if not errors:
-        print("  ok (all roles have a company + job title; no orphan content)")
-    print("== PUNCTUATION ==")
+        lines.append("  ok (all roles have a company + job title; no orphan content)")
+    lines.append("== PUNCTUATION ==")
     for e in punct_errors:
-        print(f"  ERROR: {e}")
+        lines.append(f"  ERROR: {e}")
     if not punct_errors:
-        print("  ok (periods and commas only — no em dashes, double hyphens, "
+        lines.append("  ok (periods and commas only — no em dashes, double hyphens, "
               "semicolons, colons, or ellipses in Summary/job-history prose)")
-    print("== TEXT INTEGRITY ==")
+    lines.append("== TEXT INTEGRITY ==")
     for e in integrity_errors:
-        print(f"  ERROR: {e}")
+        lines.append(f"  ERROR: {e}")
     if not integrity_errors:
-        print("  ok (no mangling artifacts — clean ASCII/Latin prose, no "
+        lines.append("  ok (no mangling artifacts — clean ASCII/Latin prose, no "
               "doubled punctuation or words)")
-    print("== SENIORITY ==")
+    lines.append("== SENIORITY ==")
     for e in seniority_errors:
-        print(f"  ERROR: {e}")
+        lines.append(f"  ERROR: {e}")
     if not seniority_errors:
-        print("  ok")
-    print("== BULLET CAP ==")
+        lines.append("  ok")
+    lines.append("== BULLET CAP ==")
     if is_master_input:
-        print("  note: input is a master — the per-role cap applies to "
+        lines.append("  note: input is a master — the per-role cap applies to "
               "tailored resumes only (the master keeps everything)")
     else:
         for e in cap_errors:
-            print(f"  ERROR: {e}")
+            lines.append(f"  ERROR: {e}")
         if not cap_errors:
-            print(f"  ok (every role within the hard cap of "
+            lines.append(f"  ok (every role within the hard cap of "
                   f"{MAX_BULLETS_PER_ROLE} kept bullets)")
     if jd_path:
-        print("== EDUCATION ==")
+        lines.append("== EDUCATION ==")
         for e in education_errors:
-            print(f"  ERROR: {e}")
+            lines.append(f"  ERROR: {e}")
         for lvl, c in education_notes:
             tag = {"warn": "WARNING", "ok": "ok", "note": "note"}[lvl]
-            print(f"  {tag}: {c}")
-    print("== NEAR-DUPLICATES ==")
+            lines.append(f"  {tag}: {c}")
+    lines.append("== NEAR-DUPLICATES ==")
     for a, b, snip in dups:
-        print(f"  WARNING: bullets share {DUP_K}+ chars ({snip!r}):")
-        print(f"      A: {a!r}")
-        print(f"      B: {b!r}")
+        lines.append(f"  WARNING: bullets share {DUP_K}+ chars ({snip!r}):")
+        lines.append(f"      A: {a!r}")
+        lines.append(f"      B: {b!r}")
     if not dups:
-        print("  ok")
-    print("== CLAIMS ==")
+        lines.append("  ok")
+    lines.append("== CLAIMS ==")
     for lvl, c in claim_notes:
         tag = {"warn": "WARNING", "ok": "ok", "note": "note"}[lvl]
-        print(f"  {tag}: {c}")
+        lines.append(f"  {tag}: {c}")
     if not claim_notes:
-        print("  ok")
+        lines.append("  ok")
 
     warn_count = (
         len(dups)
@@ -859,12 +886,37 @@ def main(argv=None):
                 + len(seniority_errors) + len(education_errors)
                 + len(cap_errors))
     if blocking:
-        print(f"RESULT: {blocking} blocking error(s) — fix before rendering (exit 2)")
+        lines.append(
+            f"RESULT: {blocking} blocking error(s) — fix before rendering (exit 2)")
+    return {"blocking": blocking, "warnings": warn_count, "lines": lines}
+
+
+def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    strict = _parse_flag(argv, "--strict")
+    master = _extract_flag(argv, "--master")
+    jd_years = float(_extract_flag(argv, "--jd-years")) if "--jd-years" in argv else None
+    jd_path = _extract_flag(argv, "--jd")
+    seniority_approved = _parse_flag(argv, "--seniority-approved")
+    education_approved = _parse_flag(argv, "--education-approved")
+    if not argv:
+        print(__doc__)
         return 2
-    if strict and warn_count:
-        print(f"RESULT: {warn_count} warning(s) — --strict fails (exit 1)")
+    path = argv[0]
+
+    root, body, names, data, _ = de.load(path)
+    result = validate_tree(
+        path, body, master_path=master, jd_path=jd_path, jd_years=jd_years,
+        seniority_approved=seniority_approved,
+        education_approved=education_approved)
+    for line in result["lines"]:
+        print(line)
+    if result["blocking"]:
+        return 2
+    if strict and result["warnings"]:
+        print(f"RESULT: {result['warnings']} warning(s) — --strict fails (exit 1)")
         return 1
-    print(f"RESULT: clean ({warn_count} advisory warning(s) to review)")
+    print(f"RESULT: clean ({result['warnings']} advisory warning(s) to review)")
     return 0
 
 

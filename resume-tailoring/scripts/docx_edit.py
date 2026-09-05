@@ -148,6 +148,106 @@ def load(path):
     return root, body, names, data, W
 
 
+def _approval_env():
+    """Parse the RESUME_VALIDATE_ARGS env var (the same args render_pdf.sh
+    passes to validate_resume.py) into gate flags, so ONE approval
+    environment governs the save-time gate and the render gate:
+
+        RESUME_VALIDATE_ARGS="--jd <JD.txt> --jd-years <N> --seniority-approved"
+
+    Returns (jd_path, jd_years, seniority_approved, education_approved).
+    Approval tokens passed here must carry the USER's authority (their chat
+    reply or pre-authorization in the original request) — never self-granted;
+    the gate message says so.
+    """
+    raw = os.environ.get("RESUME_VALIDATE_ARGS", "")
+    if not raw.strip():
+        return None, None, False, False
+    import shlex
+    import validate_resume as vr  # lazy: avoid the module-load cycle
+    argv = shlex.split(raw)
+    jd_path = vr._extract_flag(argv, "--jd")
+    jd_years = None
+    if "--jd-years" in argv:
+        try:
+            jd_years = float(vr._extract_flag(argv, "--jd-years"))
+        except (TypeError, ValueError):
+            jd_years = None
+    seniority_approved = vr._parse_flag(argv, "--seniority-approved")
+    education_approved = vr._parse_flag(argv, "--education-approved")
+    return jd_path, jd_years, seniority_approved, education_approved
+
+
+def _deliverable_gate(path, root, src):
+    """Refuse to WRITE a deliverable that validate_resume would block.
+
+    The render gate alone is not much of a gate: by render time the .docx
+    already exists on disk and the user can convert it themselves. This
+    gate runs BEFORE the zip write, on the in-memory tree, so a gated
+    state (broken structure, punctuation-rule prose, a role over the
+    8-bullet cap, unapproved whole-role elimination) never becomes a file.
+
+    Fires only on tailor-script saves (``src`` passed — the master the
+    script copied from). Tool-internal saves (measure --simulate,
+    squeeze, tests) pass no ``src`` and stay ungated; writes to the
+    master itself are exempt (the master intentionally keeps everything).
+
+    Approval tokens come from RESUME_VALIDATE_ARGS (see _approval_env) —
+    the same env var the deferred render flow already documents. On a
+    block: nothing is written, the blocking report lines go to stderr,
+    and the run exits 2.
+    """
+    if src is None or path.endswith("Master Resume.docx"):
+        return
+    import validate_resume as vr  # lazy: validate_resume imports this module
+    jd_path, jd_years, seniority_approved, education_approved = _approval_env()
+    try:
+        result = vr.validate_tree(
+            path, root, master_path=src, jd_path=jd_path, jd_years=jd_years,
+            seniority_approved=seniority_approved,
+            education_approved=education_approved)
+    except SystemExit:
+        raise  # never swallow a validator abort
+    except Exception as e:  # validator crashed — do not silently pass the gate
+        print(
+            f"DELIVERABLE GATE: validation error ({e!r}) — fix the "
+            f"validator before writing {path}",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    if result["blocking"]:
+        blocking_lines = [l for l in result["lines"] if "ERROR" in l]
+        # A tailor run copies the master to DST before editing, so a stale
+        # (ungated) copy may sit at path from this run's own shutil.copy.
+        # Remove it: the point of the gate is that NO deliverable — docx or
+        # pdf — can be produced from a gated state by any path.
+        stale = False
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+                stale = True
+            except OSError:
+                pass
+        print(
+            f"DELIVERABLE GATE: {path} NOT written — validate_resume "
+            f"blocks this state ({result['blocking']} blocking error(s)). "
+            "No .docx exists to convert by hand; fix the errors and "
+            "re-run. Approval-requiring decisions (seniority alignment, "
+            "education override) need the USER's reply or pre-authorization, "
+            "then re-run with RESUME_VALIDATE_ARGS carrying the token:",
+            file=sys.stderr,
+        )
+        if stale:
+            print(
+                f"  removed the stale copy at {path} (this run's "
+                f"master copy — the master itself is untouched)",
+                file=sys.stderr,
+            )
+        for line in blocking_lines:
+            print(f"  {line}", file=sys.stderr)
+        raise SystemExit(2)
+
+
 def save(path, root, names, data, drift_key=None, src=None):
     """Serialize mutated root back into the .docx zip at `path`.
 
@@ -181,8 +281,16 @@ def save(path, root, names, data, drift_key=None, src=None):
     strict: a mid-session master fold can no longer silently strand drifted
     prefixes — the next tailor run either resolves every prefix (clean
     pass) or fails loudly.
+
+    On tailor-script saves (``src`` passed), the DELIVERABLE GATE runs
+    validate_resume's blocking checks on the in-memory tree BEFORE
+    writing: a state the validator would refuse to render (punctuation
+    rule, 8-bullet cap, unapproved whole-role elimination, structural
+    breakage) is never written at all — there is no .docx on disk to
+    convert by hand. See _deliverable_gate.
     """
     global _APPLIED, _ELEMENT_FORM_DROPS
+    _deliverable_gate(path, root, src)  # BEFORE the write: no gated file on disk
     data["word/document.xml"] = ET.tostring(
         root, xml_declaration=True, encoding="UTF-8"
     )

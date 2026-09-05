@@ -213,9 +213,14 @@ def main():
     # this script's name — the first run establishes it, later runs warn
     # if the count drifts (an edit was added/removed or stopped matching
     # the master). The blocking gate for a stopped-matching edit is the
-    # skipped-edit check (exit 2 under strict). No literal to maintain. render_pdf.sh also runs validate_resume.py on the output
-    # and refuses to render a docx with structural errors (orphan job
-    # titles, company blocks without titles).
+    # skipped-edit check (exit 2 under strict). No literal to maintain.
+    # src=SRC also arms the DELIVERABLE GATE: a result validate_resume
+    # would refuse to render (punctuation rule, 8-bullet cap, unapproved
+    # whole-role elimination, structure) is never written — the gate
+    # removes the stale master copy too, so no .docx exists to convert by
+    # hand. Approval tokens (seniority/education) go in RESUME_VALIDATE_ARGS,
+    # the same env the render gate reads. render_pdf.sh still runs
+    # validate_resume.py and refuses to render a broken docx.
     save(DST, root, names, data, src=SRC)
     print("WROTE", DST)
 

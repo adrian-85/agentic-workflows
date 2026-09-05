@@ -1523,5 +1523,163 @@ class CommaListRangeTests(unittest.TestCase):
             os.unlink(path)
 
 
+class DeliverableGateTests(unittest.TestCase):
+    """save()'s DELIVERABLE GATE — a state validate_resume would refuse to
+    render is never WRITTEN at all when a tailor script saves with src=SRC.
+    The render gate alone is bypassable: by render time the .docx exists on
+    disk and the user can convert it themselves. With this gate there is no
+    .docx on disk in a gated state — nothing to hand-convert."""
+
+    def setUp(self):
+        import validate_resume as vr  # noqa: F401
+        de._APPLIED = 0
+        de._SKIPS.clear()
+        workdir = tempfile.mkdtemp()
+        self.workdir = workdir
+        self.master = os.path.join(workdir, "Test Master Resume.docx")
+        self.dst = os.path.join(workdir, "Test tailored.docx")
+        _empty_docx(self.master)
+        _empty_docx(self.dst)
+        self._old_env = os.environ.pop("RESUME_VALIDATE_ARGS", None)
+
+    def tearDown(self):
+        for path in (self.master, self.dst):
+            for suffix in ("", ".drift.json"):
+                p = path + suffix
+                if os.path.exists(p):
+                    os.unlink(p)
+        de._APPLIED = 0
+        de._SKIPS.clear()
+        if self._old_env is not None:
+            os.environ["RESUME_VALIDATE_ARGS"] = self._old_env
+        else:
+            os.environ.pop("RESUME_VALIDATE_ARGS", None)
+
+    @staticmethod
+    def _career_paragraphs(bullet_count, company="Acme, MA (Remote)06/2021 – 05/2026"):
+        import measure_resume as mr
+        import validate_resume as vr
+        ps = [
+            mkstyled(mr.SECTION_CAREER, "SectionHeading"),
+            mkstyled(company, mr.COMPANY_STYLE),
+            mkstyled("Staff Engineer", vr.TITLE_STYLE),
+        ]
+        ps += [mkstyled(f"Quantified win {i} percent.", "BodyText", numId=4)
+               for i in range(bullet_count)]
+        ps.append(mkstyled("Tools & Technologies: Go, Python", "BodyText"))
+        return ps
+
+    def _populate(self, path, bullet_count):
+        root, body, names, data, _ = de.load(path)
+        for p in self._career_paragraphs(bullet_count):
+            body.append(p)
+        return root, body, names, data
+
+    def _save(self, path, root, names, data, src):
+        out, err = io.StringIO(), io.StringIO()
+        cm = None
+        try:
+            with contextlib.redirect_stdout(out), \
+                    contextlib.redirect_stderr(err):
+                de.save(path, root, names, data, src=src)
+        except SystemExit as e:
+            cm = e
+        return cm, out.getvalue(), err.getvalue()
+
+    def test_over_cap_save_refused_and_nothing_written(self):
+        # Ungated first (no src): the same state writes fine.
+        root, body, names, data = self._populate(self.dst, 9)
+        with contextlib.redirect_stdout(io.StringIO()):
+            de.save(self.dst, root, names, data)
+        os.unlink(self.dst)
+        _empty_docx(self.dst)
+        # Gated (src passed): refused, nothing on disk.
+        de._APPLIED = 0
+        root, body, names, data = self._populate(self.dst, 9)
+        cm, _out, err = self._save(self.dst, root, names, data, src=self.master)
+        self.assertIsNotNone(cm, "over-cap save must exit 2")
+        self.assertIn("DELIVERABLE GATE", err)
+        self.assertIn("keeps 9 bullets", err)
+        # The gate refuses BEFORE opening the zip for write, and removes
+        # the stale (ungated) copy a tailor run's shutil.copy left at the
+        # path — no deliverable, docx or pdf, can be produced by any path.
+        self.assertFalse(os.path.exists(self.dst),
+                         "gated state and its stale copy must be gone")
+
+    def test_clean_save_with_src_passes(self):
+        root, body, names, data = self._populate(self.dst, 8)
+        cm, _out, err = self._save(self.dst, root, names, data, src=self.master)
+        self.assertIsNone(cm, err)
+        self.assertTrue(os.path.exists(self.dst))
+
+    def test_no_src_save_ungated(self):
+        # Tool-internal saves (measure --simulate, squeeze, tests) pass no
+        # src and are never gated.
+        root, body, names, data = self._populate(self.dst, 30)
+        cm, _out, err = self._save(self.dst, root, names, data, src=None)
+        self.assertIsNone(cm, err)
+        self.assertTrue(os.path.exists(self.dst))
+
+    def test_master_path_save_exempt(self):
+        # Folding into the master itself is never gated — the master
+        # intentionally keeps everything.
+        root, body, names, data = self._populate(self.master, 12)
+        cm, _out, err = self._save(self.master, root, names, data,
+                                   src=self.master)
+        self.assertIsNone(cm, err)
+        self.assertTrue(os.path.exists(self.master))
+
+    def test_seniority_block_without_token_then_passes_with_token(self):
+        # A tailored copy whose visible span shrank >= SENIORITY_GATE_YEARS
+        # vs the master must not be writable without the user's approval;
+        # with the token in RESUME_VALIDATE_ARGS it writes.
+        root, body, names, data = self._populate(self.master, 3)
+        # Rewrite the master's role dates to 2010-2019 (span ~9.7y).
+        for p in body.iter(de.W + "p"):
+            if "Acme, MA" in (p.find(f"{de.W}r/{de.W}t").text or ""):
+                p.find(f"{de.W}r/{de.W}t").text = \
+                    "Old Co, City01/2010 – 12/2019"
+        with contextlib.redirect_stdout(io.StringIO()):
+            de.save(self.master, root, names, data)
+
+        root, body, names, data = self._populate(self.dst, 3)
+        for p in body.iter(de.W + "p"):
+            tt = p.find(f"{de.W}r/{de.W}t")
+            if tt is not None and "Acme, MA" in (tt.text or ""):
+                tt.text = "New Co, City01/2024 – 12/2026"
+        for p in body.iter(de.W + "p"):
+            tt = p.find(f"{de.W}r/{de.W}t")
+            if tt is not None and tt.text and "Quantified win" in tt.text:
+                tt.text = tt.text.replace("Quantified win", "Newer win")
+        os.unlink(self.dst)  # fixture empty docx must not count as output
+        de._APPLIED = 0
+        cm, _out, err = self._save(self.dst, root, names, data,
+                                   src=self.master)
+        self.assertIsNotNone(cm, "unapproved role elimination must exit 2")
+        self.assertIn("whole-role elimination", err)
+
+        self.assertFalse(os.path.exists(self.dst),
+                         "gated seniority state must NOT be written to disk")
+
+        os.environ["RESUME_VALIDATE_ARGS"] = "--seniority-approved"
+        _empty_docx(self.dst)
+        root, body, names, data = self._populate(self.dst, 3)
+        for p in body.iter(de.W + "p"):
+            tt = p.find(f"{de.W}r/{de.W}t")
+            if tt is not None and tt.text and "Acme, MA" in tt.text:
+                tt.text = "New Co, City01/2024 – 12/2026"
+            elif tt is not None and tt.text and "Quantified win" in tt.text:
+                tt.text = tt.text.replace("Quantified win", "Newer win")
+        for p in body.iter(de.W + "p"):
+            tt = p.find(f"{de.W}r/{de.W}t")
+            if tt is not None and "Acme, MA" in (tt.text or ""):
+                tt.text = "New Co, City01/2024 – 12/2026"
+        de._APPLIED = 0
+        cm, _out, err = self._save(self.dst, root, names, data,
+                                   src=self.master)
+        self.assertIsNone(cm, err)
+        self.assertTrue(os.path.exists(self.dst))
+
+
 if __name__ == "__main__":
     unittest.main()
