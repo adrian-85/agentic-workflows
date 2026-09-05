@@ -460,7 +460,8 @@ them.** A separate keyword list duplicates the proficiencies below it and
 competes with the role bullets for the reader's attention. ATS keyword
 matching is already carried by the Summary's mirror of JD language plus the
 Technical Proficiencies section — a third keyword surface between them adds
-noise, not signal.
+noise, not signal. `validate_resume.py`'s GUIDANCE section warns when a
+SectionHeading appears between Summary and Technical Proficiencies.
 
 When a recruiter or JD names required skills/tools, weave each into the role
 bullet where it was actually used (see Step 6) so the skill appears as in-role
