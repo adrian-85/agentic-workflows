@@ -70,9 +70,15 @@ Catches the error classes tailoring sessions actually hit:
    classes that reach the Summary and bullets through generated text;
    catching them mechanically replaces a user's manual proofread.
 
+6. GUIDANCE — readability signals the agent should act on (advisory).
+   Summary sentence count vs the ~3–4 guideline; sections inserted between
+   Summary and Technical Proficiencies (SKILL Step 5 forbids this). These
+   are warnings, not blocking errors — the agent may have a reason to
+   deviate, but the validator flags the deviation so it cannot go unnoticed.
+
 Structural, punctuation, text-integrity, bullet-cap, seniority-gate, and
 education-gate errors exit 2 — render_pdf.sh refuses to render.
-Near-duplicate and claim warnings exit 0 unless --strict (exit 1).
+Near-duplicate, guidance, and claim warnings exit 0 unless --strict (exit 1).
 
 The master file is auto-detected as the "X Master Resume.docx" next to the
 input; override with --master <path>.
@@ -624,6 +630,64 @@ def _extract_flag(argv, flag):
     return None
 
 
+def _summary_guidance(body, summary):
+    """Advisory readability checks on the Summary paragraph.
+
+    Returns [(severity, message)] — severity in warn|ok.
+    These are NOT blocking (the agent may have a good reason to exceed
+    the guideline); they surface when the agent overwrites the Summary
+    without applying the SKILL's readability guidance.
+    """
+    notes = []
+    if summary is None:
+        return notes
+    text = de.text_of(summary).strip()
+    if not text:
+        return notes
+
+    # Sentence count: split on sentence-ending punctuation followed by
+    # whitespace or end-of-string.  "e.g." false-positives are rare in
+    # resume summaries; the heuristic is good enough for a warning.
+    sentences = re.findall(r"[^\s.!?]+[.!?]+", text)
+    n = max(len(sentences), 1)
+    if n > 4:
+        notes.append(("warn",
+            f"Summary has {n} sentences (recommended ~3–4 tight sentences, "
+            f"SKILL Step 4): an overlong intro risks the reviewer never "
+            f"reaching the bullets"))
+    elif n >= 3:
+        notes.append(("ok",
+            f"Summary has {n} sentences — within the ~3–4 guideline"))
+
+    # Section between Summary and Technical Proficiencies: the SKILL
+    # forbids inserting Core Strengths, Top Skills, or keyword-mirror
+    # sections here (Step 5).
+    ps = de.paras(body)
+    summary_idx = None
+    prof_idx = None
+    for i, p in enumerate(ps):
+        if p is summary:
+            summary_idx = i
+        if (summary_idx is not None
+                and de.text_of(p).strip() == mr.SECTION_PROFICIENCIES):
+            prof_idx = i
+            break
+    if summary_idx is not None and prof_idx is not None:
+        inserted = []
+        for p in ps[summary_idx + 1:prof_idx]:
+            style, _ = de.style_and_numid(p)
+            if style == "SectionHeading":
+                inserted.append(de.text_of(p).strip())
+        if inserted:
+            notes.append(("warn",
+                f"section(s) between Summary and Technical Proficiencies "
+                f"({', '.join(repr(s) for s in inserted)}) — SKILL Step 5 "
+                f"forbids inserting Core Strengths, Top Skills, or "
+                f"keyword-mirror sections here; weave skills into role "
+                f"bullets instead"))
+    return notes
+
+
 def validate_tree(path, body, *, master_path=None, jd_path=None,
                   jd_years=None, seniority_approved=False,
                   education_approved=False):
@@ -663,6 +727,7 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,
     span = (last - first) if (first is not None and last is not None) else None
 
     claim_notes = []  # (severity, message); severity in warn|ok|note
+    guidance_notes = _summary_guidance(body, summary)
 
     # Education gate (Step 3.4, needs --jd): a degree-requiring JD blocks
     # the render when the section was dropped (--education-approved
@@ -871,6 +936,12 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,
         lines.append(f"      B: {b!r}")
     if not dups:
         lines.append("  ok")
+    lines.append("== GUIDANCE ==")
+    for lvl, c in guidance_notes:
+        tag = {"warn": "WARNING", "ok": "ok", "note": "note"}[lvl]
+        lines.append(f"  {tag}: {c}")
+    if not guidance_notes:
+        lines.append("  ok")
     lines.append("== CLAIMS ==")
     for lvl, c in claim_notes:
         tag = {"warn": "WARNING", "ok": "ok", "note": "note"}[lvl]
@@ -881,6 +952,7 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,
     warn_count = (
         len(dups)
         + sum(1 for lvl, _ in claim_notes if lvl == "warn")
+        + sum(1 for lvl, _ in guidance_notes if lvl == "warn")
     )
     blocking = (len(errors) + len(punct_errors) + len(integrity_errors)
                 + len(seniority_errors) + len(education_errors)

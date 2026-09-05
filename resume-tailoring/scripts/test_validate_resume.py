@@ -947,5 +947,82 @@ class EducationGateTests(unittest.TestCase):
             "Bachelor\u2019s degree in a related field."))
 
 
+class GuidanceTests(unittest.TestCase):
+    """Advisory readability checks: Summary sentence count and the Step 5
+    no-sections-between rule. These are warnings (not blocking) so the
+    agent sees the signal without a build failure."""
+
+    def _body_with(self, summary_text, extra_sections=None):
+        """Build a body with a Summary, optional extra SectionHeadings,
+        Technical Proficiencies, and a Career Experience section."""
+        ps = []
+        summary_p = mk(summary_text, style=vr.SUMMARY_STYLE)
+        if extra_sections:
+            for s in extra_sections:
+                ps.append(mk(s, style="SectionHeading"))
+        ps.append(mk(mr.SECTION_PROFICIENCIES, style="SectionHeading"))
+        ps.append(mk("Programming Languages: Java", style="BodyText"))
+        ps.append(mk(mr.SECTION_CAREER, style="SectionHeading"))
+        ps.append(mk("Acme, MA (Remote)01/2024 – 12/2026",
+                     style=mr.COMPANY_STYLE))
+        ps.append(mk("Engineer", style=vr.TITLE_STYLE))
+        ps.append(mk("Did things.", numId=4))
+        b = body(summary_p, *ps)
+        return b, summary_p
+
+    def test_long_summary_warns(self):
+        b, s = self._body_with(
+            "First sentence. Second sentence. Third sentence. "
+            "Fourth sentence. Fifth sentence. Sixth sentence.")
+        notes = vr._summary_guidance(b, s)
+        warns = [c for lvl, c in notes if lvl == "warn"]
+        self.assertTrue(any("6 sentences" in w for w in warns), warns)
+
+    def test_brief_summary_ok(self):
+        b, s = self._body_with(
+            "First sentence. Second sentence. Third sentence.")
+        notes = vr._summary_guidance(b, s)
+        self.assertFalse(any(lvl == "warn" for lvl, _ in notes), notes)
+
+    def test_section_between_summary_and_proficiencies_warns(self):
+        b, s = self._body_with(
+            "Clean summary.", extra_sections=["Core Strengths"])
+        notes = vr._summary_guidance(b, s)
+        warns = [c for lvl, c in notes if lvl == "warn"]
+        self.assertTrue(any("Core Strengths" in w for w in warns), warns)
+
+    def test_no_section_between_ok(self):
+        b, s = self._body_with("Clean summary.")
+        notes = vr._summary_guidance(b, s)
+        self.assertFalse(any(lvl == "warn" for lvl, _ in notes), notes)
+
+    def test_guidance_appears_in_report(self):
+        """The GUIDANCE section renders in the validate_tree output."""
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("word/document.xml",
+                    '<?xml version="1.0"?><w:document xmlns:w="'
+                    + de.XMLNS + '"><w:body/></w:document>')
+                z.writestr("[Content_Types].xml", "<Types/>")
+            root, body_el, names, data, _ = de.load(path)
+            b, s = self._body_with(
+                "S1. S2. S3. S4. S5. S6.",
+                extra_sections=["Top Skills"])
+            for p in list(b):
+                body_el.append(p)
+            with contextlib.redirect_stdout(io.StringIO()):
+                de.save(path, root, names, data)
+            result = vr.validate_tree(path, body_el)
+            report = "\n".join(result["lines"])
+            self.assertIn("== GUIDANCE ==", report)
+            self.assertIn("6 sentences", report)
+            self.assertIn("Top Skills", report)
+            self.assertGreater(result["warnings"], 0)
+        finally:
+            os.unlink(path)
+
+
 if __name__ == "__main__":
     unittest.main()
