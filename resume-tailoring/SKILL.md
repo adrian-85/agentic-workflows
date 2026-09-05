@@ -518,9 +518,6 @@ under the same cap — a 1-year role whose master block carries 20+ bullets
 selects its strongest JD-aligned ones like everyone else. A role at the
 cap while others sit far below it still crowds the page; a reviewer who
 hits a wall of text skips bullets they needed to read.
-`validate_resume.py` enforces this (BULLET CAP section): a role over the
-cap blocks the render. The master itself is exempt when it IS the input —
-it intentionally keeps everything.
 
 **The plan is a sum of REMOVALS, and measure emits it.** Every line in
 the plan's math is a paragraph the tailor script deletes. When the
@@ -699,25 +696,15 @@ period or comma). Exempt from the rule: structural lines (company headers,
 job titles), non-role sections (Technical Proficiencies, Certifications,
 Education), and the Tools line's `Label: values` colon — the colon there
 separates a bold label from a value list, it is not prose punctuation.
-`validate_resume.py` enforces this on the Summary and job-history prose —
-a violation blocks the PDF render (Step 11).
 
 ### 10. Save the tailored copy (as .docx, the working format)
 Write to `<userName> Resume - <Target>.docx` (drop "Master" from the
 master's name). Never overwrite the master.
 **The deliverable gate runs at save time.** A tailor script's `save(..., src=SRC)`
-validates the in-memory result BEFORE writing: any state `validate_resume.py`
-would refuse to render — punctuation-rule prose, a role over the 8-bullet cap,
-unapproved whole-role elimination, structural breakage — is never written at
-all, and the gate removes the stale master copy the script's `shutil.copy`
-left at the path. There is no `.docx` on disk in a gated state, so nothing
-can be converted to PDF by hand: the gate blocks ALL deliverables, not just
-the render. Approval-requiring decisions (seniority alignment, education
-override) carry the user's token in `RESUME_VALIDATE_ARGS` — the same env
-var the render gate reads — so one approval environment governs both gates.
-Tool-internal saves (measure `--simulate`, squeeze, tests) pass no `src` and
-are never gated; writes to the master itself are exempt (it intentionally
-keeps everything).
+validates BEFORE writing: a state that would fail validation is never
+written, and the stale master copy is removed — nothing to convert by hand.
+Approval tokens go in `RESUME_VALIDATE_ARGS` (same env the render gate
+reads). Tool-internal saves and master writes are exempt.
 The `.docx` is the working file for the session — iterate on it while tuning
 the rendered PDF, then delete both after the resume is submitted. The master
 is the permanent artifact; tailored copies are temp files scoped to the
@@ -843,7 +830,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Reading "no unprotected bullet to give" as a dead end while the most-recent role carries off-JD content | JD-matching false-positives on generic terms — read the TOP-ROLE PROTECTED BULLETS list (matched term per bullet) and override weak matches deliberately; that is the sanctioned top-role trim, not hand-picking (Step 8) |
 | Running squeeze in apply mode on the tailored .docx and then folding cuts back into the script by hand | Harvest with `--plan-only` BEFORE the script's first run — same loop, same fold-back block, file untouched (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
-| Pruning only the oldest roles while the most-recent role keeps 15+ bullets | The hard per-role cap (8) applies to EVERY role and is enforced by `validate_resume.py` — an over-cap role blocks the render (BULLET CAP section). Check the DROP PLAN's weak-match (cuttable) listing for the top role (Steps 6, 8) |
+| Pruning only the oldest roles while the most-recent role keeps 15+ bullets | The hard per-role cap (8) applies to EVERY role — check the DROP PLAN's weak-match (cuttable) listing for the top role (Steps 6, 8) |
 | Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 3, 8) |
 | Trusting a JD-matched (kept) listing that protected everything | A term matching half a role's bullets is shown as `[weak: term]` and protects nothing; specific tech nouns stay strong — read the weak-match (cuttable) listing before calling a role a dead end (Step 8) |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
@@ -857,5 +844,5 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Keeping Education when the degree isn't evidence for the JD | Evaluate the drop/keep predicates (Step 3.4) — a BA vs an engineering JD is a 3-line drop |
 | Reading a clean render (no `--jd`) as education-clause clearance | The education gate runs only with `--jd`; the seniority gate always — render_pdf.sh NOTEs when the education gate did not run (Step 11) |
 | Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 9) |
-| Punctuation in prose (em dash, semicolon, colon, ellipsis) | Periods and commas ONLY — no em dashes, double hyphens, semicolons, colons, or ellipses (`...`); split into a new sentence or use a comma. The Tools line's `Label: values` colon is the one exempt structural colon (Step 9). `validate_resume.py` blocks the render |
+| Punctuation in prose (em dash, semicolon, colon, ellipsis) | Periods and commas ONLY — no em dashes, double hyphens, semicolons, colons, or ellipses (`...`); split into a new sentence or use a comma. The Tools line's `Label: values` colon is the one exempt structural colon (Step 9) |
 | JD asks for fewer years than the candidate has | Offer Step 3 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it. The token needs the user's authority: their chat reply or pre-authorization in the request; never pass it on your own |
