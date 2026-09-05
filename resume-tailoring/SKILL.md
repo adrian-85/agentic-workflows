@@ -678,12 +678,14 @@ does not replace the final verification render.
 **Readability spacing — lowest priority, only when there is room.** After
 every cut is placed and the measure shows the last page at/below target
 with slack (the render/measure Page fill lines), add one blank spacer
-paragraph between roles: `clone_after(body, find_p(ps, "<a NON-bullet
-paragraph near the role boundary, e.g. the Tools line>"), "")` — anchoring
-on a non-bullet paragraph keeps the clone from inheriting bullet
-numbering — then re-measure to confirm the resume still meets the target.
-Fixed priority order: (1) JD-aligned work experience, (2) the page target,
-(3) this spacing — when content or pages need room, the spacers go first.
+paragraph between roles:
+
+`For example: clone_after(body, find_p(ps, "<a NON-bullet paragraph near the
+role boundary, e.g. the Tools line>"), "")` — anchoring on a non-bullet
+paragraph keeps the clone from inheriting bullet numbering — then re-measure
+to confirm the resume still meets the target. Fixed priority order: (1)
+JD-aligned work experience, (2) the page target, (3) this spacing — when
+content or pages need room, the spacers go first.
 
 ### 9. Fix grammar and typos in the same pass
 Common catches: `to improving` → `improving` (infinitive),

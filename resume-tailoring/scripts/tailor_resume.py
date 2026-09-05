@@ -218,7 +218,7 @@ def main():
 
     # ------------------------------------------------------------------ #
     # 7. LAST — readability spacing, only when the final measure leaves
-    #    room: add one blank spacer between roles:
+    #    room: add one blank spacer between roles — for example:
     #    clone_after(body, find_p(ps, "<a NON-bullet paragraph near the
     #    role boundary, e.g. the Tools line>"), ""), then re-measure to
     #    confirm the target still holds. Priority: (1) JD-aligned work

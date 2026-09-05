@@ -640,7 +640,7 @@ def _extract_flag(argv, flag):
     return None
 
 
-def _readability_guidance(body, summary, *, master_input=False):
+def _readability_guidance(body, summary, *, region=None, master_input=False):
     """Advisory readability checks (SKILL Step 4 word cap + Step 5).
 
     Word count, not sentence count — the master input is exempt (it
@@ -652,8 +652,9 @@ def _readability_guidance(body, summary, *, master_input=False):
     without applying the SKILL's readability guidance.
     """
     notes = []
+    summary_text = de.text_of(summary).strip() if summary else ""
     if not master_input:
-        for p, text in _prose_paragraphs(_region(body), summary):
+        for p, text in _prose_paragraphs(region or _region(body), summary):
             if _is_tools(p):
                 continue
             n = len(text.split())
@@ -665,12 +666,10 @@ def _readability_guidance(body, summary, *, master_input=False):
             notes.append(("warn",
                 f"{kind} has {n} words (cap {PARA_WORD_CAP}, SKILL Step 4): "
                 f"{snippet!r}... — split or trim to {PARA_WORD_CAP} words"))
-    if summary is not None:
-        text = de.text_of(summary).strip()
-        if text and len(text.split()) <= PARA_WORD_CAP:
-            notes.append(("ok",
-                f"Summary has {len(text.split())} words — within the "
-                f"{PARA_WORD_CAP}-word cap"))
+    if summary_text and len(summary_text.split()) <= PARA_WORD_CAP:
+        notes.append(("ok",
+            f"Summary has {len(summary_text.split())} words — within the "
+            f"{PARA_WORD_CAP}-word cap"))
 
     # Section between Summary and Technical Proficiencies: the SKILL
     # forbids inserting Core Strengths, Top Skills, or keyword-mirror
@@ -740,7 +739,7 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,
     span = (last - first) if (first is not None and last is not None) else None
 
     claim_notes = []  # (severity, message); severity in warn|ok|note
-    guidance_notes = _readability_guidance(body, summary,
+    guidance_notes = _readability_guidance(body, summary, region=region,
                                            master_input=is_master_input)
 
     # Education gate (Step 3.4, needs --jd): a degree-requiring JD blocks
