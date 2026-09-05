@@ -315,6 +315,12 @@ def _claim_years(text):
     return int(m.group(1)) if m else None
 
 
+# Structural "Tools & Technologies:" label inside job-history prose: its
+# colon separates the bold label from the value list, so it is exempt from
+# the colon ban (prose itself may still use only periods and commas).
+_TOOLS_LABEL_RE = re.compile(r"^Tools\s*&\s*Technologies\s*:")
+
+
 def _punctuation_errors(region, summary):
     """Step 9 punctuation rule: periods and commas only. The Summary and
     the job-history prose (role intros, bullets, tools lines) must contain
@@ -348,11 +354,6 @@ def _punctuation_errors(region, summary):
                 )
     return errors
 
-
-# Structural "Tools & Technologies:" label inside job-history prose: its
-# colon separates the bold label from the value list, so it is exempt from
-# the colon ban (prose itself may still use only periods and commas).
-_TOOLS_LABEL_RE = re.compile(r"^Tools\s*&\s*Technologies\s*:")
 
 # Non-ASCII characters allowed in prose: typographic marks (curly
 # apostrophes/quotes, dashes) and accented Latin letters. The ellipsis
@@ -692,7 +693,6 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,
         # headline MORE SENIOR than the JD's title warns — never blocks.
         claim_notes.append(mr.title_alignment_notes(body, jd_text))
 
-    # Claims: numbers vs master.
     # Claims: numbers vs master.
     master_path = master_path or _find_master(path)
     master_texts = _master_texts(master_path)

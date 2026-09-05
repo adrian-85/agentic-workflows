@@ -282,7 +282,8 @@ later edit shows where each was used.
   most-recent role is exempt from pruning.
 - Don't bloat the top to "add content" — instead *reallocate*: expand the
   senior role with JD-aligned content AND prune every role (including that
-  one) under the per-role cap to make room. Done right, the resume gets
+  one) under the per-role cap, then trim off-JD proficiencies, Tools lines,
+  and spacers to make room. Done right, the resume gets
   *shorter* while the important part gets stronger. Decide the target page
   count now (Step 8 measures it before cutting).
 
@@ -855,5 +856,5 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Keeping Education when the degree isn't evidence for the JD | Evaluate the drop/keep predicates (Step 3.4) — a BA vs an engineering JD is a 3-line drop |
 | Reading a clean render (no `--jd`) as education-clause clearance | The education gate runs only with `--jd`; the seniority gate always — render_pdf.sh NOTEs when the education gate did not run (Step 11) |
 | Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 9) |
-| Colon or ellipsis in rewritten Summary or bullet prose | Periods and commas ONLY — no em dashes, double hyphens, semicolons, colons, or ellipses (`...`); split into a new sentence or use a comma. The Tools line's `Label: values` colon is the one exempt structural colon (Step 9). `validate_resume.py` blocks the render |
+| Punctuation in prose (em dash, semicolon, colon, ellipsis) | Periods and commas ONLY — no em dashes, double hyphens, semicolons, colons, or ellipses (`...`); split into a new sentence or use a comma. The Tools line's `Label: values` colon is the one exempt structural colon (Step 9). `validate_resume.py` blocks the render |
 | JD asks for fewer years than the candidate has | Offer Step 3 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it. The token needs the user's authority: their chat reply or pre-authorization in the request; never pass it on your own |
