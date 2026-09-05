@@ -51,7 +51,8 @@ Catches the error classes tailoring sessions actually hit:
 
 3. PUNCTUATION — periods and commas only. Enforced on the Summary and the
    job-history prose (role intros, bullets, tools lines): no em dashes,
-   double hyphens (--), semicolons, or non-date en dashes. Single hyphens
+   double hyphens (--), semicolons, colons, ellipses (...), or non-date
+   en dashes. Single hyphens
    in compound words and date-range en dashes are exempt; structural lines
    (company headers, job titles) and out-of-region sections
    (proficiencies, certifications, education) are not scanned.
@@ -271,20 +272,26 @@ def _claim_years(text):
 def _punctuation_errors(region, summary):
     """Step 9 punctuation rule: periods and commas only. The Summary and
     the job-history prose (role intros, bullets, tools lines) must contain
-    no em dash (—), double hyphen (--), semicolon (;), or non-date en dash
-    (–). Exempt: single hyphens inside compound words, en dashes inside
-    date ranges, and structural lines (company headers, job titles) — plus
-    anything outside the Summary and the career region (proficiencies,
-    certifications, education)."""
+    no em dash (—), double hyphen (--), semicolon (;), colon (:), ellipsis
+    (... or …), or non-date en dash (–). Exempt: single hyphens inside
+    compound words, en dashes inside date ranges, structural lines
+    (company headers, job titles), and the structural "Tools &
+    Technologies:" label (its colon separates the label from the value
+    list, it is not prose punctuation) — plus anything outside the Summary
+    and the career region (proficiencies, certifications, education)."""
     errors = []
     for _, text in _prose_paragraphs(region, summary):
         probe = DATE_RANGE.sub(" ", text)  # date ranges are exempt
+        # The Tools line's colon is structural (label: values), not prose.
+        label_line = bool(_TOOLS_LABEL_RE.match(probe))
         for pat, name in (
             (re.compile(r"—"), "em dash"),
             (re.compile(r"–"), "en dash"),
             (re.compile(r";"), "semicolon"),
             (re.compile(r"-{2,}"), "double hyphen"),
-        ):
+            (re.compile(r"\.{2,}"), "ellipsis / doubled period"),
+            (re.compile(r"…"), "ellipsis character"),
+        ) + (() if label_line else ((re.compile(r":"), "colon"),)):
             m = pat.search(probe)
             if m is not None:
                 s = max(0, m.start() - 30)
@@ -296,9 +303,15 @@ def _punctuation_errors(region, summary):
     return errors
 
 
+# Structural "Tools & Technologies:" label inside job-history prose: its
+# colon separates the bold label from the value list, so it is exempt from
+# the colon ban (prose itself may still use only periods and commas).
+_TOOLS_LABEL_RE = re.compile(r"^Tools\s*&\s*Technologies\s*:")
+
 # Non-ASCII characters allowed in prose: typographic marks (curly
-# apostrophes/quotes, dashes, ellipsis) and accented Latin letters.
-_ASCII_OK_CHARS = "‘’“”–—‐‑‥…"
+# apostrophes/quotes, dashes) and accented Latin letters. The ellipsis
+# characters are NOT allowed — _punctuation_errors flags them.
+_ASCII_OK_CHARS = "‘’“”–—‐‑"
 
 
 def _text_integrity_errors(region, summary):
@@ -743,7 +756,7 @@ def main(argv=None):
         print(f"  ERROR: {e}")
     if not punct_errors:
         print("  ok (periods and commas only — no em dashes, double hyphens, "
-              "or semicolons in Summary/job-history prose)")
+              "semicolons, colons, or ellipses in Summary/job-history prose)")
     print("== TEXT INTEGRITY ==")
     for e in integrity_errors:
         print(f"  ERROR: {e}")

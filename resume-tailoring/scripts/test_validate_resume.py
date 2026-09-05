@@ -178,9 +178,11 @@ def _write_docx(path, company_dates, education=True):
 class PunctuationTests(unittest.TestCase):
     """Step 9 punctuation rule: periods and commas only in the Summary and
     job-history prose. Banned: em dashes, double hyphens (--), semicolons,
-    and non-date en dashes. Exempt: single hyphens in compound words, en
-    dashes inside date ranges, and structural lines (company headers, job
-    titles) plus out-of-region sections (proficiencies, certifications)."""
+    colons, ellipses (... or the … character), and non-date en dashes.
+    Exempt: single hyphens in compound words, en dashes inside date ranges,
+    the structural "Tools & Technologies:" label line, structural lines
+    (company headers, job titles) plus out-of-region sections
+    (proficiencies, certifications)."""
 
     @staticmethod
     def _docx(path, summary_text=None, bullet_text="A clean bullet.",
@@ -258,6 +260,39 @@ class PunctuationTests(unittest.TestCase):
         region = [mk("Owned quality – then speed of releases.", numId=4)]
         errs = vr._punctuation_errors(region, None)
         self.assertTrue(any("en dash" in e for e in errs), errs)
+
+    def test_colon_in_bullet_flagged(self):
+        region = [mk("Removed friction from engineering: flaky tests.",
+                     numId=4)]
+        errs = vr._punctuation_errors(region, None)
+        self.assertTrue(any("colon" in e for e in errs), errs)
+
+    def test_colon_in_summary_flagged(self):
+        s = mk("Finds the friction that slows engineering: flaky runs.",
+               style=vr.SUMMARY_STYLE)
+        errs = vr._punctuation_errors([], s)
+        self.assertTrue(any("colon" in e for e in errs), errs)
+
+    def test_tools_line_colon_exempt(self):
+        # The Tools line's colon is the structural label: values separator,
+        # not prose punctuation — it must NOT flag.
+        region = [mk("Tools & Technologies: Go, Python, Jenkins", numId=4)]
+        self.assertEqual(vr._punctuation_errors(region, None), [])
+
+    def test_ascii_ellipsis_flagged(self):
+        region = [mk("Presented at the demo dash... twice.", numId=4)]
+        errs = vr._punctuation_errors(region, None)
+        self.assertTrue(any("ellipsis" in e for e in errs), errs)
+
+    def test_unicode_ellipsis_flagged(self):
+        region = [mk("Presented at the demo dash… twice.", numId=4)]
+        errs = vr._punctuation_errors(region, None)
+        self.assertTrue(any("ellipsis" in e for e in errs), errs)
+
+    def test_doubled_period_flagged(self):
+        region = [mk("Shipped the release platform.. on time.", numId=4)]
+        errs = vr._punctuation_errors(region, None)
+        self.assertTrue(any("ellipsis" in e for e in errs), errs)
 
     def test_summary_scanned(self):
         s = mk("Leads quality end-to-end — no compromise.",
