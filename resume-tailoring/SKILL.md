@@ -446,11 +446,16 @@ Engineer…"). `measure_resume.py --jd` and `validate_resume.py --jd` print a
 Then rewrite the Summary so its first sentence hits the JD's core ask (e.g.
 "owns quality end-to-end", "builds QA frameworks from scratch rather than
 working within established ones"). Mirror the user's selling points explicitly.
-Keep it to ~3–4 tight sentences. The Summary is the intro a human reviewer
-reads first — an overlong intro risks the reviewer never reaching the bullets.
-Every Summary claim must be re-evidenced by a kept bullet below; cut Summary
-content that duplicates what a role block already says and let that block
-speak for itself.
+**Cap every prose paragraph — the Summary included — at 40 words (≤40 is
+acceptable). Individual bullets carry the same 40-word cap.** Word count,
+not sentence count: a 3-sentence Summary measured ~84 words in a real
+session and still read as a wall. `validate_resume.py` warns over the cap
+in its GUIDANCE section (Tools lines exempt — they are keyword lists
+governed by the wrap budget; master input exempt). The Summary is the
+intro a human reviewer reads first — an overlong intro risks the reviewer
+never reaching the bullets. Every Summary claim must be re-evidenced by a
+kept bullet below; cut Summary content that duplicates what a role block
+already says and let that block speak for itself.
 
 ### 5. Don't insert sections between the Summary and Technical Proficiencies
 
@@ -669,6 +674,16 @@ Cut those before cutting another JD-matched bullet.
 
 Re-run `render_pdf.sh` (compact) to verify — measuring replaces iteration, it
 does not replace the final verification render.
+
+**Readability spacing — lowest priority, only when there is room.** After
+every cut is placed and the measure shows the last page at/below target
+with slack (the render/measure Page fill lines), add one blank spacer
+paragraph between roles: `clone_after(body, find_p(ps, "<a NON-bullet
+paragraph near the role boundary, e.g. the Tools line>"), "")` — anchoring
+on a non-bullet paragraph keeps the clone from inheriting bullet
+numbering — then re-measure to confirm the resume still meets the target.
+Fixed priority order: (1) JD-aligned work experience, (2) the page target,
+(3) this spacing — when content or pages need room, the spacers go first.
 
 ### 9. Fix grammar and typos in the same pass
 Common catches: `to improving` → `improving` (infinitive),
