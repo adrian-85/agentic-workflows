@@ -33,10 +33,8 @@ Editing order is safe: `find_p` resolves prefixes against each paragraph's
 ORIGINAL master text (captured at load), so an earlier edit cannot rewrite
 one paragraph's text to start with another target's prefix and collide
 mid-run. Keep the WHOLE edit set — including `drop_role`/`drop_section`
-calls — in one linear sequence on `ps` (a helper that applies only part of
-it makes a /tmp preview copy measure a state the deliverable never reaches:
-a real session authored whole-role drops in `main()` outside its edit
-sequence, and the preview missed them until a refactor moved them in).
+calls — in one linear sequence on `ps`: a helper that only applies part
+of the sequence lets a /tmp preview measure a stale state.
 `find_p` also collapses smart punctuation (curly quotes/dashes)
 and supports `after=<paragraph>` / `nth=N` for duplicate job titles (see
 docstring). `save()` prints an applied-vs-skipped summary — verify every
@@ -219,14 +217,13 @@ def main():
     remove_empty(body)
 
     # ------------------------------------------------------------------ #
-    # 7. READABILITY SPACING (optional, LAST) — only when the final
-    #    measure shows the last page at/below target with slack (the
-    #    Page fill lines), add one blank spacer between roles:
+    # 7. LAST — readability spacing, only when the final measure leaves
+    #    room: add one blank spacer between roles:
     #    clone_after(body, find_p(ps, "<a NON-bullet paragraph near the
     #    role boundary, e.g. the Tools line>"), ""), then re-measure to
-    #    confirm the target still holds. Fixed priority: (1) JD-aligned
-    #    work experience, (2) the page target, (3) spacing — when
-    #    content or pages need room, the spacers go first.
+    #    confirm the target still holds. Priority: (1) JD-aligned work
+    #    experience, (2) the page target, (3) spacing — when content or
+    #    pages need room, the spacers go first.
     # ------------------------------------------------------------------ #
 
     # save() records an applied-edit baseline in <DST>.drift.json keyed by

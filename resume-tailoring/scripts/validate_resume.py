@@ -643,10 +643,8 @@ def _extract_flag(argv, flag):
 def _readability_guidance(body, summary, *, master_input=False):
     """Advisory readability checks (SKILL Step 4 word cap + Step 5).
 
-    Word cap: no prose paragraph or individual bullet over PARA_WORD_CAP
-    words — <=40 is acceptable. Word count, not sentence count. Tools
-    lines are exempt (keyword lists governed by measure's wrap budget);
-    the master input is exempt too (it intentionally keeps everything).
+    Word count, not sentence count — the master input is exempt (it
+    intentionally keeps everything); see PARA_WORD_CAP above.
 
     Returns [(severity, message)] — severity in warn|ok.
     These are NOT blocking (the agent may have a good reason to exceed
