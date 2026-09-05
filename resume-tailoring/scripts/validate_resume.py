@@ -57,7 +57,12 @@ Catches the error classes tailoring sessions actually hit:
    (company headers, job titles) and out-of-region sections
    (proficiencies, certifications, education) are not scanned.
 
-4. TEXT INTEGRITY — generated-prose mangling artifacts. Enforced on the
+4. BULLET CAP — every role keeps at most MAX_BULLETS_PER_ROLE (8) bullets,
+   regardless of tenure, page target, or accomplishment (SKILL Step 8).
+   The cap applies to tailored resumes; when the input IS the master it is
+   advisory only (the master intentionally keeps everything).
+
+5. TEXT INTEGRITY — generated-prose mangling artifacts. Enforced on the
    same paragraphs as PUNCTUATION: non-ASCII characters that are not
    Latin letters or standard typographic marks (a real session had a
    mangled CJK char replace " and " inside a bullet), doubled punctuation
@@ -65,7 +70,7 @@ Catches the error classes tailoring sessions actually hit:
    classes that reach the Summary and bullets through generated text;
    catching them mechanically replaces a user's manual proofread.
 
-Structural, punctuation, text-integrity, seniority-gate, and
+Structural, punctuation, text-integrity, bullet-cap, seniority-gate, and
 education-gate errors exit 2 — render_pdf.sh refuses to render.
 Near-duplicate and claim warnings exit 0 unless --strict (exit 1).
 
@@ -127,6 +132,11 @@ NUM_CLAIM = re.compile(r"\d+(?:\.\d+)?\s*(?:%|hours?|minutes?)", re.I)
 YEARS_RE = re.compile(r"(\d{1,2})\s*(?:\+)?\s*(?:years|yrs)", re.I)
 DATE_RANGE = re.compile(r"\d{1,2}/\d{4}\s*[–\-]\s*\d{1,2}/\d{4}")
 
+# SKILL Step 8: hard cap on kept bullets per role, regardless of tenure,
+# page target, or accomplishment. The master intentionally keeps everything;
+# a tailored resume re-selects. Enforced as a blocking render gate below.
+MAX_BULLETS_PER_ROLE = 8
+
 
 def _is_bullet(p):
     style, numId = de.style_and_numid(p)
@@ -181,6 +191,42 @@ def _prose_paragraphs(region, summary):
         text = de.text_of(p)
         if text.strip():
             yield p, text
+
+
+def _bullet_cap_errors(region):
+    """Roles keeping more than MAX_BULLETS_PER_ROLE bullets (SKILL Step 8).
+
+    The cap is enforced by count, not judgment: recency and accomplishment
+    never exempt a role — a 1-year Staff role whose master block carries
+    20+ bullets selects its strongest JD-aligned ones like everyone else
+    (two real sessions let the most-recent role keep 16-19 bullets while
+    JD-relevant older-role bullets died under page pressure). Returns one
+    error per over-cap role, named by its company header.
+    """
+    errors = []
+    company_text = None
+    count = 0
+
+    def _over():
+        return (
+            f"role {company_text!r} keeps {count} bullets — over the hard "
+            f"cap of {MAX_BULLETS_PER_ROLE} (SKILL Step 8): prune to the "
+            f"strongest JD-aligned bullets; time-in-role and volume of "
+            f"accomplishment never exempt a role"
+        )
+
+    for p in region:
+        style, _ = de.style_and_numid(p)
+        if style == mr.COMPANY_STYLE:
+            if company_text is not None and count > MAX_BULLETS_PER_ROLE:
+                errors.append(_over())
+            company_text = de.text_of(p).strip()
+            count = 0
+        elif _is_bullet(p):
+            count += 1
+    if company_text is not None and count > MAX_BULLETS_PER_ROLE:
+        errors.append(_over())
+    return errors
 
 
 def _structural_errors(region):
@@ -579,6 +625,12 @@ def main(argv=None):
     integrity_errors = _text_integrity_errors(region, summary)
     dups = list(_near_duplicates(region))
 
+    # Bullet cap (SKILL Step 8): every role within MAX_BULLETS_PER_ROLE.
+    # The cap applies to TAILORED resumes; when the input IS the master it
+    # is advisory only — the master intentionally keeps everything.
+    is_master_input = path.endswith("Master Resume.docx")
+    cap_errors = [] if is_master_input else _bullet_cap_errors(region)
+
     # Visible timeline span (shared with measure_resume.py): the number a
     # recruiter compares against the JD's "N+ years" ask. Everything below
     # that checks claims against this span.
@@ -768,6 +820,16 @@ def main(argv=None):
         print(f"  ERROR: {e}")
     if not seniority_errors:
         print("  ok")
+    print("== BULLET CAP ==")
+    if is_master_input:
+        print("  note: input is a master — the per-role cap applies to "
+              "tailored resumes only (the master keeps everything)")
+    else:
+        for e in cap_errors:
+            print(f"  ERROR: {e}")
+        if not cap_errors:
+            print(f"  ok (every role within the hard cap of "
+                  f"{MAX_BULLETS_PER_ROLE} kept bullets)")
     if jd_path:
         print("== EDUCATION ==")
         for e in education_errors:
@@ -794,7 +856,8 @@ def main(argv=None):
         + sum(1 for lvl, _ in claim_notes if lvl == "warn")
     )
     blocking = (len(errors) + len(punct_errors) + len(integrity_errors)
-                + len(seniority_errors) + len(education_errors))
+                + len(seniority_errors) + len(education_errors)
+                + len(cap_errors))
     if blocking:
         print(f"RESULT: {blocking} blocking error(s) — fix before rendering (exit 2)")
         return 2

@@ -348,6 +348,81 @@ class PunctuationTests(unittest.TestCase):
         self.assertIn("ok (periods and commas", out)
 
 
+class BulletCapTests(unittest.TestCase):
+    """SKILL Step 8's hard cap: no role keeps more than MAX_BULLETS_PER_ROLE
+    (8) bullets in a tailored resume, regardless of tenure or accomplishment.
+    Motivating failure (sessions 01a06eee, 01a06fab): the most-recent role
+    kept 16-19 bullets while JD-relevant older-role bullets died under page
+    pressure — the cap is enforced here by count, and the master is exempt
+    (it intentionally keeps everything)."""
+
+    @staticmethod
+    def _region_with_counts(*counts):
+        """Career region with one role per count (company/title/bullets)."""
+        region = []
+        for i, n in enumerate(counts):
+            region.append(mk(f"Company {i}, City (Remote)01/20{i} – 02/20{i}",
+                             style=mr.COMPANY_STYLE))
+            region.append(mk("Senior Engineer", style=vr.TITLE_STYLE))
+            for b in range(n):
+                region.append(mk(f"Accomplished quantified outcome {b}.",
+                                 numId=4))
+            region.append(mk("Tools & Technologies: Go, Python"))
+        return region
+
+    def test_within_cap_passes(self):
+        self.assertEqual(
+            vr._bullet_cap_errors(self._region_with_counts(8, 3, 8)), [])
+
+    def test_over_cap_flagged(self):
+        errs = vr._bullet_cap_errors(self._region_with_counts(9))
+        self.assertEqual(len(errs), 1)
+        self.assertIn("keeps 9 bullets", errs[0])
+        self.assertIn("hard cap of 8", errs[0])
+
+    def test_each_over_cap_role_named(self):
+        errs = vr._bullet_cap_errors(self._region_with_counts(23, 2, 16))
+        self.assertEqual(len(errs), 2)
+        self.assertIn("Company 0", errs[0])
+        self.assertIn("Company 2", errs[1])
+
+    def test_last_role_counted(self):
+        # The region walk must count the final role too (no company after
+        # it to trigger the flush).
+        errs = vr._bullet_cap_errors(self._region_with_counts(2, 12))
+        self.assertEqual(len(errs), 1)
+        self.assertIn("Company 1", errs[0])
+
+    def test_over_cap_blocks_render(self):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr(
+                    "word/document.xml",
+                    '<?xml version="1.0"?><w:document xmlns:w="'
+                    + de.XMLNS + '"><w:body/></w:document>',
+                )
+                z.writestr("[Content_Types].xml", "<Types/>")
+            root, body_el, names, data, _ = de.load(path)
+            for p in [
+                mk("Career Experience", style="SectionHeading"),
+                mk("Acme, MA (Remote)06/2021 – 05/2026",
+                   style=mr.COMPANY_STYLE),
+                mk("Staff Engineer", style=vr.TITLE_STYLE),
+            ] + [mk(f"Quantified win {i}.", numId=4) for i in range(9)]:
+                body_el.append(p)
+            with contextlib.redirect_stdout(io.StringIO()):
+                de.save(path, root, names, data)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = vr.main([path])
+        finally:
+            os.unlink(path)
+        self.assertEqual(rc, 2)
+        self.assertIn("BULLET CAP", out.getvalue())
+
+
 class TextIntegrityTests(unittest.TestCase):
     """_text_integrity_errors: mangling artifacts in generated prose —
     unexpected non-ASCII (CJK/Cyrillic), doubled punctuation, doubled words.

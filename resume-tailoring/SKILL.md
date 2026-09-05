@@ -514,6 +514,9 @@ under the same cap — a 1-year role whose master block carries 20+ bullets
 selects its strongest JD-aligned ones like everyone else. A role at the
 cap while others sit far below it still crowds the page; a reviewer who
 hits a wall of text skips bullets they needed to read.
+`validate_resume.py` enforces this (BULLET CAP section): a role over the
+cap blocks the render. The master itself is exempt when it IS the input —
+it intentionally keeps everything.
 
 **The plan is a sum of REMOVALS, and measure emits it.** Every line in
 the plan's math is a paragraph the tailor script deletes. When the
@@ -821,7 +824,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Reading "no unprotected bullet to give" as a dead end while the most-recent role carries off-JD content | JD-matching false-positives on generic terms — read the TOP-ROLE PROTECTED BULLETS list (matched term per bullet) and override weak matches deliberately; that is the sanctioned top-role trim, not hand-picking (Step 8) |
 | Running squeeze in apply mode on the tailored .docx and then folding cuts back into the script by hand | Harvest with `--plan-only` BEFORE the script's first run — same loop, same fold-back block, file untouched (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
-| Pruning only the oldest roles while the most-recent role keeps 15+ bullets | The hard per-role cap applies to EVERY role: a 1-year role whose master block carries 20+ bullets selects its strongest JD-aligned ones like everyone else — check the DROP PLAN's weak-match (cuttable) listing for the top role (Steps 6, 8) |
+| Pruning only the oldest roles while the most-recent role keeps 15+ bullets | The hard per-role cap (8) applies to EVERY role and is enforced by `validate_resume.py` — an over-cap role blocks the render (BULLET CAP section). Check the DROP PLAN's weak-match (cuttable) listing for the top role (Steps 6, 8) |
 | Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 3, 8) |
 | Trusting a JD-matched (kept) listing that protected everything | A term matching half a role's bullets is shown as `[weak: term]` and protects nothing; specific tech nouns stay strong — read the weak-match (cuttable) listing before calling a role a dead end (Step 8) |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
