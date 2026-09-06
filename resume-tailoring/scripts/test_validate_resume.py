@@ -1084,6 +1084,35 @@ blocking."""
         finally:
             os.unlink(path)
             os.unlink(jd_path)
+    def test_unreadable_jd_returns_blocking_dict(self):
+        """validate_tree keeps its dict contract when the --jd file is
+        unreadable. An int return crashed docx_edit's deliverable gate with
+        "TypeError: 'int' object is not subscriptable" instead of blocking
+        with a readable message (found when a session's --jd file was
+        missing at save time). A missing JD file must block, not crash:
+        blocking > 0 and a readable line here, never an int."""
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("word/document.xml",
+                    '<?xml version="1.0"?><w:document xmlns:w="'
+                    + de.XMLNS + '"><w:body/></w:document>')
+                z.writestr("[Content_Types].xml", "<Types/>")
+            root, body_el, names, data, _ = de.load(path)
+            b, s = self._body_with("Short summary.")
+            for p in list(b):
+                body_el.append(p)
+            with contextlib.redirect_stdout(io.StringIO()):
+                de.save(path, root, names, data)
+            result = vr.validate_tree(
+                path, body_el, jd_path="/nonexistent/optum_jd.txt")
+            self.assertIsInstance(result, dict)
+            self.assertGreater(result["blocking"], 0)
+            self.assertTrue(any("cannot read --jd file" in l
+                                for l in result["lines"]))
+        finally:
+            os.unlink(path)
 
 
 if __name__ == "__main__":

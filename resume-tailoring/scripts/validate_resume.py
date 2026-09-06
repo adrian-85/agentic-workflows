@@ -763,9 +763,17 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,
             with open(jd_path, encoding="utf-8", errors="replace") as f:
                 jd_text = f.read()
         except OSError as e:
-            print(f"error: cannot read --jd file {jd_path}: {e}",
-                  file=sys.stderr)
-            return 2
+            # KEEP the documented dict contract. Both consumers index the
+            # result: validate_resume.main prints result["lines"] and
+            # docx_edit's deliverable gate reads result["blocking"] BEFORE
+            # writing a tailored .docx. An int return here made the gate
+            # crash with "TypeError: 'int' object is not subscriptable"
+            # instead of blocking with a readable message (found when a
+            # session's --jd file was unreadable at save time). Blocking: 1
+            # -> the CLI still exits 2 and the gate refuses the write.
+            return {"blocking": 1, "warnings": 0, "lines": [
+                f"error: cannot read --jd file {jd_path}: {e} "
+                f"— JD-dependent gates cannot run"]}
         education_errors, education_notes = _education_gate(
             jd_text, body, span, jd_years, education_approved)
         # A fabricated ask poisons every span comparison downstream (the
