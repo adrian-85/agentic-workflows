@@ -194,6 +194,9 @@ manual habits are:
    WHICH transfers; its HOW MANY does not** — per-role budgets are derived from the state
    you measured, and your content edits change the math, so don't carry "drop N per role"
    forward; re-run measure on the build to confirm the gap closed and read its JD-FIT AUDIT.
+   **The build's own measure run is also the term-coverage drift check**: its **JD terms
+   with NO host** list catches an ask whose only host died with a cut role or trimmed Tools
+   line — the master-measure said "covered", the deliverable doesn't have the word.
 3. **Before reusing a tailor script after the user edited the .docx, run `diff_resume.py --tailor`**
    first — one command surfaces manual edits a blind re-run would wipe. (The drift sidecar
    is the tripwire; diff_resume is the review.)
@@ -214,9 +217,12 @@ manual habits are:
 Tool-enforced (no instruction needed): `render_pdf.sh` refuses broken or unapproved-elimination
 docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
 with copy-pasteable `find_p` cut lines, the per-role **JD-FIT AUDIT** (off-JD/weak bullets in every
-role, even on target), **JD terms with NO host in the resume** (the never-fabricate flags), and
-flags page widows /
-underfilled pages (Step 8); `squeeze_resume.py` closes the residual page gap automatically.
+role, even on target), **JD REQUIREMENT COVERAGE** (each qualification line → its kept hosts;
+[weak] = proficiencies/Tools-line host only, [UNCOVERED] = demonstrate it or raise the gap), **JD
+terms with NO host in the resume** (the never-fabricate flags), and flags page widows /
+underfilled pages + **SPACER OPPORTUNITIES** (Step 8); `validate_resume.py` re-reports the
+JD-FIT count at render/save time (the render gate is not skippable); `squeeze_resume.py` closes
+the residual page gap automatically.
 
 ## Workflow
 
@@ -553,7 +559,20 @@ OFF-JD bullets (no JD term, no practice phrase) and its weak-match
 bullets even when the page target is already met, and re-read the audit
 AFTER the build — a clean render is not a JD-tight resume. Irrelevant
 bullets fail the JD-match goal twice over: they are noise for the
-screener and lines the JD-relevant content paid for.
+screener and lines the JD-relevant content paid for. The validator now
+carries the same check into the render path, so the deliverable gate
+re-reports the count — act on it or give each kept bullet a one-line JD
+reason.
+
+**Prove each qualification, don't just avoid fabricating it.** The
+**JD REQUIREMENT COVERAGE** section maps every qualification line to its
+kept host bullets. `[weak]` — the ask is hosted only on a
+proficiencies/Tools line: weave it into the bullet where it was used
+(Step 5), that is the evidence recruiters ask for. `[UNCOVERED]` — no
+kept bullet demonstrates the ask: restore the evidence from the master
+if it exists, or raise the gap to the user; never fabricate. A resume
+that cannot show a required qual reads as unqualified for it, however
+clean the rest.
 
 **Mostly-irrelevant role: cut to a stub, don't carry it whole.** When
 most of a role's bullets are off-JD (the audit prints STUB CANDIDATE),
@@ -727,7 +746,9 @@ does not replace the final verification render.
 **Readability spacing — lowest priority, only when there is room.** After
 every cut is placed and the measure shows the last page at/below target
 with slack (the render/measure Page fill lines), add one blank spacer
-paragraph between roles:
+paragraph between roles — measure prints **SPACER OPPORTUNITIES**, the
+role boundaries that still lack the pause, with the `clone_after`
+anchor:
 
 `For example: clone_after(body, find_p(ps, "<a NON-bullet paragraph near the
 role boundary, e.g. the Tools line>"), "")` — anchoring on a non-bullet
@@ -899,6 +920,8 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Running squeeze in apply mode on the tailored .docx and then folding cuts back into the script by hand | Harvest with `--plan-only` BEFORE the script's first run — same loop, same fold-back block, file untouched (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
 | Pruning only the oldest roles while the most-recent role keeps 15+ bullets | The hard per-role cap (8) applies to EVERY role — check the DROP PLAN's weak-match (cuttable) listing for the top role (Steps 6, 8) |
+| Leaving an under-cap role unpruned because the page math closed | Below the cap, pruning is JD-driven, not page-driven: the JD-FIT AUDIT lists OFF-JD/weak bullets per role — cut or shorten them even on target, stub a mostly-irrelevant role at 1 bullet (Step 8) |
+| Treating a proficiencies/Tools-line host as proof of a JD ask | JD REQUIREMENT COVERAGE prints [weak] for non-bullet hosts — weave the skill into the bullet where it was used (Step 5); [UNCOVERED] means demonstrate it or raise the gap, never fabricate |
 | Leaving an under-cap role unpruned because the page math closed | Below the cap, pruning is JD-driven, not page-driven: the JD-FIT AUDIT lists OFF-JD/weak bullets per role — cut or shorten them even on target, stub a mostly-irrelevant role at 1 bullet (Step 8) |
 | "Keep N" with a drop list that doesn't add up | intended keep + len(drop list) == the role's master bullet count (23 − 16 = 7, not 8); a built role whose count differs from intent is a MISS to fix, not a counting convention (Step 8) |
 | Carrying the master measure's per-role budgets into the build | The plan's WHICH transfers; its HOW MANY is derived from the measured state and changes with your content edits — re-run measure on the build (Step 8, practice #2) |
