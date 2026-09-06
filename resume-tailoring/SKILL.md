@@ -33,7 +33,7 @@ tiebreakers, never a cut signal and never an exemption.
 
 | Step | Action | Tool |
 |---|---|---|
-| 1 | Read inputs (JD, master, LinkedIn) | `read_profile.sh` |
+| 1 | Read inputs (JD — persist to skill root, master, LinkedIn) | `read_profile.sh` |
 | 2 | Extract employer selling points | — |
 | 3 | Decide length + seniority alignment | `measure_resume.py` (TIMELINE) |
 | 4 | Align top title to JD title (less senior); rewrite Summary to lead with JD value | `set_text` |
@@ -44,6 +44,7 @@ tiebreakers, never a cut signal and never an exemption.
 | 9 | Fix grammar, typos, punctuation | grep + `validate_resume.py` |
 | 10 | Save tailored copy (never overwrite master) | `save()` |
 | 11 | Render + verify PDF | `render_pdf.sh` |
+| 12 | Fold user-confirmed experience into the master (additive, AFTER the tailor script is final) | `clone_after`, `--set-text`/`--append-after` |
 
 ## Assets
 
@@ -119,6 +120,12 @@ manual habits are:
    `python3 -c "import ast; ast.parse(open('scripts/tailor_<target>.py').read())"`
    immediately after authoring. On corruption, do not repair incrementally
    with `edit` — rewrite the whole file in one bash heredoc and re-check.
+7. **Before each `edit` of a script, view only the target region**
+   (`sed -n 'A,Bp'`, or `grep -n` to find it) — not a full re-read. A
+   session re-read its 300-line tailor script seventeen times across edit
+   rounds; targeted views keep the edit anchors exact at a fraction of
+   the tokens. Full re-read only when paragraph/script indices shifted
+   and the anchor's position is genuinely unknown.
 
 Tool-enforced (no instruction needed): `render_pdf.sh` refuses broken or unapproved-elimination
 docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
@@ -137,6 +144,13 @@ the residual page gap automatically.
   recruiter's "top skills" list or screening email is a lighter-weight input
   than a full JD — treat the named skills/tools as the alignment target just
   the same.
+- **Persist the JD in the skill root, not /tmp.** Save it as
+  `jd_<target>.txt` (e.g. `jd_optum.txt`) before anything else. Every
+  downstream tool (tailor, measure, render, the `RESUME_VALIDATE_ARGS`
+  tokens) references that path for the whole session, and the re-run
+  instructions quoted at the end of a session outlive it — a JD left in
+  `/tmp` was wiped mid-session once and crashed the deliverable gate.
+  The tailor script's docstring records the path it was authored with.
 - Read the **master resume**. If it is a `.docx`, use `docx_edit.py` to edit. If
   only a PDF is available, ask for the `.docx` source — PDFs can be read but
   not edited precisely.
@@ -174,6 +188,20 @@ NO host in the resume** list (authoring-time measure, Step 8): those are the
 mechanical never-fabricate flags — raise each to the user instead of
 inventing evidence, and note where 'similar' tooling truthfully answers the
 ask (Postman/Karate for "SoapUI or REST API testing tools").
+
+**Soft-skill asks are inferred from action-verb evidence, not keyword-matched.**
+A qual line like "Excellent communication, stakeholder management, and
+technical leadership skills" is demonstrated by the master's structural
+evidence — bullets about presenting, demoing, leading, mentoring, and
+training (the master is full of them). Treat such a line as covered when
+kept bullets carry that action evidence; one user confirmation ("my
+communication was excellent at every position") covers every role at once —
+do not re-ask per company. Never chase the literal adjective as a keyword:
+a self-assessment adjective is the user's word to stand behind, so inject
+it into a bullet only when the user states it or asks for the literal term
+(and then host it in a bullet where the action evidence lives). The
+never-fabricate rule is for tools and employers (Appium, LoadRunner) —
+not for judging the user's own confirmed abilities.
 
 ### 3. Decide length up front
 - **Target 2 pages; accept 3 for senior/Staff; 4 is too long.** "Senior"
@@ -256,7 +284,11 @@ compression when the page budget forces it:
    message: the measured target page count, each proposed whole-role drop
    BY NAME with its years, and the resulting visible span — then wait for
    the reply before writing the tailor script. Steering replies (a page
-   target, "keep X") are NOT seniority approval.
+   target, "keep X") are NOT seniority approval — EXCEPT when the steering
+   reply itself names the complete revised drop set (e.g. "drop Illumina
+   and Epic, keep Rakuten and Trove"): naming every role to drop IS
+   approval of that set, so re-present the measured numbers and proceed
+   without a second approval round-trip.
    **Enforced, not a habit:** `validate_resume.py` detects whole-role elimination
    (visible span ≥2 years shorter than the master) and `render_pdf.sh` blocks the
    PDF until the approval is recorded with `--seniority-approved` (Step 11) — you
@@ -403,6 +435,23 @@ kept bullet demonstrates the ask: restore the evidence from the master
 if it exists, or raise the gap to the user; never fabricate. A resume
 that cannot show a required qual reads as unqualified for it, however
 clean the rest.
+
+**"Covered" means a literal-phrase host.** The coverage matcher matches
+the JD's extracted terms as literal phrases — concept evidence does not
+flip a line to covered ("event-driven architecture" wording covers that
+phrase; "Kafka and MSMQ in a Tools line" does not cover "event-driven").
+When a qual you KNOW is demonstrated still prints UNCOVERED, the fix is
+to host the JD's literal phrase in a truthful bullet at authoring time —
+not to debug the matcher. Read the UNCOVERED list at authoring-time
+measure (before writing the script) and plan those hosts then.
+
+**Soft-skill qual lines are judged on action-verb evidence.** "Excellent
+communication, stakeholder management, technical leadership" and the
+like extract no skill terms — measure reports them `by hand` with the
+inference rule. Cover them with the kept bullets that show the behavior
+(presented, demoed, led, mentored, trained, coordinated); inject the
+literal adjective only with the user's stated authority (Step 2), hosted
+in a bullet where the action evidence lives.
 
 **Mostly-irrelevant role: cut to a stub, don't carry it whole.** When
 most of a role's bullets are off-JD (the audit prints STUB CANDIDATE),
@@ -562,6 +611,27 @@ If it overshoots the target, **compress one more older-role bullet** and
 re-render until the last page is full (the `.pdf` is the deliverable; the `.docx` is
 session-temp source — see Step 10).
 
+### 12. Fold user-confirmed experience into the master
+The session is NOT done when the PDF renders. Any fact the user confirmed
+that landed in the deliverable — a tool with no prior host (BrowserStack),
+an experience the resume compressed away (LLM prompt testing, contract
+testing), a theme they stated ("event-driven at every position") — goes
+back into the master so every future target inherits it. The master is
+the data pool; a fact that lives only in a per-target script is lost to
+the next run. **Do not wait for the user to remember this step** — one
+session ended the deliverable summary and the user had to prompt the
+fold themselves.
+
+The fold is strictly ADDITIVE: new bullets (`clone_after`), proficiency
+line additions, and in-place appends (`--set-text`/`--append-after`) —
+never removals or replacements of master text. Run it AFTER the per-target
+script is final (a fold rewrites master text and invalidates the script's
+`find_p` prefixes); the next tailor re-run detects the changed master
+(`MASTER CHANGED:` auto-strict) and must come up green — new master
+bullets whose evidence already lives in kept, rewritten bullets join that
+role's drop list. See the Assets section above for the full ordering and
+the user-edit precedence rule.
+
 ## When NOT to use this skill
 
 - The user only has a PDF resume (no `.docx` source). Offer to review and
@@ -586,6 +656,16 @@ verb that can't be defended is worse than a JD keyword that went unmirrored.
 or JD names a tool the user doesn't have, omit it and flag it to the user
 rather than inventing a bullet — the user must stand behind every line in an
 interview, and a made-up tool usage is the easiest thing to catch.
+
+**Soft-skill claims are the user's word, evidenced by their history.** The
+never-fabricate rule governs tools and employers. Communication,
+leadership, and stakeholder management are different: the master's
+presented/demoed/led/mentored/trained bullets ARE the evidence (Step 2's
+inference rule), and the user's explicit statement ("my communication was
+excellent at every position") is the authority for the literal adjective.
+Declining to state a skill the user has confirmed — or re-asking after
+they confirmed it — is over-caution that costs round-trips and leaves JD
+lines flagged for no reason.
 
 ## Common mistakes
 
@@ -616,6 +696,9 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (`save()` prints one summary line if element-form was used). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form (Helper library) |
 | Iterating Tools-line trims because a trimmed line still wraps | Rare now: TOOLS LINES THAT WRAP reports the MEASURED budget per line ("value is N chars, wraps after ~M — cut ~N-M chars"), so the first trim lands. Trim to the reported budget, not a tool count — the proportional font makes "~8 tools" unreliable (Step 8) |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
+| Re-asking for communication/leadership evidence the user already confirmed, or refusing to state a soft skill their bullets demonstrate | Soft-skill asks are covered by action-verb evidence (presented/demoed/led/mentored/trained); one user confirmation covers every role; the literal adjective only with their stated authority (Steps 2, 8; Accuracy) |
+| Ending the session at the rendered PDF without folding confirmed experience back into the master | Step 12 is part of the workflow — every user-confirmed fact lands in the master (additively) before the session closes |
+| Storing the JD in /tmp | Persist it as `jd_<target>.txt` in the skill root (Step 1) — every tool and the re-run instructions reference that path across sessions |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 5) |
 | Headline still says "Staff" against a less-senior JD title | Rewrite the top title to the JD's title and level its summary echo (Step 4) — the first line is what the screener compares |
 | Appending bullets when content overlaps an existing one | Merge (`merge_into`) — appending blows the page budget (Step 6) |

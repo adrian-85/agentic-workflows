@@ -288,6 +288,22 @@ to the residual gap) and, when even that cannot close it, a NOTE saying so —
 paste its `find_p` lines into the script's first pass and take the NOTE
 back to the user (whole-role drops / JD-matched tradeoffs).
 
+### JD REQUIREMENT COVERAGE
+
+The coverage map matches the JD's extracted terms as **literal phrases**:
+a qual line flips to covered only when a kept bullet (or, as `[weak]`, a
+proficiencies/Tools line) contains the phrase itself. Concept evidence does
+not flip it — "Kafka and MSMQ in a Tools line" does not cover
+"event-driven architecture", and adjacent tooling does not cover a named
+tool. So when a qual you know is demonstrated still prints `[UNCOVERED]`,
+the fix is to host the JD's literal phrase in a truthful bullet — at
+AUTHORING time, from the master-measure's list — not to debug the matcher
+(a session spent five tool calls reading the matcher's source to re-learn
+this). Self-assessment-adjective qual lines ("Excellent communication, ...")
+extract no skill terms and print `[by hand]` with the soft-skill inference
+rule — judge them on kept action-verb evidence (SKILL Step 8), never by
+chasing the adjective.
+
 ### Readability spacing
 
 After every cut is placed and the measure shows the last page at/below target
