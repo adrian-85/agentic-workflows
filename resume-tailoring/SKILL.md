@@ -190,7 +190,10 @@ manual habits are:
    writing the tailor script, and paste its DROP PLAN `find_p` lines verbatim into the
    script's `drop()` calls. Running measure on the master (not the target) plans all the
    cuts up front instead of discovering them after the first build. `--jd` protects JD
-   evidence automatically (see Step 8), so the plan doesn't fight the JD.
+   evidence automatically (see Step 8), so the plan doesn't fight the JD. **The plan's
+   WHICH transfers; its HOW MANY does not** — per-role budgets are derived from the state
+   you measured, and your content edits change the math, so don't carry "drop N per role"
+   forward; re-run measure on the build to confirm the gap closed and read its JD-FIT AUDIT.
 3. **Before reusing a tailor script after the user edited the .docx, run `diff_resume.py --tailor`**
    first — one command surfaces manual edits a blind re-run would wipe. (The drift sidecar
    is the tripwire; diff_resume is the review.)
@@ -210,8 +213,10 @@ manual habits are:
 
 Tool-enforced (no instruction needed): `render_pdf.sh` refuses broken or unapproved-elimination
 docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
-with copy-pasteable `find_p` cut lines, and flags page widows / underfilled pages (Step 8);
-`squeeze_resume.py` closes the residual page gap automatically.
+with copy-pasteable `find_p` cut lines, the per-role **JD-FIT AUDIT** (off-JD/weak bullets in every
+role, even on target), **JD terms with NO host in the resume** (the never-fabricate flags, and a
+posted title extractor that survives location/program suffixes), and flags page widows /
+underfilled pages (Step 8); `squeeze_resume.py` closes the residual page gap automatically.
 
 ## Workflow
 
@@ -252,7 +257,11 @@ with copy-pasteable `find_p` cut lines, and flags page widows / underfilled page
 Ask the user (or infer from the JD) the handful of themes to sell on; these
 themes drive every later edit. **If the input is a recruiter's named-skills
 list rather than a JD, those skills/tools ARE the selling points** — every
-later edit shows where each was used.
+later edit shows where each was used. Cross-check measure's **JD terms with
+NO host in the resume** list (authoring-time measure, Step 8): those are the
+mechanical never-fabricate flags — raise each to the user instead of
+inventing evidence, and note where 'similar' tooling truthfully answers the
+ask (Postman/Karate for "SoapUI or REST API testing tools").
 
 ### 3. Decide length up front
 - **Target 2 pages; accept 3 for senior/Staff; 4 is too long.** "Senior"
@@ -446,8 +455,9 @@ Engineer…"). `measure_resume.py --jd` and `validate_resume.py --jd` print a
 Then rewrite the Summary so its first sentence hits the JD's core ask (e.g.
 "owns quality end-to-end", "builds QA frameworks from scratch rather than
 working within established ones"). Mirror the user's selling points explicitly.
-**Cap every prose paragraph — the Summary included — at 40 words (≤40 is
-acceptable). Individual bullets carry the same 40-word cap.** Word count,
+**Cap every prose paragraph — the Summary included — at 40 words (a ceiling,
+never a target: shorter is always fine). Individual bullets carry the same
+40-word cap.** Word count,
 not sentence count: a 3-sentence Summary measured ~84 words in a real
 session and still read as a wall. `validate_resume.py` warns over the cap
 in its GUIDANCE section (Tools lines exempt — they are keyword lists
@@ -524,6 +534,40 @@ selects its strongest JD-aligned ones like everyone else. A role at the
 cap while others sit far below it still crowds the page; a reviewer who
 hits a wall of text skips bullets they needed to read.
 
+**Reconcile the arithmetic before running the tailor script.** Per role:
+intended keep + number of `drop()` entries must equal the role's master
+bullet count (measure's table shows it as `b/cap`; intros are not bullets
+and not cap fillers). A real failure: 23 master bullets, "keep the 8
+strongest", 16 drops — 7 kept, one bullet more cut than intended, and the
+post-build table that showed 7 got rationalized as "the intro" instead of
+flagged as a miss. When a built role's count differs from the intent,
+fix the drop list.
+
+**Below the cap, pruning is JD-driven, not page-driven.** The DROP PLAN
+fires only when the page math demands cuts — which is how an under-cap
+role keeps every bullet, including ones no JD term names, after other
+roles close the gap (a 5-bullet role kept 5/5; two matched nothing the JD
+asks for). measure's **JD-FIT AUDIT** (printed for every role with
+`--jd`, whether or not the resume is on target) closes the hole: cut its
+OFF-JD bullets (no JD term, no practice phrase) and its weak-match
+bullets even when the page target is already met, and re-read the audit
+AFTER the build — a clean render is not a JD-tight resume. Irrelevant
+bullets fail the JD-match goal twice over: they are noise for the
+screener and lines the JD-relevant content paid for.
+
+**Mostly-irrelevant role: cut to a stub, don't carry it whole.** When
+most of a role's bullets are off-JD (the audit prints STUB CANDIDATE),
+cut them; if the role then carries no JD evidence at all, keep a
+1-bullet stub (header/title + strongest bullet) ONLY to prevent an
+employment gap — timeline gaplessness is the one reason to keep
+irrelevant content. An interior role dropped to nothing is a `drop_role`
+(Step 3), not a stub.
+
+**Never lengthen the resume unless it improves JD alignment.** Every kept
+bullet, kept line, and added spacer must trace to a JD requirement or to
+the readability spacing below; when content needs room, spacers go
+first.
+
 **The plan is a sum of REMOVALS, and measure emits it.** Every line in
 the plan's math is a paragraph the tailor script deletes. When the
 oldest-first plan cannot close the gap, measure emits a TOP-ROLE TRIM
@@ -531,8 +575,11 @@ BATCH (the most-recent role's weakest unprotected bullets, sized to the
 residual gap) and, when even that cannot close it, a NOTE saying so —
 paste its `find_p` lines into the script's first pass and take the NOTE
 back to the user (whole-role drops / JD-matched tradeoffs). Kept
-bullets' text is final; hand-shortening kept bullets from two rendered
-lines to one is not a cut and never closes a measured gap.
+bullets' text is final FOR PAGE MATH: hand-shortening a kept bullet from
+two rendered lines to one is not a cut and never closes a measured gap.
+Shortening IS a legitimate JD-fit edit — trimming a kept bullet's
+irrelevant clauses (40 words is a ceiling, never a target; less is always
+fine) — it just never substitutes for a measured removal.
 
 **Measure before cutting.** After the content edits (steps 4–7), run
 `scripts/measure_resume.py <target.docx> [TARGET_PAGES]` — it renders once and
@@ -566,7 +613,9 @@ matched. It also prints the FULL extracted term list plus the file's word
 count — scan that list against the posting to confirm the JD file is the
 verbatim text, not a paraphrase: a summarized JD silently drops whole skill
 areas from the DROP PLAN (paste the posting verbatim; a short file gets a
-fidelity note, and a recruiter's message is legitimately short):
+fidelity note, and a recruiter's message is legitimately short). And it
+prints the **JD terms with NO host in the resume** — the never-fabricate
+flags, mechanical instead of re-read-the-posting (Step 2):
 
 ```bash
 python3 scripts/measure_resume.py "<Target>.docx" 2 --jd "<JD>.txt"
@@ -798,7 +847,9 @@ serves the JD, whole-role removals still read as a coherent timeline, the top
 title's level matches the JD's title (Step 4), and the Summary's claims still
 match what the reader sees. Years-vs-timeline is
 automated (`validate_resume.py`); JD-fit judgment of kept bullets is not — that
-stays human.
+stays human. The post-build measure run's **JD-FIT AUDIT** narrows where to
+look: any OFF-JD or weak-match bullet it lists gets cut or shortened even
+when the page target is met, or kept with a one-line reason tied to the JD.
 
 If it overshoots the target, **compress one more older-role bullet** and
 re-render until the last page is full (the `.pdf` is the deliverable; the `.docx` is
@@ -848,6 +899,9 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Running squeeze in apply mode on the tailored .docx and then folding cuts back into the script by hand | Harvest with `--plan-only` BEFORE the script's first run — same loop, same fold-back block, file untouched (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
 | Pruning only the oldest roles while the most-recent role keeps 15+ bullets | The hard per-role cap (8) applies to EVERY role — check the DROP PLAN's weak-match (cuttable) listing for the top role (Steps 6, 8) |
+| Leaving an under-cap role unpruned because the page math closed | Below the cap, pruning is JD-driven, not page-driven: the JD-FIT AUDIT lists OFF-JD/weak bullets per role — cut or shorten them even on target, stub a mostly-irrelevant role at 1 bullet (Step 8) |
+| "Keep N" with a drop list that doesn't add up | intended keep + len(drop list) == the role's master bullet count (23 − 16 = 7, not 8); a built role whose count differs from intent is a MISS to fix, not a counting convention (Step 8) |
+| Carrying the master measure's per-role budgets into the build | The plan's WHICH transfers; its HOW MANY is derived from the measured state and changes with your content edits — re-run measure on the build (Step 8, practice #2) |
 | Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 3, 8) |
 | Trusting a JD-matched (kept) listing that protected everything | A term matching half a role's bullets is shown as `[weak: term]` and protects nothing; specific tech nouns stay strong — read the weak-match (cuttable) listing before calling a role a dead end (Step 8) |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
