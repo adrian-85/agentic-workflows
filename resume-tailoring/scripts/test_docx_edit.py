@@ -110,12 +110,12 @@ class TmpJdNoteTests(unittest.TestCase):
     so the two warnings cannot drift apart."""
 
     def test_note_for_tmp_path(self):
-        note = de.tmp_jd_note("/tmp/optum_jd.txt")
-        self.assertIn("/tmp/optum_jd.txt", note)
+        note = de.tmp_jd_note("/tmp/jd_acme.txt")
+        self.assertIn("/tmp/jd_acme.txt", note)
         self.assertIn("jd_<target>.txt", note)
 
     def test_none_for_persistent_paths(self):
-        self.assertIsNone(de.tmp_jd_note("jd_optum.txt"))
+        self.assertIsNone(de.tmp_jd_note("jd_acme.txt"))
         self.assertIsNone(de.tmp_jd_note(None))
 
 

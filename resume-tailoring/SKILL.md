@@ -145,7 +145,7 @@ the residual page gap automatically.
   than a full JD — treat the named skills/tools as the alignment target just
   the same.
 - **Persist the JD in the skill root, not /tmp.** Save it as
-  `jd_<target>.txt` (e.g. `jd_optum.txt`) before anything else. Every
+  `jd_<target>.txt` (e.g. `jd_acme.txt`) before anything else. Every
   downstream tool references that path for the whole session, and re-run
   instructions outlive it. The code warns when `--jd` points at `/tmp`;
   the tailor script's docstring records the JD path used.
@@ -285,8 +285,8 @@ compression when the page budget forces it:
    BY NAME with its years, and the resulting visible span — then wait for
    the reply before writing the tailor script. Steering replies (a page
    target, "keep X") are NOT seniority approval — EXCEPT when the steering
-   reply itself names the complete revised drop set (e.g. "drop Illumina
-   and Epic, keep Rakuten and Trove"): naming every role to drop IS
+   reply itself names the complete revised drop set (e.g. "drop Acme
+   and Globex, keep Initech"): naming every role to drop IS
    approval of that set, so re-present the measured numbers and proceed
    without a second approval round-trip.
    **Enforced, not a habit:** `validate_resume.py` detects whole-role elimination

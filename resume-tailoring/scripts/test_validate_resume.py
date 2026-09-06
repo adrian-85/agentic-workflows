@@ -1106,7 +1106,7 @@ blocking."""
             with contextlib.redirect_stdout(io.StringIO()):
                 de.save(path, root, names, data)
             result = vr.validate_tree(
-                path, body_el, jd_path="/nonexistent/optum_jd.txt")
+                path, body_el, jd_path="/nonexistent/jd_acme.txt")
             self.assertIsInstance(result, dict)
             self.assertGreater(result["blocking"], 0)
             self.assertTrue(any("cannot read --jd file" in l

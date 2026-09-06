@@ -1501,7 +1501,7 @@ class JdReportTests(unittest.TestCase):
         self.assertTrue(any("jd_<target>.txt" in l for l in lines), lines)
 
     def test_persistent_jd_path_has_no_note(self):
-        lines = mr._jd_report("jd_optum.txt", "word " * 400, {"playwright"})
+        lines = mr._jd_report("jd_acme.txt", "word " * 400, {"playwright"})
         self.assertFalse(any("/tmp" in l for l in lines), lines)
 
     def test_word_count_reported(self):
@@ -1709,7 +1709,7 @@ class JdMissingTermsTests(unittest.TestCase):
         # message), mining would be unbounded prose — stay silent.
         self.assertEqual(
             mr._jd_missing_terms(
-                "Hi Adrian, I'm recruiting for a Senior QA Engineer role. "
+                "Hi there, I'm recruiting for a Senior QA Engineer role. "
                 "REST Assured and SoapUI experience would be great.",
                 self._body(), set()),
             [])
@@ -1791,7 +1791,7 @@ class JdRequirementCoverageTests(unittest.TestCase):
         jd, body = self._jd_and_body()
         self.assertEqual(
             mr._jd_requirement_coverage(mr._roles(body), body,
-                                        "Hi Adrian, let's talk.", set()),
+                                        "Hi there, let's talk.", set()),
             [])
 
     def test_soft_skill_line_is_by_hand_with_action_verb_detail(self):
