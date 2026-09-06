@@ -1705,6 +1705,15 @@ class JdMissingTermsTests(unittest.TestCase):
         self.assertIn("selenium web driver", terms)
         self.assertNotIn("ide", terms)
 
+    def test_line_terms_filters_self_assessment_adjectives(self):
+        # A soft-skill qual line's only capitalized token is the
+        # self-assessment adjective — never skill evidence (a session
+        # chased "excellent" as a keyword across three user replies).
+        terms = mr._jd_line_terms(
+            "Excellent communication, stakeholder management, and "
+            "technical leadership skills")
+        self.assertEqual(terms, set())
+
 
 class JdRequirementCoverageTests(unittest.TestCase):
     """The requirement → evidence map: cutting off-JD content keeps the
@@ -1765,6 +1774,17 @@ class JdRequirementCoverageTests(unittest.TestCase):
             mr._jd_requirement_coverage(mr._roles(body), body,
                                         "Hi Adrian, let's talk.", set()),
             [])
+
+    def test_soft_skill_line_is_by_hand_with_action_verb_detail(self):
+        # "Excellent communication..." extracts no terms (the adjective
+        # is filtered) — it must read as a judged soft-skill ask with
+        # the action-verb evidence rule, not [UNCOVERED] on "excellent".
+        jd, body = self._jd_and_body()
+        jd += ("Excellent communication, stakeholder management, and "
+               "technical leadership skills\n")
+        result = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
+        self.assertTrue(any(s == "by_hand" and "soft-skill" in detail
+                            for _, s, detail in result), result)
 
 
 class SpacerBoundaryTests(unittest.TestCase):

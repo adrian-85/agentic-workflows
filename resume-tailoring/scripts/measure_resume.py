@@ -729,6 +729,8 @@ JD_SHORT_WORDS = 100  # below this, a --jd file is likely a summary, not the pos
 # JD-side term mining (see _jd_missing_terms): capitalized tech-term
 # candidates. Sequences are 2+ consecutive capitalized tokens ('REST
 # Assured', 'GitHub Codespaces'); single tokens count only mid-sentence
+# (self-assessment adjectives like 'Excellent' are filtered outright —
+# see JD_SELF_ASSESSMENT).
 # (a sentence-initial capital is prose, not a product name).
 JD_SEQ_TERM_RE = re.compile(
     r"(?<![A-Za-z0-9+#])[A-Z][A-Za-z0-9+#.]+(?:[\s-]+[A-Z][A-Za-z0-9+#.]+)+")
@@ -741,6 +743,25 @@ JD_QUAL_HEADING_RE = re.compile(
     r"(?:qualifications|requirements|skills|experience)\b\s*:?\s*$",
     re.I,
 )
+
+# Self-assessment adjectives JDs attach to soft-skill asks ("Excellent
+# communication, stakeholder management, and technical leadership").
+# They are never skill evidence — the only term such a line yields is
+# the adjective, and chasing it as a keyword produced a session-long
+# loop (three user round-trips over the word "excellent"). Never mine
+# or match them; the line is judged on kept action-verb evidence.
+JD_SELF_ASSESSMENT = frozenset({
+    "excellent", "outstanding", "exceptional", "effective",
+    "effectively", "superior", "superb", "expert", "good", "great",
+})
+
+# Soft-skill ask lines — covered by ACTION-VERB evidence (presented,
+# demoed, led, mentored, trained, coordinated), not by a literal
+# adjective (SKILL Step 8's inference rule). Used only to label the
+# by-hand judgment with that instruction.
+JD_SOFT_SKILL_RE = re.compile(
+    r"\b(communication|stakeholder|leadership|mentorship|"
+    r"collaboration|teamwork|interpersonal|presentation)\b", re.I)
 
 
 def _jd_requirement_lines(jd_text):
@@ -788,7 +809,8 @@ def _jd_line_terms(line):
         raw = m.group(1)
         low = raw.lower()
         if (len(low) < 3 and not re.fullmatch(r"[A-Z]{2,}", raw)) \
-                or low in JD_STOP or low in seq_words:
+                or low in JD_STOP or low in JD_SELF_ASSESSMENT \
+                or low in seq_words:
             continue
         prev = line[:m.start()]
         if re.search(r"[.!?]\s*$", prev.strip()) \
@@ -846,7 +868,11 @@ def _jd_requirement_coverage(roles, body, jd_text, jd_terms):
       weak     – only a non-bullet line hosts it (detail: weave-in
                  guidance, SKILL Step 5)
       uncovered – no host at all (detail: restore/raise, never fabricate)
-      by_hand  – no extractable terms on the line (judge manually)
+      by_hand  – no extractable terms on the line (judge manually); a
+                 soft-skill ask (communication, leadership, ...) gets a
+                 detail pointing at the action-verb evidence rule —
+                 presented/demoed/led/mentored/trained bullets are the
+                 host, never the literal adjective (SKILL Step 8)
 
     Cutting off-JD content keeps the resume honest; this keeps it
     QUALIFIED — the resume must demonstrate each JD ask, not merely
@@ -871,7 +897,14 @@ def _jd_requirement_coverage(roles, body, jd_text, jd_terms):
         terms |= {c for c in JD_CONCEPTS if c in q.lower()}
         label = q[:64]
         if not terms:
-            out.append((label, "by_hand", ""))
+            if JD_SOFT_SKILL_RE.search(q):
+                out.append((label, "by_hand",
+                            "soft-skill ask — covered by kept action-verb "
+                            "evidence (presented, demoed, led, mentored, "
+                            "trained); never the literal adjective "
+                            "(SKILL Step 8)"))
+            else:
+                out.append((label, "by_hand", ""))
             continue
         hits = [(k, b) for k, b in bullet_hosts if _jd_hits(b, terms)]
         if hits:
