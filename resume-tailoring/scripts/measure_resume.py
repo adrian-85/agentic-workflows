@@ -72,6 +72,13 @@ HEADLINE_STYLE = "Title"  # top-of-resume headline: 2nd 'Title' paragraph after 
 DATE_RE = re.compile(r"\d{1,2}/\d{4}")  # dates on role headers, e.g. 03/2022
 BULLET_STYLES = ("ListBullet",)  # styles whose bullets carry no paragraph numId
 
+# SKILL Step 8: hard cap on kept bullets per role, regardless of tenure,
+# page target, or accomplishment. Single source of truth — validate_resume
+# imports this (it already imports measure_resume). The table prints it as
+# 'b/cap' so the reconcile arithmetic (intended keep + drops == master
+# count) is checkable at a glance.
+MAX_BULLETS_PER_ROLE = 8
+
 
 def _render_pdf(docx_path, outdir):
     """Render docx -> pdf via LibreOffice headless; return the pdf path."""
@@ -1723,16 +1730,21 @@ def main():
           "target)")
     print()
     print("Per-role rendered cost (oldest roles LAST — cut from the bottom):")
-    print(f"  {'Role':<34} {'pg':>4} {'lines':>5} {'bullets':>7} {'tools':>5}")
+    print(f"  {'Role':<34} {'pg':>4} {'lines':>5} {'b/cap':>7} {'tools':>5}")
     for r, sp, ep, lines in matched:
         name = r["key"]
         if len(name) > 33:
             name = name[:30] + "..."
         pg_s = f"{sp}-{ep}" if (sp and ep and ep != sp) else (str(sp) if sp is not None else "?")
-        print(f"  {name:<34} {pg_s:>4} {lines:>5} {r['bullets']:>7} "
+        b_s = f"{r['bullets']}/{MAX_BULLETS_PER_ROLE}"
+        print(f"  {name:<34} {pg_s:>4} {lines:>5} {b_s:>7} "
               f"{'Y' if r['has_tools'] else '-':>5}")
     print(f"  {'Education (tail)':<34} {'':>4} {edu:>5}")
     print(f"  {'TOTAL':<34} {'':>4} {fixed_top + role_lines + edu:>5}")
+    print(f"  b/cap = NUMBERED bullets vs the Step-8 cap. Intros are not "
+          f"bullets and not cap fillers: intended keep + drops must equal")
+    print(f"  the master's count per role (23 bullets, keep 8, drop 16 = "
+          f"7 kept — one bullet more cut than intended).")
 
     # Tools lines that wrap — each costs ~1 extra rendered line; name the
     # roles so the agent can trim them without re-measuring.

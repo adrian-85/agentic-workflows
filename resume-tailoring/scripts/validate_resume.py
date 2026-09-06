@@ -142,7 +142,9 @@ DATE_RANGE = re.compile(r"\d{1,2}/\d{4}\s*[–\-]\s*\d{1,2}/\d{4}")
 # SKILL Step 8: hard cap on kept bullets per role, regardless of tenure,
 # page target, or accomplishment. The master intentionally keeps everything;
 # a tailored resume re-selects. Enforced as a blocking render gate below.
-MAX_BULLETS_PER_ROLE = 8
+# Defined in measure_resume (measure's per-role table prints it as 'b/cap');
+# imported here so the two tools cannot drift apart.
+MAX_BULLETS_PER_ROLE = mr.MAX_BULLETS_PER_ROLE
 
 # SKILL Step 4: readability word cap — no prose paragraph or individual
 # bullet over 40 words (<=40 is acceptable). Word count, not sentence
