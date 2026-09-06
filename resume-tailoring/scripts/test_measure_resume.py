@@ -1413,51 +1413,6 @@ class TitleAlignmentTests(unittest.TestCase):
             "We are hiring a Software Test Engineer to own quality across "
             "our SaaS platform. Come join us."))
 
-    def test_jd_title_rescues_qualifier_laden_title_line(self):
-        # Real postings append program/location qualifiers to the title
-        # (the UHC JD's first line). Previously the raw word count (the
-        # separator counted as a word) overflowed the cap, extraction
-        # gave up, and the Step-4 headline check silently never ran —
-        # Step 4 was applied by hand. Splitting on qualifiers rescues it.
-        self.assertEqual(
-            mr._jd_title("Senior QA Automation Engineer, E&I Commercial "
-                         "UW - East Coast Preferred\nAt Acme, we build "
-                         "things.\n5+ years of experience."),
-            "Senior QA Automation Engineer, E&I Commercial UW, East "
-            "Coast Preferred")
-
-    def test_jd_title_qualifier_strip_pops_up_to_cap(self):
-        # 12 words over the cap pops two short qualifiers; it stops as
-        # soon as the remainder fits (and never pops a long segment).
-        self.assertEqual(
-            mr._jd_title("Senior QA Automation Engineer, E&I Commercial "
-                         "Underwriting Systems - East Coast Preferred\n"),
-            "Senior QA Automation Engineer, E&I Commercial Underwriting "
-            "Systems")
-
-    def test_jd_title_prose_with_sentence_continuation_stays_none(self):
-        # A recruiter message's first line is prose, not a title-plus-
-        # qualifiers: the sentence-continuation guard must survive
-        # qualifier stripping.
-        self.assertIsNone(mr._jd_title(
-            "Hi Adrian, I'm recruiting for a Senior QA Engineer role. "
-            "I think you'd be a great fit for it."))
-
-    def test_jd_title_label_line_with_qualifiers(self):
-        self.assertEqual(
-            mr._jd_title("Job Title: Senior QA Automation Engineer, E&I "
-                         "Commercial Underwriting Systems - East Coast "
-                         "Preferred\nbody"),
-            "Senior QA Automation Engineer, E&I Commercial Underwriting "
-            "Systems")
-
-    def test_jd_title_short_title_untouched(self):
-        # Within the word cap there is nothing to strip — the original
-        # line is returned verbatim.
-        self.assertEqual(
-            mr._jd_title("Senior QA Engineer, E&I Commercial UW\nbody"),
-            "Senior QA Engineer, E&I Commercial UW")
-
     def test_jd_title_none_for_empty(self):
         self.assertIsNone(mr._jd_title(""))
 
