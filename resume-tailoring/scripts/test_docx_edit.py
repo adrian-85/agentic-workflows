@@ -104,6 +104,21 @@ def mkstyled(text, style, numId=None):
     return p
 
 
+class TmpJdNoteTests(unittest.TestCase):
+    """The shared /tmp JD persistence note (SKILL Step 1): one string,
+    used by both measure_resume's --jd report and the deliverable gate,
+    so the two warnings cannot drift apart."""
+
+    def test_note_for_tmp_path(self):
+        note = de.tmp_jd_note("/tmp/optum_jd.txt")
+        self.assertIn("/tmp/optum_jd.txt", note)
+        self.assertIn("jd_<target>.txt", note)
+
+    def test_none_for_persistent_paths(self):
+        self.assertIsNone(de.tmp_jd_note("jd_optum.txt"))
+        self.assertIsNone(de.tmp_jd_note(None))
+
+
 class ReplaceTextTests(unittest.TestCase):
     """replace_text: per-run substring replacement preserving formatting."""
 

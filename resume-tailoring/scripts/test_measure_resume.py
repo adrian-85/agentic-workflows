@@ -1485,6 +1485,25 @@ class JdReportTests(unittest.TestCase):
             self.assertIn(f"tool{i}", joined)
         self.assertNotIn("e.g.", joined)
 
+    def test_tmp_jd_path_gets_persistence_note(self):
+        # R1 regression: the /tmp note once crashed with NameError
+        # (appended before `lines` existed) — no test exercised a /tmp
+        # path. Both the ranked path and the no-terms early return must
+        # carry the note.
+        lines = mr._jd_report("/tmp/somejd.txt", "word " * 400,
+                              {"playwright"})
+        self.assertTrue(
+            any("/tmp/somejd.txt" in l and "jd_<target>.txt" in l
+                for l in lines), lines)
+
+    def test_tmp_jd_note_on_no_terms_path(self):
+        lines = mr._jd_report("/tmp/somejd.txt", "garbage text", set())
+        self.assertTrue(any("jd_<target>.txt" in l for l in lines), lines)
+
+    def test_persistent_jd_path_has_no_note(self):
+        lines = mr._jd_report("jd_optum.txt", "word " * 400, {"playwright"})
+        self.assertFalse(any("/tmp" in l for l in lines), lines)
+
     def test_word_count_reported(self):
         lines = mr._jd_report("jd.txt", "word " * 400, {"python"})
         self.assertIn("(400 words)", "\n".join(lines))

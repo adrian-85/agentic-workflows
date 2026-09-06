@@ -148,6 +148,31 @@ def load(path):
     return root, body, names, data, W
 
 
+def tmp_jd_note(jd_path):
+    """The /tmp JD persistence note (SKILL Step 1), or None. Shared by
+    measure_resume's --jd report and the deliverable gate so the two
+    warnings stay word-for-word in sync."""
+    if jd_path and jd_path.startswith("/tmp/"):
+        return (
+            f"NOTE: --jd {jd_path} is in /tmp — this path may not persist "
+            "across sessions. Copy the JD to the skill root as "
+            "jd_<target>.txt (SKILL Step 1) before continuing.")
+    return None
+
+
+def _script_records_jd(jd_path):
+    """Whether the calling script mentions the JD filename — the
+    docstring-records-RESUME_VALIDATE_ARGS convention (SKILL Step 1),
+    checked mechanically instead of trusted to prose. Matched on the
+    basename so a relative-vs-absolute path difference cannot
+    false-positive. An unreadable caller stays silent (soft convention)."""
+    try:
+        with open(sys.argv[0]) as f:
+            return os.path.basename(jd_path) in f.read()
+    except OSError:
+        return True
+
+
 def _approval_env():
     """Parse the RESUME_VALIDATE_ARGS env var (the same args render_pdf.sh
     passes to validate_resume.py) into gate flags, so ONE approval
@@ -205,11 +230,15 @@ def _deliverable_gate(path, root, src):
         return
     import validate_resume as vr  # lazy: validate_resume imports this module
     jd_path, jd_years, seniority_approved, education_approved, protect = _approval_env()
-    if jd_path and jd_path.startswith("/tmp/"):
+    tmp_note = tmp_jd_note(jd_path)
+    if tmp_note:
+        print(tmp_note, file=sys.stderr)
+    if jd_path and not _script_records_jd(jd_path):
         print(
-            f"NOTE: --jd {jd_path} is in /tmp — this path may not persist "
-            "across sessions. Copy the JD to the skill root as "
-            "jd_<target>.txt (SKILL Step 1) before continuing.",
+            f"NOTE: {os.path.basename(sys.argv[0])} does not record the "
+            f"JD path ({jd_path}) in its docstring — record "
+            "RESUME_VALIDATE_ARGS there so the path is discoverable "
+            "across sessions (SKILL Step 1).",
             file=sys.stderr,
         )
     try:

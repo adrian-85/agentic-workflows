@@ -757,7 +757,7 @@ JD_SELF_ASSESSMENT = frozenset({
 
 # Soft-skill ask lines — covered by ACTION-VERB evidence (presented,
 # demoed, led, mentored, trained, coordinated), not by a literal
-# adjective (SKILL Step 8's inference rule). Used only to label the
+# adjective (SKILL Step 2's inference rule). Used only to label the
 # by-hand judgment with that instruction.
 JD_SOFT_SKILL_RE = re.compile(
     r"\b(communication|stakeholder|leadership|mentorship|"
@@ -872,7 +872,7 @@ def _jd_requirement_coverage(roles, body, jd_text, jd_terms):
                  soft-skill ask (communication, leadership, ...) gets a
                  detail pointing at the action-verb evidence rule —
                  presented/demoed/led/mentored/trained bullets are the
-                 host, never the literal adjective (SKILL Step 8)
+                 host, never the literal adjective (SKILL Step 2)
 
     Cutting off-JD content keeps the resume honest; this keeps it
     QUALIFIED — the resume must demonstrate each JD ask, not merely
@@ -902,7 +902,7 @@ def _jd_requirement_coverage(roles, body, jd_text, jd_terms):
                             "soft-skill ask — covered by kept action-verb "
                             "evidence (presented, demoed, led, mentored, "
                             "trained); never the literal adjective "
-                            "(SKILL Step 8)"))
+                            "(SKILL Step 2)"))
             else:
                 out.append((label, "by_hand", ""))
             continue
@@ -967,18 +967,17 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None):
     host anywhere (_jd_missing_terms) — the 'never fabricate' flags made
     mechanical instead of an agent re-reading the posting.
     """
-    if jd_file.startswith("/tmp/"):
-        lines.append(
-            f"NOTE: {jd_file} is in /tmp — this path may not persist "
-            "across sessions. Copy the JD to the skill root as "
-            "jd_<target>.txt (SKILL Step 1) before continuing.")
+    tmp_note = de.tmp_jd_note(jd_file)
     words = len(jd_text.split())
     if not jd_terms:
-        return [
+        out = [
             f"JD-aware ranking: no candidate-tech terms in {jd_file} "
             f"intersect the resume's vocabulary — falling back to the "
             f"JD-blind ranking; check the file is the raw JD text.",
         ]
+        if tmp_note:
+            out.append(tmp_note)
+        return out
     lines = [
         f"JD-aware ranking: {len(jd_terms)} term(s) matched from "
         f"{jd_file} ({words} words)",
@@ -989,6 +988,8 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None):
             subsequent_indent="  ",
         ),
     ]
+    if tmp_note:
+        lines.append(tmp_note)
     if words < JD_SHORT_WORDS:
         lines.append(
             f"NOTE: {jd_file} is only {words} words — if it is the full "
