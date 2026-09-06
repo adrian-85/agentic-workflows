@@ -1678,6 +1678,69 @@ class WidowHintTests(unittest.TestCase):
         self.assertNotIn("preceding", widow[0])
 
 
+class JdMissingTermsTests(unittest.TestCase):
+    """JD-side skill terms the resume does not host anywhere.
+
+    jd_terms is the INTERSECTION (JD ask ∩ resume vocabulary), so a
+    required skill the resume cannot host never appears in any JD-aware
+    section — the omission surfaced only if the agent re-read the JD
+    (REST Assured was caught by reading; the Agile preferred qual was
+    caught by chance at final review). This makes the 'never fabricate'
+    flags mechanical."""
+
+    JD = ("Senior QA Automation Engineer, E&I Commercial UW\n"
+          "At AcmeCo, we build things.\n"
+          "Primary Responsibilities:\n"
+          "Take ownership of the automated test approach.\n"
+          "Required Qualifications:\n"
+          "5+ years of experience using Selenium Web Driver, Java, "
+          "TestNG, Cucumber, REST Assured, or similar IDE\n"
+          "Experience with SoapUI or REST API testing tools\n"
+          "Agile development process experience\n")
+
+    def _body(self):
+        return _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " \u2013 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Built REST API test suites with Selenium WebDriver, "
+                  "Java, TestNG and Cucumber.", numId=2),
+            _para("Wrote SQL queries for data validation.", numId=2),
+        ])
+
+    def test_reports_jd_skills_with_no_host(self):
+        missing = {t.lower() for t in
+                   mr._jd_missing_terms(self.JD, self._body(), set())}
+        self.assertIn("rest assured", missing)
+        self.assertIn("soapui", missing)
+        self.assertIn("agile", missing)
+
+    def test_hosted_skills_not_reported(self):
+        missing = {t.lower() for t in
+                   mr._jd_missing_terms(self.JD, self._body(), set())}
+        for hosted in ("java", "cucumber", "testng", "sql", "selenium web"):
+            self.assertNotIn(hosted, missing)
+
+    def test_company_voice_and_headings_not_mined(self):
+        # 'we build things' is mission prose and 'Required
+        # Qualifications:' is a heading — neither may surface as a
+        # missing skill; the title line is skipped wholesale.
+        missing = mr._jd_missing_terms(self.JD, self._body(), set())
+        self.assertNotIn("acmeco", [t.lower() for t in missing])
+        self.assertNotIn("qualifications",
+                         [t.lower() for t in missing])
+
+    def test_no_qualification_section_is_silent(self):
+        # Without a qualifications/requirements heading (a recruiter's
+        # message), mining would be unbounded prose — stay silent.
+        self.assertEqual(
+            mr._jd_missing_terms(
+                "Hi Adrian, I'm recruiting for a Senior QA Engineer role. "
+                "REST Assured and SoapUI experience would be great.",
+                self._body(), set()),
+            [])
+
+
 class JdFitAuditTests(unittest.TestCase):
     """The JD-FIT AUDIT: per-role bullet classification printed for EVERY
     role with --jd, independent of the page math. The DROP PLAN fires only
@@ -1759,6 +1822,18 @@ class JdFitAuditTests(unittest.TestCase):
     def test_no_jd_terms_is_silent(self):
         self.assertEqual(mr._jd_fit_audit(self._roles(["any bullet"]), set()),
                          [])
+
+    def test_protected_bullet_counts_as_evidence(self):
+        # --protect marks candidate-specific facts the user confirmed (a
+        # sandbox duty, a named partner): the JD text cannot name them, so
+        # zero term hits must NOT read as OFF-JD.
+        roles = self._roles([
+            "Tested American Express partner integrations against their "
+            "sandbox.",
+        ])
+        self.assertEqual(
+            mr._jd_fit_audit(roles, {"playwright"},
+                             protect=("partner integrations",)), [])
 
 
 if __name__ == "__main__":

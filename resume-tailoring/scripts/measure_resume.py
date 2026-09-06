@@ -517,6 +517,9 @@ JD_STOP = frozenset({
     "used", "uses", "across", "against", "within", "without",
     "via", "per", "plus", "near", "among", "along", "since",
     "until", "upon", "about", "after", "before", "during",
+    # Qualification-section openers (line-initial caps that would mine as
+    # 'skills' once line-start tokens are considered): never tech evidence.
+    "approved", "willing", "able", "ready",
     "between", "internal", "external", "global", "globally",
     "international", "meeting", "meetings", "contact", "corporate",
     "clients", "client", "customers", "customer", "hour", "hours",
@@ -722,14 +725,124 @@ def _jd_terms(jd_text, body):
 
 JD_SHORT_WORDS = 100  # below this, a --jd file is likely a summary, not the posting
 
+# JD-side term mining (see _jd_missing_terms): capitalized tech-term
+# candidates. Sequences are 2+ consecutive capitalized tokens ('REST
+# Assured', 'GitHub Codespaces'); single tokens count only mid-sentence
+# (a sentence-initial capital is prose, not a product name).
+JD_SEQ_TERM_RE = re.compile(
+    r"(?<![A-Za-z0-9+#])[A-Z][A-Za-z0-9+#.]+(?:[\s-]+[A-Z][A-Za-z0-9+#.]+)+")
+JD_WORD_TERM_RE = re.compile(r"(?<![A-Za-z0-9+#])([A-Z][A-Za-z0-9+#.]+)")
+# Company-voice lines (mission statements, benefits) never hold skill
+# requirements — mining them surfaces company names as 'missing skills'.
+JD_COMPANY_VOICE_RE = re.compile(r"\b(we|our|us|you|your)\b", re.I)
+JD_QUAL_HEADING_RE = re.compile(
+    r"^\s*#{0,6}\s*(?:required\s+|preferred\s+|minimum\s+)?"
+    r"(?:qualifications|requirements|skills|experience)\b\s*:?\s*$",
+    re.I,
+)
 
-def _jd_report(jd_file, jd_text, jd_terms):
+
+def _jd_requirement_lines(jd_text):
+    """The JD's qualification lines — where skill asks live.
+
+    Everything between a 'Required/Preferred Qualifications'-style
+    heading and the next heading-like line. The title line, mission
+    prose, and benefits are excluded by construction, so company and
+    program names cannot surface as 'missing skills'. Returns [] when no
+    qualification heading exists (a recruiter's message) — mining it
+    would be unbounded prose, so the missing-terms check stays silent.
+    """
+    lines = jd_text.splitlines()
+    out, collecting = [], False
+    for line in lines:
+        s = line.strip()
+        if JD_QUAL_HEADING_RE.match(s):
+            collecting = True
+            continue
+        if not s:
+            continue
+        if collecting:
+            if s.endswith(":") or JD_QUAL_HEADING_RE.match(s):
+                collecting = False
+                continue
+            if not JD_COMPANY_VOICE_RE.search(s):
+                out.append(s)
+    return out
+
+
+def _jd_missing_terms(jd_text, body, jd_terms):
+    """JD-side skill terms the resume does not host anywhere.
+
+    ``jd_terms`` is the intersection (JD ask ∩ resume vocabulary), so a
+    required skill the resume cannot host — REST Assured against a
+    Postman/Karate history — never appears in any JD-aware section: the
+    omission surfaces only if the agent re-reads the JD, and a preferred
+    qual can be missed entirely (one was, until a final-review grep).
+    This mines the qualification lines for capitalized tech-term
+    candidates and returns those with no host in the document, so the
+    'never fabricate' flags are mechanical. Heuristic and advisory:
+    review each against the posting before acting.
+    """
+    qual_lines = _jd_requirement_lines(jd_text)
+    if not qual_lines:
+        return []
+    doc_low = re.sub(r"\s+", " ", " ".join(
+        de.text_of(p) for p in de.paras(body))).lower()
+    doc_flat = re.sub(r"[\s-]+", "", doc_low)
+
+    def hosted(term_low):
+        if re.search(rf"(?<![a-z0-9]){re.escape(term_low)}(?![a-z0-9])",
+                     doc_low):
+            return True
+        return re.sub(r"[\s-]+", "", term_low) in doc_flat
+
+    def words(term):
+        return [w.lower() for w in re.split(r"[\s-]+", term)]
+
+    seqs = {m.group(0) for line in qual_lines
+            for m in JD_SEQ_TERM_RE.finditer(line)}
+    seq_words = {w for s in seqs for w in words(s)}
+
+    missing = set()
+    for line in qual_lines:
+        for m in JD_SEQ_TERM_RE.finditer(line):
+            term = m.group(0).lower()
+            if term in jd_terms or hosted(term):
+                continue
+            if all(hosted(w) for w in words(term)):
+                continue
+            missing.add(term)
+        for m in JD_WORD_TERM_RE.finditer(line):
+            raw = m.group(1)
+            low = raw.lower()
+            if (len(low) < 3 and not re.fullmatch(r"[A-Z]{2,}", raw)) \
+                    or low in JD_STOP or low in jd_terms or low in seq_words:
+                continue
+            prev = line[:m.start()]
+            # Within requirement lines a line-initial capital is usually
+            # the skill ('Agile development process experience'); only a
+            # sentence CONTINUATION marks prose, and the JD's own
+            # 'or similar IDE' hedge means the name stands for a CLASS
+            # of tools — reporting it invites fabrication.
+            if re.search(r"[.!?]\s*$", prev.strip()) \
+                    or re.search(r"\bsimilar\s+$", prev, re.I):
+                continue
+            if not hosted(low):
+                missing.add(low)
+    return sorted(missing)
+
+
+def _jd_report(jd_file, jd_text, jd_terms, body=None):
     """Lines describing the --jd ranking (printed before the page math).
 
     Prints the full extracted term list (not just the first 8) plus the JD's
     word count, so a term missing from a paraphrased or summarized JD file
     is visible at a glance. A file under JD_SHORT_WORDS words gets a
     fidelity note (advisory — a recruiter's message is legitimately short).
+
+    With ``body``, also lists JD qualification terms the resume does not
+    host anywhere (_jd_missing_terms) — the 'never fabricate' flags made
+    mechanical instead of an agent re-reading the posting.
     """
     words = len(jd_text.split())
     if not jd_terms:
@@ -754,6 +867,18 @@ def _jd_report(jd_file, jd_text, jd_terms):
             f"posting, verify it was pasted verbatim (paraphrasing can "
             f"drop match terms); a recruiter's message is fine."
         )
+    if body is not None:
+        missing = _jd_missing_terms(jd_text, body, jd_terms)
+        if missing:
+            lines.append(
+                "JD terms with NO host in the resume (never fabricate — "
+                "flag each to the user; the resume answers via 'similar' "
+                "tooling only when that is truthful):")
+            lines.append(textwrap.fill(
+                ", ".join(missing),
+                width=76,
+                initial_indent="  - ",
+                subsequent_indent="    "))
     return lines
 
 
@@ -1256,7 +1381,7 @@ def _role_jd_evidence_lines(roles, header_text, jd_terms):
     return lines
 
 
-def _jd_fit_audit(roles, jd_terms):
+def _jd_fit_audit(roles, jd_terms, protect=()):
     """Per-role JD-fit audit — printed for EVERY role when --jd is passed,
     independent of the page math (returns [] when there is nothing to
     flag).
@@ -1269,7 +1394,8 @@ def _jd_fit_audit(roles, jd_terms):
     strong/practice-phrase hits carry JD evidence; weak-only hits
     (generic terms) are cuttable; ZERO hits means the bullet is OFF-JD —
     the prime cut candidate, or 1-bullet-stub material for a mostly
-    irrelevant role.
+    irrelevant role. ``protect`` phrases (--protect) count as evidence:
+    the user confirmed those facts, so they are never cut candidates.
     """
     if not jd_terms:
         return []
@@ -1280,6 +1406,9 @@ def _jd_fit_audit(roles, jd_terms):
             continue
         off, weak, kept = [], [], 0
         for b in bullets:
+            if _is_protected(b, protect):
+                kept += 1
+                continue
             strong, weak_hits = _jd_hits_classified(b, jd_terms, bullets)
             if strong or _concept_hits(b):
                 kept += 1
@@ -1743,7 +1872,7 @@ def main():
 
         jd_terms = _resolved_jd_terms(jd_text, body, simulate, sim_jd_terms)
         if jd_file:
-            for line in _jd_report(jd_file, jd_text, jd_terms):
+            for line in _jd_report(jd_file, jd_text, jd_terms, body):
                 print(line)
             print("JD TITLE vs HEADLINE:")
             lvl, msg = title_alignment_notes(body, jd_text)
@@ -1945,7 +2074,7 @@ def main():
     # bullets surface even when the resume is already on target. Read it
     # AFTER the build as well — a clean render is not a JD-tight resume.
     if jd_terms:
-        audit = _jd_fit_audit(roles, jd_terms)
+        audit = _jd_fit_audit(roles, jd_terms, protect=protect)
         if audit:
             print("JD-FIT AUDIT (every role, independent of the page math — "
                   "the DROP PLAN above fires only under page pressure):")
