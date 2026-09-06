@@ -862,7 +862,7 @@ def _jd_requirement_coverage(roles, body, jd_text, jd_terms):
         for b in role.get("bullet_texts") or []:
             bullet_hosts.append((role["key"], b))
             role_bullet_set.add(b)
-    other_hosts = [de.text_of(p) for p in de.paras(body)
+    non_bullet_texts = [de.text_of(p) for p in de.paras(body)
                    if de.text_of(p).strip()
                    and de.text_of(p) not in role_bullet_set]
     out = []
@@ -880,7 +880,7 @@ def _jd_requirement_coverage(roles, body, jd_text, jd_terms):
                 detail += f" (+{len(hits) - 1} more)"
             out.append((label, "covered", detail))
             continue
-        if any(_jd_hits(t, terms) for t in other_hosts):
+        if any(_jd_hits(t, terms) for t in non_bullet_texts):
             out.append((label, "weak",
                         "proficiency/Tools line only — weave into a "
                         "bullet where used (SKILL Step 5)"))
@@ -2130,11 +2130,11 @@ def main():
             uncov = sum(1 for _, s, _ in coverage if s == "uncovered")
             weak = sum(1 for _, s, _ in coverage if s == "weak")
             print()
+            tag = {"covered": "covered", "weak": "weak",
+                   "uncovered": "UNCOVERED", "by_hand": "by hand"}
             print("JD REQUIREMENT COVERAGE (each qualification line → "
                   f"status; {len(coverage)} line(s)):")
             for label, status, detail in coverage:
-                tag = {"covered": "covered", "weak": "weak",
-                       "uncovered": "UNCOVERED", "by_hand": "by hand"}
                 print(f"  [{tag[status]}] {label}")
                 if detail:
                     print(f"      {detail}")
