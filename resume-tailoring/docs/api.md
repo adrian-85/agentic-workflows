@@ -297,9 +297,7 @@ not flip it — "Kafka and MSMQ in a Tools line" does not cover
 "event-driven architecture", and adjacent tooling does not cover a named
 tool. So when a qual you know is demonstrated still prints `[UNCOVERED]`,
 the fix is to host the JD's literal phrase in a truthful bullet — at
-AUTHORING time, from the master-measure's list — not to debug the matcher
-(a session spent five tool calls reading the matcher's source to re-learn
-this). Self-assessment-adjective qual lines ("Excellent communication, ...")
+AUTHORING time, from the master-measure's list — not to debug the matcher. Self-assessment-adjective qual lines ("Excellent communication, ...")
 extract no skill terms and print `[by hand]` with the soft-skill inference
 rule — judge them on kept action-verb evidence (SKILL Step 8), never by
 chasing the adjective.

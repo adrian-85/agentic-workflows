@@ -146,11 +146,9 @@ the residual page gap automatically.
   the same.
 - **Persist the JD in the skill root, not /tmp.** Save it as
   `jd_<target>.txt` (e.g. `jd_optum.txt`) before anything else. Every
-  downstream tool (tailor, measure, render, the `RESUME_VALIDATE_ARGS`
-  tokens) references that path for the whole session, and the re-run
-  instructions quoted at the end of a session outlive it — a JD left in
-  `/tmp` was wiped mid-session once and crashed the deliverable gate.
-  The tailor script's docstring records the path it was authored with.
+  downstream tool references that path for the whole session, and re-run
+  instructions outlive it. The code warns when `--jd` points at `/tmp`;
+  the tailor script's docstring records the JD path used.
 - Read the **master resume**. If it is a `.docx`, use `docx_edit.py` to edit. If
   only a PDF is available, ask for the `.docx` source — PDFs can be read but
   not edited precisely.
@@ -196,12 +194,14 @@ evidence — bullets about presenting, demoing, leading, mentoring, and
 training (the master is full of them). Treat such a line as covered when
 kept bullets carry that action evidence; one user confirmation ("my
 communication was excellent at every position") covers every role at once —
-do not re-ask per company. Never chase the literal adjective as a keyword:
-a self-assessment adjective is the user's word to stand behind, so inject
-it into a bullet only when the user states it or asks for the literal term
-(and then host it in a bullet where the action evidence lives). The
-never-fabricate rule is for tools and employers (Appium, LoadRunner) —
-not for judging the user's own confirmed abilities.
+do not re-ask per company.
+
+Never chase the literal adjective as a keyword: a self-assessment adjective
+is the user's word to stand behind, so inject it into a bullet only when
+the user states it or asks for the literal term (and then host it in a
+bullet where the action evidence lives). The never-fabricate rule is for
+tools and employers (Appium, LoadRunner) — not for judging the user's own
+confirmed abilities.
 
 ### 3. Decide length up front
 - **Target 2 pages; accept 3 for senior/Staff; 4 is too long.** "Senior"
@@ -445,13 +445,8 @@ to host the JD's literal phrase in a truthful bullet at authoring time —
 not to debug the matcher. Read the UNCOVERED list at authoring-time
 measure (before writing the script) and plan those hosts then.
 
-**Soft-skill qual lines are judged on action-verb evidence.** "Excellent
-communication, stakeholder management, technical leadership" and the
-like extract no skill terms — measure reports them `by hand` with the
-inference rule. Cover them with the kept bullets that show the behavior
-(presented, demoed, led, mentored, trained, coordinated); inject the
-literal adjective only with the user's stated authority (Step 2), hosted
-in a bullet where the action evidence lives.
+**Soft-skill qual lines** extract no terms and print `[by hand]` — see
+Step 2's inference rule for the coverage decision.
 
 **Mostly-irrelevant role: cut to a stub, don't carry it whole.** When
 most of a role's bullets are off-JD (the audit prints STUB CANDIDATE),

@@ -967,6 +967,11 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None):
     host anywhere (_jd_missing_terms) — the 'never fabricate' flags made
     mechanical instead of an agent re-reading the posting.
     """
+    if jd_file.startswith("/tmp/"):
+        lines.append(
+            f"NOTE: {jd_file} is in /tmp — this path may not persist "
+            "across sessions. Copy the JD to the skill root as "
+            "jd_<target>.txt (SKILL Step 1) before continuing.")
     words = len(jd_text.split())
     if not jd_terms:
         return [

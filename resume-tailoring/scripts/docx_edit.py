@@ -205,6 +205,13 @@ def _deliverable_gate(path, root, src):
         return
     import validate_resume as vr  # lazy: validate_resume imports this module
     jd_path, jd_years, seniority_approved, education_approved, protect = _approval_env()
+    if jd_path and jd_path.startswith("/tmp/"):
+        print(
+            f"NOTE: --jd {jd_path} is in /tmp — this path may not persist "
+            "across sessions. Copy the JD to the skill root as "
+            "jd_<target>.txt (SKILL Step 1) before continuing.",
+            file=sys.stderr,
+        )
     try:
         result = vr.validate_tree(
             path, root, master_path=src, jd_path=jd_path, jd_years=jd_years,
@@ -340,6 +347,7 @@ def save(path, root, names, data, drift_key=None, src=None):
     prev = baseline.get(drift_key)
     prev_edits = prev.get("edits") if isinstance(prev, dict) else prev
     prev_sha = prev.get("master_sha") if isinstance(prev, dict) else None
+    prev_paras = prev.get("paragraphs") if isinstance(prev, dict) else None
     if prev is not None and prev_edits != applied:
         print(
             f"DRIFT: {drift_key} expected {prev_edits} edits (last "
@@ -367,7 +375,23 @@ def save(path, root, names, data, drift_key=None, src=None):
             f"now exits 2.",
             file=sys.stderr,
         )
-    baseline[drift_key] = {"edits": applied, "master_sha": master_sha}
+    # Fold-additive enforcement: paragraph count must not decrease.
+    # A fold adds bullets (clone_after), appends, proficiency lines —
+    # never removals.  Only fires on master saves (src=None, i.e. the
+    # fold script writing to the master directly) — tailor-script saves
+    # (src passed) legitimately remove content.
+    para_count = len(list(root.iter(f"{W}p")))
+    if src is None and prev_paras is not None and para_count < prev_paras:
+        print(
+            f"FOLD CHECK: {drift_key} saved {prev_paras} paragraphs "
+            f"last time but now has {para_count} — content was removed. "
+            "Folds must be ADDITIVE only: new bullets (clone_after), "
+            "proficiency additions, and in-place appends — never "
+            "removals (SKILL Step 12).",
+            file=sys.stderr,
+        )
+    baseline[drift_key] = {"edits": applied, "master_sha": master_sha,
+                           "paragraphs": para_count}
     try:
         with open(drift_path, "w") as f:
             json.dump(baseline, f, indent=1)

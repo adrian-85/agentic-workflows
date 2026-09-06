@@ -49,6 +49,11 @@ Re-runnable from the untouched master (after replacing the placeholders):
 
     cd ~/.pi/agent/skills/resume-tailoring && python3 scripts/tailor_<target>.py
 
+Record the JD path and approval tokens in this script's docstring so the
+path is discoverable across sessions:
+
+    RESUME_VALIDATE_ARGS="--jd jd_<target>.txt --seniority-approved"
+
 Verification is mechanical, not a habit:
 - render_pdf.sh runs scripts/validate_resume.py on the output and REFUSES to
   render a structurally broken docx (orphan job titles, company blocks
