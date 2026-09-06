@@ -214,8 +214,8 @@ manual habits are:
 Tool-enforced (no instruction needed): `render_pdf.sh` refuses broken or unapproved-elimination
 docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
 with copy-pasteable `find_p` cut lines, the per-role **JD-FIT AUDIT** (off-JD/weak bullets in every
-role, even on target), **JD terms with NO host in the resume** (the never-fabricate flags, and a
-posted title extractor that survives location/program suffixes), and flags page widows /
+role, even on target), **JD terms with NO host in the resume** (the never-fabricate flags), and
+flags page widows /
 underfilled pages (Step 8); `squeeze_resume.py` closes the residual page gap automatically.
 
 ## Workflow
