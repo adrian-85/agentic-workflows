@@ -1732,27 +1732,32 @@ class JdRequirementCoverageTests(unittest.TestCase):
 
     def test_covered_line_lists_host_bullet(self):
         jd, body = self._jd_and_body()
-        lines = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
-        self.assertTrue(any(l.startswith("  [covered]") and "Selenium" in l
-                            for l in lines), lines)
-        self.assertTrue(any("Acme" in l and "REST API test suites" in l
-                            for l in lines), lines)
+        result = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
+        self.assertTrue(any(s == "covered" and "Selenium" in label
+                            for label, s, _ in result), result)
+        self.assertTrue(any("Acme" in detail
+                            for _, s, detail in result if s == "covered"),
+                        result)
 
     def test_uncovered_line_flagged(self):
         jd, body = self._jd_and_body()
-        lines = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
-        self.assertTrue(any("[UNCOVERED]" in l and "Terraform" in l
-                            for l in lines), lines)
-        self.assertTrue(any("never fabricate" in l for l in lines), lines)
+        result = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
+        self.assertTrue(any(s == "uncovered" and "Terraform" in label
+                            for label, s, _ in result), result)
+        self.assertTrue(any("never fabricate" in detail
+                            for _, s, detail in result
+                            if s == "uncovered"), result)
 
     def test_non_bullet_host_is_weak(self):
         # Kubernetes/Helm live only on the Tools line: [weak] with the
         # Step-5 weave instruction, not [covered].
         jd, body = self._jd_and_body()
-        lines = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
-        self.assertTrue(any("[weak]" in l and "Kubernetes" in l
-                            for l in lines), lines)
-        self.assertTrue(any("Step 5" in l for l in lines), lines)
+        result = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
+        self.assertTrue(any(s == "weak" and "Kubernetes" in label
+                            for label, s, _ in result), result)
+        self.assertTrue(any("weave" in detail
+                            for _, s, detail in result if s == "weak"),
+                        result)
 
     def test_no_qualification_section_is_silent(self):
         jd, body = self._jd_and_body()

@@ -836,19 +836,22 @@ def _jd_missing_terms(jd_text, body, jd_terms):
 
 
 def _jd_requirement_coverage(roles, body, jd_text, jd_terms):
-    """JD requirement → evidence map: for each qualification line, the
-    kept bullets hosting it. Cutting off-JD content keeps the resume
-    honest; this keeps it QUALIFIED — the resume must demonstrate each
-    JD ask, not merely avoid fabricating it.
+    """Structured JD requirement → evidence map.
 
-    Hosts are role bullets, tagged by role. A term hosted only on a
-    non-bullet line (Summary, proficiencies, Tools) prints [weak] —
-    SKILL Step 5: weave it into the bullet where it was used, that is
-    the evidence recruiters ask for. [UNCOVERED] means no host at all:
-    restore the evidence from the master if it exists, or raise the gap
-    to the user — never fabricate. Returns [] when the JD has no
-    qualification section (a recruiter's message): coverage is then
-    unbounded prose, judge by hand.
+    Returns a list of ``(label, status, detail)`` tuples, one per
+    qualification line — the caller decides the print format.
+
+    Status values:
+      covered  – a kept bullet hosts the ask (detail: up to 2 hosts)
+      weak     – only a non-bullet line hosts it (detail: weave-in
+                 guidance, SKILL Step 5)
+      uncovered – no host at all (detail: restore/raise, never fabricate)
+      by_hand  – no extractable terms on the line (judge manually)
+
+    Cutting off-JD content keeps the resume honest; this keeps it
+    QUALIFIED — the resume must demonstrate each JD ask, not merely
+    avoid fabricating it. Returns [] when the JD has no qualification
+    section (recruiter message).
     """
     qual_lines = _jd_requirement_lines(jd_text)
     if not qual_lines:
@@ -862,43 +865,30 @@ def _jd_requirement_coverage(roles, body, jd_text, jd_terms):
     other_hosts = [de.text_of(p) for p in de.paras(body)
                    if de.text_of(p).strip()
                    and de.text_of(p) not in role_bullet_set]
-
-    lines = ["JD REQUIREMENT COVERAGE (each qualification line → its "
-             "hosts):"]
-    uncovered = 0
+    out = []
     for q in qual_lines:
         terms = _jd_line_terms(q)
         terms |= {c for c in JD_CONCEPTS if c in q.lower()}
         label = q[:64]
         if not terms:
-            lines.append(f"  [by hand] {label}")
+            out.append((label, "by_hand", ""))
             continue
         hits = [(k, b) for k, b in bullet_hosts if _jd_hits(b, terms)]
         if hits:
-            lines.append(f"  [covered] {label}")
-            for k, b in hits[:3]:
-                lines.append(f"      {k}: {b[:58]}")
-            if len(hits) > 3:
-                lines.append(f"      (+{len(hits) - 3} more)")
+            detail = f"{hits[0][0]}: {hits[0][1][:48]}"
+            if len(hits) > 1:
+                detail += f" (+{len(hits) - 1} more)"
+            out.append((label, "covered", detail))
             continue
         if any(_jd_hits(t, terms) for t in other_hosts):
-            lines.append(f"  [weak] {label}")
-            lines.append(
-                "      hosted only on a non-bullet line (proficiencies/"
-                "Tools) — weave it into the bullet where used (SKILL "
-                "Step 5)")
+            out.append((label, "weak",
+                        "proficiency/Tools line only — weave into a "
+                        "bullet where used (SKILL Step 5)"))
             continue
-        uncovered += 1
-        lines.append(f"  [UNCOVERED] {label}")
-        lines.append(
-            "      no kept bullet hosts this requirement — restore the "
-            "evidence from the master if it exists, or raise the gap to "
-            "the user; never fabricate")
-    if uncovered:
-        lines.append(
-            f"  {uncovered} requirement(s) UNCOVERED — a resume that does "
-            "not demonstrate a required qual reads as unqualified for it.")
-    return lines
+        out.append((label, "uncovered",
+                    "no host — restore from the master or raise to "
+                    "the user; never fabricate"))
+    return out
 
 
 def _boundaries_without_spacer(body):
@@ -2137,9 +2127,25 @@ def main():
     if jd_terms:
         coverage = _jd_requirement_coverage(roles, body, jd_text, jd_terms)
         if coverage:
+            uncov = sum(1 for _, s, _ in coverage if s == "uncovered")
+            weak = sum(1 for _, s, _ in coverage if s == "weak")
             print()
-            for line in coverage:
-                print(line)
+            print("JD REQUIREMENT COVERAGE (each qualification line → "
+                  f"status; {len(coverage)} line(s)):")
+            for label, status, detail in coverage:
+                tag = {"covered": "covered", "weak": "weak",
+                       "uncovered": "UNCOVERED", "by_hand": "by hand"}
+                print(f"  [{tag[status]}] {label}")
+                if detail:
+                    print(f"      {detail}")
+            if uncov:
+                print(f"  {uncov} requirement(s) UNCOVERED — a resume that "
+                      "does not demonstrate a required qual reads as "
+                      "unqualified for it.")
+            if weak:
+                print(f"  {weak} requirement(s) [weak] — hosted only on "
+                      "proficiencies/Tools lines; weave into a bullet "
+                      "where used (SKILL Step 5).")
             print()
 
     # JD-FIT AUDIT — every role, independent of the page math. The DROP
@@ -2173,12 +2179,12 @@ def main():
     if over <= 0 and fills and fills[-1] < capacity:
         gaps = _boundaries_without_spacer(body)
         if gaps:
+            names = [h[:36] for h, _ in gaps]
             print()
-            print("SPACER OPPORTUNITIES (readability pause before a new role; "
-                  "the last page has slack — SKILL Step 8 spacing):")
-            for header, anchor in gaps:
-                print(f"  before {header[:44]!r}: clone_after(body, "
-                      f'find_p(ps, "{anchor[:40]}"), "")')
+            print(f"SPACER OPPORTUNITIES: {len(gaps)} boundary/boundaries "
+                  f"lack a pause ({', '.join(names)}); last page at "
+                  f"{fills[-1] * 100 // capacity}% — add spacers via "
+                  f"clone_after(body, find_p(ps, \"<Tools line>\"), \"\")")
 
 
 if __name__ == "__main__":
