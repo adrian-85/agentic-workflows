@@ -642,6 +642,15 @@ def _extract_flag(argv, flag):
     return None
 
 
+def _extract_flag_all(argv, flag):
+    """Extract EVERY flag + value pair for a repeatable flag (in-place),
+    returning the list of values (empty when absent)."""
+    values = []
+    while flag in argv:
+        values.append(_extract_flag(argv, flag))
+    return values
+
+
 def _readability_guidance(body, summary, *, region=None, master_input=False):
     """Advisory readability checks (SKILL Step 4 word cap + Step 5).
 
@@ -704,7 +713,7 @@ def _readability_guidance(body, summary, *, region=None, master_input=False):
 
 def validate_tree(path, body, *, master_path=None, jd_path=None,
                   jd_years=None, seniority_approved=False,
-                  education_approved=False):
+                  education_approved=False, protect=()):
     """Run every check against an ALREADY-LOADED document tree.
 
     Returns ``{"blocking": int, "warnings": int, "lines": [str]}`` — the
@@ -772,6 +781,25 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,
         # SKILL Step 4 title alignment (advisory, shared with measure): a
         # headline MORE SENIOR than the JD's title warns — never blocks.
         claim_notes.append(mr.title_alignment_notes(body, jd_text))
+
+        # SKILL Step 8 render-path check: the JD-FIT AUDIT lives in measure
+        # (planning); the deliverable gate runs HERE, so bullets with weak
+        # or no JD evidence surface at render time too — a clean render is
+        # not a JD-tight resume. Advisory: the human rule may keep one,
+        # with a one-line reason tied to the JD.
+        jd_fit = mr._jd_fit_audit(mr._roles(body), mr._jd_terms(jd_text, body),
+                                  protect=protect)
+        if jd_fit:
+            flagged = sum(1 for s in jd_fit for l in s.splitlines()
+                          if l.lstrip().startswith(("OFF-JD", "weak-match")))
+            guidance_notes.append(("warn",
+                f"JD-FIT: {flagged} bullet(s) across {len(jd_fit)} role(s) "
+                f"carry weak or no JD evidence (measure's JD-FIT AUDIT "
+                f"names them) — cut or shorten even when on target, or "
+                f"keep with a one-line reason tied to the JD"))
+        else:
+            guidance_notes.append(("ok",
+                "JD-FIT: every bullet carries JD evidence"))
 
     # Claims: numbers vs master.
     master_path = master_path or _find_master(path)
@@ -984,6 +1012,7 @@ def main(argv=None):
     master = _extract_flag(argv, "--master")
     jd_years = float(_extract_flag(argv, "--jd-years")) if "--jd-years" in argv else None
     jd_path = _extract_flag(argv, "--jd")
+    protect = _extract_flag_all(argv, "--protect")
     seniority_approved = _parse_flag(argv, "--seniority-approved")
     education_approved = _parse_flag(argv, "--education-approved")
     if not argv:
@@ -995,7 +1024,7 @@ def main(argv=None):
     result = validate_tree(
         path, body, master_path=master, jd_path=jd_path, jd_years=jd_years,
         seniority_approved=seniority_approved,
-        education_approved=education_approved)
+        education_approved=education_approved, protect=protect)
     for line in result["lines"]:
         print(line)
     if result["blocking"]:

@@ -155,14 +155,17 @@ def _approval_env():
 
         RESUME_VALIDATE_ARGS="--jd <JD.txt> --jd-years <N> --seniority-approved"
 
-    Returns (jd_path, jd_years, seniority_approved, education_approved).
+    Returns (jd_path, jd_years, seniority_approved, education_approved,
+    protect) — ``protect`` is the list of --protect phrases (repeatable),
+    forwarded so the gate's JD-FIT check honors the same candidate-specific
+    facts measure did.
     Approval tokens passed here must carry the USER's authority (their chat
     reply or pre-authorization in the original request) — never self-granted;
     the gate message says so.
     """
     raw = os.environ.get("RESUME_VALIDATE_ARGS", "")
     if not raw.strip():
-        return None, None, False, False
+        return None, None, False, False, []
     import shlex
     import validate_resume as vr  # lazy: avoid the module-load cycle
     argv = shlex.split(raw)
@@ -175,7 +178,8 @@ def _approval_env():
             jd_years = None
     seniority_approved = vr._parse_flag(argv, "--seniority-approved")
     education_approved = vr._parse_flag(argv, "--education-approved")
-    return jd_path, jd_years, seniority_approved, education_approved
+    protect = vr._extract_flag_all(argv, "--protect")
+    return jd_path, jd_years, seniority_approved, education_approved, protect
 
 
 def _deliverable_gate(path, root, src):
@@ -200,12 +204,12 @@ def _deliverable_gate(path, root, src):
     if src is None or path.endswith("Master Resume.docx"):
         return
     import validate_resume as vr  # lazy: validate_resume imports this module
-    jd_path, jd_years, seniority_approved, education_approved = _approval_env()
+    jd_path, jd_years, seniority_approved, education_approved, protect = _approval_env()
     try:
         result = vr.validate_tree(
             path, root, master_path=src, jd_path=jd_path, jd_years=jd_years,
             seniority_approved=seniority_approved,
-            education_approved=education_approved)
+            education_approved=education_approved, protect=protect)
     except SystemExit:
         raise  # never swallow a validator abort
     except Exception as e:  # validator crashed — do not silently pass the gate

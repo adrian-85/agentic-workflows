@@ -1052,6 +1052,39 @@ class GuidanceTests(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_jd_fit_advisory_in_render_path(self):
+        """The deliverable gate reports weak/off-JD bullets at render
+time (SKILL Step 8): the JD-FIT AUDIT lives in measure (planning), but
+a clean render must still surface JD-tightness — advisory, not
+blocking."""
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        jfd, jd_path = tempfile.mkstemp(suffix=".txt")
+        os.close(jfd)
+        try:
+            with open(jd_path, "w") as f:
+                f.write("Required Qualifications:\n"
+                        "5+ years of Java experience. "
+                        "Experience with Kubernetes.\n")
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("word/document.xml",
+                    '<?xml version="1.0"?><w:document xmlns:w="'
+                    + de.XMLNS + '"><w:body/></w:document>')
+                z.writestr("[Content_Types].xml", "<Types/>")
+            root, body_el, names, data, _ = de.load(path)
+            b, s = self._body_with("Short summary.")
+            for p in list(b):
+                body_el.append(p)
+            with contextlib.redirect_stdout(io.StringIO()):
+                de.save(path, root, names, data)
+            result = vr.validate_tree(path, body_el, jd_path=jd_path)
+            report = "\n".join(result["lines"])
+            self.assertIn("JD-FIT: 1 bullet(s)", report)
+            self.assertIn("measure's JD-FIT AUDIT", report)
+        finally:
+            os.unlink(path)
+            os.unlink(jd_path)
+
 
 if __name__ == "__main__":
     unittest.main()

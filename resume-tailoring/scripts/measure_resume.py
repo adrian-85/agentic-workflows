@@ -71,6 +71,7 @@ SECTION_CAREER = "Career Experience"
 SECTION_EDUCATION = "Education"
 SECTION_PROFICIENCIES = "Technical Proficiencies"
 COMPANY_STYLE = "CompanyBlock"
+SECTION_STYLE = "SectionHeading"  # career/education/proficiencies headings
 VOCAB_STYLE = "JobTitleBlock"  # job-title paragraphs feed the --jd vocabulary
 HEADLINE_STYLE = "Title"  # top-of-resume headline: 2nd 'Title' paragraph after the name
 DATE_RE = re.compile(r"\d{1,2}/\d{4}")  # dates on role headers, e.g. 03/2022
@@ -770,6 +771,33 @@ def _jd_requirement_lines(jd_text):
     return out
 
 
+def _jd_line_terms(line):
+    """Tech-term candidates on one qualification line (lowercase): the
+    capitalized sequences plus single capitalized tokens — the extraction
+    :func:`_jd_missing_terms` mines for missing terms and
+    :func:`_jd_requirement_coverage` matches against kept bullets. A
+    single token is skipped when a sentence continuation precedes it
+    (prose) or the JD's own 'or similar' hedge does (a stand-in for a
+    CLASS of tools — reporting it invites fabrication).
+    """
+    seqs = [m.group(0) for m in JD_SEQ_TERM_RE.finditer(line)]
+    terms = {s.lower() for s in seqs}
+    seq_words = {w for s in seqs
+                 for w in re.split(r"[\s-]+", s.lower())}
+    for m in JD_WORD_TERM_RE.finditer(line):
+        raw = m.group(1)
+        low = raw.lower()
+        if (len(low) < 3 and not re.fullmatch(r"[A-Z]{2,}", raw)) \
+                or low in JD_STOP or low in seq_words:
+            continue
+        prev = line[:m.start()]
+        if re.search(r"[.!?]\s*$", prev.strip()) \
+                or re.search(r"\bsimilar\s+$", prev, re.I):
+            continue
+        terms.add(low)
+    return terms
+
+
 def _jd_missing_terms(jd_text, body, jd_terms):
     """JD-side skill terms the resume does not host anywhere.
 
@@ -796,40 +824,112 @@ def _jd_missing_terms(jd_text, body, jd_terms):
             return True
         return re.sub(r"[\s-]+", "", term_low) in doc_flat
 
-    def words(term):
-        return [w.lower() for w in re.split(r"[\s-]+", term)]
-
-    seqs = {m.group(0) for line in qual_lines
-            for m in JD_SEQ_TERM_RE.finditer(line)}
-    seq_words = {w for s in seqs for w in words(s)}
-
     missing = set()
     for line in qual_lines:
-        for m in JD_SEQ_TERM_RE.finditer(line):
-            term = m.group(0).lower()
-            if term in jd_terms or hosted(term):
+        for t in _jd_line_terms(line):
+            if t in jd_terms or hosted(t):
                 continue
-            if all(hosted(w) for w in words(term)):
+            if all(hosted(w) for w in re.split(r"[\s-]+", t)):
                 continue
-            missing.add(term)
-        for m in JD_WORD_TERM_RE.finditer(line):
-            raw = m.group(1)
-            low = raw.lower()
-            if (len(low) < 3 and not re.fullmatch(r"[A-Z]{2,}", raw)) \
-                    or low in JD_STOP or low in jd_terms or low in seq_words:
-                continue
-            prev = line[:m.start()]
-            # Within requirement lines a line-initial capital is usually
-            # the skill ('Agile development process experience'); only a
-            # sentence CONTINUATION marks prose, and the JD's own
-            # 'or similar IDE' hedge means the name stands for a CLASS
-            # of tools — reporting it invites fabrication.
-            if re.search(r"[.!?]\s*$", prev.strip()) \
-                    or re.search(r"\bsimilar\s+$", prev, re.I):
-                continue
-            if not hosted(low):
-                missing.add(low)
+            missing.add(t)
     return sorted(missing)
+
+
+def _jd_requirement_coverage(roles, body, jd_text, jd_terms):
+    """JD requirement → evidence map: for each qualification line, the
+    kept bullets hosting it. Cutting off-JD content keeps the resume
+    honest; this keeps it QUALIFIED — the resume must demonstrate each
+    JD ask, not merely avoid fabricating it.
+
+    Hosts are role bullets, tagged by role. A term hosted only on a
+    non-bullet line (Summary, proficiencies, Tools) prints [weak] —
+    SKILL Step 5: weave it into the bullet where it was used, that is
+    the evidence recruiters ask for. [UNCOVERED] means no host at all:
+    restore the evidence from the master if it exists, or raise the gap
+    to the user — never fabricate. Returns [] when the JD has no
+    qualification section (a recruiter's message): coverage is then
+    unbounded prose, judge by hand.
+    """
+    qual_lines = _jd_requirement_lines(jd_text)
+    if not qual_lines:
+        return []
+    bullet_hosts = []
+    role_bullet_set = set()
+    for role in roles:
+        for b in role.get("bullet_texts") or []:
+            bullet_hosts.append((role["key"], b))
+            role_bullet_set.add(b)
+    other_hosts = [de.text_of(p) for p in de.paras(body)
+                   if de.text_of(p).strip()
+                   and de.text_of(p) not in role_bullet_set]
+
+    lines = ["JD REQUIREMENT COVERAGE (each qualification line → its "
+             "hosts):"]
+    uncovered = 0
+    for q in qual_lines:
+        terms = _jd_line_terms(q)
+        terms |= {c for c in JD_CONCEPTS if c in q.lower()}
+        label = q[:64]
+        if not terms:
+            lines.append(f"  [by hand] {label}")
+            continue
+        hits = [(k, b) for k, b in bullet_hosts if _jd_hits(b, terms)]
+        if hits:
+            lines.append(f"  [covered] {label}")
+            for k, b in hits[:3]:
+                lines.append(f"      {k}: {b[:58]}")
+            if len(hits) > 3:
+                lines.append(f"      (+{len(hits) - 3} more)")
+            continue
+        if any(_jd_hits(t, terms) for t in other_hosts):
+            lines.append(f"  [weak] {label}")
+            lines.append(
+                "      hosted only on a non-bullet line (proficiencies/"
+                "Tools) — weave it into the bullet where used (SKILL "
+                "Step 5)")
+            continue
+        uncovered += 1
+        lines.append(f"  [UNCOVERED] {label}")
+        lines.append(
+            "      no kept bullet hosts this requirement — restore the "
+            "evidence from the master if it exists, or raise the gap to "
+            "the user; never fabricate")
+    if uncovered:
+        lines.append(
+            f"  {uncovered} requirement(s) UNCOVERED — a resume that does "
+            "not demonstrate a required qual reads as unqualified for it.")
+    return lines
+
+
+def _boundaries_without_spacer(body):
+    """Inter-role boundaries with no blank spacer paragraph before the
+    next company header — the readability pause of SKILL Step 8's
+    spacing step, reported instead of remembered. Returns
+    (next_role_header, anchor_text) per gap: the anchor is the previous
+    role's last non-empty paragraph (usually its Tools line), the
+    ``clone_after`` anchor the SKILL prescribes. The first role is
+    skipped: the Summary/Proficiencies block above it is not a role
+    boundary. A boundary whose anchor is a SectionHeading (e.g. the
+    Education heading before a college entry that shares the company
+    style) is skipped too — the heading IS the pause.
+    """
+    ps = de.paras(body)
+    out = []
+    prev_header_idx = None
+    for i, p in enumerate(ps):
+        style, _ = de.style_and_numid(p)
+        if style != COMPANY_STYLE or not de.text_of(p).strip():
+            continue
+        if prev_header_idx is not None:
+            j = i - 1
+            while j >= 0 and not de.text_of(ps[j]).strip():
+                j -= 1
+            if (j > prev_header_idx and j == i - 1
+                    and de.style_and_numid(ps[j])[0] != SECTION_STYLE):
+                out.append((de.text_of(ps[i]).strip(),
+                            de.text_of(ps[j]).strip()))
+        prev_header_idx = i
+    return out
 
 
 def _jd_report(jd_file, jd_text, jd_terms, body=None):
@@ -2030,6 +2130,18 @@ def main():
                 print(section)
                 print()
 
+    # JD REQUIREMENT COVERAGE — per qualification line, its kept hosts.
+    # Cutting off-JD content keeps the resume honest; this keeps it
+    # QUALIFIED: the resume must demonstrate each JD ask. [UNCOVERED]
+    # lines are the never-fabricate flags' positive counterpart.
+    if jd_terms:
+        coverage = _jd_requirement_coverage(roles, body, jd_text, jd_terms)
+        if coverage:
+            print()
+            for line in coverage:
+                print(line)
+            print()
+
     # JD-FIT AUDIT — every role, independent of the page math. The DROP
     # PLAN above fires only when cuts are needed to hit the target; JD
     # alignment is the FIRST priority (SKILL Step 8), so weak and OFF-JD
@@ -2048,11 +2160,25 @@ def main():
     print("Page fill (capacity = fullest page from this render):")
     for line in _layout_hints(matched, pages_text, capacity):
         print(line)
-    sparse = _sparse_last_page_note(total_pages, target,
-                                    _page_fill(pages_text), capacity,
+    fills = _page_fill(pages_text)
+    sparse = _sparse_last_page_note(total_pages, target, fills, capacity,
                                     overflow_lines)
     if sparse:
         print(sparse)
+
+    # SPACER OPPORTUNITIES — Step 8's readability pause, reported instead
+    # of remembered: which role boundaries lack a blank spacer while the
+    # render has slack for one. Lowest priority — when content or pages
+    # need room, spacers go first.
+    if over <= 0 and fills and fills[-1] < capacity:
+        gaps = _boundaries_without_spacer(body)
+        if gaps:
+            print()
+            print("SPACER OPPORTUNITIES (readability pause before a new role; "
+                  "the last page has slack — SKILL Step 8 spacing):")
+            for header, anchor in gaps:
+                print(f"  before {header[:44]!r}: clone_after(body, "
+                      f'find_p(ps, "{anchor[:40]}"), "")')
 
 
 if __name__ == "__main__":

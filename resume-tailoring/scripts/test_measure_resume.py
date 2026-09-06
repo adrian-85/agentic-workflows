@@ -1695,6 +1695,100 @@ class JdMissingTermsTests(unittest.TestCase):
                 self._body(), set()),
             [])
 
+    def test_line_terms(self):
+        terms = mr._jd_line_terms(
+            "5+ years of experience using Selenium Web Driver, Java, "
+            "TestNG, REST Assured, or similar IDE")
+        self.assertIn("rest assured", terms)
+        self.assertIn("java", terms)
+        self.assertIn("testng", terms)
+        self.assertIn("selenium web driver", terms)
+        self.assertNotIn("ide", terms)
+
+
+class JdRequirementCoverageTests(unittest.TestCase):
+    """The requirement → evidence map: cutting off-JD content keeps the
+    resume honest; coverage keeps it QUALIFIED. Every JD qualification
+    line must be demonstrated by a kept bullet, or flagged [weak] (only
+    a proficiencies/Tools line hosts it — SKILL Step 5: weave it in) or
+    [UNCOVERED] (no host — restore from the master or raise to the
+    user; never fabricate)."""
+
+    def _jd_and_body(self):
+        jd = ("Required Qualifications:\n"
+              "5+ years of experience using Selenium Web Driver, Java, "
+              "TestNG, Cucumber, REST Assured, or similar IDE\n"
+              "Experience with Kubernetes and Helm\n"
+              "Experience with Terraform and Ansible\n")
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " \u2013 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Built REST API test suites with Selenium WebDriver, "
+                  "Java, TestNG and Cucumber.", numId=2),
+            _para("Tools & Technologies: Kubernetes, Helm"),
+        ])
+        return jd, body
+
+    def test_covered_line_lists_host_bullet(self):
+        jd, body = self._jd_and_body()
+        lines = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
+        self.assertTrue(any(l.startswith("  [covered]") and "Selenium" in l
+                            for l in lines), lines)
+        self.assertTrue(any("Acme" in l and "REST API test suites" in l
+                            for l in lines), lines)
+
+    def test_uncovered_line_flagged(self):
+        jd, body = self._jd_and_body()
+        lines = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
+        self.assertTrue(any("[UNCOVERED]" in l and "Terraform" in l
+                            for l in lines), lines)
+        self.assertTrue(any("never fabricate" in l for l in lines), lines)
+
+    def test_non_bullet_host_is_weak(self):
+        # Kubernetes/Helm live only on the Tools line: [weak] with the
+        # Step-5 weave instruction, not [covered].
+        jd, body = self._jd_and_body()
+        lines = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
+        self.assertTrue(any("[weak]" in l and "Kubernetes" in l
+                            for l in lines), lines)
+        self.assertTrue(any("Step 5" in l for l in lines), lines)
+
+    def test_no_qualification_section_is_silent(self):
+        jd, body = self._jd_and_body()
+        self.assertEqual(
+            mr._jd_requirement_coverage(mr._roles(body), body,
+                                        "Hi Adrian, let's talk.", set()),
+            [])
+
+
+class SpacerBoundaryTests(unittest.TestCase):
+    """The readability pause, reported instead of remembered: inter-role
+    boundaries without a blank spacer paragraph (SKILL Step 8 spacing)."""
+
+    def _body(self, with_spacer):
+        ps = [_para("Career Experience", style="SectionHeading"),
+              _para("Acme, City" + _sample_date() + " \u2013 08/2016",
+                    style=mr.COMPANY_STYLE),
+              _para("Built the first framework.", numId=2)]
+        if with_spacer:
+            ps.append(_para(""))
+        ps += [_para("Globex, Town" + _sample_date() + " \u2013 08/2018",
+                     style=mr.COMPANY_STYLE),
+               _para("Built the second framework.", numId=2)]
+        return _body(ps)
+
+    def test_boundary_without_spacer_reported(self):
+        gaps = mr._boundaries_without_spacer(self._body(False))
+        self.assertEqual(len(gaps), 1)
+        header, anchor = gaps[0]
+        self.assertIn("Globex", header)
+        self.assertIn("first framework", anchor)
+
+    def test_boundary_with_spacer_silent(self):
+        self.assertEqual(mr._boundaries_without_spacer(self._body(True)),
+                         [])
+
 
 class JdFitAuditTests(unittest.TestCase):
     """The JD-FIT AUDIT: per-role bullet classification printed for EVERY
