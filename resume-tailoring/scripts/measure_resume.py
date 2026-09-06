@@ -761,6 +761,8 @@ TITLE_LABEL_RE = re.compile(
     r"^\s*(?:job\s+title|position|role|title)\s*[:：]\s*(.+?)\s*$",
     re.I,
 )
+TITLE_QUALIFIER_CAP = 3    # max trailing qualifier segments to strip
+TITLE_QUALIFIER_WORDS = 6  # a longer trailing segment is prose, not a qualifier
 # Seniority ladder: rank = MAX of the matched keywords (1 = mid/no level).
 TITLE_RANK_PATTERNS = (
     (re.compile(r"\bprincipal\b", re.I), 4.0),
@@ -780,15 +782,47 @@ def _title_rank(title):
     return rank
 
 
+def _plausible_title(cand):
+    """A string that can serve as a job title: non-empty, short enough
+    (<= TITLE_MAX_WORDS words), and not a sentence (no lowercase
+    continuation after sentence punctuation)."""
+    return bool(cand) and len(cand.split()) <= TITLE_MAX_WORDS \
+        and not re.search(r"[.!?]\s+[a-z]", cand)
+
+
+def _trim_title_qualifiers(cand):
+    """Drop short trailing qualifier segments from an over-long title line.
+
+    Postings append program/team/location qualifiers to the title
+    ('Senior QA Automation Engineer, E&I Commercial UW - East Coast
+    Preferred' — 11 words), which overflowed the word cap so extraction
+    gave up entirely and the Step-4 headline check silently never ran.
+    Splits on commas / en-em dashes / spaced hyphens and pops trailing
+    segments while the whole line stays over TITLE_MAX_WORDS — only short
+    qualifier segments are dropped, at most TITLE_QUALIFIER_CAP of them,
+    so prose lines come back unchanged.
+    """
+    segs = re.split(r"(?:\s*[,–—]\s*|\s+-\s+)", cand)
+    popped = 0
+    while (len(segs) > 1 and popped < TITLE_QUALIFIER_CAP
+           and sum(len(s.split()) for s in segs) > TITLE_MAX_WORDS
+           and len(segs[-1].split()) <= TITLE_QUALIFIER_WORDS):
+        segs.pop()
+        popped += 1
+    return ", ".join(s.strip() for s in segs if s.strip())
+
+
 def _jd_title(jd_text):
     """Best-effort extraction of the JD's position title.
 
     Prefers an explicit 'Job Title:'-style line anywhere in the posting;
     otherwise uses the first non-empty line (JDs normally open with the
-    title). Returns None when neither is a plausible single-line title
-    (<= TITLE_MAX_WORDS words, no lowercase sentence continuation) — the
-    posting may be a recruiter message or boilerplate, so the check is
-    skipped, never guessed.
+    title). An over-cap candidate gets one qualifier-stripping pass (see
+    :func:`_trim_title_qualifiers`) before giving up. Returns None when
+    neither yields a plausible single-line title (<= TITLE_MAX_WORDS
+    words, no lowercase sentence continuation) — the posting may be a
+    recruiter message or boilerplate, so the check is skipped, never
+    guessed.
     """
     lines = [l.strip() for l in jd_text.splitlines() if l.strip()]
     if not lines:
@@ -797,12 +831,16 @@ def _jd_title(jd_text):
         m = TITLE_LABEL_RE.match(l)
         if m:
             cand = m.group(1).strip().strip('"').strip("'")
-            if cand and len(cand.split()) <= TITLE_MAX_WORDS:
+            if _plausible_title(cand):
+                return cand
+            cand = _trim_title_qualifiers(cand)
+            if _plausible_title(cand):
                 return cand
     cand = re.sub(r"^[\s\-*•\d.)]+", "", lines[0]).strip()
-    if (cand and len(cand.split()) <= TITLE_MAX_WORDS
-            and not re.search(r"[.!?]\s+[a-z]", cand)):
-        return cand
+    if not re.search(r"[.!?]\s+[a-z]", cand):
+        trimmed = _trim_title_qualifiers(cand)
+        if _plausible_title(trimmed):
+            return trimmed
     return None
 
 
