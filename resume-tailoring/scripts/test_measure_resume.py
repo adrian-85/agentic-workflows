@@ -1678,5 +1678,88 @@ class WidowHintTests(unittest.TestCase):
         self.assertNotIn("preceding", widow[0])
 
 
+class JdFitAuditTests(unittest.TestCase):
+    """The JD-FIT AUDIT: per-role bullet classification printed for EVERY
+    role with --jd, independent of the page math. The DROP PLAN fires only
+    when cuts are needed to hit the target — which is how an under-cap
+    role once kept every bullet (two of them matching nothing the JD
+    names) after other roles closed the gap. JD alignment is the FIRST
+    priority: weak and OFF-JD bullets must surface even when on target."""
+
+    def _roles(self, *bullet_groups):
+        return [{"key": f"Role{i}",
+                 "raw": f"Role{i}, City 01/2020 \u2013 02/2021",
+                 "bullets": len(bs), "bullet_texts": list(bs),
+                 "has_tools": False}
+                for i, bs in enumerate(bullet_groups)]
+
+    def test_off_jd_bullets_listed_when_on_target(self):
+        # 2 strong + 1 zero-hit bullet: the audit names the OFF-JD bullet
+        # even though the role is under any cap and the page math needs
+        # nothing.
+        roles = self._roles([
+            "Advised engineer working on the Playwright test framework on "
+            "best practices.",
+            "Developed a semi-autonomous agentic workflow using sub-agents "
+            "to improve test coverage.",
+            "Coordinated across teams to establish meeting cadences and "
+            "enhance documentation practices.",
+        ])
+        sections = mr._jd_fit_audit(roles, {"playwright", "agentic"})
+        self.assertEqual(len(sections), 1)
+        self.assertIn("JD-FIT AUDIT (Role0): 2 of 3 bullet(s) carry JD "
+                      "evidence", sections[0])
+        self.assertIn("OFF-JD", sections[0])
+        self.assertIn("Coordinated across teams", sections[0])
+        self.assertIn("even when on target", sections[0])
+
+    def test_weak_only_match_is_cuttable_not_kept(self):
+        # A term hitting half the role's own bullets is weak: the bullet
+        # shows as weak-match, and the role's kept count excludes it.
+        roles = self._roles([
+            "Configured CI pipelines to trigger tests based on cross "
+            "dependency changes.",
+            "Advised engineer working on the Playwright test framework on "
+            "best practices.",
+        ])
+        sections = mr._jd_fit_audit(roles, {"test", "playwright"})
+        self.assertEqual(len(sections), 1)
+        self.assertIn("1 of 2 bullet(s) carry JD evidence", sections[0])
+        self.assertIn("weak-match", sections[0])
+        self.assertIn("Configured CI pipelines", sections[0])
+
+    def test_mostly_irrelevant_role_is_stub_candidate(self):
+        # 2 of 3 bullets carry no JD evidence: stub guidance fires — cut
+        # to the strongest bullet; keep a 1-bullet stub only to prevent
+        # an employment gap.
+        roles = self._roles([
+            "Coordinated across teams to establish meeting cadences and "
+            "enhance documentation practices.",
+            "Organized team events and maintained the shared calendar.",
+            "Developed a semi-autonomous agentic workflow using sub-agents "
+            "to improve test coverage.",
+        ])
+        sections = mr._jd_fit_audit(roles, {"agentic"})
+        self.assertEqual(len(sections), 1)
+        self.assertIn("STUB CANDIDATE", sections[0])
+        self.assertIn("1-bullet stub", sections[0])
+
+    def test_all_jd_evidence_role_is_silent(self):
+        # Each term hits exactly one of two bullets (not >half the role),
+        # so both classify strong and the audit stays silent.
+        roles = self._roles([
+            "Advised engineer working on the Playwright test framework on "
+            "best practices.",
+            "Developed a semi-autonomous agentic workflow using sub-agents "
+            "to improve test coverage.",
+        ])
+        self.assertEqual(mr._jd_fit_audit(roles, {"playwright", "agentic"}),
+                         [])
+
+    def test_no_jd_terms_is_silent(self):
+        self.assertEqual(mr._jd_fit_audit(self._roles(["any bullet"]), set()),
+                         [])
+
+
 if __name__ == "__main__":
     unittest.main()

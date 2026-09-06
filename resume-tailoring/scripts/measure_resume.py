@@ -18,7 +18,11 @@ candidate-tech terms that the raw JD also asks for — and JD practice
 phrases like mentorship — are excluded from the cut suggestions and listed
 as "JD-matched (kept)", so the plan never fights the JD. It also compares
 the JD's title against the resume headline and flags a headline that is
-MORE SENIOR (SKILL Step 4 title alignment) — advisory only.
+MORE SENIOR (SKILL Step 4 title alignment) — advisory only. And it prints
+a per-role JD-FIT AUDIT for EVERY role — OFF-JD and weak-match bullets —
+because the DROP PLAN only fires under page pressure and JD alignment is
+the first priority: weak bullets get cut even when the resume is already
+on target.
 
 Reads role/bullet structure from the .docx (via docx_edit) and rendered line
 counts from the PDF (via pdftotext). Requires libreoffice + pdftotext.
@@ -1252,6 +1256,62 @@ def _role_jd_evidence_lines(roles, header_text, jd_terms):
     return lines
 
 
+def _jd_fit_audit(roles, jd_terms):
+    """Per-role JD-fit audit — printed for EVERY role when --jd is passed,
+    independent of the page math (returns [] when there is nothing to
+    flag).
+
+    The DROP PLAN only fires when cuts are needed to hit the page target,
+    which is how an under-cap role ends up keeping every bullet —
+    including ones no JD term names — once other roles closed the gap.
+    JD alignment is the FIRST priority (SKILL Step 8), so this audit
+    classifies every bullet with the same machinery as the plan:
+    strong/practice-phrase hits carry JD evidence; weak-only hits
+    (generic terms) are cuttable; ZERO hits means the bullet is OFF-JD —
+    the prime cut candidate, or 1-bullet-stub material for a mostly
+    irrelevant role.
+    """
+    if not jd_terms:
+        return []
+    sections = []
+    for role in roles:
+        bullets = role.get("bullet_texts") or []
+        if not bullets:
+            continue
+        off, weak, kept = [], [], 0
+        for b in bullets:
+            strong, weak_hits = _jd_hits_classified(b, jd_terms, bullets)
+            if strong or _concept_hits(b):
+                kept += 1
+            elif weak_hits:
+                weak.append((b, weak_hits))
+            else:
+                off.append(b)
+        if not off and not weak:
+            continue
+        lines = [f"JD-FIT AUDIT ({role['key']}): {kept} of {len(bullets)} "
+                 f"bullet(s) carry JD evidence"]
+        for b in off:
+            lines.append(f"  OFF-JD (no JD term, no practice phrase): "
+                         f"{b[:68]}")
+        for b, hits in weak:
+            lines.append(f"  weak-match (cuttable): {b[:68]}  "
+                         f"[weak: {' , '.join(hits)}]")
+        if len(off) * 2 >= len(bullets):
+            lines.append(
+                "  STUB CANDIDATE: most of this role is off-JD — cut the "
+                "OFF-JD bullets; if the role then carries no JD evidence "
+                "at all, keep a 1-bullet stub ONLY to prevent an "
+                "employment gap (SKILL Step 8).")
+        else:
+            lines.append(
+                "  Cut or shorten these even when on target — JD alignment "
+                "outranks the page math; 40 words is a ceiling, never a "
+                "target (SKILL Step 8).")
+        sections.append("\n".join(lines))
+    return sections
+
+
 def _jd_listing_lines(bullets, jd_terms):
     """Display lines for a role's JD-evidence bullets.
 
@@ -1876,6 +1936,20 @@ def main():
         if sections:
             print()
             for section in sections:
+                print(section)
+                print()
+
+    # JD-FIT AUDIT — every role, independent of the page math. The DROP
+    # PLAN above fires only when cuts are needed to hit the target; JD
+    # alignment is the FIRST priority (SKILL Step 8), so weak and OFF-JD
+    # bullets surface even when the resume is already on target. Read it
+    # AFTER the build as well — a clean render is not a JD-tight resume.
+    if jd_terms:
+        audit = _jd_fit_audit(roles, jd_terms)
+        if audit:
+            print("JD-FIT AUDIT (every role, independent of the page math — "
+                  "the DROP PLAN above fires only under page pressure):")
+            for section in audit:
                 print(section)
                 print()
 
