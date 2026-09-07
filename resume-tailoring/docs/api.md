@@ -374,6 +374,68 @@ measured against a fabricated ask, producing false *underqualified* verdicts
 and a false load-bearing education warning. `validate_resume.py` warns when
 `--jd-years` is passed but the JD text states no "N+ years" ask.
 
+**Whole-resume word cap** (SKILL Steps 3/8): the validator counts every
+paragraph's alphanumeric tokens and blocks over `MAX_WORDS` (1000) for
+tailored resumes — the master input is exempt, like the bullet cap. Override
+or disable the threshold with `--max-words <N>` (`--max-words 0` disables);
+the same flag works in `RESUME_VALIDATE_ARGS` for the save-time gate. The
+cap's authoritative measurement on the RENDERED text is `ats_audit.py`
+(below), whose counting strips page furniture a text extractor emits.
+
+## Step 11 procedures — ATS verification (literal phrases + external scan)
+
+The internal matchers are term/concept-based; external ATS screeners match
+literal phrases against the rendered text. A resume can pass every internal
+gate and lose ATS points (a real session: 9 of 24 hard skills at zero literal
+hits, external score DROPPED). Two tools close the gap:
+
+### ats_audit.py — the local ground-truth audit (always run)
+
+```bash
+python3 scripts/ats_audit.py "<output>.pdf" --jd <JD.txt> \
+    [--phrases-file <f>] [--report-json <report.json>] [--max-words N]
+```
+
+Checks, on the pdftotext output of the DELIVERABLE (what a screener parses,
+not the .docx): (1) the whole-resume word cap (own count — see the calibration
+note in its `_count_words` docstring); (2) with `--jd`, literal hosting of the
+JD qualification lines' skill phrases (cue-tail mining — see the
+`_jd_literal_terms` docstring for the precision rules); zero-host terms mean a
+cut killed the last host (Step 8 cut-protection) or the phrase was never
+mirrored — host the exact phrase truthfully or raise the gap, never fabricate;
+(3) with `--phrases-file` (one phrase per line) or `--report-json` (an external
+scan report, below), literal checks of externally supplied phrases — a
+skill's `resumeCount` from the report is the authoritative host signal, the
+literal check is the fallback. Exit 0 clean, 1 findings, 2 usage/IO error.
+
+IGNORED by rule: the report's contactEmail searchability finding — the
+compact hyperlinked contact block is a deliberate design (Step 11, SKILL.md);
+never alter the contact block to satisfy a literal text parser.
+
+### ats_check.py — the external scan (when configured)
+
+```bash
+python3 scripts/ats_check.py scan "<output>.pdf" <JD.txt> [--out <report.json>]
+python3 scripts/ats_check.py check      # validate the saved config, no scan
+```
+
+Submits the deliverable (PDF preferred — it is the submitted format) to the
+user's ATS scan service, waits for the match report, and saves its JSON next
+to the resume (`<resume>.ats-check.json`); feed that back into
+`ats_audit.py --report-json` for the authoritative cross-check. The chain is
+reconstructed from the user's OWN saved cURL exports in
+`~/.config/ats-check/curl.txt` (four requests: resume upload, job
+description, opportunity, report GET) — the tool classifies them by shape,
+templates fresh ids, rotates the session cookies through a curl cookie jar,
+and re-derives the CSRF header from the jar before every request. No service
+specifics are hardcoded; when a scan returns 401/403 the credentials expired —
+the user re-exports the four requests from a logged-in browser session and
+deletes `~/.config/ats-check/cookies.txt` to re-seed. The service dedupes an
+identical resume + JD pair (409) and the tool reuses the returned opportunity.
+The scan output prints the match rate, the report's wordCount (cross-check
+only — its PDF parser inflates counts), and the identified target ATS; the
+latter requires the job posting URL persisted with the JD (Step 1).
+
 **Fix tool bugs in the session that finds them.** If a script in this
 skill misbehaves or contradicts its documented behavior, do not route
 around it: fix the script and add a regression test in the same session

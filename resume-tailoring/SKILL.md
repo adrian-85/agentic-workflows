@@ -68,7 +68,9 @@ User-supplied personal assets (`*.docx` / `*.pdf`, gitignored) live in the skill
 `measure_resume.py` (Step 8; `--jd` makes its DROP PLAN JD-aware) · `squeeze_resume.py` (Step 8;
 auto-tightens to the page budget) · `validate_resume.py` (Steps 3, 11; `--master` auto-detects the
 `* Master Resume.docx` next to the input) · `diff_resume.py` (Token-spend) · `read_profile.sh` (Step 1) ·
-`test_*.py` unit tests (`python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test_squeeze_resume`,
+`ats_audit.py` (Step 11; literal-phrase ATS audit of the rendered PDF + word cap) · `ats_check.py`
+(Step 11; runs the external ATS scan via the user's saved credentials, saves the report JSON) ·
+`test_*.py` unit tests (`python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test_squeeze_resume test_ats_audit test_ats_check`,
 from `scripts/`).
 
 Run scripts from the skill root so the relative `SRC` path resolves:
@@ -149,6 +151,13 @@ the residual page gap automatically.
   downstream tool references that path for the whole session, and re-run
   instructions outlive it. The code warns when `--jd` points at `/tmp`;
   the tailor script's docstring records the JD path used.
+- **Persist the job posting URL with the JD.** Ask for it when the user
+  provides only posting text, and put `Posting URL: <url>` as the FIRST
+  line of `jd_<target>.txt`. The external ATS scan (Step 11) extracts it
+  to identify the target company's ATS — its ATS-specific guidance and
+  several findings depend on that match, and without the URL the match
+  fails (the report degrades to generic advice). The line sits outside
+  the qualification sections, so the internal matchers ignore it.
 - Read the **master resume**. If it is a `.docx`, use `docx_edit.py` to edit. If
   only a PDF is available, ask for the `.docx` source — PDFs can be read but
   not edited precisely.
@@ -426,6 +435,21 @@ carries the same check into the render path, so the deliverable gate
 re-reports the count — act on it or give each kept bullet a one-line JD
 reason.
 
+**Whole-resume word cap: ≤1,000 words.** Every cut/keep decision above also
+answers to the deliverable's total word count — a tailored resume is a
+compressed document, and a padded one reads as a wall to the screener and
+scores worse with ATS tools. Enforced as a blocking gate by
+`validate_resume.py` (save + render) and re-measured on the RENDERED PDF by
+`ats_audit.py` (Step 11). Cut content; never shrink fonts or margins to dodge
+the cap.
+
+**JD-named hard skills are cut-protected.** Never cut the LAST host of a
+hard skill the JD names — a Tools-line trim removed a JD-named test framework
+in a real session (the master hosted it, the tailored copy didn't), no tool
+flagged it, and the external ATS score DROPPED as a result. Before any
+cut, check the term isn't the JD-named skill's only remaining host; the
+post-build audit (`ats_audit.py --jd`, Step 11) is the mechanical backstop.
+
 **Prove each qualification, don't just avoid fabricating it.** The
 **JD REQUIREMENT COVERAGE** section maps every qualification line to its
 kept host bullets. `[weak]` — the ask is hosted only on a
@@ -592,6 +616,47 @@ reads no images; the text path covers what a visual check would:
 and `measure_resume.py` prints the page-fill table with widow/underfill
 detection.
 
+**ATS verification — the internal matchers are not the ground truth.** The
+workflow's term/concept matching overestimates alignment: a real session
+passed every internal gate while 9 of 24 hard skills had ZERO literal hits
+and the external ATS score DROPPED. After the final render, run the
+literal-phrase audit on the PDF a screener parses:
+
+```bash
+python3 scripts/ats_audit.py "<Name> Resume - <Target>.pdf" --jd jd_<target>.txt
+```
+
+It checks the whole-resume word cap and every JD qualification phrase
+literally (host the exact phrase truthfully or raise the gap — never
+fabricate). JD-named terms with no host mean a cut killed the last host
+(Step 8's cut-protection rule) or the phrase was never mirrored — fix or
+raise.
+
+**External ATS scan (when configured).** `scripts/ats_check.py scan
+"<resume>.pdf" jd_<target>.txt` submits the deliverable to the user's ATS
+scan service and saves the match-report JSON next to the resume
+(`<...>.ats-check.json`); feed it back for the authoritative cross-check:
+`ats_audit.py ... --report-json <report>.json`. The service's credentials
+live in `~/.config/ats-check/curl.txt` (the user's own saved cURL exports;
+never committed — when a scan returns 401/403, tell the user to re-export
+them from a logged-in session and delete `~/.config/ats-check/cookies.txt`
+to re-seed). The report's `wordCount` is a CROSS-CHECK only — the service's
+PDF parser inflates counts (it splits labeled values into fragments), so
+the cap is always `ats_audit.py`'s own count. The scan output names the
+target company's ATS when it identified one (`target ATS:` line, from the
+report's atsTip finding) — that identification needs the posting URL
+persisted with the JD (Step 1); on `NOT identified`, add the URL and
+re-scan before trusting the ATS-specific findings.
+
+**IGNORED by rule: the contactEmail searchability finding.** The compact
+hyperlinked contact block (link text "Email" over a `mailto:` target) is a
+deliberate design the user chose for readability — NEVER widen columns,
+unwrap the header, or rewrite link display text to satisfy a literal text
+parser. One session did; the user reverted it as a readability failure
+("looks sloppy"). The address lives in the hyperlink target, which many
+ATS parsers extract; a raw-text parser's `contactEmail` fail is the known,
+accepted tradeoff. Treat that finding as noise in every external report.
+
 **Final human review (what the tools can't judge).** After the last render,
 re-read the full `--prefixes` dump top-to-bottom once: every kept bullet still
 serves the JD, whole-role removals still read as a coherent timeline, the top
@@ -701,5 +766,12 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Keeping Education when the degree isn't evidence for the JD | Evaluate the drop/keep predicates (Step 3.4) — a BA vs an engineering JD is a 3-line drop |
 | Reading a clean render (no `--jd`) as education-clause clearance | The education gate runs only with `--jd`; the seniority gate always — render_pdf.sh NOTEs when the education gate did not run (Step 11) |
 | Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 9) |
+| Trusting the internal JD matchers as the ATS score | Internal matching is term/concept-based; ATS tools match literal phrases — run `ats_audit.py` on the rendered PDF before declaring done (Step 11) |
+| Cutting the last host of a JD-named hard skill for page math | Step 8 cut-protection: check the term's remaining hosts before any cut; `ats_audit.py --jd` catches it post-build |
+| Letting the deliverable drift past 1,000 words | Blocking validator gate + `ats_audit.py` count — cut content, never shrink fonts (Steps 3, 8, 11) |
+| Widening the contact block or rewriting link text for ATS parsers | IGNORED by rule — the compact hyperlinked contact block is deliberate design; `contactEmail` searchability findings are noise (Step 11) |
+| Treating the external report's wordCount as the cap | The service's PDF parser inflates counts — the cap is `ats_audit.py`'s own count; the report's number is a cross-check only (Step 11) |
+| Storing scan-service credentials in the repo | They live in `~/.config/ats-check/curl.txt` (user's saved cURL exports, git-ignored); refresh from a logged-in browser when scans 401 (Step 11) |
+| Scan says the target ATS was NOT identified | The posting URL wasn't persisted with the JD (Step 1) — add `Posting URL: <url>` as the first line of `jd_<target>.txt` and re-scan |
 | Punctuation in prose (em dash, semicolon, colon, ellipsis) | Periods and commas ONLY — no em dashes, double hyphens, semicolons, colons, or ellipses (`...`); split into a new sentence or use a comma. The Tools line's `Label: values` colon is the one exempt structural colon (Step 9) |
 | JD asks for fewer years than the candidate has | Offer Step 3 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it. The token needs the user's authority: their chat reply or pre-authorization in the request; never pass it on your own |
