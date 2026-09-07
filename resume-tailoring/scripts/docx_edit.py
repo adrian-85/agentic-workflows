@@ -181,16 +181,17 @@ def _approval_env():
         RESUME_VALIDATE_ARGS="--jd <JD.txt> --jd-years <N> --seniority-approved"
 
     Returns (jd_path, jd_years, seniority_approved, education_approved,
-    protect) — ``protect`` is the list of --protect phrases (repeatable),
-    forwarded so the gate's JD-FIT check honors the same candidate-specific
-    facts measure did.
+    protect, max_words) — ``protect`` is the list of --protect phrases
+    (repeatable), forwarded so the gate's JD-FIT check honors the same
+    candidate-specific facts measure did; ``max_words`` is the
+    whole-resume word cap (None disables, --max-words 0).
     Approval tokens passed here must carry the USER's authority (their chat
     reply or pre-authorization in the original request) — never self-granted;
     the gate message says so.
     """
     raw = os.environ.get("RESUME_VALIDATE_ARGS", "")
     if not raw.strip():
-        return None, None, False, False, []
+        return None, None, False, False, [], None
     import shlex
     import validate_resume as vr  # lazy: avoid the module-load cycle
     argv = shlex.split(raw)
@@ -204,7 +205,10 @@ def _approval_env():
     seniority_approved = vr._parse_flag(argv, "--seniority-approved")
     education_approved = vr._parse_flag(argv, "--education-approved")
     protect = vr._extract_flag_all(argv, "--protect")
-    return jd_path, jd_years, seniority_approved, education_approved, protect
+    max_words = (int(vr._extract_flag(argv, "--max-words"))
+                 if "--max-words" in argv else vr.MAX_WORDS) or None
+    return (jd_path, jd_years, seniority_approved, education_approved,
+            protect, max_words)
 
 
 def _deliverable_gate(path, root, src):
@@ -229,7 +233,8 @@ def _deliverable_gate(path, root, src):
     if src is None or path.endswith("Master Resume.docx"):
         return
     import validate_resume as vr  # lazy: validate_resume imports this module
-    jd_path, jd_years, seniority_approved, education_approved, protect = _approval_env()
+    jd_path, jd_years, seniority_approved, education_approved, protect, \
+        max_words = _approval_env()
     tmp_note = tmp_jd_note(jd_path)
     if tmp_note:
         print(tmp_note, file=sys.stderr)
@@ -245,7 +250,8 @@ def _deliverable_gate(path, root, src):
         result = vr.validate_tree(
             path, root, master_path=src, jd_path=jd_path, jd_years=jd_years,
             seniority_approved=seniority_approved,
-            education_approved=education_approved, protect=protect)
+            education_approved=education_approved, protect=protect,
+            max_words=max_words)
     except SystemExit:
         raise  # never swallow a validator abort
     except Exception as e:  # validator crashed — do not silently pass the gate
@@ -380,11 +386,14 @@ def save(path, root, names, data, drift_key=None, src=None):
     if prev is not None and prev_edits != applied:
         print(
             f"DRIFT: {drift_key} expected {prev_edits} edits (last "
-            f"recorded run) but applied {applied} — an edit was added, "
-            f"removed, or stopped matching the master. Review before "
-            f"rendering. If this change was intentional, no action is "
-            f"needed: the baseline updates automatically (warn-once), and "
-            f"the blocking gate for a stopped-matching edit is the "
+            f"recorded run) but applied {applied}. Two possible causes:\n"
+            f"  (a) this script's edit set changed intentionally mid-"
+            f"authoring — no action needed: the baseline updates "
+            f"automatically (warn-once);\n"
+            f"  (b) the master changed under a finished script — see the "
+            f"master-change notice below and run 'diff_resume.py "
+            f"--tailor' before reusing it.\n"
+            f"The blocking gate for a stopped-matching edit remains the "
             f"skipped-edit check.",
             file=sys.stderr,
         )

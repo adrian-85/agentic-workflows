@@ -423,6 +423,112 @@ class BulletCapTests(unittest.TestCase):
         self.assertIn("BULLET CAP", out.getvalue())
 
 
+class WordCapTests(unittest.TestCase):
+    """SKILL Steps 3/8 whole-resume word cap: a tailored deliverable counts
+    <=MAX_WORDS words. Blocking like the bullet cap; the master input is
+    exempt; --max-words 0 disables. A real ATS report counted a padded
+    3-page build past the line and the user set the rule."""
+
+    @staticmethod
+    def _docx(path, bullet_words=99, bullets=8, name="Resume - Target.docx"):
+        fd, real = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        os.replace(real, path)
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr(
+                "word/document.xml",
+                '<?xml version="1.0"?><w:document xmlns:w="'
+                + de.XMLNS + '"><w:body/></w:document>',
+            )
+            z.writestr("[Content_Types].xml", "<Types/>")
+        root, body_el, names, data, _ = de.load(path)
+        # 8 bullets (within the per-role cap), unique tokens per bullet so
+        # the near-duplicate check stays quiet; bullet_words drives the
+        # whole-resume total (8 x 99 + ~8 structural = ~800).
+        for p in [
+            mk("Career Experience", style="SectionHeading"),
+            mk("Acme, MA (Remote)06/2021 \u2013 05/2026",
+               style=mr.COMPANY_STYLE),
+            mk("Staff Engineer", style=vr.TITLE_STYLE),
+        ] + [mk(" ".join(f"w{b}_{j}" for j in range(bullet_words))
+                + f" result{b}.", numId=4) for b in range(bullets)]:
+            body_el.append(p)
+        with contextlib.redirect_stdout(io.StringIO()):
+            de.save(path, root, names, data)
+
+    def _body(self, path):
+        return de.load(path)[1]
+
+    def test_word_count_counts_alphanumeric_tokens_only(self):
+        body_el = body(
+            mk("Adrian Sample"),
+            mk("Quality Assurance Engineer"),
+            mk("\uf075"),  # bullet dingbat — not a word
+            mk("Validated APIs and data quality.", numId=4),
+        )
+        # 2 (name) + 3 (headline) + 5 (bullet: Validated APIs and data
+        # quality) — the dingbat is excluded.
+        self.assertEqual(vr._word_count(body_el), 10)
+
+    def test_within_cap_ok(self):
+        path = os.path.join(tempfile.mkdtemp(), "Resume - T.docx")
+        try:
+            self._docx(path, bullet_words=99)  # ~800 words
+            result = vr.validate_tree(path, self._body(path))
+            report = "\n".join(result["lines"])
+            self.assertEqual(result["blocking"], 0, report)
+            self.assertIn("within the 1000-word cap", report)
+        finally:
+            os.unlink(path)
+
+    def test_over_cap_blocks(self):
+        path = os.path.join(tempfile.mkdtemp(), "Resume - T.docx")
+        try:
+            self._docx(path, bullet_words=140)  # ~1130 words
+            result = vr.validate_tree(path, self._body(path))
+            report = "\n".join(result["lines"])
+            self.assertEqual(result["blocking"], 1)
+            self.assertIn("exceeds the 1000-word cap", report)
+            self.assertIn("WORD COUNT", report)
+        finally:
+            os.unlink(path)
+
+    def test_master_input_exempt(self):
+        path = os.path.join(tempfile.mkdtemp(),
+                            "Sample Master Resume.docx")
+        try:
+            self._docx(path, bullet_words=140, name=path)
+            result = vr.validate_tree(path, self._body(path))
+            report = "\n".join(result["lines"])
+            self.assertIn("input is a master", report)
+            self.assertNotIn("exceeds the 1000-word cap", report)
+        finally:
+            os.unlink(path)
+
+    def test_max_words_zero_disables(self):
+        path = os.path.join(tempfile.mkdtemp(), "Resume - T.docx")
+        try:
+            self._docx(path, bullet_words=140)
+            result = vr.validate_tree(path, self._body(path), max_words=None)
+            report = "\n".join(result["lines"])
+            self.assertNotIn("exceeds the 1000-word cap", report)
+            self.assertIn("word cap disabled", report)
+        finally:
+            os.unlink(path)
+
+    def test_max_words_flag_lowers_cap(self):
+        path = os.path.join(tempfile.mkdtemp(), "Resume - T.docx")
+        try:
+            self._docx(path, bullet_words=99)  # ~800 words
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = vr.main([path, "--max-words", "500"])
+            self.assertEqual(rc, 2)
+            self.assertIn("exceeds the 500-word cap", out.getvalue())
+        finally:
+            os.unlink(path)
+
+
 class TextIntegrityTests(unittest.TestCase):
     """_text_integrity_errors: mangling artifacts in generated prose —
     unexpected non-ASCII (CJK/Cyrillic), doubled punctuation, doubled words.

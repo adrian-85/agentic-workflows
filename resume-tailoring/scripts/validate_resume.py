@@ -155,6 +155,14 @@ MAX_BULLETS_PER_ROLE = mr.MAX_BULLETS_PER_ROLE
 # re-selects.
 PARA_WORD_CAP = 40
 
+# SKILL Steps 3/8: whole-resume word cap — a tailored deliverable counts
+# <=1000 words (a real ATS report counted a clean 3-page build at 949;
+# a session's slightly padded one crossed the line and read as a wall).
+# Blocking, like the bullet cap; the master input is exempt. Counting
+# mirrors the external scorers: bullet glyphs and page furniture are not
+# words (ats_audit._count_words documents the calibration).
+MAX_WORDS = 1000
+
 
 def _is_bullet(p):
     style, numId = de.style_and_numid(p)
@@ -711,9 +719,21 @@ def _readability_guidance(body, summary, *, region=None, master_input=False):
     return notes
 
 
+def _word_count(body):
+    """Whole-resume word count: every paragraph's whitespace tokens with
+    at least one alphanumeric character (a bullet dingbat or a stray
+    ornament is not a word)."""
+    total = 0
+    for p in de.paras(body):
+        total += sum(1 for t in de.text_of(p).split()
+                     if re.search(r"[A-Za-z0-9]", t))
+    return total
+
+
 def validate_tree(path, body, *, master_path=None, jd_path=None,
                   jd_years=None, seniority_approved=False,
-                  education_approved=False, protect=()):
+                  education_approved=False, protect=(),
+                  max_words=MAX_WORDS):
     """Run every check against an ALREADY-LOADED document tree.
 
     Returns ``{"blocking": int, "warnings": int, "lines": [str]}`` — the
@@ -742,6 +762,16 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,
     # is advisory only — the master intentionally keeps everything.
     is_master_input = path.endswith("Master Resume.docx")
     cap_errors = [] if is_master_input else _bullet_cap_errors(region)
+
+    # Whole-resume word cap (SKILL Steps 3/8): blocking for tailored
+    # resumes, exempt for the master, same as the bullet cap above.
+    word_count = _word_count(body)
+    word_errors = []
+    if max_words and not is_master_input and word_count > max_words:
+        word_errors.append(
+            f"{word_count} words exceeds the {max_words}-word cap by "
+            f"{word_count - max_words} — cut content (JD-driven, Step 8), "
+            "do not shrink fonts")
 
     # Visible timeline span (shared with measure_resume.py): the number a
     # recruiter compares against the JD's "N+ years" ask. Everything below
@@ -973,6 +1003,19 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,
         if not cap_errors:
             lines.append(f"  ok (every role within the hard cap of "
                   f"{MAX_BULLETS_PER_ROLE} kept bullets)")
+    lines.append("== WORD COUNT ==")
+    if is_master_input:
+        lines.append(f"  note: input is a master ({word_count} words) — the "
+              f"{max_words}-word deliverable cap applies to tailored "
+              "resumes only")
+    elif not max_words:
+        lines.append("  note: word cap disabled (--max-words 0)")
+    else:
+        for e in word_errors:
+            lines.append(f"  ERROR: {e}")
+        if not word_errors:
+            lines.append(f"  ok ({word_count} words, within the "
+                         f"{max_words}-word cap)")
     if jd_path:
         lines.append("== EDUCATION ==")
         for e in education_errors:
@@ -1007,7 +1050,7 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,
     )
     blocking = (len(errors) + len(punct_errors) + len(integrity_errors)
                 + len(seniority_errors) + len(education_errors)
-                + len(cap_errors))
+                + len(cap_errors) + len(word_errors))
     if blocking:
         lines.append(
             f"RESULT: {blocking} blocking error(s) — fix before rendering (exit 2)")
@@ -1021,6 +1064,9 @@ def main(argv=None):
     jd_years = float(_extract_flag(argv, "--jd-years")) if "--jd-years" in argv else None
     jd_path = _extract_flag(argv, "--jd")
     protect = _extract_flag_all(argv, "--protect")
+    # --max-words 0 disables the whole-resume word cap.
+    max_words = (int(_extract_flag(argv, "--max-words"))
+                 if "--max-words" in argv else MAX_WORDS) or None
     seniority_approved = _parse_flag(argv, "--seniority-approved")
     education_approved = _parse_flag(argv, "--education-approved")
     if not argv:
@@ -1032,7 +1078,8 @@ def main(argv=None):
     result = validate_tree(
         path, body, master_path=master, jd_path=jd_path, jd_years=jd_years,
         seniority_approved=seniority_approved,
-        education_approved=education_approved, protect=protect)
+        education_approved=education_approved, protect=protect,
+        max_words=max_words)
     for line in result["lines"]:
         print(line)
     if result["blocking"]:
