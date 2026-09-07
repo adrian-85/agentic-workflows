@@ -143,7 +143,7 @@ class PhraseAuditTests(unittest.TestCase):
     def test_zero_hit_phrases_listed(self):
         text = "built data quality dashboards and automated regression"
         missing = aa._audit_phrases(
-            text, ["data quality", "regression testing", "pytest"], "hard")
+            text, ["data quality", "regression testing", "pytest"])
         self.assertEqual(missing, ["regression testing", "pytest"])
 
 

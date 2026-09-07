@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """ATS Check — run an external ATS scan on the rendered deliverable.
 
-The local audit (ats_audit.py) is the fast, free backstop; this tool adds
-the external ground truth: it submits the deliverable to the user's ATS
-scan service, waits for the match report, and saves it as JSON for
-`ats_audit.py --report-json`.
+Submits the deliverable (PDF preferred — it is the submitted format) to
+the user's ATS scan service, waits for the match report, and saves it as
+JSON for `ats_audit.py --report-json`.
 
 NO service specifics live in this file. The endpoints, headers, and
 cookies come from the user's own "Copy as cURL" exports saved in
@@ -93,8 +92,6 @@ def parse_curl_file(path=CURL_FILE):
         joined = " ".join(l.rstrip("\\").strip() for l in lines)
         req = {"url": None, "method": "GET", "headers": [],
                "cookies": None, "body": None}
-        m = re.search(r"-m\b|--url\s+'([^']+)'", joined) or \
-            re.match(r"curl\s+'([^']+)'", joined)
         # URL: the first quoted token after curl (or --url's value).
         m_url = (re.search(r"--url\s+'([^']+)'", joined)
                  or re.search(r"^curl\s+'([^']+)'", joined))
@@ -242,20 +239,20 @@ def request(url, headers, *, method=None, json_body=None, multipart=None,
 
 
 def extract_id(data):
-    """First integer 'id' in a response (responses wrap objects in
-    {'data': {...}}, so search recursively)."""
+    """First integer 'id' in a response. The API wraps objects in
+    {'data': {...}}; the 409 dedupe body nests under
+    errors.duplicate_opportunity.opportunity. A direct path covers both
+    without recursion (and avoids matching unrelated nested ids)."""
     if isinstance(data, dict):
-        if isinstance(data.get("id"), int):
-            return data["id"]
-        for v in data.values():
-            got = extract_id(v)
-            if got is not None:
-                return got
-    elif isinstance(data, list):
-        for v in data:
-            got = extract_id(v)
-            if got is not None:
-                return got
+        # Common case: {'data': {'id': N}} or top-level {'id': N}
+        obj = data.get("data") if isinstance(data.get("data"), dict) else data
+        if isinstance(obj, dict) and isinstance(obj.get("id"), int):
+            return obj["id"]
+        # 409 dedupe: errors.duplicate_opportunity.opportunity.id
+        err = (data.get("errors") or {}).get("duplicate_opportunity") or {}
+        opp = err.get("opportunity") if isinstance(err, dict) else None
+        if isinstance(opp, dict) and isinstance(opp.get("id"), int):
+            return opp["id"]
     return None
 
 
@@ -348,12 +345,10 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
     with open(out, "w") as f:
         json.dump(report, f)
     mr = report.get("matchRate") or {}
-    wc = next((f.get("variables", {}).get("wordCount")
-               for f in report.get("findings", [])
-               if f.get("key") == "wordCount"), None)
-    ats = next((f.get("variables", {}).get("ats")
-                for f in report.get("findings", [])
-                if f.get("key") == "atsTip"), None)
+    fm = {f["key"]: f for f in report.get("findings", [])
+          if isinstance(f, dict)}
+    wc = (fm.get("wordCount") or {}).get("variables", {}).get("wordCount")
+    ats = (fm.get("atsTip") or {}).get("variables", {}).get("ats")
     print(f"[4] report ready -> saved {out}")
     print(f"    matchRate: {mr.get('score')}")
     print(f"    wordCount: {wc} (cross-check only — the cap uses "

@@ -249,46 +249,45 @@ def _report_skills(data):
 
     ``resumeCount`` is the report's own hit count for the resume — the
     authoritative host signal when present (None for other layouts; the
-    caller then falls back to its literal check). Tolerant to layout
-    drift: skills hide under hardSkills/softSkills (any separator/case)
-    as strings or {name|keyword|text|title|term} dicts.
+    caller then falls back to its literal check). Handles three observed
+    layouts: {skills: {hard, soft}}, {hardSkills, softSkills}, and
+    {keywords: {hard, soft}}.
     """
-    hard, soft = [], []
+    if not isinstance(data, dict):
+        return [], []
+    skills = data.get("skills") or {}
+    if isinstance(skills, dict) and ("hard" in skills or "soft" in skills):
+        return _skill_list(skills.get("hard")), _skill_list(skills.get("soft"))
+    hard = _skill_list(data.get("hardSkills"))
+    soft = _skill_list(data.get("softSkills"))
+    if hard or soft:
+        return hard, soft
+    kw = data.get("keywords") or {}
+    return _skill_list(kw.get("hard")), _skill_list(kw.get("soft"))
 
-    def add(bucket, node):
-        if isinstance(node, str):
-            bucket.append((node, None))
-        elif isinstance(node, dict):
-            name = next((node[k] for k in ("keyword", "name", "text",
-                                           "title", "term")
-                         if isinstance(node.get(k), str)), None)
+
+def _skill_list(items):
+    """Extract (phrase, resumeCount) pairs from a skill list — items may
+    be plain strings or dicts with various key names."""
+    if not isinstance(items, list):
+        return []
+    out = []
+    for item in items:
+        if isinstance(item, str):
+            out.append((item, None))
+        elif isinstance(item, dict):
+            name = next((item[k] for k in ("keyword", "name", "text",
+                                            "title", "term")
+                         if isinstance(item.get(k), str)), None)
             if name is not None:
-                cnt = node.get("resumeCount")
-                bucket.append((name,
-                               cnt if isinstance(cnt, (int, float))
-                               else None))
-
-    def walk(node):
-        if isinstance(node, dict):
-            for k, v in node.items():
-                kl = re.sub(r"[_\s-]", "", k).lower()
-                if kl in ("hardskills", "hard") and isinstance(v, list):
-                    for item in v:
-                        add(hard, item)
-                elif kl in ("softskills", "soft") and isinstance(v, list):
-                    for item in v:
-                        add(soft, item)
-                else:
-                    walk(v)
-        elif isinstance(node, list):
-            for item in node:
-                walk(item)
-
-    walk(data)
-    return hard, soft
+                cnt = item.get("resumeCount")
+                out.append((name,
+                            cnt if isinstance(cnt, (int, float))
+                            else None))
+    return out
 
 
-def _audit_phrases(text_low, phrases, label):
+def _audit_phrases(text_low, phrases):
     """Literal check of externally supplied phrases. Returns zero-hit
     list."""
     return [p for p in phrases if p.strip()
@@ -398,7 +397,7 @@ def main(argv=None):
     if phrases_file:
         with open(phrases_file, encoding="utf-8", errors="replace") as f:
             phrases = [ln.strip() for ln in f if ln.strip()]
-        missing = _audit_phrases(text_low, phrases, "phrases")
+        missing = _audit_phrases(text_low, phrases)
         if missing:
             errors.append("phrases with NO literal host: "
                           + ", ".join(missing))

@@ -100,9 +100,13 @@ python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test
 
    checks the 1000-word cap and every JD qualification phrase literally on
    the rendered text; fix zero-hit phrases truthfully or raise the gap.
-   Optionally add the external ground truth by saving the scan service's
-   cURL exports to `~/.config/ats-check/curl.txt` (see `scripts/ats_check.py`)
-   and running `python3 scripts/ats_check.py scan "<...>.pdf" jd_<target>.txt`.
+   For the external ground truth, save the scan service's four cURL
+   exports to `~/.config/ats-check/curl.txt` (see `scripts/ats_check.py`
+   for the format), then run:
+
+   ```bash
+   python3 scripts/ats_check.py scan "<...>.pdf" jd_<target>.txt
+   ```
 
 ## Resume format assumptions
 

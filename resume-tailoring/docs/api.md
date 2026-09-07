@@ -399,8 +399,10 @@ python3 scripts/ats_audit.py "<output>.pdf" --jd <JD.txt> \
 Checks, on the pdftotext output of the DELIVERABLE (what a screener parses,
 not the .docx): (1) the whole-resume word cap (own count — see the calibration
 note in its `_count_words` docstring); (2) with `--jd`, literal hosting of the
-JD qualification lines' skill phrases (cue-tail mining — see the
-`_jd_literal_terms` docstring for the precision rules); zero-host terms mean a
+JD qualification lines' skill phrases (cue-tail mining: phrases are
+extracted only from the text following skill-introducing cues like
+"experience in" and "proficiency in", avoiding surrounding prose —
+see `_jd_literal_terms` for the full precision rules); zero-host terms mean a
 cut killed the last host (Step 8 cut-protection) or the phrase was never
 mirrored — host the exact phrase truthfully or raise the gap, never fabricate;
 (3) with `--phrases-file` (one phrase per line) or `--report-json` (an external
