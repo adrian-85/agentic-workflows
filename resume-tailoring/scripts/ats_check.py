@@ -1,0 +1,423 @@
+#!/usr/bin/env python3
+"""ATS Check — run an external ATS scan on the rendered deliverable.
+
+The local audit (ats_audit.py) is the fast, free backstop; this tool adds
+the external ground truth: it submits the deliverable to the user's ATS
+scan service, waits for the match report, and saves it as JSON for
+`ats_audit.py --report-json`.
+
+NO service specifics live in this file. The endpoints, headers, and
+cookies come from the user's own "Copy as cURL" exports saved in
+~/.config/ats-check/curl.txt (never committed; the scan service sees the
+resume text — assume nothing else in the repo does). See "Setup".
+
+Setup — save four cURL requests, captured from the scan service's web
+app in the browser DevTools (Network tab, "Copy as cURL"), into
+~/.config/ats-check/curl.txt, separated by blank lines:
+
+    1. the resume-upload POST (multipart, file upload)
+    2. the job-description POST (JSON body with the JD text)
+    3. the opportunity POST (JSON body linking resume + job description)
+    4. the report GET (fetches the match report for one opportunity)
+
+This tool classifies each request by its path/body, rebuilds the chain
+for a NEW scan (fresh ids, the deliverable's file, this JD's text), and
+chains the rotating session cookies itself: every response rotates the
+session cookies, so requests run through a curl cookie jar (-b/-c) and
+the CSRF header is re-derived from the jar before each request (the
+header is the URL-decoded token cookie value).
+
+usage:
+    python3 scripts/ats_check.py scan <resume.pdf|docx> <jd.txt>
+        [--out <report.json>] [--timeout 300] [--interval 6]
+    python3 scripts/ats_check.py check
+
+Exit codes: 0 report saved; 1 report not ready in time; 2 config/HTTP
+error (401/403 -> credentials expired, re-save curl.txt).
+
+Auth note: the jar is seeded once from curl.txt and then only rotated.
+When the scan starts returning 401/403, re-export the requests from a
+logged-in browser session — the cookie values are the only secret.
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import urllib.parse
+
+CONFIG_DIR = os.path.expanduser("~/.config/ats-check")
+CURL_FILE = os.path.join(CONFIG_DIR, "curl.txt")
+JAR_FILE = os.path.join(CONFIG_DIR, "cookies.txt")
+CSRF_COOKIE = "XSRF-TOKEN"
+CSRF_HEADER = "x-xsrf-token"
+
+MIME_BY_EXT = {
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+
+# ---------------------------------------------------------------- config
+
+def parse_curl_file(path=CURL_FILE):
+    """Parse the saved cURL exports into request dicts.
+
+    Returns a list of {"url", "method", "headers", "cookies", "body"}
+    dicts, in file order. Headers keep their original casing in the
+    values; the cookie (-b/--cookie) blob is separated out.
+    """
+    if not os.path.exists(path):
+        raise SystemExit(
+            f"error: {path} not found — save the four 'Copy as cURL' "
+            "exports there (see the module docstring's Setup section)")
+    text = open(path, encoding="utf-8", errors="replace").read()
+    # One request per 'curl' line start; backslash continuations joined.
+    raw_requests, cur = [], None
+    for line in text.splitlines():
+        if line.lstrip().startswith("curl "):
+            if cur:
+                raw_requests.append(cur)
+            cur = [line]
+        elif cur is not None and line.strip():
+            cur.append(line)
+    if cur:
+        raw_requests.append(cur)
+    if not raw_requests:
+        raise SystemExit(f"error: no cURL requests parsed from {path}")
+
+    requests = []
+    for lines in raw_requests:
+        joined = " ".join(l.rstrip("\\").strip() for l in lines)
+        req = {"url": None, "method": "GET", "headers": [],
+               "cookies": None, "body": None}
+        m = re.search(r"-m\b|--url\s+'([^']+)'", joined) or \
+            re.match(r"curl\s+'([^']+)'", joined)
+        # URL: the first quoted token after curl (or --url's value).
+        m_url = (re.search(r"--url\s+'([^']+)'", joined)
+                 or re.search(r"^curl\s+'([^']+)'", joined))
+        if not m_url:
+            continue
+        req["url"] = m_url.group(1)
+        m = re.search(r"\s(?:-b|--cookie)\s+'([^']*)'", joined)
+        if m:
+            req["cookies"] = m.group(1)
+        for h in re.finditer(r"(?:^|\s)-H\s+'([^']*)'", joined):
+            req["headers"].append(h.group(1))
+        m = re.search(r"--data-raw\s+\$?'(.*)'\s*(?:--|$)", joined, re.S)
+        if m:
+            req["body"] = m.group(1)
+            req["method"] = "POST"
+        requests.append(req)
+    return requests
+
+
+def classify(reqs):
+    """Identify the four chain requests from the saved exports.
+
+    Returns {"resume", "job", "opportunity", "report"} request dicts.
+    The report GET's numeric opportunity id is replaced with {id} so the
+    template serves future scans.
+    """
+    kinds = {}
+    for r in reqs:
+        path = urllib.parse.urlparse(r["url"]).path
+        is_multipart = any(h.lower().startswith("content-type: multipart/")
+                           for h in r["headers"])
+        if r["method"] == "GET" and re.search(r"/opportunities/\d+", path):
+            # Template for future scans: {id} placeholder, and the
+            # match report lives one path segment below the opportunity.
+            # A query string (parser/experiment flags from the saved
+            # export) must survive the templating.
+            url = re.sub(r"/opportunities/\d+", "/opportunities/{id}",
+                         r["url"])
+            base, _, query = url.partition("?")
+            tail = base.rstrip("/").rsplit("/", 1)[-1]
+            if tail not in ("report", "match-report"):
+                base = base.rstrip("/") + "/report"
+            url = base + (("?" + query) if query else "")
+            kinds["report"] = dict(r, url=url)
+        elif r["method"] == "POST" and is_multipart:
+            kinds["resume"] = r
+        elif r["method"] == "POST" and r.get("body", "") and \
+                '"content"' in r["body"]:
+            kinds["job"] = r
+        elif r["method"] == "POST" and "opportunities" in path:
+            kinds["opportunity"] = r
+    missing = {"resume", "job", "opportunity", "report"} - set(kinds)
+    if missing:
+        raise SystemExit(
+            "error: could not classify saved request(s) as "
+            + ", ".join(sorted(missing))
+            + " — re-export the four requests (see Setup)")
+    return kinds
+
+
+# ------------------------------------------------------------------ jar
+
+def seed_jar(cookies, url, jar=None):
+    """Write the exported cookie blob into the Netscape jar (once)."""
+    jar = jar or JAR_FILE
+    host = urllib.parse.urlparse(url).netloc
+    lines = ["# Netscape HTTP Cookie File",
+             "# Seeded from curl.txt; rotated by curl -c afterwards."]
+    for pair in cookies.split("; "):
+        if "=" not in pair:
+            continue
+        name, value = pair.split("=", 1)
+        lines.append(f".{host}\tTRUE\t/\tTRUE\t9999999999\t{name}\t{value}")
+    with open(jar, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def jar_value(name, jar=None):
+    """Current value of a cookie from the jar (HttpOnly lines included —
+    curl prefixes them with '#HttpOnly_', which is not a comment)."""
+    jar = jar or JAR_FILE
+    for line in open(jar, encoding="utf-8", errors="replace"):
+        if line.startswith("#HttpOnly_"):
+            line = line[len("#HttpOnly_"):]
+        if line.startswith("#") or not line.strip():
+            continue
+        parts = line.split("\t")
+        if len(parts) >= 7 and parts[5] == name:
+            return parts[6].strip()
+    return None
+
+
+def csrf_header():
+    """The rotating CSRF header value: the URL-decoded token cookie."""
+    value = jar_value(CSRF_COOKIE)
+    return f"{CSRF_HEADER}: {urllib.parse.unquote(value)}" if value else None
+
+
+# -------------------------------------------------------------- requests
+
+def _browser_headers(saved_headers):
+    """The saved request's headers minus the ones rebuilt per request:
+    the cookie (jar), CSRF (rotates), and multipart content-type (curl
+    sets its own boundary)."""
+    skip = ("cookie:", "x-xsrf-token:")
+    out = []
+    for h in saved_headers:
+        low = h.lower()
+        if any(low.startswith(s) for s in skip):
+            continue
+        if low.startswith("content-type: multipart/"):
+            continue
+        out.append("-H")
+        out.append(h)
+    return out
+
+
+def request(url, headers, *, method=None, json_body=None, multipart=None,
+            timeout=90):
+    cmd = ["curl", "-s", "-S", "--max-time", str(timeout),
+           "-b", JAR_FILE, "-c", JAR_FILE, "-w", "\n%{http_code}"]
+    if method and method != "GET":
+        cmd += ["-X", method]
+    csrf = csrf_header()
+    if csrf:
+        cmd += ["-H", csrf]
+    cmd += headers
+    if json_body is not None:
+        cmd += ["-H", "content-type: application/json",
+                "--data-raw", json.dumps(json_body)]
+    if multipart is not None:
+        path, mime = multipart
+        cmd += ["-F", f"name=auto:{os.path.basename(path)}",
+                "-F", f"original_file=@{path};type={mime}"]
+    r = subprocess.run(cmd + [url], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise SystemExit(f"error: curl failed ({r.returncode}): "
+                         f"{r.stderr[:300]}")
+    body, _, code = r.stdout.rpartition("\n")
+    try:
+        parsed = json.loads(body)
+    except json.JSONDecodeError:
+        parsed = None
+    return int(code), parsed, body
+
+
+def extract_id(data):
+    """First integer 'id' in a response (responses wrap objects in
+    {'data': {...}}, so search recursively)."""
+    if isinstance(data, dict):
+        if isinstance(data.get("id"), int):
+            return data["id"]
+        for v in data.values():
+            got = extract_id(v)
+            if got is not None:
+                return got
+    elif isinstance(data, list):
+        for v in data:
+            got = extract_id(v)
+            if got is not None:
+                return got
+    return None
+
+
+def report_ready(data):
+    """A report GET is ready when the wrapped object carries the match
+    rate or findings (otherwise the scan is still processing)."""
+    obj = data.get("data") if isinstance(data, dict) else None
+    obj = obj if isinstance(obj, dict) else data
+    if not isinstance(obj, dict):
+        return False
+    return bool(obj.get("matchRate") or obj.get("findings"))
+
+
+# ------------------------------------------------------------------ flow
+
+def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
+         config=CURL_FILE):
+    if not os.path.exists(resume_path):
+        raise SystemExit(f"error: resume file not found: {resume_path}")
+    if not os.path.exists(jd_path):
+        raise SystemExit(f"error: JD file not found: {jd_path}")
+    mime = MIME_BY_EXT.get(os.path.splitext(resume_path)[1].lower())
+    if mime is None:
+        raise SystemExit("error: resume must be a .pdf or .docx — the "
+                         "formats the deliverable is submitted in")
+
+    kinds = classify(parse_curl_file(config))
+    for r in kinds.values():
+        if r.get("cookies") and not os.path.exists(JAR_FILE):
+            seed_jar(r["cookies"], r["url"])
+    if not os.path.exists(JAR_FILE):
+        raise SystemExit("error: no cookies in the saved requests")
+
+    resume_headers = _browser_headers(kinds["resume"]["headers"])
+    code, data, body = request(kinds["resume"]["url"], resume_headers,
+                               method="POST", multipart=(resume_path, mime))
+    resume_id = extract_id(data) if code in (200, 201) else None
+    print(f"[1] resume upload -> {code}, resume_id={resume_id}")
+    if not resume_id:
+        _fail(code, body)
+
+    jd_text = open(jd_path, encoding="utf-8", errors="replace").read()
+    code, data, body = request(kinds["job"]["url"],
+                               _browser_headers(kinds["job"]["headers"]),
+                               method="POST", json_body={"content": jd_text})
+    job_id = extract_id(data) if code in (200, 201) else None
+    print(f"[2] job creation -> {code}, job_description_id={job_id}")
+    if not job_id:
+        _fail(code, body)
+
+    code, data, body = request(
+        kinds["opportunity"]["url"],
+        _browser_headers(kinds["opportunity"]["headers"]), method="POST",
+        json_body={"job_description_id": job_id, "resume_id": resume_id,
+                   "stage": "saved"})
+    opp_id = extract_id(data) if code in (200, 201) else None
+    if code == 409 and not opp_id:
+        # The service dedupes identical resume + JD pairs and returns the
+        # existing opportunity — reuse it instead of failing.
+        try:
+            opp_id = extract_id(json.loads(body))
+        except json.JSONDecodeError:
+            opp_id = None
+        if opp_id:
+            print(f"[3] opportunity -> 409 duplicate, reusing "
+                  f"opportunity_id={opp_id} (same resume + JD)")
+    else:
+        print(f"[3] opportunity -> {code}, opportunity_id={opp_id}")
+    if not opp_id:
+        _fail(code, body)
+
+    report_url = kinds["report"]["url"].replace("{id}", str(opp_id))
+    report_headers = _browser_headers(kinds["report"]["headers"])
+    deadline = time.time() + timeout
+    report = None
+    while time.time() < deadline:
+        code, data, body = request(report_url, report_headers)
+        if code == 200 and report_ready(data):
+            report = data.get("data") if isinstance(data.get("data"),
+                                                    dict) else data
+            break
+        time.sleep(interval)
+    if report is None:
+        print(f"error: report not ready after {timeout}s — the scan may "
+              "still be processing; retry the GET later or raise "
+              "--timeout")
+        return 1
+
+    out = out or os.path.splitext(resume_path)[0] + ".ats-check.json"
+    with open(out, "w") as f:
+        json.dump(report, f)
+    mr = report.get("matchRate") or {}
+    wc = next((f.get("variables", {}).get("wordCount")
+               for f in report.get("findings", [])
+               if f.get("key") == "wordCount"), None)
+    ats = next((f.get("variables", {}).get("ats")
+                for f in report.get("findings", [])
+                if f.get("key") == "atsTip"), None)
+    print(f"[4] report ready -> saved {out}")
+    print(f"    matchRate: {mr.get('score')}")
+    print(f"    wordCount: {wc} (cross-check only — the cap uses "
+          "ats_audit's own count)")
+    print(f"    target ATS: {ats or 'NOT identified — add the job posting '
+          'URL to the JD file (SKILL Step 1) and re-scan'}")
+    print(f"    next: ats_audit.py {resume_path} --jd {jd_path} "
+          f"--report-json {out}")
+    return 0
+
+
+def _fail(code, body):
+    if code in (401, 403):
+        raise SystemExit(
+            f"error: {code} — credentials expired. Re-export the four "
+            f"requests from a logged-in browser session into "
+            f"{CURL_FILE} (delete {JAR_FILE} to re-seed).")
+    raise SystemExit(f"error: unexpected {code}: {body[:300]}")
+
+
+def check(config=CURL_FILE):
+    """Validate the saved config without scanning: classify the four
+    requests, verify the jar/CSRF state."""
+    kinds = classify(parse_curl_file(config))
+    print("config ok — requests found:")
+    for kind, r in sorted(kinds.items()):
+        print(f"  {kind:12s} {r['method']:4s} {r['url']}")
+    if os.path.exists(JAR_FILE):
+        print(f"cookie jar: {JAR_FILE} (seeded; rotated on every request)")
+        print("CSRF cookie in jar:", bool(jar_value(CSRF_COOKIE)))
+    else:
+        print("cookie jar: not yet seeded (first scan seeds it)")
+    return 0
+
+
+def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv:
+        print(__doc__)
+        return 2
+    cmd, rest = argv[0], argv[1:]
+
+    def _flag(name, cast=str, default=None):
+        if name not in rest:
+            return default
+        i = rest.index(name)
+        if i + 1 >= len(rest):
+            raise SystemExit(f"error: {name} needs a value")
+        return cast(rest[i + 1])
+
+    if cmd == "check":
+        return check(_flag("--config") or CURL_FILE)
+    if cmd == "scan":
+        if len(rest) < 2:
+            print(__doc__)
+            return 2
+        return scan(rest[0], rest[1],
+                    out=_flag("--out"),
+                    timeout=_flag("--timeout", cast=int, default=300),
+                    interval=_flag("--interval", cast=int, default=6),
+                    config=_flag("--config") or CURL_FILE)
+    print(__doc__)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
