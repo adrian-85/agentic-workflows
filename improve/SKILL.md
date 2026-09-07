@@ -183,9 +183,7 @@ The chat is the approval mechanism — there is no approval script.
    - If the user elects the re-review, **any model may run it** — the
      `reviewModel` restriction is lifted for this step only; the user
      switches models manually and confirms before it starts.
-   - Then follow the Phase 2 review procedure (steps 2–6): findings
-     recorded only, presented in chat, applied on the user's approval.
-     Repeat until the user proceeds to Phase 3.
+   - Then follow the Phase 2 review procedure (steps 2–6).
 
 ### Phase 3: Final Review & Merge
 
