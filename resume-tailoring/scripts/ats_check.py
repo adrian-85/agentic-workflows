@@ -292,8 +292,18 @@ def report_ready(data):
 
 # ------------------------------------------------------------------ flow
 
+def _posting_url(jd_text):
+    """The job posting URL persisted with the JD (SKILL Step 1's
+    'Posting URL: <url>' first line), or None."""
+    for line in jd_text.splitlines():
+        m = re.match(r"\s*posting url:\s*(\S+)", line, re.I)
+        if m:
+            return m.group(1)
+    return None
+
+
 def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
-         config=CURL_FILE):
+         config=CURL_FILE, company=None):
     if not os.path.exists(resume_path):
         raise SystemExit(f"error: resume file not found: {resume_path}")
     if not os.path.exists(jd_path):
@@ -352,6 +362,24 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
     if not opp_id:
         _fail(code, body)
 
+    # Attach the posting metadata the way the browser flow does — the
+    # service's ATS-identification and several findings depend on the
+    # posting URL (SKILL Step 1 persists it with the JD).
+    posting_url = _posting_url(jd_text)
+    if posting_url:
+        patch = {"url": posting_url}
+        if company:
+            patch["company"] = company
+        code, data, body = request(
+            f"{kinds['opportunity']['url']}/{opp_id}",
+            _browser_headers(kinds["opportunity"]["headers"]),
+            method="PATCH", json_body=patch)
+        print(f"[3b] opportunity metadata -> {code} "
+              f"(url={posting_url}{', company=' + company if company else ''})")
+    else:
+        print("[3b] no Posting URL in the JD file — ATS cannot be "
+              "identified (SKILL Step 1)")
+
     report_url = kinds["report"]["url"].replace("{id}", str(opp_id))
     report_headers = _browser_headers(kinds["report"]["headers"])
     deadline = time.time() + timeout
@@ -381,9 +409,15 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
     print(f"    matchRate: {mr.get('score')}")
     print(f"    wordCount: {wc} (cross-check only — the cap uses "
           "ats_audit's own count)")
-    fallback = ("NOT identified — add the job posting URL to the JD file "
-                "(SKILL Step 1) and re-scan")
-    print(f"    target ATS: {ats or fallback}")
+    if ats:
+        print(f"    target ATS: {ats}")
+    elif posting_url:
+        print("    target ATS: the service could not match this posting "
+              "URL to a known ATS — ATS-specific findings are unavailable "
+              "for this posting")
+    else:
+        print("    target ATS: NOT identified — the JD file has no "
+              "'Posting URL:' line (SKILL Step 1); add it and re-scan")
     print(f"    next: ats_audit.py {resume_path} --jd {jd_path} "
           f"--report-json {out}")
     return 0
@@ -432,7 +466,8 @@ def main(argv=None):
         return check(_flag("--config") or CURL_FILE)
     if cmd == "scan":
         # Flags may appear before or after the positionals.
-        flag_names = ("--config", "--out", "--timeout", "--interval")
+        flag_names = ("--config", "--out", "--timeout", "--interval",
+                      "--company")
         positional, skip_next = [], False
         for a in rest:
             if skip_next:
@@ -449,7 +484,8 @@ def main(argv=None):
                     out=_flag("--out"),
                     timeout=_flag("--timeout", cast=int, default=300),
                     interval=_flag("--interval", cast=int, default=6),
-                    config=_flag("--config") or CURL_FILE)
+                    config=_flag("--config") or CURL_FILE,
+                    company=_flag("--company"))
     print(__doc__)
     return 2
 

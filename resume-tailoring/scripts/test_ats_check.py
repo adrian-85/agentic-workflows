@@ -213,6 +213,27 @@ class JarTests(unittest.TestCase):
                          urllib.parse.unquote("TOK%3D"))
 
 
+class PostingUrlTests(unittest.TestCase):
+    """SKILL Step 1 persists 'Posting URL: <url>' as the JD's first line —
+    the scan attaches it to the opportunity so the service can identify
+    the target ATS (a session saw both browser and API scans fail the
+    match because the URL was missing)."""
+
+    def test_posting_url_extracted(self):
+        self.assertEqual(
+            ac._posting_url("Posting URL: https://ats.example/apply/123\n"
+                            "Engineer\nbody"),
+            "https://ats.example/apply/123")
+
+    def test_posting_url_case_insensitive_and_indented(self):
+        self.assertEqual(
+            ac._posting_url("  posting url:  https://x.example/j \nRest"),
+            "https://x.example/j")
+
+    def test_no_posting_url_returns_none(self):
+        self.assertIsNone(ac._posting_url("Engineer\nbody text"))
+
+
 class ResponseTests(unittest.TestCase):
     def test_extract_id_top_level_object(self):
         # Resume upload: the object sits at top level AND carries its own

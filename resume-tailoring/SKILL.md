@@ -646,8 +646,16 @@ PDF parser inflates counts (it splits labeled values into fragments), so
 the cap is always `ats_audit.py`'s own count. The scan output names the
 target company's ATS when it identified one (`target ATS:` line, from the
 report's atsTip finding) — that identification needs the posting URL
-persisted with the JD (Step 1); on `NOT identified`, add the URL and
-re-scan before trusting the ATS-specific findings.
+persisted with the JD (Step 1): the chain PATCHes it onto the opportunity
+and reports which of three states applies (identified / URL unmatched by
+the service / URL missing). Note the score itself varies a few points
+with the exact JD text submitted (a real posting scored 39, 42, and 38
+across three scans with near-identical JD texts — the JD parser extracts
+slightly different skill candidate sets): treat the external score as
+DIRECTIONAL, and only compare scores measured against the SAME JD text.
+When the service cannot match the posting to a known ATS (e.g. postings
+hosted on job boards rather than an ATS), ATS-specific findings are
+simply unavailable — the keyword findings still apply.
 
 **IGNORED by rule: the contactEmail searchability finding.** The compact
 hyperlinked contact block (link text "Email" over a `mailto:` target) is a
