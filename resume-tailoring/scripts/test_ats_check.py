@@ -214,11 +214,25 @@ class JarTests(unittest.TestCase):
 
 
 class ResponseTests(unittest.TestCase):
+    def test_extract_id_top_level_object(self):
+        # Resume upload: the object sits at top level AND carries its own
+        # "data" field (docx parse metadata) — the top-level id wins.
+        self.assertEqual(
+            ac.extract_id({"id": 28495705, "name": " Resume_copy",
+                           "data": {"meta": {}}}), 28495705)
+
     def test_extract_id_inside_data_wrapper(self):
         self.assertEqual(ac.extract_id({"data": {"id": 12807942}}),
                          12807942)
         self.assertEqual(ac.extract_id({"id": 5}), 5)
         self.assertIsNone(ac.extract_id({"data": {"name": "x"}}))
+
+    def test_extract_id_from_409_dedupe_body(self):
+        self.assertEqual(
+            ac.extract_id({"message": "already saved",
+                           "errors": {"duplicate_opportunity": {
+                               "opportunity": {"id": 12807942}}}}),
+            12807942)
 
     def test_report_ready_checks_wrapped_object(self):
         self.assertTrue(ac.report_ready(

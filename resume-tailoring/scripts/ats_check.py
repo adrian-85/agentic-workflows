@@ -260,16 +260,19 @@ def request(url, headers, *, method=None, json_body=None, multipart=None,
 
 
 def extract_id(data):
-    """First integer 'id' in a response. The API wraps objects in
-    {'data': {...}}; the 409 dedupe body nests under
-    errors.duplicate_opportunity.opportunity. A direct path covers both
-    without recursion (and avoids matching unrelated nested ids)."""
+    """The created object's id from a response. Three observed shapes,
+    checked in order: top-level {"id": N, ...} (resume upload — whose
+    "data" field is the docx parse metadata, NOT a wrapper), the
+    {"data": {"id": N}} wrapper (job/opportunity), and the 409 dedupe
+    body {"errors": {"duplicate_opportunity": {"opportunity":
+    {"id": N}}}}. Direct paths only — no tree search, which could match
+    unrelated nested ids."""
     if isinstance(data, dict):
-        # Common case: {'data': {'id': N}} or top-level {'id': N}
-        obj = data.get("data") if isinstance(data.get("data"), dict) else data
-        if isinstance(obj, dict) and isinstance(obj.get("id"), int):
-            return obj["id"]
-        # 409 dedupe: errors.duplicate_opportunity.opportunity.id
+        if isinstance(data.get("id"), int):
+            return data["id"]
+        inner = data.get("data")
+        if isinstance(inner, dict) and isinstance(inner.get("id"), int):
+            return inner["id"]
         err = (data.get("errors") or {}).get("duplicate_opportunity") or {}
         opp = err.get("opportunity") if isinstance(err, dict) else None
         if isinstance(opp, dict) and isinstance(opp.get("id"), int):
@@ -428,10 +431,21 @@ def main(argv=None):
     if cmd == "check":
         return check(_flag("--config") or CURL_FILE)
     if cmd == "scan":
-        if len(rest) < 2:
+        # Flags may appear before or after the positionals.
+        flag_names = ("--config", "--out", "--timeout", "--interval")
+        positional, skip_next = [], False
+        for a in rest:
+            if skip_next:
+                skip_next = False
+                continue
+            if a in flag_names:
+                skip_next = True
+                continue
+            positional.append(a)
+        if len(positional) < 2:
             print(__doc__)
             return 2
-        return scan(rest[0], rest[1],
+        return scan(positional[0], positional[1],
                     out=_flag("--out"),
                     timeout=_flag("--timeout", cast=int, default=300),
                     interval=_flag("--interval", cast=int, default=6),
