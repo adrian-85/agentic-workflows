@@ -24,17 +24,21 @@ and PDF verification — is documented in [`SKILL.md`](SKILL.md).
 | `scripts/render_pdf.sh` | Renders the `.docx` to PDF (LibreOffice headless), verifies page count, flags a sparse last page, and reports overflow past `TARGET_PAGES` with a reclaim hint. Compact by default; add `--verbose` for the page-boundary map and spilled-content dump. |
 | `scripts/squeeze_resume.py` | Auto-tightens a tailored resume to a page budget, ending the cut-render-cut-render loop. Each iteration renders, applies the JD-aware oldest-first DROP PLAN, and repeats until on target or no JD-safe cuts remain — at which point it signals a whole-role drop (seniority alignment) or a Tools-line trim. Logs every cut to `<docx>.squeeze.json` as copy-pasteable `find_p` prefixes to fold back into the tailor script. |
 | `scripts/diff_resume.py` | Diffs a user-edited tailored `.docx` against a fresh regenerate so manual edits surface as text and can be folded back into the tailor script. `--tailor <script>` auto-regenerates to a temp file and diffs in one command. |
-| `scripts/validate_resume.py` | Structural validator: catches orphan job titles, company blocks without titles, orphaned content after a Tools line, **role-integrity violations** (kept roles missing title or bullets; removed roles whose bullets survive), roles over the **8-bullet hard cap** (SKILL Step 8; the master as input is exempt), unapproved whole-role elimination, and quantified-claim mismatches against the master. With `--jd` it also warns when the resume headline is **MORE SENIOR** than the JD's named title (SKILL Step 4 title alignment; advisory) and gates Education drops against degree-requiring JDs. Enforces the punctuation rule (periods and commas only in Summary/job-history prose — no em dashes, double hyphens, semicolons, colons, or ellipses; compound hyphens, date-range en dashes, and the Tools line's `Label: values` colon exempt). Advisory **GUIDANCE** section: word-count cap — no prose paragraph or individual bullet over 40 words, ≤40 acceptable (SKILL Step 4) — and sections between Summary & Technical Proficiencies (SKILL Step 5). `render_pdf.sh` runs it before rendering and refuses broken output. |
+| `scripts/validate_resume.py` | Structural validator: catches orphan job titles, company blocks without titles, orphaned content after a Tools line, **role-integrity violations** (kept roles missing title or bullets; removed roles whose bullets survive), roles over the **8-bullet hard cap** (SKILL Step 8; the master as input is exempt), the **whole-resume word cap** (≤1000 words for a tailored deliverable — `--max-words N` overrides, `0` disables; the master input is exempt), unapproved whole-role elimination, and quantified-claim mismatches against the master. With `--jd` it also warns when the resume headline is **MORE SENIOR** than the JD's named title (SKILL Step 4 title alignment; advisory) and gates Education drops against degree-requiring JDs. Enforces the punctuation rule (periods and commas only in Summary/job-history prose — no em dashes, double hyphens, semicolons, colons, or ellipses; compound hyphens, date-range en dashes, and the Tools line's `Label: values` colon exempt). Advisory **GUIDANCE** section: word-count cap — no prose paragraph or individual bullet over 40 words, ≤40 acceptable (SKILL Step 4) — and sections between Summary & Technical Proficiencies (SKILL Step 5). `render_pdf.sh` runs it before rendering and refuses broken output. |
 | `scripts/read_profile.sh` | Dumps the LinkedIn data-export folder (`Basic_LinkedInDataExport_*/` CSVs) as one readable stream, used as a content cross-reference. |
+| `scripts/ats_audit.py` | **ATS verification backstop (SKILL Step 11)**: the internal JD matchers are term/concept-based, but ATS screeners match literal phrases — this tool runs the ATS-style check on the rendered PDF (pdftotext), not the .docx. Checks the whole-resume word cap with its own counting (mirrors external scorers by stripping page furniture), literal hosting of the JD's qualification-line skill phrases (`--jd`), and optionally externally supplied phrase lists (`--phrases-file`, one per line) or an external scan report (`--report-json` — the report's per-skill hit counts are the authoritative host signal; the report's `contactEmail` finding is IGNORED by rule: the compact hyperlinked contact block is deliberate design). Zero-hit hard-skill terms fail — host the exact phrase truthfully or raise the gap, never fabricate. Exit 0 clean, 1 findings, 2 usage/IO error. |
+| `scripts/ats_check.py` | **External scan runner (SKILL Step 11, optional)**: submits the rendered deliverable (PDF preferred — it is the submitted format) to the user's ATS scan service and saves the match-report JSON next to the resume for `ats_audit.py --report-json`. Reconstructs the upload → job-description → opportunity → report chain from the user's OWN saved cURL exports in `~/.config/ats-check/curl.txt` — no service specifics are hardcoded — rotating session cookies through a curl cookie jar and re-deriving the CSRF header from the jar before every request. When scans return 401/403, re-export the four requests from a logged-in browser session and delete `~/.config/ats-check/cookies.txt` to re-seed. `ats_check.py check` validates the saved config without scanning. Identifying the target company's ATS requires the job posting URL persisted with the JD (`Posting URL: <url>` as the first line of `jd_<target>.txt`, SKILL Step 1). |
 | `scripts/test_docx_edit.py` | Unit tests for `docx_edit.py`. |
 | `scripts/test_measure_resume.py` | Unit tests pinning `measure_resume.py`'s default format assumptions and proving the constants adapt to a different resume. |
 | `scripts/test_squeeze_resume.py` | Unit tests for `squeeze_resume.py`'s auto-loop and JD-safe-stop logic. |
-| `scripts/test_validate_resume.py` | Unit tests for `validate_resume.py`'s structural checks, role-integrity lint, and seniority-gate logic. |
+| `scripts/test_validate_resume.py` | Unit tests for `validate_resume.py`'s structural checks, role-integrity lint, word cap, and seniority-gate logic. |
+| `scripts/test_ats_audit.py` | Unit tests for the literal-phrase audit (hosting rules, phrase mining, word counting, report consumption). |
+| `scripts/test_ats_check.py` | Offline unit tests for the scan chain (config parsing/classification, cookie-jar rotation handling, response shapes) — no network. |
 
 Run the full suite from the `scripts` directory:
 
 ```bash
-python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test_squeeze_resume
+python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test_squeeze_resume test_ats_audit test_ats_check
 ```
 
 ## Requirements
@@ -87,6 +91,18 @@ python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test
    drop (seniority alignment) without touching the file. Verification is
    text-only — `--verbose` page map, page-fill table, `pdftotext` — never
    rendered page images.
+6. **Verify the ATS view of the deliverable** after the final render — the
+   internal matchers are term/concept-based and overestimate alignment:
+
+   ```bash
+   python3 scripts/ats_audit.py "<userName> Resume - <Target>.pdf" --jd jd_<target>.txt
+   ```
+
+   checks the 1000-word cap and every JD qualification phrase literally on
+   the rendered text; fix zero-hit phrases truthfully or raise the gap.
+   Optionally add the external ground truth by saving the scan service's
+   cURL exports to `~/.config/ats-check/curl.txt` (see `scripts/ats_check.py`)
+   and running `python3 scripts/ats_check.py scan "<...>.pdf" jd_<target>.txt`.
 
 ## Resume format assumptions
 
@@ -122,7 +138,9 @@ for a tool the user hasn't used. See the Accuracy section in `SKILL.md`.
 Personal assets (the master resume, LinkedIn exports, tailored outputs) are
 never version-controlled — `.docx` and `.pdf` are gitignored, and this repo
 ships code and documentation only. Users drop their own files into the skill
-root.
+root. The external scan service's credentials live outside the repo too
+(`~/.config/ats-check/curl.txt` + cookie jar) — the scan service sees the
+resume text by design; nothing else does.
 
 ## License
 
