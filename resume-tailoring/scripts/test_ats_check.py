@@ -145,6 +145,37 @@ class ClassifyTests(unittest.TestCase):
         self.assertIn("job", str(cm.exception))
 
 
+class ConfigLocationTests(unittest.TestCase):
+    """The config lives in the SKILL ROOT (.ats-check/) — with the
+    workflow's other personal assets, gitignored, and durable across
+    session cleanup. No fallback: one path, one source of truth."""
+
+    def test_config_dir_is_skill_root_dotdir(self):
+        # scripts/ats_check.py -> skill root is its parent directory.
+        expected = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(ac.__file__))),
+            ".ats-check")
+        self.assertEqual(ac.CONFIG_DIR, expected)
+
+    def test_config_dir_not_under_home_config(self):
+        # A ~/.config location was wiped by a sandbox session cleanup —
+        # the whole point of the relocation. Never resolve there.
+        self.assertFalse(
+            ac.CONFIG_DIR.startswith(os.path.join(os.path.expanduser("~"),
+                                                  ".config")))
+
+    def test_write_private_enforces_0600(self):
+        fd, path = tempfile.mkstemp()
+        os.close(fd)
+        try:
+            os.chmod(path, 0o644)
+            ac._write_private(path, "secret content")
+            self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+            self.assertEqual(open(path).read(), "secret content")
+        finally:
+            os.unlink(path)
+
+
 class JarTests(unittest.TestCase):
     def setUp(self):
         fd, self.jar = tempfile.mkstemp(suffix=".txt")

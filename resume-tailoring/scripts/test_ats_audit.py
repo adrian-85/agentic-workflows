@@ -139,6 +139,7 @@ class JdLiteralTermsTests(unittest.TestCase):
         self.assertEqual(aa._jd_literal_terms(jd), [])
 
 
+
 class PhraseAuditTests(unittest.TestCase):
     def test_zero_hit_phrases_listed(self):
         text = "built data quality dashboards and automated regression"
@@ -252,6 +253,22 @@ class MainTests(unittest.TestCase):
     def test_usage_error(self):
         rc, _ = self._run()
         self.assertEqual(rc, 2)
+
+    def test_vacuous_mining_warns_not_clean(self):
+        # A JD whose qual lines use no cue syntax mines ZERO phrases — the
+        # audit must flag the check as vacuous, never report it clean (a
+        # real session saw '0/0 hosted' read as ok and hand-rolled a
+        # phrases file to get real results).
+        resume = _tmp("Quality assurance with Python and Playwright.")
+        jd = _tmp("Requirements\n\nOwn quality for the product team.\n")
+        try:
+            rc, out = self._run(resume, "--jd", jd)
+            self.assertEqual(rc, 0)  # warning, not a failure
+            self.assertIn("the literal check is vacuous", out)
+            self.assertNotIn("JD literal terms:", out)  # no ok line
+        finally:
+            os.unlink(resume)
+            os.unlink(jd)
 
 
 if __name__ == "__main__":

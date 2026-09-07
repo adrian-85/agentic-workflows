@@ -1395,6 +1395,17 @@ class TitleAlignmentTests(unittest.TestCase):
             mr._jd_title("Software Test Engineer\n\nOwn quality end-to-end."),
             "Software Test Engineer")
 
+    def test_jd_title_skips_posting_url_line(self):
+        # SKILL Step 1 persists the job posting URL as the JD file's FIRST
+        # line — that metadata line must never become the title (a session
+        # saw the placeholder parsed as the JD title).
+        self.assertEqual(
+            mr._jd_title("Posting URL: https://ats.example/apply/123\n"
+                         "Forward Deployed AI Engineer\n\nOwn quality."),
+            "Forward Deployed AI Engineer")
+        self.assertIsNone(
+            mr._jd_title("Posting URL: <not provided yet — ask user>"))
+
     def test_jd_title_from_label_line(self):
         self.assertEqual(
             mr._jd_title("Acme Careers\nJob Title: Software Test Engineer\n"

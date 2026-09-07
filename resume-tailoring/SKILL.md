@@ -637,10 +637,11 @@ raise.
 scan service and saves the match-report JSON next to the resume
 (`<...>.ats-check.json`); feed it back for the authoritative cross-check:
 `ats_audit.py ... --report-json <report>.json`. The service's credentials
-live in `~/.config/ats-check/curl.txt` (the user's own saved cURL exports;
-never committed — when a scan returns 401/403, tell the user to re-export
-them from a logged-in session and delete `~/.config/ats-check/cookies.txt`
-to re-seed). The report's `wordCount` is a CROSS-CHECK only — the service's
+live in the skill root's `.ats-check/curl.txt` (the user's own saved
+cURL exports; gitignored like every other personal asset, and durable
+across session cleanup — never committed. When a scan returns 401/403,
+tell the user to re-export them from a logged-in session and delete
+`.ats-check/cookies.txt` to re-seed). The report's `wordCount` is a CROSS-CHECK only — the service's
 PDF parser inflates counts (it splits labeled values into fragments), so
 the cap is always `ats_audit.py`'s own count. The scan output names the
 target company's ATS when it identified one (`target ATS:` line, from the
@@ -771,7 +772,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Letting the deliverable drift past 1,000 words | Blocking validator gate + `ats_audit.py` count — cut content, never shrink fonts (Steps 3, 8, 11) |
 | Widening the contact block or rewriting link text for ATS parsers | IGNORED by rule — the compact hyperlinked contact block is deliberate design; `contactEmail` searchability findings are noise (Step 11) |
 | Treating the external report's wordCount as the cap | The service's PDF parser inflates counts — the cap is `ats_audit.py`'s own count; the report's number is a cross-check only (Step 11) |
-| Storing scan-service credentials in the repo | They live in `~/.config/ats-check/curl.txt` (user's saved cURL exports, git-ignored); refresh from a logged-in browser when scans 401 (Step 11) |
+| Storing scan-service credentials in the repo | They live in the skill root's `.ats-check/` dot-directory (user's saved cURL exports; gitignored, 0600, invisible to `git add *`); refresh from a logged-in browser when scans 401 (Step 11) |
 | Scan says the target ATS was NOT identified | The posting URL wasn't persisted with the JD (Step 1) — add `Posting URL: <url>` as the first line of `jd_<target>.txt` and re-scan |
 | Punctuation in prose (em dash, semicolon, colon, ellipsis) | Periods and commas ONLY — no em dashes, double hyphens, semicolons, colons, or ellipses (`...`); split into a new sentence or use a comma. The Tools line's `Label: values` colon is the one exempt structural colon (Step 9) |
 | JD asks for fewer years than the candidate has | Offer Step 3 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it. The token needs the user's authority: their chat reply or pre-authorization in the request; never pass it on your own |

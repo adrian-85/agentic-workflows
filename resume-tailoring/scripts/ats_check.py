@@ -7,12 +7,16 @@ JSON for `ats_audit.py --report-json`.
 
 NO service specifics live in this file. The endpoints, headers, and
 cookies come from the user's own "Copy as cURL" exports saved in
-~/.config/ats-check/curl.txt (never committed; the scan service sees the
-resume text — assume nothing else in the repo does). See "Setup".
+`<skill-root>/.ats-check/curl.txt` (never committed; the scan service
+sees the resume text — assume nothing else in the repo does). See
+"Setup".
 
 Setup — save four cURL requests, captured from the scan service's web
 app in the browser DevTools (Network tab, "Copy as cURL"), into
-~/.config/ats-check/curl.txt, separated by blank lines:
+`<skill-root>/.ats-check/curl.txt`, separated by blank lines (the skill
+root is this repo's resume-tailoring/ directory — the config lives with
+the workflow's other personal assets, gitignored, and survives session
+cleanup):
 
     1. the resume-upload POST (multipart, file upload)
     2. the job-description POST (JSON body with the JD text)
@@ -47,7 +51,14 @@ import sys
 import time
 import urllib.parse
 
-CONFIG_DIR = os.path.expanduser("~/.config/ats-check")
+# Config lives in the SKILL ROOT (this repo's resume-tailoring/), next
+# to the master resume and JD files it belongs to — gitignored, durable
+# across sessions (a ~/.config location was wiped by a sandbox cleanup
+# once). A dot-directory: shell globs (`git add *`) skip dotfiles, so the
+# credentials cannot be swept up by a blanket stage. Files are written
+# 0600. No fallback location — one path, one source of truth.
+SKILL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CONFIG_DIR = os.path.join(SKILL_ROOT, ".ats-check")
 CURL_FILE = os.path.join(CONFIG_DIR, "curl.txt")
 JAR_FILE = os.path.join(CONFIG_DIR, "cookies.txt")
 CSRF_COOKIE = "XSRF-TOKEN"
@@ -155,6 +166,15 @@ def classify(reqs):
 
 # ------------------------------------------------------------------ jar
 
+def _write_private(path, text):
+    """Write a credential-bearing file owner-only (0600) — the jar and
+    anything holding session cookies must not be group/world readable.
+    os.open's mode only applies at creation, so chmod unconditionally."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+    os.chmod(path, 0o600)
+
+
 def seed_jar(cookies, url, jar=None):
     """Write the exported cookie blob into the Netscape jar (once)."""
     jar = jar or JAR_FILE
@@ -166,8 +186,7 @@ def seed_jar(cookies, url, jar=None):
             continue
         name, value = pair.split("=", 1)
         lines.append(f".{host}\tTRUE\t/\tTRUE\t9999999999\t{name}\t{value}")
-    with open(jar, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
+    _write_private(jar, "\n".join(lines) + "\n")
 
 
 def jar_value(name, jar=None):
@@ -280,10 +299,13 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
     if mime is None:
         raise SystemExit("error: resume must be a .pdf or .docx — the "
                          "formats the deliverable is submitted in")
+    if os.path.exists(config):
+        os.chmod(config, 0o600)  # curl.txt holds session cookies
 
     kinds = classify(parse_curl_file(config))
     for r in kinds.values():
         if r.get("cookies") and not os.path.exists(JAR_FILE):
+            os.makedirs(CONFIG_DIR, exist_ok=True)
             seed_jar(r["cookies"], r["url"])
     if not os.path.exists(JAR_FILE):
         raise SystemExit("error: no cookies in the saved requests")

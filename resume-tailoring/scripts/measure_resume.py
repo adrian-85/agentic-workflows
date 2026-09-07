@@ -1057,12 +1057,16 @@ def _jd_title(jd_text):
 
     Prefers an explicit 'Job Title:'-style line anywhere in the posting;
     otherwise uses the first non-empty line (JDs normally open with the
-    title). Returns None when neither is a plausible single-line title
+    title). Lines beginning 'Posting URL:' are skipped — SKILL Step 1
+    persists the job posting URL as the JD file's first line, and that
+    metadata line must never become the title. Returns None when neither
+    candidate is a plausible single-line title
     (<= TITLE_MAX_WORDS words, no lowercase sentence continuation) — the
     posting may be a recruiter message or boilerplate, so the check is
     skipped, never guessed.
     """
-    lines = [l.strip() for l in jd_text.splitlines() if l.strip()]
+    lines = [l.strip() for l in jd_text.splitlines() if l.strip()
+             and not l.lstrip().lower().startswith("posting url:")]
     if not lines:
         return None
     for l in lines:

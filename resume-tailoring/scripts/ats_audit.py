@@ -389,6 +389,15 @@ def main(argv=None):
                 + ", ".join(missing)
                 + " — host the exact phrase truthfully or raise the gap "
                 "(never fabricate)")
+        elif not ok_n:
+            # 0/0 is NOT a pass: the miner found no cue-tails in this JD's
+            # qualification syntax, so the check is vacuous — a clean
+            # verdict here would read as verified alignment.
+            warns.append(
+                "JD literal phrase mining found NO skill phrases (this "
+                "JD's qualification lines use no cue syntax) — the literal "
+                "check is vacuous; supply --phrases-file with the JD's "
+                "named skills/tools")
         else:
             ok_lines.append(f"JD literal terms: {ok_n}/{ok_n + len(missing)} "
                             "hosted")

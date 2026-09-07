@@ -426,13 +426,13 @@ user's ATS scan service, waits for the match report, and saves its JSON next
 to the resume (`<resume>.ats-check.json`); feed that back into
 `ats_audit.py --report-json` for the authoritative cross-check. The chain is
 reconstructed from the user's OWN saved cURL exports in
-`~/.config/ats-check/curl.txt` (four requests: resume upload, job
+the skill root's `.ats-check/curl.txt` (four requests: resume upload, job
 description, opportunity, report GET) — the tool classifies them by shape,
 templates fresh ids, rotates the session cookies through a curl cookie jar,
 and re-derives the CSRF header from the jar before every request. No service
 specifics are hardcoded; when a scan returns 401/403 the credentials expired —
 the user re-exports the four requests from a logged-in browser session and
-deletes `~/.config/ats-check/cookies.txt` to re-seed. The service dedupes an
+deletes `.ats-check/cookies.txt` to re-seed. The service dedupes an
 identical resume + JD pair (409) and the tool reuses the returned opportunity.
 The scan output prints the match rate, the report's wordCount (cross-check
 only — its PDF parser inflates counts), and the identified target ATS; the
