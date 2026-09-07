@@ -176,6 +176,23 @@ The chat is the approval mechanism — there is no approval script.
    - Apply each approved change in the worktree
    - Commit with descriptive messages
 
+7. **Optional re-review of the quality changes (user-elected):**
+   - Offer the user a re-run of the code-simplicity-reviewer and
+     writing-skills skills against the Phase 2 changes (the diff
+     committed since gate 3's implementation).
+   - If the user elects the re-review, **any model may run it** — the
+     `reviewModel` restriction is lifted for this step only; the user
+     switches models manually and confirms before it starts.
+   - Findings are presented in chat — record only; nothing is applied
+     until the user approves them. On approval, apply each change in
+     the worktree and commit with descriptive messages.
+   - The step may be repeated (re-review the new commits) until the
+     user is satisfied; then continue to Phase 3. If declined,
+     proceed directly to Phase 3.
+   - This is a chat-approved sub-step, not a checkpoint gate: do not
+     call `checkpoint.sh` for it, and do not count it as a fifth hard
+     stop.
+
 ### Phase 3: Final Review & Merge
 
 1. **Generate the final diff:**
