@@ -9,7 +9,6 @@ import random
 
 from fastapi.testclient import TestClient
 
-from p2p_qa import config
 from p2p_qa.mock_api import create_app
 
 _SKUS = [

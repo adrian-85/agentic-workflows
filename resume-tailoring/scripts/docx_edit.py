@@ -167,7 +167,7 @@ def _script_records_jd(jd_path):
     basename so a relative-vs-absolute path difference cannot
     false-positive. An unreadable caller stays silent (soft convention)."""
     try:
-        with open(sys.argv[0]) as f:
+        with open(sys.argv[0], encoding="utf-8") as f:
             return os.path.basename(jd_path) in f.read()
     except OSError:
         return True
@@ -252,15 +252,13 @@ def _deliverable_gate(path, root, src):
             seniority_approved=seniority_approved,
             education_approved=education_approved, protect=protect,
             max_words=max_words)
-    except SystemExit:
-        raise  # never swallow a validator abort
     except Exception as e:  # validator crashed — do not silently pass the gate
         print(
             f"DELIVERABLE GATE: validation error ({e!r}) — fix the "
             f"validator before writing {path}",
             file=sys.stderr,
         )
-        raise SystemExit(2)
+        raise SystemExit(2) from e
     if result["blocking"]:
         blocking_lines = [l for l in result["lines"] if "ERROR" in l]
         # A tailor run copies the master to DST before editing, so a stale
@@ -371,7 +369,7 @@ def save(path, root, names, data, drift_key=None, src=None):
     baseline = {}
     if os.path.exists(drift_path):
         try:
-            with open(drift_path) as f:
+            with open(drift_path, encoding="utf-8") as f:
                 baseline = json.load(f)
         except (ValueError, OSError):
             baseline = {}
@@ -431,7 +429,7 @@ def save(path, root, names, data, drift_key=None, src=None):
     baseline[drift_key] = {"edits": applied, "master_sha": master_sha,
                            "paragraphs": para_count}
     try:
-        with open(drift_path, "w") as f:
+        with open(drift_path, "w", encoding="utf-8") as f:
             json.dump(baseline, f, indent=1)
     except OSError:
         pass  # sidecar is best-effort; never fails the save

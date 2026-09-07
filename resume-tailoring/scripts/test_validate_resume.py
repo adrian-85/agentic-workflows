@@ -430,7 +430,7 @@ class WordCapTests(unittest.TestCase):
     3-page build past the line and the user set the rule."""
 
     @staticmethod
-    def _docx(path, bullet_words=99, bullets=8, name="Resume - Target.docx"):
+    def _docx(path, bullet_words=99, bullets=8):
         fd, real = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         os.replace(real, path)
@@ -497,7 +497,7 @@ class WordCapTests(unittest.TestCase):
         path = os.path.join(tempfile.mkdtemp(),
                             "Sample Master Resume.docx")
         try:
-            self._docx(path, bullet_words=140, name=path)
+            self._docx(path, bullet_words=140)
             result = vr.validate_tree(path, self._body(path))
             report = "\n".join(result["lines"])
             self.assertIn("input is a master", report)
@@ -1142,7 +1142,7 @@ class GuidanceTests(unittest.TestCase):
                     + de.XMLNS + '"><w:body/></w:document>')
                 z.writestr("[Content_Types].xml", "<Types/>")
             root, body_el, names, data, _ = de.load(path)
-            b, s = self._body_with(
+            b, _s = self._body_with(
                 " ".join(f"w{i}" for i in range(45)) + ".",
                 extra_sections=["Top Skills"])
             for p in list(b):
@@ -1168,7 +1168,7 @@ blocking."""
         jfd, jd_path = tempfile.mkstemp(suffix=".txt")
         os.close(jfd)
         try:
-            with open(jd_path, "w") as f:
+            with open(jd_path, "w", encoding="utf-8") as f:
                 f.write("Required Qualifications:\n"
                         "5+ years of Java experience. "
                         "Experience with Kubernetes.\n")
@@ -1178,7 +1178,7 @@ blocking."""
                     + de.XMLNS + '"><w:body/></w:document>')
                 z.writestr("[Content_Types].xml", "<Types/>")
             root, body_el, names, data, _ = de.load(path)
-            b, s = self._body_with("Short summary.")
+            b, _s = self._body_with("Short summary.")
             for p in list(b):
                 body_el.append(p)
             with contextlib.redirect_stdout(io.StringIO()):
@@ -1206,7 +1206,7 @@ blocking."""
                     + de.XMLNS + '"><w:body/></w:document>')
                 z.writestr("[Content_Types].xml", "<Types/>")
             root, body_el, names, data, _ = de.load(path)
-            b, s = self._body_with("Short summary.")
+            b, _s = self._body_with("Short summary.")
             for p in list(b):
                 body_el.append(p)
             with contextlib.redirect_stdout(io.StringIO()):

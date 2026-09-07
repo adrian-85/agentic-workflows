@@ -1,4 +1,3 @@
-import pytest
 from p2p_qa import judge
 from p2p_qa.adversarial import ProbeResult
 from p2p_qa.client import StepRecord

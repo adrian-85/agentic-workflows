@@ -18,7 +18,6 @@ from xml.etree import ElementTree as ET
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
 import docx_edit as de  # noqa: E402
-import measure_resume as mr  # noqa: E402
 import squeeze_resume as sq  # noqa: E402
 
 W = de.W

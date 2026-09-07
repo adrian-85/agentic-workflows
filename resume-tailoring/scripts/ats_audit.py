@@ -58,9 +58,9 @@ def _extract_text(path):
                 ["pdftotext", path, "-"],
                 capture_output=True, text=True, check=True)
         except FileNotFoundError:
-            raise SystemExit("error: pdftotext not found — install poppler-utils")
+            raise SystemExit("error: pdftotext not found — install poppler-utils") from None
         except subprocess.CalledProcessError as e:
-            raise SystemExit(f"error: pdftotext failed on {path}: {e.stderr}")
+            raise SystemExit(f"error: pdftotext failed on {path}: {e.stderr}") from e
         return out.stdout
     with open(path, encoding="utf-8", errors="replace") as f:
         return f.read()

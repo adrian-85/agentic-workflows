@@ -1,4 +1,3 @@
-import pytest
 from p2p_qa import stress
 
 

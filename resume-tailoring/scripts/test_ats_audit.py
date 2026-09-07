@@ -63,7 +63,7 @@ class WordCountTests(unittest.TestCase):
         self.assertIn("exceeds the 1000-word cap by 54", errs[0])
 
     def test_zero_disables_cap(self):
-        count, errs = aa._audit_word_count("word " * 5000, 0)
+        _count, errs = aa._audit_word_count("word " * 5000, 0)
         self.assertEqual(errs, [])
 
     def test_parser_artifacts_stripped(self):
@@ -118,16 +118,16 @@ class JdLiteralTermsTests(unittest.TestCase):
     def test_audit_reports_zero_host_phrases(self):
         resume = ("Software quality assurance engineer. Scripting language "
                   "automation with Selenium and continuous integration.")
-        ok_n, missing = aa._audit_jd(resume.lower(), self.JD)
+        _ok_n, missing = aa._audit_jd(resume.lower(), self.JD)
         # The JD names Playwright/pytest; the resume hosts neither.
         self.assertIn("playwright", missing, missing)
-        self.assertGreater(ok_n, 0)
+        self.assertGreater(_ok_n, 0)
 
     def test_audit_clean_when_all_hosted(self):
         resume = ("Experience in software quality assurance with Python, "
                   "Playwright, Selenium, and pytest for test automation. "
                   "Scripting language work included regression testing.")
-        ok_n, missing = aa._audit_jd(resume.lower(), self.JD)
+        _ok_n, missing = aa._audit_jd(resume.lower(), self.JD)
         self.assertEqual(missing, [])
 
     def test_prose_fragments_not_mined(self):

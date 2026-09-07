@@ -6,7 +6,6 @@ Run from the scripts directory:
     cd ~/.pi/agent/skills/resume-tailoring/scripts && python3 -m unittest test_ats_check
 """
 
-import json
 import os
 import sys
 import tempfile
@@ -137,7 +136,7 @@ class ClassifyTests(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".txt")
         with os.fdopen(fd, "w") as f:
             f.write(SAMPLE_CURLS.split("\ncurl --url "
-                    "'https://ats.example/api/v4/jobs'")[0])
+                    "'https://ats.example/api/v4/jobs'", maxsplit=1)[0])
         try:
             with self.assertRaises(SystemExit) as cm:
                 ac.classify(ac.parse_curl_file(path))
@@ -170,7 +169,7 @@ class JarTests(unittest.TestCase):
         # curl prefixes HttpOnly cookies with '#HttpOnly_' — the reader
         # must strip the prefix, not skip the line (the session cookie is
         # HttpOnly; skipping it breaks rotation).
-        with open(ac.JAR_FILE, "a") as f:
+        with open(ac.JAR_FILE, "a", encoding="utf-8") as f:
             f.write("#HttpOnly_.ats.example\tTRUE\t/\tTRUE\t9999999999\t"
                     "rotated_session\txyz789\n")
         self.assertEqual(ac.jar_value("rotated_session"), "xyz789")

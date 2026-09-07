@@ -168,7 +168,7 @@ def probe_gl_balance(client: P2PClient) -> ProbeResult:
 
 def probe_duplicate(client: P2PClient) -> ProbeResult:
     v, po = _setup_received_po(client, "DupProbe")
-    first = client.create_invoice("INV-ADV-DUP", v["id"], po["id"], 5000)
+    client.create_invoice("INV-ADV-DUP", v["id"], po["id"], 5000)
     second = client.create_invoice("INV-ADV-DUP", v["id"], po["id"], 5000)
     if second.status_code == 400:
         return ProbeResult("duplicate_detection", "duplicate_invoice_number", "HELD",
@@ -313,7 +313,7 @@ def probe_data_integrity(client: P2PClient) -> ProbeResult:
         return ProbeResult("data_integrity", "post_get_verify", "ERROR",
                            _ev("POST", "/vendors", create.status_code, create.response_payload),
                            "create returned no id")
-    ok, got, note = double_verify(client, create, lambda: client.get_vendor(vid),
+    ok, got, note = double_verify(create, lambda: client.get_vendor(vid),
                                   {"name": "IntegrityProbe", "status": "active"})
     if ok:
         return ProbeResult("data_integrity", "post_get_verify", "HELD",
@@ -426,7 +426,6 @@ def _hacker_tool_specs():
 
 
 def _execute_hacker_tool(client, name: str, args: dict):
-    from p2p_qa.client import StepRecord
     if name == "raw_probe":
         return client.raw(args["method"].upper(), args["path"], payload=args.get("payload"))
     if name == "get_vendor":
@@ -483,7 +482,7 @@ def _step_evidence(step) -> dict:
 
 
 def run_hacker(client: P2PClient, llm_chat=None, max_probes: int = config.MAX_HACKER_PROBES,
-               logger=None, progress=None) -> list[ProbeResult]:
+               progress=None) -> list[ProbeResult]:
     """Open-ended red-team agent: proposes and executes probes, then emits
     HELD/BREACHED verdicts in a dedicated reflection turn (deterministic format).
     Same ReAct pattern as the explorer, plus an explicit verdict step."""

@@ -48,7 +48,6 @@ def narrate(report: dict) -> str:
     lines.append("")
     lines.append("=== ADVERSARIAL (verdicts) ===")
     for a in report["adversarial"]:
-        ev = a.get("evidence") or {}
         lines.append(f"  [{a['status']:9s}] {a['rule']:26s} :: {(a.get('note') or '')[:110]}")
     if report.get("integration_issues"):
         lines.append("")
@@ -161,8 +160,8 @@ def cmd_stress(args) -> int:
     print("=== 50-PO STRESS TEST ===")
     print(f"profile: {res['bug_profile']}  | total POs: {res['total']}  | seed: {res['seed']}")
     for rule, rate in sorted(res["failure_rate"].items()):
-        bar = "#" * int(rate * 30)
-        print(f"  {rule:28s} failure_rate={rate:5.1%} {bar}")
+        bar_chart = "#" * int(rate * 30)
+        print(f"  {rule:28s} failure_rate={rate:5.1%} {bar_chart}")
     return 0
 
 

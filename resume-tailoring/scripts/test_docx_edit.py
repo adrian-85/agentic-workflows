@@ -417,7 +417,9 @@ class RemoveEmptyTests(unittest.TestCase):
 
     def test_removes_blank_paragraphs(self):
         body = ET.Element(W + "body")
-        a = ET.SubElement(body, W + "p"); _ = ET.SubElement(a, W + "t"); _.text = "keep"
+        a = ET.SubElement(body, W + "p")
+        _ = ET.SubElement(a, W + "t")
+        _.text = "keep"
         blank = ET.SubElement(body, W + "p")
         self.assertEqual(de.text_of(blank), "")
         n = de.remove_empty(body)
@@ -428,7 +430,9 @@ class RemoveEmptyTests(unittest.TestCase):
         body = ET.Element(W + "body")
         # blank BEFORE the marker stays; blank AT/AFTER marker is removed.
         blank_before = ET.SubElement(body, W + "p")
-        marker = ET.SubElement(body, W + "p"); _ = ET.SubElement(marker, W + "t"); _.text = "MARKER"
+        marker = ET.SubElement(body, W + "p")
+        _ = ET.SubElement(marker, W + "t")
+        _.text = "MARKER"
         blank_after = ET.SubElement(body, W + "p")
         n = de.remove_empty(body, startswith="MARKER")
         self.assertEqual(n, 1)
@@ -448,7 +452,9 @@ class CloneAfterTests(unittest.TestCase):
         numPr = ET.SubElement(pPr, W + "numPr")
         ni = ET.SubElement(numPr, W + "numId")
         ni.set(W + "val", "4")  # Most recent experience bullet numbering id
-        r = ET.SubElement(ref, W + "r"); t = ET.SubElement(r, W + "t"); t.text = "ref"
+        r = ET.SubElement(ref, W + "r")
+        t = ET.SubElement(r, W + "t")
+        t.text = "ref"
         new = de.clone_after(body, ref, "new bullet")
         self.assertIsNotNone(new)
         # Cloned pPr keeps the same numId -> bullet style preserved.
@@ -472,8 +478,12 @@ class RemoveTests(unittest.TestCase):
 
     def test_removes_paragraph(self):
         body = ET.Element(W + "body")
-        a = ET.SubElement(body, W + "p"); _ = ET.SubElement(a, W + "t"); _.text = "keep"
-        b = ET.SubElement(body, W + "p"); _ = ET.SubElement(b, W + "t"); _.text = "drop"
+        a = ET.SubElement(body, W + "p")
+        _ = ET.SubElement(a, W + "t")
+        _.text = "keep"
+        b = ET.SubElement(body, W + "p")
+        _ = ET.SubElement(b, W + "t")
+        _.text = "drop"
         de.remove(body, b)
         self.assertEqual(len(list(body.iter(W + "p"))), 1)
         self.assertEqual(de.text_of(list(body.iter(W + "p"))[0]), "keep")
@@ -884,7 +894,8 @@ class SaveReportTests(unittest.TestCase):
             root, body, names, data, _ = de.load(path)
             for text in ("Bullet one", "Bullet two"):
                 p = ET.SubElement(body, de.W + "p")
-                t = ET.SubElement(p, de.W + "t"); t.text = text
+                t = ET.SubElement(p, de.W + "t")
+                t.text = text
             elements = [de.find_p(de.paras(body), t) for t in ("Bullet one", "Bullet two")]
             de.drop(body, elements)
             out = io.StringIO()
@@ -907,7 +918,8 @@ class SaveReportTests(unittest.TestCase):
             _empty_docx(path)
             root, body, names, data, _ = de.load(path)
             p = ET.SubElement(body, de.W + "p")
-            t = ET.SubElement(p, de.W + "t"); t.text = "x"
+            t = ET.SubElement(p, de.W + "t")
+            t.text = "x"
             de.set_text(p, "hello")
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
@@ -950,16 +962,19 @@ class SaveDriftTests(unittest.TestCase):
     def _one_edit(self, path):
         root, body, names, data, _ = de.load(path)
         p = ET.SubElement(body, de.W + "p")
-        t = ET.SubElement(p, de.W + "t"); t.text = "x"
+        t = ET.SubElement(p, de.W + "t")
+        t.text = "x"
         de.set_text(p, "hello")
         return root, body, names, data
 
     def _two_edits(self, path):
         root, body, names, data, _ = de.load(path)
         p1 = ET.SubElement(body, de.W + "p")
-        t1 = ET.SubElement(p1, de.W + "t"); t1.text = "x"
+        t1 = ET.SubElement(p1, de.W + "t")
+        t1.text = "x"
         p2 = ET.SubElement(body, de.W + "p")
-        t2 = ET.SubElement(p2, de.W + "t"); t2.text = "y"
+        t2 = ET.SubElement(p2, de.W + "t")
+        t2.text = "y"
         de.set_text(p1, "hello")
         de.set_text(p2, "world")
         return root, body, names, data
@@ -967,7 +982,7 @@ class SaveDriftTests(unittest.TestCase):
     def _run(self, path, builder, strict=False, key="tailor_x.py",
              expect_exit=False):
         de._APPLIED = 0
-        root, body, names, data = builder(path)
+        root, _body, names, data = builder(path)
         out = io.StringIO()
         err = io.StringIO()
         old = os.environ.get("DOCX_EDIT_STRICT")
@@ -993,7 +1008,7 @@ class SaveDriftTests(unittest.TestCase):
         os.close(fd)
         try:
             _empty_docx(path)
-            out, err, _ = self._run(path, self._one_edit)
+            _out, err, _ = self._run(path, self._one_edit)
             self.assertNotIn("drift", err)
             self.assertTrue(os.path.exists(path + ".drift.json"))
         finally:
@@ -1007,7 +1022,7 @@ class SaveDriftTests(unittest.TestCase):
         try:
             _empty_docx(path)
             self._run(path, self._one_edit)
-            out, err, _ = self._run(path, self._one_edit)
+            _out, err, _ = self._run(path, self._one_edit)
             self.assertNotIn("drift", err)
         finally:
             os.unlink(path)
@@ -1020,7 +1035,7 @@ class SaveDriftTests(unittest.TestCase):
         try:
             _empty_docx(path)
             self._run(path, self._one_edit)
-            out, err, _ = self._run(path, self._two_edits)
+            _out, err, _ = self._run(path, self._two_edits)
             self.assertIn("DRIFT", err)
             self.assertIn("expected 1", err)
             self.assertIn("applied 2", err)
@@ -1039,9 +1054,9 @@ class SaveDriftTests(unittest.TestCase):
         try:
             _empty_docx(path)
             self._run(path, self._one_edit)
-            out, err, _ = self._run(path, self._two_edits)  # DRIFT warning
+            _out, err, _ = self._run(path, self._two_edits)  # DRIFT warning
             self.assertIn("DRIFT", err)
-            out, err, _ = self._run(path, self._two_edits)  # now clean
+            _out, err, _ = self._run(path, self._two_edits)  # now clean
             self.assertNotIn("DRIFT", err)
         finally:
             os.unlink(path)
@@ -1057,7 +1072,7 @@ class SaveDriftTests(unittest.TestCase):
         try:
             _empty_docx(path)
             self._run(path, self._one_edit)
-            out, err, cm = self._run(path, self._two_edits, strict=True)
+            _out, err, cm = self._run(path, self._two_edits, strict=True)
             self.assertIsNone(cm, "drift alone must not exit under strict")
             self.assertIn("DRIFT", err)
         finally:
@@ -1090,7 +1105,7 @@ class AppendCLITests(unittest.TestCase):
         return path
 
     def _texts(self, path):
-        root, body, names, data, _ = de.load(path)
+        _root, body, _names, _data, _ = de.load(path)
         return [de.text_of(p) for p in de.paras(body)]
 
     def test_appends_after_ref_by_prefix(self):
@@ -1211,20 +1226,20 @@ class MasterChangeGateTests(unittest.TestCase):
     def test_first_run_establishes_baseline_no_gate(self):
         # No previous sha recorded: skipped edits alone do not exit without
         # strict (unchanged legacy behavior for a first run).
-        out, err, cm = self._run(skip=True)
+        _out, err, cm = self._run(skip=True)
         self.assertIsNone(cm)
         self.assertNotIn("MASTER CHANGED", err)
 
     def test_unchanged_master_rerun_with_skips_gated_only_by_strict(self):
         self._run()
-        out, err, cm = self._run(skip=True)
+        _out, err, cm = self._run(skip=True)
         self.assertIsNone(cm, "master unchanged: gate must not fire")
         self.assertNotIn("MASTER CHANGED", err)
 
     def test_changed_master_with_skips_exits_2_without_strict(self):
         self._run()
         self._rewrite_master("v2")
-        out, err, cm = self._run(skip=True)
+        _out, err, cm = self._run(skip=True)
         self.assertIn("MASTER CHANGED", err)
         self.assertIsNotNone(cm, "changed master + skipped edit must gate")
         self.assertEqual(cm.code, 2)
@@ -1234,14 +1249,14 @@ class MasterChangeGateTests(unittest.TestCase):
         # is re-run, every prefix still resolves -> no gate, warning only.
         self._run()
         self._rewrite_master("v2")
-        out, err, cm = self._run()
+        _out, err, cm = self._run()
         self.assertIn("MASTER CHANGED", err)
         self.assertIsNone(cm, "changed master + zero skips must pass")
 
     def test_gate_applies_under_strict_too(self):
         self._run()
         self._rewrite_master("v2")
-        out, err, cm = self._run(skip=True, strict=True)
+        _out, _err, cm = self._run(skip=True, strict=True)
         self.assertIsNotNone(cm)
         self.assertEqual(cm.code, 2)
 
@@ -1268,7 +1283,7 @@ class SetTextCLITests(unittest.TestCase):
         return path
 
     def _texts(self, path):
-        root, body, names, data, _ = de.load(path)
+        _root, body, _names, _data, _ = de.load(path)
         return [de.text_of(p) for p in de.paras(body)]
 
     def test_rewrites_paragraph_by_prefix(self):
@@ -1379,10 +1394,12 @@ class MergeIntoTests(unittest.TestCase):
         body = ET.Element(W + "body")
         t = ET.SubElement(body, W + "p")
         r = ET.SubElement(t, W + "r")
-        x = ET.SubElement(r, W + "t"); x.text = "old target"
+        x = ET.SubElement(r, W + "t")
+        x.text = "old target"
         s = ET.SubElement(body, W + "p")
         r = ET.SubElement(s, W + "r")
-        x = ET.SubElement(r, W + "t"); x.text = "old source"
+        x = ET.SubElement(r, W + "t")
+        x.text = "old source"
         de._ORIG[id(t)] = (t, "old target")
         de._ORIG[id(s)] = (s, "old source")
         return body, t, s
@@ -1420,7 +1437,8 @@ class MergeIntoTests(unittest.TestCase):
         body = ET.Element(W + "body")
         p = ET.SubElement(body, W + "p")
         r = ET.SubElement(p, W + "r")
-        x = ET.SubElement(r, W + "t"); x.text = "solo"
+        x = ET.SubElement(r, W + "t")
+        x.text = "solo"
         err = io.StringIO()
         de._APPLIED = 0
         with contextlib.redirect_stderr(err):
@@ -1546,7 +1564,7 @@ class DeliverableGateTests(unittest.TestCase):
     .docx on disk in a gated state — nothing to hand-convert."""
 
     def setUp(self):
-        import validate_resume as vr  # noqa: F401
+        # (validate_resume import intentionally omitted: unused)
         de._APPLIED = 0
         de._SKIPS.clear()
         workdir = tempfile.mkdtemp()
@@ -1603,14 +1621,14 @@ class DeliverableGateTests(unittest.TestCase):
 
     def test_over_cap_save_refused_and_nothing_written(self):
         # Ungated first (no src): the same state writes fine.
-        root, body, names, data = self._populate(self.dst, 9)
+        root, _body, names, data = self._populate(self.dst, 9)
         with contextlib.redirect_stdout(io.StringIO()):
             de.save(self.dst, root, names, data)
         os.unlink(self.dst)
         _empty_docx(self.dst)
         # Gated (src passed): refused, nothing on disk.
         de._APPLIED = 0
-        root, body, names, data = self._populate(self.dst, 9)
+        root, _body, names, data = self._populate(self.dst, 9)
         cm, _out, err = self._save(self.dst, root, names, data, src=self.master)
         self.assertIsNotNone(cm, "over-cap save must exit 2")
         self.assertIn("DELIVERABLE GATE", err)
@@ -1622,7 +1640,7 @@ class DeliverableGateTests(unittest.TestCase):
                          "gated state and its stale copy must be gone")
 
     def test_clean_save_with_src_passes(self):
-        root, body, names, data = self._populate(self.dst, 8)
+        root, _body, names, data = self._populate(self.dst, 8)
         cm, _out, err = self._save(self.dst, root, names, data, src=self.master)
         self.assertIsNone(cm, err)
         self.assertTrue(os.path.exists(self.dst))
@@ -1630,7 +1648,7 @@ class DeliverableGateTests(unittest.TestCase):
     def test_no_src_save_ungated(self):
         # Tool-internal saves (measure --simulate, squeeze, tests) pass no
         # src and are never gated.
-        root, body, names, data = self._populate(self.dst, 30)
+        root, _body, names, data = self._populate(self.dst, 30)
         cm, _out, err = self._save(self.dst, root, names, data, src=None)
         self.assertIsNone(cm, err)
         self.assertTrue(os.path.exists(self.dst))
@@ -1638,7 +1656,7 @@ class DeliverableGateTests(unittest.TestCase):
     def test_master_path_save_exempt(self):
         # Folding into the master itself is never gated — the master
         # intentionally keeps everything.
-        root, body, names, data = self._populate(self.master, 12)
+        root, _body, names, data = self._populate(self.master, 12)
         cm, _out, err = self._save(self.master, root, names, data,
                                    src=self.master)
         self.assertIsNone(cm, err)

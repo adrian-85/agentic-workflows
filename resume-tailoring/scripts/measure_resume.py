@@ -864,7 +864,7 @@ def _jd_missing_terms(jd_text, body, jd_terms):
     return sorted(missing)
 
 
-def _jd_requirement_coverage(roles, body, jd_text, jd_terms):
+def _jd_requirement_coverage(roles, body, jd_text):
     """Structured JD requirement → evidence map.
 
     Returns a list of ``(label, status, detail)`` tuples, one per
@@ -956,7 +956,7 @@ def _boundaries_without_spacer(body):
                 j -= 1
             if (j > prev_header_idx and j == i - 1
                     and de.style_and_numid(ps[j])[0] != SECTION_STYLE):
-                out.append((de.text_of(ps[i]).strip(),
+                out.append((de.text_of(p).strip(),
                             de.text_of(ps[j]).strip()))
         prev_header_idx = i
     return out
@@ -1719,7 +1719,7 @@ def _layout_hints(matched, pages_text, capacity):
             enumerate(pages_text, start=1)
             for l in _page_lines(ptext)]
     keys = [r["key"] for r, *_ in matched]
-    for r, sp, ep, rendered in matched:
+    for r, *_ in matched:
         idx = _role_header_flat(flat, r["key"])
         if idx is not None and idx + 1 < len(flat):
             on_page_break = flat[idx][0] != flat[idx + 1][0]
@@ -1797,7 +1797,7 @@ def _measured_lines_per_bullet(matched):
     """
     total_bullet_lines = 0.0
     bullet_count = 0
-    for r, sp, ep, rendered in matched:
+    for r, _sp, _ep, rendered in matched:
         n = r["bullets"]
         if not n:
             continue
@@ -1820,7 +1820,7 @@ def _reclaim_batch(matched, per_bullet, gap):
     """
     plan = []
     remaining = gap
-    for r, sp, ep, rendered in reversed(matched):
+    for r, _sp, _ep, rendered in reversed(matched):
         if remaining <= 0:
             break
         n = r["bullets"]
@@ -1877,7 +1877,7 @@ def _resolved_jd_terms(jd_text, body, simulate, sim_jd_terms):
 
 
 def main():
-    argv = [a for a in sys.argv[1:]]
+    argv = list(sys.argv[1:])
     protect = []
     jd_file = None
     simulate = []
@@ -1940,7 +1940,7 @@ def main():
     with tempfile.TemporaryDirectory() as td:
         sim_jd_terms = None  # sentinel: no --jd passed
         if simulate:
-            pre_root, pre_body, _, _, _ = de.load(docx)
+            _, pre_body, _, _, _ = de.load(docx)
             pre_roles = _roles(pre_body)
             if jd_file:
                 sim_jd_terms = _jd_terms(jd_text, pre_body)
@@ -1965,7 +1965,7 @@ def main():
                   "tailor script (SKILL Step 3).")
             print()
 
-        root, body, _, _, _ = de.load(docx)
+        _, body, _, _, _ = de.load(docx)
         roles = _roles(body)
 
         jd_terms = _resolved_jd_terms(jd_text, body, simulate, sim_jd_terms)
@@ -2028,10 +2028,10 @@ def main():
               f"{'Y' if r['has_tools'] else '-':>5}")
     print(f"  {'Education (tail)':<34} {'':>4} {edu:>5}")
     print(f"  {'TOTAL':<34} {'':>4} {fixed_top + role_lines + edu:>5}")
-    print(f"  b/cap = NUMBERED bullets vs the Step-8 cap. Intros are not "
-          f"bullets and not cap fillers: intended keep + drops must equal")
-    print(f"  the master's count per role (23 bullets, keep 8, drop 16 = "
-          f"7 kept — one bullet more cut than intended).")
+    print("  b/cap = NUMBERED bullets vs the Step-8 cap. Intros are not "
+          "bullets and not cap fillers: intended keep + drops must equal")
+    print("  the master's count per role (23 bullets, keep 8, drop 16 = "
+          "7 kept — one bullet more cut than intended).")
 
     # Tools lines that wrap — each costs ~1 extra rendered line; name the
     # roles so the agent can trim them without re-measuring.
@@ -2074,7 +2074,7 @@ def main():
         print()
         print(f"MEASURED: ~{per:.1f} rendered lines per bullet (this render)")
         print("BATCH RECLAIM PLAN (oldest roles first; +1-bullet buffer):")
-        for key, action, saved in plan:
+        for key, action, _saved in plan:
             print(f"  - {key}: {action}")
             if action.startswith("consider dropping"):
                 gap = _gap_if_dropped(matched_roles, key)
@@ -2171,7 +2171,7 @@ def main():
     # QUALIFIED: the resume must demonstrate each JD ask. [UNCOVERED]
     # lines are the never-fabricate flags' positive counterpart.
     if jd_terms:
-        coverage = _jd_requirement_coverage(roles, body, jd_text, jd_terms)
+        coverage = _jd_requirement_coverage(roles, body, jd_text)
         if coverage:
             uncov = sum(1 for _, s, _ in coverage if s == "uncovered")
             weak = sum(1 for _, s, _ in coverage if s == "weak")

@@ -242,7 +242,7 @@ class WrappedToolsBudgetTests(unittest.TestCase):
         flat = self._flat(
             "Go, Python, JavaScript,",
             ["TypeScript, Azure", "Service Bus"])
-        key, value_chars, capacity, _preview = mr._wrapped_tools(
+        _key, value_chars, capacity, _preview = mr._wrapped_tools(
             flat, self._matched())[0]
         self.assertEqual(value_chars, len(self.VALUE))
         self.assertEqual(capacity, len("Go, Python, JavaScript,"))
@@ -497,7 +497,7 @@ class TopRoleBatchTests(unittest.TestCase):
 
     def test_no_batch_when_feasible_cuts_close_the_gap(self):
         plan = [("Old", "drop 2 bullet(s) (saves ~5 lines)", 5.0)]
-        batch, adjusted, feasible = mr._top_role_batch(
+        batch, _adjusted, feasible = mr._top_role_batch(
             self.matched, plan, 2.5, 4, tools_savings=4,
             top_block_count=1, jd_terms=set())
         self.assertIsNone(batch)
@@ -1086,7 +1086,7 @@ class TopBlockCandidatesTests(unittest.TestCase):
     """_top_block_candidates: off-JD proficiencies/cert lines are
     first-class cut candidates."""
 
-    def _body(self, jd_term_line=True):
+    def _body(self):
         ps = [
             _para("Technical Proficiencies", style="SectionHeading"),
             _para("Programming Languages: Java, Python"),
@@ -1191,7 +1191,7 @@ class ApplySimulateTests(unittest.TestCase):
                 with open(src, "rb") as f:
                     self.assertEqual(f.read(), before,
                                      "original must never be modified")
-                root, body, _, _, _ = de.load(out)
+                _, body, _, _, _ = de.load(out)
                 texts = [de.text_of(p) for p in de.paras(body)]
                 self.assertFalse(any("Initech" in t for t in texts))
                 self.assertIn("Acme Corp, Springfield03/2022 – 02/2023", texts)
@@ -1760,7 +1760,7 @@ class JdRequirementCoverageTests(unittest.TestCase):
 
     def test_covered_line_lists_host_bullet(self):
         jd, body = self._jd_and_body()
-        result = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
+        result = mr._jd_requirement_coverage(mr._roles(body), body, jd)
         self.assertTrue(any(s == "covered" and "Selenium" in label
                             for label, s, _ in result), result)
         self.assertTrue(any("Acme" in detail
@@ -1769,7 +1769,7 @@ class JdRequirementCoverageTests(unittest.TestCase):
 
     def test_uncovered_line_flagged(self):
         jd, body = self._jd_and_body()
-        result = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
+        result = mr._jd_requirement_coverage(mr._roles(body), body, jd)
         self.assertTrue(any(s == "uncovered" and "Terraform" in label
                             for label, s, _ in result), result)
         self.assertTrue(any("never fabricate" in detail
@@ -1780,7 +1780,7 @@ class JdRequirementCoverageTests(unittest.TestCase):
         # Kubernetes/Helm live only on the Tools line: [weak] with the
         # Step-5 weave instruction, not [covered].
         jd, body = self._jd_and_body()
-        result = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
+        result = mr._jd_requirement_coverage(mr._roles(body), body, jd)
         self.assertTrue(any(s == "weak" and "Kubernetes" in label
                             for label, s, _ in result), result)
         self.assertTrue(any("weave" in detail
@@ -1788,10 +1788,10 @@ class JdRequirementCoverageTests(unittest.TestCase):
                         result)
 
     def test_no_qualification_section_is_silent(self):
-        jd, body = self._jd_and_body()
+        _jd, body = self._jd_and_body()
         self.assertEqual(
             mr._jd_requirement_coverage(mr._roles(body), body,
-                                        "Hi there, let's talk.", set()),
+                                        "Hi there, let's talk."),
             [])
 
     def test_soft_skill_line_is_by_hand_with_action_verb_detail(self):
@@ -1801,7 +1801,7 @@ class JdRequirementCoverageTests(unittest.TestCase):
         jd, body = self._jd_and_body()
         jd += ("Excellent communication, stakeholder management, and "
                "technical leadership skills\n")
-        result = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
+        result = mr._jd_requirement_coverage(mr._roles(body), body, jd)
         self.assertTrue(any(s == "by_hand" and "soft-skill" in detail
                             for _, s, detail in result), result)
 
@@ -1826,7 +1826,7 @@ class JdRequirementCoverageTests(unittest.TestCase):
                   "Java, TestNG and Cucumber.", numId=2),
             _para("Tools & Technologies: Kubernetes, Helm"),
         ])
-        result = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
+        result = mr._jd_requirement_coverage(mr._roles(body), body, jd)
         self.assertTrue(result, "bare Required:/Preferred: headings must "
                         "collect qualification lines")
         self.assertTrue(any(s == "covered" and "Selenium" in label

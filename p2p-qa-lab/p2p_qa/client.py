@@ -138,7 +138,7 @@ class StepLogger:
 
     def __init__(self, path: str):
         self.path = path
-        self._fh = open(path, "a")
+        self._fh = open(path, "a", encoding="utf-8")
 
     def record(self, step: StepRecord) -> None:
         self._fh.write(json.dumps(step.to_dict()) + "\n")
@@ -147,7 +147,7 @@ class StepLogger:
     def iter_steps(self) -> list[StepRecord]:
         steps = []
         try:
-            with open(self.path) as fh:
+            with open(self.path, encoding="utf-8") as fh:
                 for line in fh:
                     line = line.strip()
                     if not line:
@@ -186,7 +186,6 @@ class P2PClient:
         headers = {}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
-        last_error = None
         attempts = 0
         while True:
             attempts += 1
@@ -214,7 +213,6 @@ class P2PClient:
                     self.logger.record(step)
                 return step
             except httpx.HTTPError as e:
-                last_error = e
                 duration = (time.monotonic() - start) * 1000.0
                 if attempts <= len(config.RETRY_BACKOFF_S[:3]):
                     time.sleep(config.RETRY_BACKOFF_S[attempts - 1])
@@ -323,7 +321,7 @@ class P2PClient:
         never marked verified its own right.
         """
         got = get_fn()
-        ok, note = self._check_persisted(create, got, expected_fields)
+        ok, note = self._check_persisted(got, expected_fields)
         # The create carries verified/verify_note (set by the caller after
         # this). The GET is the verification itself — tag it as the prover
         # (verifies=<create>), never as verified. This method does NOT log;
@@ -334,7 +332,7 @@ class P2PClient:
         return ok, note, got
 
 
-    def _check_persisted(self, create: StepRecord, got: StepRecord | None,
+    def _check_persisted(self, got: StepRecord | None,
                          expected_fields: dict) -> tuple[bool, str]:
         """Return (ok, note) for whether get_fn's response proves the create
         persisted and echoes expected_fields. Does NOT fire or log a GET."""
@@ -352,7 +350,7 @@ class P2PClient:
         return True, "GET proof matches POST values"
 
 
-def double_verify(client: P2PClient, create: StepRecord, get_fn: Callable[[], StepRecord],
+def double_verify(create: StepRecord, get_fn: Callable[[], StepRecord],
                   expected_fields: dict) -> tuple[bool, StepRecord | None, str]:
     """Verify a create actually persisted: run get_fn and compare fields.
 

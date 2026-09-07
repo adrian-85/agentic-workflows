@@ -82,8 +82,8 @@ the user. See SKILL.md → Accuracy section.
 import shutil
 
 from docx_edit import (
-    load, save, paras, find_p, set_text, set_labeled, replace_text,
-    merge_into, drop, drop_role, drop_section, remove_empty,
+    load, save, paras, find_p, set_text, set_labeled,
+    drop, remove_empty,
 )
 
 SRC = "<userName> Master Resume.docx"

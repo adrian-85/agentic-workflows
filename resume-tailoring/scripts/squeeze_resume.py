@@ -105,7 +105,7 @@ def _print_foldback(foldback):
 
 
 def main():
-    argv = [a for a in sys.argv[1:]]
+    argv = list(sys.argv[1:])
     plan_only = "--plan-only" in argv
     protect = []
     jd_file = None

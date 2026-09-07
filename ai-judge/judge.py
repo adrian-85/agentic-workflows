@@ -46,8 +46,8 @@ def load_openrouter_credentials() -> str:
     auth = json.loads(auth_path.read_text(encoding="utf-8"))
     try:
         return auth["openrouter"]["key"]
-    except (KeyError, TypeError):
-        raise RuntimeError("OpenRouter key not present in Pi auth store.")
+    except (KeyError, TypeError) as exc:
+        raise RuntimeError("OpenRouter key not present in Pi auth store.") from exc
 
 
 def get_client():

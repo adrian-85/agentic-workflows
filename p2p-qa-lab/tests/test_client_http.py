@@ -27,7 +27,7 @@ def test_double_verify_ok_when_persisted(request):
     c = P2PClient(base)
     create = c.create_vendor("VerifyCo", "active")
     vid = create.response_payload["id"]
-    ok, get_rec, note = double_verify(c, create, lambda: c.get_vendor(vid),
+    ok, get_rec, _ = double_verify(create, lambda: c.get_vendor(vid),
                                       {"name": "VerifyCo", "status": "active"})
     assert ok is True and get_rec.status_code == 200
 
@@ -38,5 +38,5 @@ def test_double_verify_fails_on_phantom(request):
     c = P2PClient(base)
     create = c.create_vendor("GhostCo", "active")
     vid = create.response_payload["id"]
-    ok, get_rec, note = double_verify(c, create, lambda: c.get_vendor(vid), {"name": "GhostCo"})
+    ok, get_rec, _ = double_verify(create, lambda: c.get_vendor(vid), {"name": "GhostCo"})
     assert ok is False and get_rec.status_code == 404

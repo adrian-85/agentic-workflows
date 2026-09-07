@@ -27,15 +27,15 @@ Money is integer cents everywhere. Amounts may arrive as int or string.
 import argparse
 import os
 import threading
-import time
 from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import JSONResponse
 
 from p2p_qa import config, money
 
-_now = lambda: datetime.now(timezone.utc).isoformat()
+
+def _now():
+    return datetime.now(timezone.utc).isoformat()
 
 
 class Store:
@@ -267,7 +267,7 @@ def create_app(bug_profile: str = "clean", require_auth: bool = False, seed: int
             try:
                 amount = money.parse_cents(body.get("amount_cents"))
             except ValueError as e:
-                raise HTTPException(status_code=422, detail=str(e))
+                raise HTTPException(status_code=422, detail=str(e)) from e
             if amount < 0:
                 raise HTTPException(status_code=422, detail="negative invoice amount")
             norm = inv_no.casefold().replace(" ", "")

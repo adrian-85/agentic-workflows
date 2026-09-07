@@ -5,7 +5,6 @@ exactly (integer-cents math), folding in adversarial baseline results. The
 LLM interpretation layer (later) must not contradict these anchors.
 """
 
-import re
 from dataclasses import dataclass, field
 
 from p2p_qa import config

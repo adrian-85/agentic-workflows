@@ -41,7 +41,7 @@ from docx_edit import load, paras, text_of
 
 
 def texts(path):
-    root, body, _names, _data, _ = load(path)
+    _root, body, _names, _data, _ = load(path)
     return [text_of(p) for p in paras(body)]
 
 

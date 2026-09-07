@@ -235,7 +235,6 @@ def run_explorer(client, logger, llm_chat=None, max_steps=config.MAX_EXPLORER_ST
                             for tc in tool_calls],
         })
 
-        finished = False
         for tc in tool_calls:
             name = tc["name"]
             args = tc.get("arguments") or "{}"
@@ -272,7 +271,6 @@ def run_explorer(client, logger, llm_chat=None, max_steps=config.MAX_EXPLORER_ST
             history.append({"role": "tool", "tool_call_id": tc["id"],
                             "content": json.dumps(compact)})
             if name == "finish_happy_path":
-                finished = True
                 try:
                     done = json.loads(args).get("completed", False)
                 except json.JSONDecodeError:
@@ -330,18 +328,18 @@ def _mark_verified(client, step: StepRecord):
                     "status": step.request_payload.get("status", "active")}
         got = client.verification_get("get_vendor", f"/vendors/{rid}",
                                       schema_key="GET /vendors/{id}")
-        ok, note = client._check_persisted(step, got, expected)
+        ok, note = client._check_persisted(got, expected)
     elif step.name == "create_po":
         expected = {"status": "draft"}
         got = client.verification_get("get_po", f"/purchase-orders/{rid}",
                                       schema_key="GET /purchase-orders/{id}")
-        ok, note = client._check_persisted(step, got, expected)
+        ok, note = client._check_persisted(got, expected)
     elif step.name == "create_invoice":
         expected = {"invoice_number": step.request_payload.get("invoice_number"),
                     "amount_cents": step.request_payload.get("amount_cents")}
         got = client.verification_get("get_invoice", f"/invoices/{rid}",
                                       schema_key="GET /invoices/{id}")
-        ok, note = client._check_persisted(step, got, expected)
+        ok, note = client._check_persisted(got, expected)
     else:
         return False, None
     step.verified = ok

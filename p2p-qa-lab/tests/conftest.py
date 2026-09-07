@@ -38,6 +38,7 @@ def p2p_api(request):
             time.sleep(0.1)
     else:
         proc.terminate()
+        proc.wait()
         raise RuntimeError("mock API failed to start")
     yield base
     proc.terminate()

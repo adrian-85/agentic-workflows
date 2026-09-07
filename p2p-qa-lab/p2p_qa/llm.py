@@ -42,8 +42,8 @@ def chat(system: str, messages: list[dict], tools: list[dict] | None = None,
          temperature: float = 0.2, model: str | None = None) -> dict:
     """One chat turn. Returns {"role","content","tool_calls"}. Retries with backoff."""
     client = _client()
-    kwargs = dict(model=model or config.MODEL, temperature=temperature,
-                  messages=[{"role": "system", "content": system}] + messages)
+    kwargs = {"model": model or config.MODEL, "temperature": temperature,
+              "messages": [{"role": "system", "content": system}] + messages}
     if tools:
         kwargs["tools"] = tools
     last_err: Exception | None = None

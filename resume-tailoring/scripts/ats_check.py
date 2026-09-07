@@ -72,7 +72,8 @@ def parse_curl_file(path=CURL_FILE):
         raise SystemExit(
             f"error: {path} not found — save the four 'Copy as cURL' "
             "exports there (see the module docstring's Setup section)")
-    text = open(path, encoding="utf-8", errors="replace").read()
+    with open(path, encoding="utf-8", errors="replace") as f:
+        text = f.read()
     # One request per 'curl' line start; backslash continuations joined.
     raw_requests, cur = [], None
     for line in text.splitlines():
@@ -165,7 +166,7 @@ def seed_jar(cookies, url, jar=None):
             continue
         name, value = pair.split("=", 1)
         lines.append(f".{host}\tTRUE\t/\tTRUE\t9999999999\t{name}\t{value}")
-    with open(jar, "w") as f:
+    with open(jar, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 
 
@@ -173,14 +174,15 @@ def jar_value(name, jar=None):
     """Current value of a cookie from the jar (HttpOnly lines included —
     curl prefixes them with '#HttpOnly_', which is not a comment)."""
     jar = jar or JAR_FILE
-    for line in open(jar, encoding="utf-8", errors="replace"):
-        if line.startswith("#HttpOnly_"):
-            line = line[len("#HttpOnly_"):]
-        if line.startswith("#") or not line.strip():
-            continue
-        parts = line.split("\t")
-        if len(parts) >= 7 and parts[5] == name:
-            return parts[6].strip()
+    with open(jar, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            if line.startswith("#HttpOnly_"):
+                line = line[len("#HttpOnly_"):]
+            if line.startswith("#") or not line.strip():
+                continue
+            parts = line.split("\t")
+            if len(parts) >= 7 and parts[5] == name:
+                return parts[6].strip()
     return None
 
 
@@ -226,7 +228,7 @@ def request(url, headers, *, method=None, json_body=None, multipart=None,
         path, mime = multipart
         cmd += ["-F", f"name=auto:{os.path.basename(path)}",
                 "-F", f"original_file=@{path};type={mime}"]
-    r = subprocess.run(cmd + [url], capture_output=True, text=True)
+    r = subprocess.run(cmd + [url], capture_output=True, text=True, check=False)
     if r.returncode != 0:
         raise SystemExit(f"error: curl failed ({r.returncode}): "
                          f"{r.stderr[:300]}")
@@ -294,7 +296,8 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
     if not resume_id:
         _fail(code, body)
 
-    jd_text = open(jd_path, encoding="utf-8", errors="replace").read()
+    with open(jd_path, encoding="utf-8", errors="replace") as f:
+        jd_text = f.read()
     code, data, body = request(kinds["job"]["url"],
                                _browser_headers(kinds["job"]["headers"]),
                                method="POST", json_body={"content": jd_text})
@@ -342,7 +345,7 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
         return 1
 
     out = out or os.path.splitext(resume_path)[0] + ".ats-check.json"
-    with open(out, "w") as f:
+    with open(out, "w", encoding="utf-8") as f:
         json.dump(report, f)
     mr = report.get("matchRate") or {}
     fm = {f["key"]: f for f in report.get("findings", [])
@@ -353,8 +356,9 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
     print(f"    matchRate: {mr.get('score')}")
     print(f"    wordCount: {wc} (cross-check only — the cap uses "
           "ats_audit's own count)")
-    print(f"    target ATS: {ats or 'NOT identified — add the job posting '
-          'URL to the JD file (SKILL Step 1) and re-scan'}")
+    fallback = ("NOT identified — add the job posting URL to the JD file "
+                "(SKILL Step 1) and re-scan")
+    print(f"    target ATS: {ats or fallback}")
     print(f"    next: ats_audit.py {resume_path} --jd {jd_path} "
           f"--report-json {out}")
     return 0

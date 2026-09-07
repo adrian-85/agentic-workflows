@@ -1,4 +1,3 @@
-import pytest
 from p2p_qa.client import validate_response
 
 

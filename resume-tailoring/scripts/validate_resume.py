@@ -265,7 +265,7 @@ def _structural_errors(region):
     for p in region:
         if not de.text_of(p).strip():
             continue
-        style, numId = de.style_and_numid(p)
+        style, _num_id = de.style_and_numid(p)
         if style == mr.COMPANY_STYLE:
             if waiting_title:
                 errors.append(
@@ -301,8 +301,7 @@ def _structural_errors(region):
                 last_kind = 'tools'
             elif _is_bullet(p):
                 last_kind = 'bullet'
-            else:
-                last_kind = last_kind  # intro paragraphs etc. keep state
+            # intro paragraphs etc. keep state (last_kind unchanged)
     if waiting_title:
         errors.append(
             f"company block has no job title (end of section): "
@@ -331,7 +330,7 @@ def _near_duplicates(region):
                 pair = tuple(sorted((i, k)))
                 if pair not in warned:
                     warned.add(pair)
-                    yield bullets[k][:60], bullets[i][:60], s[:40]
+                    yield bullets[k][:60], t[:60], s[:40]
             else:
                 subs.setdefault(s, i)
 
@@ -460,7 +459,7 @@ def _role_groups(body):
         style, _ = de.style_and_numid(p)
         t = de.text_of(p).strip()
         if style == "SectionHeading":
-            in_career = (t == mr.SECTION_CAREER)
+            in_career = t == mr.SECTION_CAREER
             continue
         if not in_career:
             continue
@@ -604,7 +603,7 @@ def _education_gate(jd_text, body, span, jd_years, approved):
             span_txt = (f"the ~{span:.1f}-year visible span does not clearly"
                         f" exceed" + (f" {ask}" if ask else "")
                         if span is not None else
-                        f"the resume has no dated roles to satisfy"
+                        "the resume has no dated roles to satisfy"
                         + (f" {ask}" if ask else ""))
             notes.append((
                 "warn",
@@ -1074,7 +1073,7 @@ def main(argv=None):
         return 2
     path = argv[0]
 
-    root, body, names, data, _ = de.load(path)
+    _root, body, _names, _data, _ = de.load(path)
     result = validate_tree(
         path, body, master_path=master, jd_path=jd_path, jd_years=jd_years,
         seniority_approved=seniority_approved,
