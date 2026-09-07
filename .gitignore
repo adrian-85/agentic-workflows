@@ -13,8 +13,6 @@ resume-tailoring/jd_*.txt
 # LinkedIn data exports (personal — stay local)
 resume-tailoring/Basic_LinkedInDataExport_*/
 
-# ATS Check scan credentials + reports (session cookies, resume text —
-# stay local; dot-dir also protects against blanket `git add *` staging)
 resume-tailoring/.ats-check/
 resume-tailoring/*.ats-check.json
 
