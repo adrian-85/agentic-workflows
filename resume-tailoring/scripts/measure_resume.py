@@ -740,7 +740,14 @@ JD_WORD_TERM_RE = re.compile(r"(?<![A-Za-z0-9+#])([A-Z][A-Za-z0-9+#.]+)")
 JD_COMPANY_VOICE_RE = re.compile(r"\b(we|our|us|you|your)\b", re.I)
 JD_QUAL_HEADING_RE = re.compile(
     r"^\s*#{0,6}\s*(?:required\s+|preferred\s+|minimum\s+)?"
-    r"(?:qualifications|requirements|skills|experience)\b\s*:?\s*$",
+    r"(?:qualifications|requirements|skills|experience)\b\s*:?\s*$"
+    # A bare "Required:" / "Preferred:" / "Minimum:" heading line — a
+    # common short-form JD format where the qualifier IS the whole heading.
+    # Without this, such a line (which ends in ':') is read by the
+    # collector as a section TERMINATOR instead of a heading, killing the
+    # requirement-coverage map (and its never-fabricate guard) for the
+    # entire posting.
+    r"|^\s*#{0,6}\s*(?:required|preferred|minimum)\s*:?\s*$",
     re.I,
 )
 

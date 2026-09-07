@@ -663,7 +663,7 @@ def _readability_guidance(body, summary, *, region=None, master_input=False):
     without applying the SKILL's readability guidance.
     """
     notes = []
-    summary_text = de.text_of(summary).strip() if summary else ""
+    summary_text = de.text_of(summary).strip() if summary is not None else ""
     if not master_input:
         for p, text in _prose_paragraphs(region or _region(body), summary):
             if _is_tools(p):

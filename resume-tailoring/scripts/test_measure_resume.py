@@ -1805,6 +1805,37 @@ class JdRequirementCoverageTests(unittest.TestCase):
         self.assertTrue(any(s == "by_hand" and "soft-skill" in detail
                             for _, s, detail in result), result)
 
+    def test_bare_colon_headings_still_collect(self):
+        # A short-form JD labels its qualification sections with a bare
+        # "Required:" / "Preferred:" heading line (no noun after the
+        # qualifier). Such a line ends in ':', which the collector reads
+        # as a section TERMINATOR — the heading regex must recognize it
+        # as a heading first, or the requirement-coverage map (and its
+        # never-fabricate guard) silently fires for the whole posting.
+        jd = ("Requirements\n"
+              "Required:\n"
+              "5+ years of experience using Selenium Web Driver, Java, "
+              "TestNG\n"
+              "Preferred:\n"
+              "Familiarity with Kubernetes and Helm\n")
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " \u2013 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Built REST API test suites with Selenium WebDriver, "
+                  "Java, TestNG and Cucumber.", numId=2),
+            _para("Tools & Technologies: Kubernetes, Helm"),
+        ])
+        result = mr._jd_requirement_coverage(mr._roles(body), body, jd, set())
+        self.assertTrue(result, "bare Required:/Preferred: headings must "
+                        "collect qualification lines")
+        self.assertTrue(any(s == "covered" and "Selenium" in label
+                            for label, s, _ in result), result)
+        # Kubernetes/Helm live only on the Tools line: [weak], per the
+        # same rule test_non_bullet_host_is_weak asserts above.
+        self.assertTrue(any(s == "weak" and "Kubernetes" in label
+                            for label, s, _ in result), result)
+
 
 class SpacerBoundaryTests(unittest.TestCase):
     """The readability pause, reported instead of remembered: inter-role
