@@ -8,7 +8,9 @@ with byte-level evidence. One probe's failure never aborts the suite.
 from dataclasses import dataclass, field
 from typing import Callable
 
-from p2p_qa import config
+import json
+
+from p2p_qa import config, llm as p2p_llm
 from p2p_qa.client import P2PClient, double_verify
 
 SECRET_KEYS = ("password", "bank_account_full", "ssn", "api_key",
@@ -30,7 +32,6 @@ class ProbeResult:
 
 
 def _truncate(payload, limit: int = 400) -> str:
-    import json
     try:
         s = json.dumps(payload, default=str)
     except Exception:  # pylint: disable=broad-exception-caught  # boundary: never crash a verdict on payload stringification; fall back to str()
@@ -58,8 +59,17 @@ def _inv_evidence(inv_payload: dict) -> dict:
             "amount_cents": inv_payload.get("amount_cents")}
 
 
-def _setup_received_po(client: P2PClient, vendor_name: str, sku: str = "SKU-ADV",
-                       price: int = 1000, qty: int = 5, received: int | None = None):
+def _setup_received_po(client: P2PClient, vendor_name: str,
+                       spec: dict | None = None):
+    """Create a vendor + received PO for a probe.
+
+    ``spec`` overrides the default line-item: {"sku": ..., "price": ...,
+    "qty": ..., "received": ...} (only the fields passed differ)."""
+    spec = spec or {}
+    sku = spec.get("sku", "SKU-ADV")
+    price = spec.get("price", 1000)
+    qty = spec.get("qty", 5)
+    received = spec.get("received")
     v = client.create_vendor(vendor_name, "active").response_payload
     po = client.create_po(v["id"], [{"sku": sku, "description": "adv",
                                      "unit_price_cents": price, "quantity": qty}]).response_payload
@@ -107,7 +117,7 @@ def probe_approve_unmatched(client: P2PClient) -> ProbeResult:
 
 
 def probe_partial_flag(client: P2PClient) -> ProbeResult:
-    v, po = _setup_received_po(client, "FlagProbe", qty=5, received=2)
+    v, po = _setup_received_po(client, "FlagProbe", {"qty": 5, "received": 2})
     inv = client.create_invoice("INV-ADV-PART", v["id"], po["id"], 2000)
     m = client.match_invoice(inv.response_payload["id"])
     if m.status_code != 200:
@@ -142,7 +152,7 @@ def probe_inactive_vendor(client: P2PClient) -> ProbeResult:
 
 
 def probe_gl_balance(client: P2PClient) -> ProbeResult:
-    v, po = _setup_received_po(client, "GlProbe", price=700, qty=2)
+    v, po = _setup_received_po(client, "GlProbe", {"price": 700, "qty": 2})
     inv = client.create_invoice("INV-ADV-GL", v["id"], po["id"], 1400)
     client.match_invoice(inv.response_payload["id"])
     a = client.approve_invoice(inv.response_payload["id"])
@@ -481,32 +491,82 @@ def _step_evidence(step) -> dict:
     return ev
 
 
+
+
+def _run_hacker_tools(client, tool_calls, history, state, progress):
+    """Execute each proposed tool call, recording tool results into history.
+
+    ``state`` is a dict mutated in place: {"finished", "last_step",
+    "probes_executed"}; returns the list of steps actually run this round
+    (drives the verdict turn)."""
+
+    executed: list = []
+    for tc in tool_calls:
+        if state["finished"]:
+            break
+        try:
+            args = json.loads(tc.get("arguments") or "{}")
+        except json.JSONDecodeError:
+            args = {}
+        step = _execute_hacker_tool(client, tc["name"], args)
+        if tc["name"] == "finish":
+            state["finished"] = True
+            history.append({"role": "tool", "tool_call_id": tc["id"],
+                            "content": "finish acknowledged"})
+            break
+        if progress:
+            progress(step)
+        state["last_step"] = step
+        state["probes_executed"] += 1
+        history.append({"role": "tool", "tool_call_id": tc["id"],
+                        "content": json.dumps({"status_code": step.status_code,
+                                                "response": _truncate(step.response_payload, 500),
+                                                "error": step.error})})
+        executed.append(step)
+    return executed
+
+
+
+VERDICT_PROMPT = ("For each probe whose result you just received, write exactly one line:\n"
+                 "VERDICT: HELD|BREACHED <rule> <one sentence of reasoning with evidence>\n"
+                 "If a probe was pure reconnaissance with no rule under test, write: VERDICT: INFO <reason>.\n"
+                 "Do not fire new tools in this reply; verdicts only.")
+
+
+def _verdict_turn(llm_chat, history, last_step):
+    """Run the reflection turn; return (history, fresh ProbeResults). Pure."""
+    vresp = llm_chat(HACKER_SYSTEM, history + [{"role": "user", "content": VERDICT_PROMPT}])
+    vtext = vresp.get("content") or ""
+    history = history + [{"role": "assistant", "content": vtext}]
+    fresh = []
+    for status, rule, reasoning in _extract_verdicts(vtext):
+        if status != "INFO":
+            fresh.append(ProbeResult(rule, "hacker_probe", status,
+                                     _step_evidence(last_step), reasoning))
+    return history, fresh
+
+
 def run_hacker(client: P2PClient, llm_chat=None, max_probes: int = config.MAX_HACKER_PROBES,
                progress=None) -> list[ProbeResult]:
     """Open-ended red-team agent: proposes and executes probes, then emits
     HELD/BREACHED verdicts in a dedicated reflection turn (deterministic format).
     Same ReAct pattern as the explorer, plus an explicit verdict step."""
     if llm_chat is None:
-        from p2p_qa import llm
-        llm_chat = llm.chat
-    import json
+        llm_chat = p2p_llm.chat
     results: list[ProbeResult] = []
     history: list[dict] = []
     last_step = None
     probes_executed = 0
     finished = False
-    verdict_prompt = ("For each probe whose result you just received, write exactly one line:\n"
-                      "VERDICT: HELD|BREACHED <rule> <one sentence of reasoning with evidence>\n"
-                      "If a probe was pure reconnaissance with no rule under test, write: VERDICT: INFO <reason>.\n"
-                      "Do not fire new tools in this reply; verdicts only.")
 
     for _ in range(max_probes + 6):
         ctx = {"stage": "red_team",
                "probes_executed": probes_executed,
                "verdicts_so_far": [r.to_dict() for r in results[-6:]],
                "last_result": _step_evidence(last_step)}
-        messages = history + [{"role": "user", "content": json.dumps(ctx)}]
-        resp = llm_chat(HACKER_SYSTEM, messages, tools=_hacker_tool_specs())
+        resp = llm_chat(HACKER_SYSTEM,
+                        history + [{"role": "user", "content": json.dumps(ctx)}],
+                        tools=_hacker_tool_specs())
         tool_calls = resp.get("tool_calls") or []
         history.append({"role": "assistant", "content": resp.get("content") or "",
                         "tool_calls": [{"id": tc["id"], "type": "function",
@@ -516,29 +576,12 @@ def run_hacker(client: P2PClient, llm_chat=None, max_probes: int = config.MAX_HA
         if not tool_calls:
             continue
 
-        executed: list = []
-        for tc in tool_calls:
-            if finished:
-                break
-            try:
-                args = json.loads(tc.get("arguments") or "{}")
-            except json.JSONDecodeError:
-                args = {}
-            step = _execute_hacker_tool(client, tc["name"], args)
-            if tc["name"] == "finish":
-                finished = True
-                history.append({"role": "tool", "tool_call_id": tc["id"],
-                                "content": "finish acknowledged"})
-                break
-            if progress:
-                progress(step)
-            last_step = step
-            probes_executed += 1
-            history.append({"role": "tool", "tool_call_id": tc["id"],
-                            "content": json.dumps({"status_code": step.status_code,
-                                                    "response": _truncate(step.response_payload, 500),
-                                                    "error": step.error})})
-            executed.append(step)
+        hstate = {"finished": finished, "last_step": last_step,
+                  "probes_executed": probes_executed}
+        executed = _run_hacker_tools(client, tool_calls, history, hstate, progress)
+        finished, last_step, probes_executed = (hstate["finished"],
+                                                hstate["last_step"],
+                                                hstate["probes_executed"])
         if len(history) > 30:
             history = history[-30:]
         if finished:
@@ -547,14 +590,8 @@ def run_hacker(client: P2PClient, llm_chat=None, max_probes: int = config.MAX_HA
             continue
 
         # Reflection turn: force the verdict lines for the probes just executed.
-        vresp = llm_chat(HACKER_SYSTEM, history + [{"role": "user", "content": verdict_prompt}])
-        vtext = vresp.get("content") or ""
-        history.append({"role": "assistant", "content": vtext})
-        for status, rule, reasoning in _extract_verdicts(vtext):
-            if status == "INFO":
-                continue
-            results.append(ProbeResult(rule, "hacker_probe", status,
-                                       _step_evidence(last_step), reasoning))
+        history, fresh = _verdict_turn(llm_chat, history, last_step)
+        results.extend(fresh)
         if probes_executed >= max_probes:
             break
         if len(history) > 30:

@@ -6,6 +6,7 @@ demo – boot the mock API, then run against it, then tear down.
 """
 
 import argparse
+import httpx
 import json
 import os
 import subprocess
@@ -15,6 +16,9 @@ import time
 from pathlib import Path
 
 from p2p_qa.client import P2PClient, StepLogger
+from p2p_qa import stress
+from p2p_qa.adversarial import run_baseline, run_hacker
+from p2p_qa.explorer import run_explorer
 from p2p_qa import config, judge
 
 
@@ -68,15 +72,28 @@ def cmd_run(args) -> int:
     logger = StepLogger(str(log_path))
     client = P2PClient(args.api, token=args.token or os.environ.get("P2P_API_TOKEN"))
 
+    happy_status, findings, integration, probes = _run_phases(
+        args, client, logger)
+    summary_text = judge.llm_summary(findings, happy_status)
+    report = judge.build_report(args.api, logger.iter_steps(), findings,
+                                integration, summary_text, happy_status=happy_status)
+    report_path = Path(args.report) if args.report else (run_dir / "report.json")
+    _write_atomic(report_path, report)
+    print(narrate(report))
+    print(f"\nReport: {report_path}")
+    return 0
+
+
+def _run_phases(args, client, logger):
+    """Run the explorer / adversarial / judge phases; return
+    (happy_status, findings, integration_issues, probes)."""
     happy_status = "INCOMPLETE"
     if not args.skip_explorer:
-        from p2p_qa.explorer import run_explorer
         print("[1/4] explorer: discovering + constructing happy path...", flush=True)
         summary = run_explorer(client, logger, progress=_cli_progress("explorer"))
         happy_status = summary["status"]
         print(f"  -> happy path {happy_status} ({summary['steps_count']} stages)\n", flush=True)
 
-    from p2p_qa.adversarial import run_baseline, run_hacker
     # Adversarial evidence lives in ProbeResults, not the happy-path log; they
     # run against the same client but do NOT append to the explorer's logger.
     print("[2/4] adversarial baseline: 12 deterministic probes...", flush=True)
@@ -93,19 +110,7 @@ def cmd_run(args) -> int:
     print("[4/4] judge: replaying step log + writing report...", flush=True)
     findings = judge.run_prepass(logger.iter_steps(), probes)
     integration = list(client.integration_issues)
-
-    if args.prepass_only:
-        summary_text = judge.llm_summary(findings, happy_status)
-    else:
-        summary_text = judge.llm_summary(findings, happy_status)
-
-    report = judge.build_report(args.api, logger.iter_steps(), findings,
-                                integration, summary_text, happy_status=happy_status)
-    report_path = Path(args.report) if args.report else (run_dir / "report.json")
-    _write_atomic(report_path, report)
-    print(narrate(report))
-    print(f"\nReport: {report_path}")
-    return 0
+    return happy_status, findings, integration, probes
 
 
 def _cli_progress(tag: str):
@@ -118,7 +123,6 @@ def _cli_progress(tag: str):
 
 
 def _wait_ready(base_url: str, timeout: float = 20.0) -> bool:
-    import httpx
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
@@ -155,7 +159,6 @@ def cmd_demo(args) -> int:
 
 
 def cmd_stress(args) -> int:
-    from p2p_qa import stress
     res = stress.run_stress(seed=args.seed, bug_profile=args.bug_profile, n=args.n)
     print("=== 50-PO STRESS TEST ===")
     print(f"profile: {res['bug_profile']}  | total POs: {res['total']}  | seed: {res['seed']}")

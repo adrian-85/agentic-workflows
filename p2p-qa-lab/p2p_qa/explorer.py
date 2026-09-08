@@ -7,7 +7,7 @@ Each step is logged with its interpretation; the model context stays bounded
 
 import json
 
-from p2p_qa import config
+from p2p_qa import config, llm as p2p_llm
 from p2p_qa.client import StepRecord
 
 EXPLORER_SYSTEM = """You are an autonomous QA exploration agent for a Purchase-to-Pay (P2P) API.
@@ -73,34 +73,30 @@ def _tool_specs():
 
 
 def _execute_tool(client, name: str, arguments: str) -> StepRecord:
+    """Dispatch a tool call to its client method (table-driven; keeps the
+    tool surface self-documenting next to _tool_specs)."""
     args = json.loads(arguments) if arguments else {}
-    if name == "list_vendors":
-        return client.list_vendors()
-    if name == "get_vendor":
-        return client.get_vendor(int(args["vendor_id"]))
-    if name == "create_vendor":
-        return client.create_vendor(args["name"], args.get("status", "active"))
-    if name == "create_po":
-        return client.create_po(int(args["vendor_id"]), args["line_items"])
-    if name == "submit_po":
-        return client.submit_po(int(args["po_id"]))
-    if name == "receive_po":
-        return client.receive_po(int(args["po_id"]), args["lines"])
-    if name == "get_po":
-        return client.get_po(int(args["po_id"]))
-    if name == "create_invoice":
-        return client.create_invoice(args["invoice_number"], int(args["vendor_id"]),
-                                     int(args["po_id"]), int(args["amount_cents"]))
-    if name == "match_invoice":
-        return client.match_invoice(int(args["invoice_id"]))
-    if name == "approve_invoice":
-        return client.approve_invoice(int(args["invoice_id"]))
-    if name == "get_exposure":
-        return client.get_exposure(int(args["vendor_id"]))
-    if name == "finish_happy_path":
-        return StepRecord(name="finish_happy_path", method="NONE", url="", request_payload=args,
-                          status_code=0, response_payload=args)
-    raise ValueError(f"unknown tool {name}")
+    handlers = {
+        "list_vendors": lambda: client.list_vendors(),
+        "get_vendor": lambda: client.get_vendor(int(args["vendor_id"])),
+        "create_vendor": lambda: client.create_vendor(args["name"], args.get("status", "active")),
+        "create_po": lambda: client.create_po(int(args["vendor_id"]), args["line_items"]),
+        "submit_po": lambda: client.submit_po(int(args["po_id"])),
+        "receive_po": lambda: client.receive_po(int(args["po_id"]), args["lines"]),
+        "get_po": lambda: client.get_po(int(args["po_id"])),
+        "create_invoice": lambda: client.create_invoice(
+            args["invoice_number"], int(args["vendor_id"]), int(args["po_id"]),
+            int(args["amount_cents"])),
+        "match_invoice": lambda: client.match_invoice(int(args["invoice_id"])),
+        "approve_invoice": lambda: client.approve_invoice(int(args["invoice_id"])),
+        "get_exposure": lambda: client.get_exposure(int(args["vendor_id"])),
+        "finish_happy_path": lambda: StepRecord(
+            name="finish_happy_path", method="NONE", url="", request_payload=args,
+            status_code=0, response_payload=args),
+    }
+    if name not in handlers:
+        raise ValueError(f"unknown tool {name}")
+    return handlers[name]()
 
 
 def _extract_interpretation(text: str | None) -> str | None:
@@ -116,38 +112,50 @@ def _extract_facts(name: str, step: StepRecord, facts: dict) -> dict:
     if not isinstance(body, dict):
         return facts
     if name in ("create_vendor", "get_vendor"):
-        if "id" in body:
-            facts["vendor_id"] = body["id"]
-        if "status" in body:
-            facts["vendor_status"] = body["status"]
-        if "account_code" in body:
-            facts["vendor_account_code"] = body["account_code"]
+        _vendor_facts(body, facts)
     elif name == "list_vendors" and isinstance(body, list):
         active = [v for v in body if isinstance(v, dict) and v.get("status") == "active"]
         if active:
             facts["vendor_id"] = active[0]["id"]
             facts["vendor_status"] = "active"
     elif name in ("create_po", "get_po", "receive_po", "submit_po"):
-        if "id" in body:
-            facts["po_id"] = body["id"]
-        if body.get("line_items"):
-            facts["skus"] = [l.get("sku") for l in body["line_items"] if l.get("sku")]
-        if "status" in body:
-            facts["po_status"] = body["status"]
+        _po_facts(body, facts)
     elif name in ("create_invoice", "get_invoice", "match_invoice", "approve_invoice"):
-        if "id" in body:
-            facts["invoice_id"] = body["id"]
-        if "invoice_number" in body:
-            facts["invoice_number"] = body["invoice_number"]
-        if "amount_cents" in body:
-            facts["invoice_amount_cents"] = body["amount_cents"]
-        if body.get("match"):
-            facts["match_partial"] = body["match"].get("partial")
-            facts["match_received_value_cents"] = body["match"].get("received_value_cents")
-            facts["match_variance_cents"] = body["match"].get("variance_cents")
-        if body.get("gl_post"):
-            facts["gl_balanced"] = body["gl_post"].get("balanced")
+        _invoice_facts(body, facts)
     return facts
+
+
+def _vendor_facts(body: dict, facts: dict) -> None:
+    if "id" in body:
+        facts["vendor_id"] = body["id"]
+    if "status" in body:
+        facts["vendor_status"] = body["status"]
+    if "account_code" in body:
+        facts["vendor_account_code"] = body["account_code"]
+
+
+def _po_facts(body: dict, facts: dict) -> None:
+    if "id" in body:
+        facts["po_id"] = body["id"]
+    if body.get("line_items"):
+        facts["skus"] = [l.get("sku") for l in body["line_items"] if l.get("sku")]
+    if "status" in body:
+        facts["po_status"] = body["status"]
+
+
+def _invoice_facts(body: dict, facts: dict) -> None:
+    if "id" in body:
+        facts["invoice_id"] = body["id"]
+    if "invoice_number" in body:
+        facts["invoice_number"] = body["invoice_number"]
+    if "amount_cents" in body:
+        facts["invoice_amount_cents"] = body["amount_cents"]
+    if body.get("match"):
+        facts["match_partial"] = body["match"].get("partial")
+        facts["match_received_value_cents"] = body["match"].get("received_value_cents")
+        facts["match_variance_cents"] = body["match"].get("variance_cents")
+    if body.get("gl_post"):
+        facts["gl_balanced"] = body["gl_post"].get("balanced")
 
 
 _FLOW_ORDER = ["vendor", "po", "submit", "receive", "invoice", "match", "approve"]
@@ -191,42 +199,96 @@ def _happy_result(status: str, flow_done: list[str], interpretations: dict) -> d
     }
 
 
+def _handle_tool_calls(client, logger, tool_calls, state, progress):
+    """Execute a ReAct round's tool calls, mutating ``state`` in place.
+
+    ``state`` = {"interp", "history", "interpretations", "flow_done",
+    "facts", "last"}. Returns True when the happy path completed (the
+    caller should stop and summarize), False otherwise."""
+    for tc in tool_calls:
+        name = tc["name"]
+        args = tc.get("arguments") or "{}"
+        step = _execute_tool(client, name, args)
+        if not state["interp"]:
+            state["interp"] = _deterministic_interp(name, step)
+        step.interpretation = state["interp"]
+        if state["interp"] and name not in state["interpretations"]:
+            state["interpretations"].setdefault(name, state["interp"])
+        state["facts"] = _extract_facts(name, step, state["facts"])
+        step.verified = False
+        if progress:
+            progress(step)
+        if "create" in name:
+            ok, got = _mark_verified(client, step)
+            step.verified = ok
+            logger.record(step)
+            if got is not None:
+                got.verifies = name
+                got.interpretation = step.verify_note or "GET proof matches POST values"
+                logger.record(got)
+        elif name != "finish_happy_path":
+            logger.record(step)
+        state["interp"] = None
+        compact = {"name": name, "status_code": step.status_code,
+                   "response": (json.dumps(step.response_payload)[:600]
+                                 if step.response_payload is not None else None),
+                   "error": step.error}
+        state["history"].append({"role": "tool", "tool_call_id": tc["id"],
+                                 "content": json.dumps(compact)})
+        if name == "finish_happy_path":
+            try:
+                done = json.loads(args).get("completed", False)
+            except json.JSONDecodeError:
+                done = False
+            state["last"] = {"name": "finish_happy_path", "status_code": 0,
+                             "key": {}, "error": None, "done": done}
+            if done:
+                return True
+            continue
+        if name == "approve_invoice" and step.status_code is not None and step.status_code < 400:
+            return True
+        flow_name = _flow_step(name)
+        if flow_name and flow_name not in state["flow_done"]:
+            state["flow_done"].append(flow_name)
+        facts_slice = {k: state["facts"].get(k)
+                       for k in ("vendor_id", "po_id", "invoice_id",
+                                 "invoice_amount_cents", "match_partial",
+                                 "gl_balanced")
+                       if state["facts"].get(k) is not None}
+        state["last"] = {"name": name, "status_code": step.status_code,
+                         "key": facts_slice, "error": step.error,
+                         "interp": state["interp"]}
+    return False
+
+
 def run_explorer(client, logger, llm_chat=None, max_steps=config.MAX_EXPLORER_STEPS,
               progress=None) -> dict:
     if llm_chat is None:
-        from p2p_qa import llm
-        llm_chat = llm.chat
-    flow_done: list[str] = []
-    interpretations: dict[str, str] = {}
-    facts: dict = {}
-    last = None
-    history: list[dict] = []  # assistant tool_calls -> tool results -> user state
-
-    def build_context() -> str:
-        ctx = {
-            "stage": "explore",
-            "plan": "create vendor -> PO -> submit -> partial receive -> invoice -> match (check partial) -> approve (check GL balanced). Do not keep re-exploring: once you have an active vendor id and a sku, move to creating the PO.",
-            "flow_done": flow_done,
-            "next_expected": _next_expected(flow_done),
-            "facts": facts,
-            "last_step": last,
-        }
-        return json.dumps(ctx)
+        llm_chat = p2p_llm.chat
+    state = {"interp": None, "history": [], "interpretations": {},
+             "flow_done": [], "facts": {}, "last": None}
 
     for _ in range(max_steps):
-        messages = history + [{"role": "user", "content": build_context()}]
+        ctx = {"stage": "explore",
+               "plan": "create vendor -> PO -> submit -> partial receive -> invoice -> match (check partial) -> approve (check GL balanced). Do not keep re-exploring: once you have an active vendor id and a sku, move to creating the PO.",
+               "flow_done": state["flow_done"],
+               "next_expected": _next_expected(state["flow_done"]),
+               "facts": state["facts"],
+               "last_step": state["last"]}
+        messages = state["history"] + [{"role": "user", "content": json.dumps(ctx)}]
         resp = llm_chat(EXPLORER_SYSTEM, messages, tools=_tool_specs())
-        interp = _extract_interpretation(resp.get("content"))
+        state["interp"] = _extract_interpretation(resp.get("content"))
 
         tool_calls = resp.get("tool_calls") or []
         if not tool_calls:
-            last = {"name": "(no tool call)", "status_code": None, "key": {},
-                    "error": "model returned no tool call", "interp": interp}
-            history.append({"role": "assistant", "content": resp.get("content") or ""})
+            state["last"] = {"name": "(no tool call)", "status_code": None, "key": {},
+                             "error": "model returned no tool call",
+                             "interp": state["interp"]}
+            state["history"].append({"role": "assistant",
+                                     "content": resp.get("content") or ""})
             continue
 
-        # record the assistant's tool-call turn in history (canonical ReAct pattern)
-        history.append({
+        state["history"].append({
             "role": "assistant",
             "content": resp.get("content") or "",
             "tool_calls": [{"id": tc["id"], "type": "function",
@@ -235,71 +297,16 @@ def run_explorer(client, logger, llm_chat=None, max_steps=config.MAX_EXPLORER_ST
                             for tc in tool_calls],
         })
 
-        for tc in tool_calls:
-            name = tc["name"]
-            args = tc.get("arguments") or "{}"
-            step = _execute_tool(client, name, args)
-            if not interp:
-                interp = _deterministic_interp(name, step)
-            step.interpretation = interp
-            if interp and name not in interpretations:
-                interpretations.setdefault(name, interp)
-            facts = _extract_facts(name, step, facts)
-            step.verified = False
-            if progress:
-                progress(step)
-            if name != "finish_happy_path":
-                if "create" in name:
-                    # Verify via ONE quiet proof GET (never double-logs), then
-                    # annotate the create (verified/verify_note) and log the
-                    # create ONCE, then the single tagged proof GET.
-                    ok, got = _mark_verified(client, step)
-                    step.verified = ok
-                    logger.record(step)
-                    if got is not None:
-                        got.verifies = name
-                        got.interpretation = step.verify_note or "GET proof matches POST values"
-                        logger.record(got)
-                else:
-                    logger.record(step)
-            interp = None  # consume this turn's interpretation; don't leak it forward
-            # tool result goes back into history (compressed)
-            compact = {"name": name, "status_code": step.status_code,
-                       "response": (json.dumps(step.response_payload)[:600]
-                                     if step.response_payload is not None else None),
-                       "error": step.error}
-            history.append({"role": "tool", "tool_call_id": tc["id"],
-                            "content": json.dumps(compact)})
-            if name == "finish_happy_path":
-                try:
-                    done = json.loads(args).get("completed", False)
-                except json.JSONDecodeError:
-                    done = False
-                last = {"name": "finish_happy_path", "status_code": 0, "key": {},
-                        "error": None, "done": done}
-                if done:
-                    return _happy_result("PASS", flow_done, interpretations)
-            else:
-                # Mission-complete: an approved invoice IS the completed happy
-                # path (finish_happy_path only confirms). Stop immediately so
-                # we never wander into a second workflow cycle.
-                if name == "approve_invoice" and step.status_code is not None and step.status_code < 400:
-                    return _happy_result("PASS", flow_done, interpretations)
-                flow_name = _flow_step(name)
-                if flow_name and flow_name not in flow_done:
-                    flow_done.append(flow_name)
-                facts_slice = {k: facts.get(k) for k in ("vendor_id", "po_id", "invoice_id",
-                                                          "invoice_amount_cents", "match_partial",
-                                                          "gl_balanced") if facts.get(k) is not None}
-                last = {"name": name, "status_code": step.status_code,
-                        "key": facts_slice, "error": step.error, "interp": interp}
-        # bound the history window (drop oldest assistant/tool pairs beyond 24 msgs)
-        if len(history) > 24:
-            history = history[-24:]
+        done = _handle_tool_calls(client, logger, tool_calls, state, progress)
+        if done:
+            return _happy_result("PASS", state["flow_done"], state["interpretations"])
+        if len(state["history"]) > 24:
+            state["history"] = state["history"][-24:]
 
     return {
-        "status": "INCOMPLETE", "approved_late": False, "steps_count": len(flow_done),
-        "flow": flow_done, "interpretations": interpretations,
+        "status": "INCOMPLETE", "approved_late": False,
+        "steps_count": len(state["flow_done"]),
+        "flow": state["flow_done"], "interpretations": state["interpretations"],
     }
 
 

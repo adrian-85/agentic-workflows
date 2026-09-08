@@ -110,17 +110,20 @@ def _run_plan_probes(c, plan: dict, inv_no: str) -> dict:
     else:
         out["partial_receipt_flag"] = "HELD" if match.status_code == 200 else "NOT_TESTED"
 
-    # duplicate probe: same invoice_number same vendor -> second must 400
-    dup = c.post("/invoices", json={"invoice_number": inv_no, "vendor_id": v["id"],
-                                    "po_id": po["id"], "amount_cents": amount})
-    out["duplicate_detection"] = "HELD" if dup.status_code == 400 else "BREACHED"
-
-    # mis-credit probe: account_code of another entity must be rejected
-    mcr = c.post("/invoices", json={"invoice_number": inv_no + "-MC",
-                                    "vendor_id": v["id"], "po_id": po["id"],
-                                    "amount_cents": amount, "account_code": "ACC-999"})
-    out["mis_credit"] = "HELD" if mcr.status_code == 400 else "BREACHED"
+    out.update(_dup_and_miscredit(c, inv_no, v["id"], po["id"], amount))
     return out
+
+
+def _dup_and_miscredit(c, inv_no: str, vid: int, pid: int,
+                       amount: int) -> dict:
+    """Duplicate + mis-credit probes (HELD when the API rejects)."""
+    dup = c.post("/invoices", json={"invoice_number": inv_no, "vendor_id": vid,
+                                    "po_id": pid, "amount_cents": amount})
+    mcr = c.post("/invoices", json={"invoice_number": inv_no + "-MC",
+                                    "vendor_id": vid, "po_id": pid,
+                                    "amount_cents": amount, "account_code": "ACC-999"})
+    return {"duplicate_detection": "HELD" if dup.status_code == 400 else "BREACHED",
+            "mis_credit": "HELD" if mcr.status_code == 400 else "BREACHED"}
 
 
 def run_stress(seed: int = 0, bug_profile: str = "clean", n: int = 50) -> dict:

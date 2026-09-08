@@ -247,7 +247,7 @@ def run_prepass(steps: list[StepRecord], baseline: list[ProbeResult]) -> list[Fi
 # Report assembly (exact spec JSON) + LLM narrative summary
 # ---------------------------------------------------------------------------
 
-def build_report(api_url: str, steps: list[StepRecord], findings: list[Finding],
+def build_report(api_url: str, steps: list[StepRecord], findings: list[Finding],  # pylint: disable=too-many-arguments,too-many-positional-arguments  # report assembler: 6 orthogonal report fields, called once
                  integration_issues: list[dict], summary: str,
                  happy_status: str = "PASS") -> dict:
     """Assemble the exact report JSON from the spec."""

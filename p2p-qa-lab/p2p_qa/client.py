@@ -104,7 +104,7 @@ def validate_response(endpoint: str, payload) -> list[SchemaIssue]:
 
 
 @dataclass
-class StepRecord:
+class StepRecord:  # pylint: disable=too-many-instance-attributes  # data record mirroring the wire schema (StepLogger/reporting read it flat)
     name: str
     method: str
     url: str
@@ -179,7 +179,7 @@ class P2PClient:
         self.integration_issues: list[dict] = []
         self._client = httpx.Client(timeout=timeout)
 
-    def _request(self, method: str, name: str, path: str,
+    def _request(self, method: str, name: str, path: str,  # pylint: disable=too-many-arguments,too-many-positional-arguments  # private transport: 6 orthogonal params, ~20 kwarg call sites
                  payload: dict | None = None, schema_key: str | None = None,
                  quiet: bool = False) -> StepRecord:
         url = self.base_url + path
@@ -193,22 +193,8 @@ class P2PClient:
             try:
                 resp = self._client.request(method, url, json=payload, headers=headers)
                 duration = (time.monotonic() - start) * 1000.0
-                try:
-                    body = resp.json()
-                except ValueError:
-                    body = {"raw": resp.text[:2000]}
-                step = StepRecord(name=name, method=method, url=url,
-                                  request_payload=payload, status_code=resp.status_code,
-                                  response_payload=body, duration_ms=duration)
-                if resp.status_code < 400 and schema_key:
-                    issues = validate_response(schema_key, body)
-                    step.schema_issues = issues
-                    for iss in issues:
-                        if iss.severity == "break":
-                            entry = {"endpoint": schema_key, "field": iss.field,
-                                     "severity": "break", "detail": iss.detail}
-                            if entry not in self.integration_issues:
-                                self.integration_issues.append(entry)
+                step = self._to_step_record(method, name, url, payload, resp,
+                                            schema_key, duration)
                 if self.logger and not quiet:
                     self.logger.record(step)
                 return step
@@ -224,6 +210,34 @@ class P2PClient:
                 if self.logger and not quiet:
                     self.logger.record(step)
                 return step
+
+    def _to_step_record(self, method: str, name: str, url: str,  # pylint: disable=too-many-arguments,too-many-positional-arguments  # internal transport helper
+                        payload: dict | None, resp, schema_key: str | None,
+                        duration_ms: float) -> StepRecord:
+        """Build a StepRecord from an httpx response, validating the schema."""
+        try:
+            body = resp.json()
+        except ValueError:
+            body = {"raw": resp.text[:2000]}
+        step = StepRecord(name=name, method=method, url=url,
+                          request_payload=payload, status_code=resp.status_code,
+                          response_payload=body, duration_ms=duration_ms)
+        if resp.status_code < 400 and schema_key:
+            self._apply_schema_issues(step, schema_key, body)
+        return step
+
+    def _apply_schema_issues(self, step: StepRecord, schema_key: str,
+                             body) -> None:
+        """Attach schema warnings and record break-severity integration
+        issues into self.integration_issues."""
+        issues = validate_response(schema_key, body)
+        step.schema_issues = issues
+        for iss in issues:
+            if iss.severity == "break":
+                entry = {"endpoint": schema_key, "field": iss.field,
+                         "severity": "break", "detail": iss.detail}
+                if entry not in self.integration_issues:
+                    self.integration_issues.append(entry)
 
     def verification_get(self, name: str, path: str, schema_key: str | None = None) -> StepRecord:
         """Fetch without logging (used as the double-verify proof GET); the
