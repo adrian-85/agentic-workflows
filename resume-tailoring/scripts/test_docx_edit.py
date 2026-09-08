@@ -26,6 +26,7 @@ from xml.etree import ElementTree as ET
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
 import docx_edit as de  # noqa: E402
+import docx_edit_cli as dcli  # noqa: E402  (CLI surface — moved out of core)
 
 W = de.W
 SPACE = de.SPACE
@@ -1127,7 +1128,7 @@ class AppendCLITests(unittest.TestCase):
             de._APPLIED = 0
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
-                rc = de.cli(["docx_edit.py", path, "--append-after",
+                rc = dcli.cli(["docx_edit.py", path, "--append-after",
                              "Ref paragraph", "--with", "New bullet"])
             self.assertEqual(rc, 0)
             self.assertEqual(self._texts(path),
@@ -1141,7 +1142,7 @@ class AppendCLITests(unittest.TestCase):
         try:
             de._APPLIED = 0
             with contextlib.redirect_stderr(err):
-                rc = de.cli(["docx_edit.py", path, "--append-after", "No such para", "--with",
+                rc = dcli.cli(["docx_edit.py", path, "--append-after", "No such para", "--with",
                              "New bullet"])
             self.assertEqual(rc, 2)
             self.assertIn("not found", err.getvalue())
@@ -1156,7 +1157,7 @@ class AppendCLITests(unittest.TestCase):
             de._APPLIED = 0
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
-                rc = de.cli(["docx_edit.py", path, "--append-after",
+                rc = dcli.cli(["docx_edit.py", path, "--append-after",
                              "The company's goal", "--with", "New bullet"])
             self.assertEqual(rc, 0)
             self.assertEqual(self._texts(path),
@@ -1167,7 +1168,7 @@ class AppendCLITests(unittest.TestCase):
     def test_invalid_usage_exits_2(self):
         path = self._docx_with("Ref")
         try:
-            rc = de.cli(["docx_edit.py", path, "--append-after", "Ref"])  # missing --with
+            rc = dcli.cli(["docx_edit.py", path, "--append-after", "Ref"])  # missing --with
             self.assertEqual(rc, 2)
             self.assertEqual(self._texts(path), ["Ref"])
         finally:
@@ -1306,7 +1307,7 @@ class SetTextCLITests(unittest.TestCase):
             de._APPLIED = 0
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
-                rc = de.cli(["docx_edit.py", path, "--set-text",
+                rc = dcli.cli(["docx_edit.py", path, "--set-text",
                              "Implemented Jest and Playwright",
                              "--with", "Landed Playwright company-wide"])
             self.assertEqual(rc, 0)
@@ -1324,7 +1325,7 @@ class SetTextCLITests(unittest.TestCase):
             de._APPLIED = 0
             err = io.StringIO()
             with contextlib.redirect_stderr(err):
-                rc = de.cli(["docx_edit.py", path, "--set-text",
+                rc = dcli.cli(["docx_edit.py", path, "--set-text",
                              "No such prefix", "--with", "New text"])
             self.assertEqual(rc, 2)
             self.assertEqual(self._texts(path), ["Some bullet"])
@@ -1334,7 +1335,7 @@ class SetTextCLITests(unittest.TestCase):
     def test_missing_with_arg_exits_2(self):
         path = self._docx_with("Some bullet")
         try:
-            rc = de.cli(["docx_edit.py", path, "--set-text", "Some bullet"])
+            rc = dcli.cli(["docx_edit.py", path, "--set-text", "Some bullet"])
             self.assertEqual(rc, 2)
         finally:
             os.unlink(path)
@@ -1374,7 +1375,7 @@ class StyleFilterCLITests(unittest.TestCase):
         try:
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
-                rc = de.cli(["docx_edit.py", path, "--style", "SectionHeading"])
+                rc = dcli.cli(["docx_edit.py", path, "--style", "SectionHeading"])
             self.assertEqual(rc, 0)
             text = out.getvalue()
             self.assertIn("Career Experience", text)
@@ -1392,7 +1393,7 @@ class StyleFilterCLITests(unittest.TestCase):
         try:
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
-                rc = de.cli(["docx_edit.py", path, "--style", "Nope"])
+                rc = dcli.cli(["docx_edit.py", path, "--style", "Nope"])
             self.assertEqual(rc, 0)
             self.assertEqual(out.getvalue().strip(), "")
         finally:
@@ -1480,7 +1481,7 @@ class PrefixesHeadlineTests(unittest.TestCase):
             r = ET.SubElement(p, W + "r")
             t = ET.SubElement(r, W + "t")
             t.text = text
-        return de.prefixes(body)
+        return dcli.prefixes(body)
 
     def test_marks_the_last_title_of_the_leading_run(self):
         lines = self._lines([
@@ -1534,7 +1535,7 @@ class CommaListRangeTests(unittest.TestCase):
     def _map(self, path, rng):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            rc = de.cli(["docx_edit.py", path, rng])
+            rc = dcli.cli(["docx_edit.py", path, rng])
         self.assertEqual(rc, 0)
         return out.getvalue()
 

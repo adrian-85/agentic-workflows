@@ -267,7 +267,22 @@ def extract_common(argv, extra_flags=()):
 
 - [ ] **Step 4: Update `validate_resume.py` to use `script_args` and re-export**
 
-  > Execution finding (Step 4b): `_deliverable_gate` also had a lazy
+  > Execution findings (Task 4, real code): (1) CLI-only split leaves
+> docx_edit at ~1065 lines (file grew to 1292) — a SECOND seam was
+> required for C0302: the validate-gate block (`tmp_jd_note`,
+> `_script_records_jd`, `_approval_env`, `_deliverable_gate`) moved to
+> `docx_edit_gate.py` (imports only os/sys/shlex/script_args — one-way,
+> core -> gate; `tmp_jd_note`/`_deliverable_gate` re-exported from
+> docx_edit). (2) `style_and_numid`/`shortest_unique_prefix`/
+> `_prefix_arg`/`_block` are CORE (external consumers + core mutators) —
+> they do NOT move to the CLI module. (3) `de.cli`/`de.prefixes` cannot
+> be re-exported (that would recreate the static cycle) — pytest-verified
+> that ANY static edge fires R0401 including __main__-guard imports; the
+> gate's importlib pattern is the only cycle-free delegation. Tests
+> import `docx_edit_cli as dcli` directly; docx_edit's __main__ delegates
+> via `importlib.import_module` so `python3 scripts/docx_edit.py` keeps
+> working. The plan's Step 4b note (gate lazy import) is subsumed here.
+
   > `import validate_resume as vr` (for `validate_tree`) that pylint's
   > cycle detector still counts as a `docx_edit -> validate_resume` edge.
   > Fixed with `importlib.import_module("validate_resume")` at gate time
