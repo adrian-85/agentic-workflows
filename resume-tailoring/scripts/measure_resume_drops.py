@@ -1,4 +1,4 @@
-"""measure_resume drop planning / fit audit / reclaim batching. Split from measure_resume.py; imported one-way by the measure_resume shim."""
+"""measure_resume drop planning / fit audit / reclaim batching. Split from measure_resume.py; imported one-way by the measure_resume shim."""  # pylint: disable=line-too-long
 
 # pylint: disable=wrong-import-position,import-outside-toplevel
 # flat-namespace sibling imports require the sys.path bootstrap; the
@@ -16,8 +16,10 @@ import sys
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
-from measure_resume_jd import _concept_hits, _is_protected, _jd_hits_classified, _jd_kept, _weakness_key  # noqa: E402
-from measure_resume_format import _norm, _page_fill, _page_lines, _preceding_role_key, _role_header_flat  # noqa: E402
+from measure_resume_jd import (_concept_hits, _is_protected,  # noqa: E402
+    _jd_hits_classified, _jd_kept, _weakness_key)
+from measure_resume_format import (_norm, _page_fill, _page_lines,  # noqa: E402
+    _preceding_role_key, _role_header_flat)
 
 W = de.W
 
@@ -133,7 +135,7 @@ def _dead_end_roles(plan, roles, protect=(), jd_terms=()):
     return dead
 
 
-def _top_role_batch(matched, plan, per, required, tools_savings=0,  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals  # reclaim batching: 8 orthogonal budget params (callers rely on signature)
+def _top_role_batch(matched, plan, per, required, tools_savings=0,  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
                     top_block_count=0, protect=(), jd_terms=()):
     """Size the most-recent role's trim batch — the residual-gap closer.
 
@@ -248,7 +250,7 @@ def _role_jd_evidence_lines(roles, header_text, jd_terms):
     return lines
 
 
-def _jd_fit_audit(roles, jd_terms, protect=()):  # pylint: disable=too-many-branches  # per-role JD-FIT classification
+def _jd_fit_audit(roles, jd_terms, protect=()):  # pylint: disable=too-many-branches
     """Per-role JD-fit audit — printed for EVERY role when --jd is passed.
 
     Classifies every bullet by JD alignment strength: strong/practice-
@@ -342,7 +344,7 @@ def _jd_listing_lines(bullets, jd_terms):
     return lines
 
 
-def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):  # pylint: disable=too-many-locals  # plan -> per-role section mapping
+def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):  # pylint: disable=too-many-locals
     """Turn a BATCH RECLAIM PLAN into per-role DROP PLAN sections.
 
     Each "drop N bullet(s)" plan entry (keyed by role key) becomes a
@@ -424,7 +426,7 @@ def _protected_top_role_section(matched, jd_terms):
     ] + lines)
 
 
-def _batch_section(batch, role, header, all_texts=None, protect=(),  # pylint: disable=too-many-arguments,too-many-positional-arguments  # batch printing: orthogonal formatting params
+def _batch_section(batch, role, header, all_texts=None, protect=(),  # pylint: disable=too-many-arguments,too-many-positional-arguments
                    jd_terms=()):
     """Render the TOP-ROLE TRIM BATCH section — the residual-gap closer.
 
@@ -451,7 +453,7 @@ def _batch_section(batch, role, header, all_texts=None, protect=(),  # pylint: d
     return "\n".join(section)
 
 
-def _layout_hints(matched, pages_text, capacity):  # pylint: disable=too-many-locals  # page-fill heuristics
+def _layout_hints(matched, pages_text, capacity):  # pylint: disable=too-many-locals
     """Page-fill table plus widow/underfill notes.
 
     A widow in the render is a role header that is the LAST line of a page
@@ -595,6 +597,6 @@ def _reclaim_batch(matched, per_bullet, gap):
             plan.append((key, f"drop {take} bullet(s) (saves ~{saved:.0f} lines)", saved))
             remaining -= saved
         else:
-            plan.append((key, f"consider dropping the whole role (saves ~{rendered:.0f} lines)", rendered))
+            plan.append((key, f"consider dropping the whole role (saves ~{rendered:.0f} lines)", rendered))  # pylint: disable=line-too-long
             remaining -= rendered
     return plan, remaining

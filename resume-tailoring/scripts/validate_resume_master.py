@@ -1,4 +1,4 @@
-"""validate_resume's master-loading / role-integrity / education-gate helpers. Split from validate_resume.py; imported one-way by the shim."""
+"""validate_resume's master-loading / role-integrity / education-gate helpers. Split from validate_resume.py; imported one-way by the shim."""  # pylint: disable=line-too-long  # (long string/help literal)
 
 # pylint: disable=wrong-import-position,import-outside-toplevel
 # flat-namespace sibling imports require the sys.path bootstrap; the

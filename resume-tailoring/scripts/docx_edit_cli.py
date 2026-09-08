@@ -35,7 +35,7 @@ def paragraph_map(body, width=90):
     return out
 
 
-def _headline_index(styles):  # pylint: disable=too-many-locals  # Title-run scan
+def _headline_index(styles):  # pylint: disable=too-many-locals
     """Index of the positioning headline among the paragraphs, or ``None``.
 
     The headline is the LAST paragraph of the document's leading run of
@@ -54,7 +54,7 @@ def _headline_index(styles):  # pylint: disable=too-many-locals  # Title-run sca
     return i
 
 
-def prefixes(body, min_len=30, max_len=70):  # pylint: disable=too-many-locals  # per-paragraph prefix scan (one temp per text/target)
+def prefixes(body, min_len=30, max_len=70):  # pylint: disable=too-many-locals
     """Return copy-pasteable ``find_p(ps, "…")`` prefixes for every paragraph.
 
     For each paragraph, pick the shortest prefix (between ``min_len`` and
@@ -99,7 +99,7 @@ def prefixes(body, min_len=30, max_len=70):  # pylint: disable=too-many-locals  
     return out
 
 
-def cli(argv):  # pylint: disable=too-many-locals,too-many-return-statements,too-many-branches,too-many-statements  # CLI dispatch: mode parse + inspect/edit subcommands
+def cli(argv):  # pylint: disable=too-many-locals,too-many-return-statements,too-many-branches,too-many-statements
     """docx_edit.py command line. Returns a process exit code.
 
     Modes:

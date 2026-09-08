@@ -1,4 +1,4 @@
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position,unused-import,redefined-outer-name,consider-using-with,multiple-imports,too-many-locals
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position,unused-import,redefined-outer-name,consider-using-with,multiple-imports,too-many-locals,line-too-long
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
@@ -8,6 +8,7 @@
 # unused-import: migrated shared fixtures leave stdlib imports unused per file.
 # redefined-outer-name/consider-using-with/multiple-imports/too-many-locals:
 #   test helpers alias fixture names; small one-off scaffolding is idiomatic.
+# line-too-long: assertion/expected-value strings and fixture literals legitimately exceed 100 chars.
 
 import pytest
 

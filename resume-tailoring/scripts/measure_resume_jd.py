@@ -1,4 +1,4 @@
-"""measure_resume JD vocabulary / requirements / inference / title analysis. Split from measure_resume.py; imported one-way by measure_resume_drops + the shim."""
+"""measure_resume JD vocabulary / requirements / inference / title analysis. Split from measure_resume.py; imported one-way by measure_resume_drops + the shim."""  # pylint: disable=line-too-long  # (long string/help literal)
 
 # pylint: disable=wrong-import-position,import-outside-toplevel,invalid-name
 # invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.

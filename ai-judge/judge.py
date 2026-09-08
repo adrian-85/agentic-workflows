@@ -98,7 +98,7 @@ PRODUCT_CONTEXT_WORDS = ["jersey", "shirt", "size", "model", "sneaker", "jacket"
 # successful action exists" (e.g. reschedule never actually executed).
 CLAIMED_ACTION: List[Dict[str, Any]] = [
     {
-        "claim_re": r"reschedul|you'?re all set for|delivery (has been )?moved|moved to (friday|monday|tuesday)",
+        "claim_re": r"reschedul|you'?re all set for|delivery (has been )?moved|moved to (friday|monday|tuesday)",  # pylint: disable=line-too-long
         "action_re": r"reschedul|update_delivery|change_delivery|reschedule_delivery",
         "label": "delivery reschedule",
     },
@@ -156,7 +156,8 @@ def _find_agent_turn(flat: List[Dict[str, Any]],
     return "", ""
 
 
-def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # 8-rule deterministic pre-pass: each rule is a branch pair; splitting fragments the audit trail
+# pylint: disable=too-many-locals,too-many-branches,too-many-statements,line-too-long  # 8-rule pre-pass: each rule is a branch pair; splitting fragments the audit trail
+def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Run cheap, high-precision rule checks. Returns a list of findings:
       {check, severity, description, turn_ref, evidence}
@@ -529,8 +530,8 @@ def parse_args():
                    help="OpenRouter model id")
     p.add_argument("--temperature", type=float, default=0.2,
                    help="Judge temperature (default 0.2)")
-    p.add_argument("--output", help="Output directory; each run creates a timestamped subfolder here so runs never overwrite each other")
-    p.add_argument("--run-id", help="Override the run subfolder name (defaults to run-<timestamp>-<shortid>)")
+    p.add_argument("--output", help="Output directory; each run creates a timestamped subfolder here so runs never overwrite each other")  # pylint: disable=line-too-long
+    p.add_argument("--run-id", help="Override the run subfolder name (defaults to run-<timestamp>-<shortid>)")  # pylint: disable=line-too-long
     p.add_argument("--prepass-only", action="store_true",
                    help="Run only the deterministic pre-pass; skip the LLM call")
     return p.parse_args()

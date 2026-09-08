@@ -21,7 +21,7 @@ from p2p_qa import llm
 
 _EXAMPLES = [
     # (response_text, label)
-    ("{match: {received_value_cents: 5000, invoice_amount_cents: 5001, partial: true}, status: 200}", "VIOLATION"),
+    ("{match: {received_value_cents: 5000, invoice_amount_cents: 5001, partial: true}, status: 200}", "VIOLATION"),  # pylint: disable=line-too-long  # (long code condition/arg line)
     ("400 {'detail': 'invoice exceeds received value (5001>5000)'}", "CLEAN"),
     ("{id: 9, status: approved, gl_post: {balanced: true}}", "VIOLATION"),
     ("{id: 9, status: approved, gl_post: {entries: [...], balanced: false}}", "VIOLATION"),

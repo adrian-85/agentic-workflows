@@ -1,4 +1,4 @@
-"""validate_resume's deterministic structural/punctuation/text-integrity checks. Split from validate_resume.py; imported one-way by validate_resume_master and the shim."""
+"""validate_resume's deterministic structural/punctuation/text-integrity checks. Split from validate_resume.py; imported one-way by validate_resume_master and the shim."""  # pylint: disable=line-too-long
 
 # pylint: disable=wrong-import-position,import-outside-toplevel,invalid-name
 # invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
@@ -147,7 +147,7 @@ def _bullet_cap_errors(region):
     return errors
 
 
-def _structural_errors(region):  # pylint: disable=too-many-locals  # structural validator: one branch per rule
+def _structural_errors(region):  # pylint: disable=too-many-locals
     """Structural failures (exit 2) in the career region: orphan job titles,
     companies without a title, and content orphaned after a Tools line."""
     errors = []
@@ -298,7 +298,8 @@ def _text_integrity_errors(region, summary):
     return errors
 
 
-def _readability_guidance(body, summary, *, region=None, master_input=False):  # pylint: disable=too-many-locals  # readability rule: one local per checked category
+# pylint: disable=too-many-locals,line-too-long  # readability: one local per checked category
+def _readability_guidance(body, summary, *, region=None, master_input=False):
     """Advisory readability checks (SKILL Step 4 word cap + Step 5).
 
     Word count, not sentence count — the master input is exempt (it

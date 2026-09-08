@@ -87,7 +87,7 @@ input; override with --master <path>.
 Usage:
     python3 scripts/validate_resume.py <resume.docx> [--strict] [--master p]
     python3 scripts/validate_resume.py <resume.docx> --jd-years 5 [--master p]
-    python3 scripts/validate_resume.py <resume.docx> --jd <JD.txt> [--jd-years 5] [--education-approved] [--master p]
+    python3 scripts/validate_resume.py <resume.docx> --jd <JD.txt> [--jd-years 5] [--education-approved] [--master p]  # pylint: disable=line-too-long
 """
 
 # pylint: disable=wrong-import-position,import-outside-toplevel
@@ -163,7 +163,8 @@ from validate_resume_master import (
     _role_groups,
     _role_integrity_errors)
 
-def validate_tree(path, body, *, master_path=None, jd_path=None,  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements  # validator entry: runs all checks, blocks/advises
+# pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements  # validator entry: runs all checks, blocks/advises
+def validate_tree(path, body, *, master_path=None, jd_path=None,
                   jd_years=None, seniority_approved=False,
                   education_approved=False, protect=(),
                   max_words=MAX_WORDS):
@@ -490,7 +491,7 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,  # pylint: disa
     return {"blocking": blocking, "warnings": warn_count, "lines": lines}
 
 
-def main(argv=None):  # pylint: disable=too-many-locals  # CLI entry: flag parse + result print
+def main(argv=None):  # pylint: disable=too-many-locals
 
     """Validate-resume CLI entry point."""
     argv = list(sys.argv[1:] if argv is None else argv)

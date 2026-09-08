@@ -82,7 +82,7 @@ MIME_BY_EXT = {
 
 # ---------------------------------------------------------------- config
 
-def parse_curl_file(path=CURL_FILE):  # pylint: disable=too-many-branches  # curl-exporter parser: one branch per flag shape
+def parse_curl_file(path=CURL_FILE):  # pylint: disable=too-many-branches
     """Parse the saved cURL exports into request dicts.
 
     Returns a list of {"url", "method", "headers", "cookies", "body"}
@@ -254,7 +254,8 @@ def _browser_headers(saved_headers):
     return out
 
 
-def request(url, headers, *, method=None, json_body=None, multipart=None,  # pylint: disable=too-many-arguments  # transport wrapper: 6 orthogonal curl params
+# pylint: disable=too-many-arguments  # transport wrapper: 6 orthogonal curl params
+def request(url, headers, *, method=None, json_body=None, multipart=None,
             timeout=90):
     """Issue one HTTP request with retries; returns (status, body, headers)."""
     cmd = ["curl", "-s", "-S", "--max-time", str(timeout),
@@ -362,7 +363,8 @@ def _opportunity_update_body(saved_body, opp_id, resume_id, job_id):
     return _sub(obj)
 
 
-def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements  # ATS polling loop: poll/match/report orchestration
+# pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements  # ATS poll/match/report orchestration
+def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
          config=CURL_FILE, company=None):
     """Poll the ATS until the posting is indexed; return the match result."""
     if not os.path.exists(resume_path):

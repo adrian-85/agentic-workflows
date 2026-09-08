@@ -107,7 +107,7 @@ def validate_response(endpoint: str, payload) -> list[SchemaIssue]:
 
 
 @dataclass
-class StepRecord:  # pylint: disable=too-many-instance-attributes  # data record mirroring the wire schema (StepLogger/reporting read it flat)
+class StepRecord:  # pylint: disable=too-many-instance-attributes
     """One recorded API step, mirroring the wire schema for the step log."""
     name: str
     method: str
@@ -120,7 +120,7 @@ class StepRecord:  # pylint: disable=too-many-instance-attributes  # data record
     interpretation: str | None = None
     verified: bool = False
     verify_note: str | None = None
-    verifies: str | None = None  # if this GET is the double-verify proof for a create, that create's step name
+    verifies: str | None = None  # if this GET is the double-verify proof for a create, that create's step name  # pylint: disable=line-too-long
     schema_issues: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -186,7 +186,8 @@ class P2PClient:
         self.integration_issues: list[dict] = []
         self._client = httpx.Client(timeout=timeout)
 
-    def _request(self, method: str, name: str, path: str,  # pylint: disable=too-many-arguments,too-many-positional-arguments  # private transport: 6 orthogonal params, ~20 kwarg call sites
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def _request(self, method: str, name: str, path: str,
                  payload: dict | None = None, schema_key: str | None = None,
                  quiet: bool = False) -> StepRecord:
         url = self.base_url + path
@@ -218,7 +219,7 @@ class P2PClient:
                     self.logger.record(step)
                 return step
 
-    def _to_step_record(self, method: str, name: str, url: str,  # pylint: disable=too-many-arguments,too-many-positional-arguments  # internal transport helper
+    def _to_step_record(self, method: str, name: str, url: str,  # pylint: disable=too-many-arguments,too-many-positional-arguments
                         payload: dict | None, resp, schema_key: str | None,
                         duration_ms: float) -> StepRecord:
         """Build a StepRecord from an httpx response, validating the schema."""
@@ -270,7 +271,7 @@ class P2PClient:
                                      request_payload=None, status_code=200,
                                      response_payload=found[0],
                                      duration_ms=rec.duration_ms,
-                                     interpretation="detail endpoint absent; resolved via GET /vendors")
+                                     interpretation="detail endpoint absent; resolved via GET /vendors")  # pylint: disable=line-too-long
         return rec
 
     def create_vendor(self, name: str, status: str = "active",

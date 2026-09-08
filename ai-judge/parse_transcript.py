@@ -86,7 +86,7 @@ def _parse_sys_block(text: str) -> List[Dict[str, str]]:
         # Skip separator lines (dashes or equals) and the file's trailing banner.
         if re.fullmatch(r"[-=]{20,}", s):
             continue
-        if s.upper().startswith("SYSTEM INITIALIZATION") or s.upper().startswith("CONVERSATION TIMELINE"):
+        if s.upper().startswith("SYSTEM INITIALIZATION") or s.upper().startswith("CONVERSATION TIMELINE"):  # pylint: disable=line-too-long  # (long code condition/arg line)
             continue
         m = re.match(r"^\[SYS\]\s*(.*)$", s)
         if m:
