@@ -22,3 +22,6 @@ resume-tailoring/*.ats-check.json
 
 # Local git identity file — do not commit
 .gitconfig
+
+# Worktrees (isolated dev workspaces)
+.worktrees/
