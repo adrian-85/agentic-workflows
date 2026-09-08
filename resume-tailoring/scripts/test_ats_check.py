@@ -243,6 +243,15 @@ class PostingUrlTests(unittest.TestCase):
     def test_no_posting_url_returns_none(self):
         self.assertIsNone(ac._posting_url("Engineer\nbody text"))
 
+    def test_placeholder_posting_url_treated_as_missing(self):
+        # A '(not provided)'-style placeholder reached the scan service as
+        # 'url=(not)' in a real session. A non-http(s) token is missing —
+        # omit the line entirely when the URL is unknown (SKILL Step 1).
+        for placeholder in ("(not provided)", "(ask user)", "TBD"):
+            with self.subTest(placeholder=placeholder):
+                self.assertIsNone(ac._posting_url(
+                    f"Posting URL: {placeholder}\nEngineer"))
+
 
 class ResponseTests(unittest.TestCase):
     def test_opportunity_update_body_rebuilds_ids(self):

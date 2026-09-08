@@ -311,11 +311,25 @@ def report_ready(data):
 
 def _posting_url(jd_text):
     """The job posting URL persisted with the JD (SKILL Step 1's
-    'Posting URL: <url>' first line), or None."""
+    'Posting URL: <url>' first line), or None.
+
+    A line whose token is not an http(s) URL (a '(not provided)' or
+    '(ask user)' placeholder) is treated as missing — a placeholder
+    PATCHed to the service lands in the report as garbage ('url=(not)'
+    in a real session). SKILL Step 1: line present means a real URL;
+    when the URL is unknown, omit the line entirely."""
     for line in jd_text.splitlines():
         m = re.match(r"\s*posting url:\s*(\S+)", line, re.I)
         if m:
-            return m.group(1)
+            url = m.group(1)
+            if urllib.parse.urlparse(url).scheme in ("http", "https"):
+                return url
+            print(f"note: 'Posting URL: {url}' is not an http(s) URL — "
+                  "treating as missing. Omit the line entirely when the "
+                  "URL is unknown (SKILL Step 1); a placeholder PATCHed "
+                  "to the service is garbage in the report.",
+                  file=sys.stderr)
+            return None
     return None
 
 
