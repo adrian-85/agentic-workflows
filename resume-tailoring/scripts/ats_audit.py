@@ -28,7 +28,9 @@ Checks (exit 0 clean, 1 findings, 2 usage/IO error):
      JSON (findings + hard/soft skills). A skill's resumeCount, when the
      report carries one, is the authoritative host signal; otherwise the
      literal check decides. Hard-skill zero-hits fail; soft-skill
-     zero-hits warn (several are deliberate no-evidence skips).
+     zero-hits warn as ACTIONABLE (soft skills are safe to infer — host
+     the literal phrase where the action-verb evidence lives, SKILL
+     Steps 2/11).
 
 Run on the PDF (pdftotext), not the .docx — the deliverable is what the
 screener parses. Three classes of external finding are IGNORED by rule
@@ -474,8 +476,11 @@ def main(argv=None):
                             f"/{len(hard)} hosted")
         if soft_miss:
             warns.append(
-                "report soft skills with NO literal host (advisory — "
-                "no-evidence skips are deliberate): " + ", ".join(soft_miss))
+                "report soft skills with NO literal host (ACTIONABLE — "
+                "soft skills are safe to infer: host each literal phrase "
+                "where the action-verb evidence lives, SKILL Steps 2/11; "
+                "hosting these moved a real session's live match rate "
+                "59→86): " + ", ".join(soft_miss))
         elif soft:
             ok_lines.append(f"report soft skills: {len(soft)}/{len(soft)} "
                             "hosted")

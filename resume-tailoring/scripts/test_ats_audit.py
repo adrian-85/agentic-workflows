@@ -283,6 +283,11 @@ class MainTests(unittest.TestCase):
             self.assertIn("NO literal host: pytest", out)
             self.assertNotIn("selenium", out)
             self.assertIn("soft skills with NO literal host", out)
+            # Reclassified actionable (SKILL Steps 2/11): the warning must
+            # tell the agent to HOST the phrase, not skip it as deliberate.
+            self.assertIn("ACTIONABLE", out)
+            self.assertIn("safe to infer", out)
+            self.assertNotIn("advisory", out)
             self.assertIn("IGNORED contactEmail", out)
             # The report's wordCount is a cross-check line.
             self.assertIn("words (report cross-check): 949", out)
