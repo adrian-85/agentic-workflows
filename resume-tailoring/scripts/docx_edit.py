@@ -62,9 +62,13 @@ import copy
 import hashlib
 import json
 import os
+import shlex
 import sys
 import zipfile
 from xml.etree import ElementTree as ET
+
+sys.path.insert(0, __file__.rsplit("/", 1)[0])  # flat-namespace siblings
+from script_args import MAX_WORDS, extract_flag, extract_flag_all, parse_flag  # noqa: E402
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 XMLNS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -192,21 +196,19 @@ def _approval_env():
     raw = os.environ.get("RESUME_VALIDATE_ARGS", "")
     if not raw.strip():
         return None, None, False, False, [], None
-    import shlex
-    import validate_resume as vr  # lazy: avoid the module-load cycle
     argv = shlex.split(raw)
-    jd_path = vr._extract_flag(argv, "--jd")
+    jd_path = extract_flag(argv, "--jd")
     jd_years = None
     if "--jd-years" in argv:
         try:
-            jd_years = float(vr._extract_flag(argv, "--jd-years"))
+            jd_years = float(extract_flag(argv, "--jd-years"))
         except (TypeError, ValueError):
             jd_years = None
-    seniority_approved = vr._parse_flag(argv, "--seniority-approved")
-    education_approved = vr._parse_flag(argv, "--education-approved")
-    protect = vr._extract_flag_all(argv, "--protect")
-    max_words = (int(vr._extract_flag(argv, "--max-words"))
-                 if "--max-words" in argv else vr.MAX_WORDS) or None
+    seniority_approved = parse_flag(argv, "--seniority-approved")
+    education_approved = parse_flag(argv, "--education-approved")
+    protect = extract_flag_all(argv, "--protect")
+    max_words = (int(extract_flag(argv, "--max-words"))
+                 if "--max-words" in argv else MAX_WORDS) or None
     return (jd_path, jd_years, seniority_approved, education_approved,
             protect, max_words)
 
@@ -232,7 +234,11 @@ def _deliverable_gate(path, root, src):
     """
     if src is None or path.endswith("Master Resume.docx"):
         return
-    import validate_resume as vr  # lazy: validate_resume imports this module
+    # Lazy, importlib-based: validate_resume imports THIS module at load
+    # (static cycle), so a from-import here would be a real cycle; importlib
+    # keeps the load deferred to gate time with no static import edge.
+    import importlib
+    vr = importlib.import_module("validate_resume")
     jd_path, jd_years, seniority_approved, education_approved, protect, \
         max_words = _approval_env()
     tmp_note = tmp_jd_note(jd_path)

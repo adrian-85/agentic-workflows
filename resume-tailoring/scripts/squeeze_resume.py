@@ -51,6 +51,7 @@ import tempfile
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 import measure_resume as mr  # noqa: E402
+from script_args import extract_common  # noqa: E402
 
 
 def _apply_drops(body, suggestions):
@@ -107,23 +108,7 @@ def _print_foldback(foldback):
 def main():
     argv = list(sys.argv[1:])
     plan_only = "--plan-only" in argv
-    protect = []
-    jd_file = None
-    kept = []
-    i = 0
-    while i < len(argv):
-        a = argv[i]
-        if a == "--protect":
-            protect.append(argv[i + 1])
-            i += 2
-        elif a == "--jd":
-            jd_file = argv[i + 1]
-            i += 2
-        elif a == "--plan-only":
-            i += 1
-        else:
-            kept.append(a)
-            i += 1
+    protect, jd_file, kept = extract_common(argv, extra_flags=("--plan-only",))
     if not kept:
         print("usage: squeeze_resume.py <resume.docx> [TARGET_PAGES] "
               "[--jd <raw-JD.txt>] [--protect \"<phrase>\"] [--plan-only]",

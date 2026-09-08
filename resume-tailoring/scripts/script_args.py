@@ -1,0 +1,59 @@
+"""Flat-namespace argv helpers shared by the resume-tailoring scripts.
+
+Lives outside validate_resume.py so docx_edit.py can import it without
+the docx_edit -> validate_resume -> measure_resume -> docx_edit import
+cycle. Mirrors the per-script parsing loops verbatim; each script's
+main() composes these.
+"""
+
+# Whole-resume word cap for a tailored deliverable (SKILL Step 8).
+# Home here (not validate_resume) so docx_edit's deliverable gate can
+# apply the default without importing validate_resume (cycle break).
+MAX_WORDS = 1000
+
+
+def parse_flag(argv, flag):
+    """Remove a boolean flag from ``argv`` (in-place) and return True if it was present."""
+    if flag in argv:
+        argv.remove(flag)
+        return True
+    return False
+
+
+def extract_flag(argv, flag):
+    """Extract a flag + value pair from ``argv`` (in-place), returning the value or None."""
+    if flag in argv:
+        i = argv.index(flag)
+        value = argv[i + 1]
+        del argv[i:i + 2]
+        return value
+    return None
+
+
+def extract_flag_all(argv, flag):
+    """Extract EVERY flag + value pair for a repeatable flag (in-place),
+    returning the list of values (empty when absent)."""
+    values = []
+    while flag in argv:
+        values.append(extract_flag(argv, flag))
+    return values
+
+
+def extract_common(argv, extra_flags=()):
+    """Split argv into (protect, jd_file, kept) using the standard --protect/
+    --jd loop; extra_flags are single-value flags consumed but not returned.
+    Mirrors measure_resume/squeeze_resume main() parsing exactly."""
+    protect, jd_file = [], None
+    kept = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--protect" and i + 1 < len(argv):
+            protect.append(argv[i + 1]); i += 2
+        elif a == "--jd" and i + 1 < len(argv):
+            jd_file = argv[i + 1]; i += 2
+        elif a in extra_flags:
+            i += 1
+        else:
+            kept.append(a); i += 1
+    return protect, jd_file, kept

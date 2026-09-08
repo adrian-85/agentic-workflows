@@ -55,6 +55,8 @@ import textwrap
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
+import script_args  # noqa: E402
+from script_args import extract_common, extract_flag, extract_flag_all  # noqa: E402
 
 W = de.W
 
@@ -2002,29 +2004,9 @@ def _resolved_jd_terms(jd_text, body, simulate, sim_jd_terms):
 
 def main():
     argv = list(sys.argv[1:])
-    protect = []
-    jd_file = None
-    linkedin_file = None
-    simulate = []
-    kept = []
-    i = 0
-    while i < len(argv):
-        a = argv[i]
-        if a == "--protect":
-            protect.append(argv[i + 1])
-            i += 2
-        elif a == "--jd":
-            jd_file = argv[i + 1]
-            i += 2
-        elif a == "--linkedin":
-            linkedin_file = argv[i + 1]
-            i += 2
-        elif a == "--simulate":
-            simulate.append(argv[i + 1])
-            i += 2
-        else:
-            kept.append(a)
-            i += 1
+    linkedin_file = extract_flag(argv, "--linkedin")
+    simulate = extract_flag_all(argv, "--simulate")
+    protect, jd_file, kept = extract_common(argv)
     if len(kept) < 1:
         print("usage: measure_resume.py <resume.docx> [TARGET_PAGES] "
               "[--jd <raw-JD.txt>] [--linkedin <profile-dump.txt>] "

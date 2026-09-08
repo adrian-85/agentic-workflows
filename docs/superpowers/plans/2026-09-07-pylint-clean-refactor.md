@@ -267,6 +267,15 @@ def extract_common(argv, extra_flags=()):
 
 - [ ] **Step 4: Update `validate_resume.py` to use `script_args` and re-export**
 
+  > Execution finding (Step 4b): `_deliverable_gate` also had a lazy
+  > `import validate_resume as vr` (for `validate_tree`) that pylint's
+  > cycle detector still counts as a `docx_edit -> validate_resume` edge.
+  > Fixed with `importlib.import_module("validate_resume")` at gate time
+  > (lazy, no static edge) — verified R0401 ×2 clear. The plan's original
+  > claim that script_args alone breaks the cycle was incomplete. `MAX_WORDS`
+  > also moved to script_args as the single source of truth (docx_edit
+  > needs the 1000 default for the gate without importing validate_resume).
+
 In `validate_resume.py`: delete the three flag defs, `from script_args import parse_flag as _parse_flag, extract_flag as _extract_flag, extract_flag_all as _extract_flag_all` at top (keeps `vr._parse_flag` etc. working for consumers), and update `main()` to call them.
 
 - [ ] **Step 5: Convert `measure_resume.py` + `squeeze_resume.py` main() loops**

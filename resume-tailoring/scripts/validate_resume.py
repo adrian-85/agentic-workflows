@@ -98,6 +98,10 @@ import unicodedata
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import docx_edit as de  # noqa: E402
 import measure_resume as mr  # noqa: E402
+from script_args import parse_flag as _parse_flag  # noqa: E402
+from script_args import extract_flag as _extract_flag  # noqa: E402
+from script_args import extract_flag_all as _extract_flag_all  # noqa: E402
+from script_args import MAX_WORDS  # noqa: E402  (single source of truth)
 
 # Resume-format constants (same adaptation contract as measure_resume.py).
 TITLE_STYLE = "JobTitleBlock"   # job-title paragraph style; adapt per resume
@@ -161,7 +165,9 @@ PARA_WORD_CAP = 40
 # Blocking, like the bullet cap; the master input is exempt. Counting
 # mirrors the external scorers: bullet glyphs and page furniture are not
 # words (ats_audit._count_words documents the calibration).
-MAX_WORDS = 1000
+# MAX_WORDS is imported from script_args (single source of truth so
+# docx_edit's deliverable gate applies the same default without an
+# import cycle).
 
 
 def _is_bullet(p):
