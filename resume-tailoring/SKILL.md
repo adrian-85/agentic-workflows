@@ -65,7 +65,8 @@ User-supplied personal assets (`*.docx` / `*.pdf`, gitignored) live in the skill
 
 `scripts/` (each tool's docstring / usage is the reference; the steps below point at them):
 `docx_edit.py` (Helper library) · `tailor_resume.py` (template) · `render_pdf.sh` (Steps 8, 11) ·
-`measure_resume.py` (Step 8; `--jd` makes its DROP PLAN JD-aware) · `squeeze_resume.py` (Step 8;
+`measure_resume.py` (Step 8; `--jd` makes its DROP PLAN JD-aware,
+`--linkedin <dump>` feeds the INFERENCE MAP for no-host terms) · `squeeze_resume.py` (Step 8;
 auto-tightens to the page budget) · `validate_resume.py` (Steps 3, 11; `--master` auto-detects the
 `* Master Resume.docx` next to the input) · `diff_resume.py` (Token-spend) · `read_profile.sh` (Step 1) ·
 `ats_audit.py` (Step 11; literal-phrase ATS audit of the rendered PDF + word cap) · `ats_check.py`
@@ -191,10 +192,20 @@ Ask the user (or infer from the JD) the handful of themes to sell on; these
 themes drive every later edit. **If the input is a recruiter's named-skills
 list rather than a JD, those skills/tools ARE the selling points** — every
 later edit shows where each was used. Cross-check measure's **JD terms with
-NO host in the resume** list (authoring-time measure, Step 8): those are the
-mechanical never-fabricate flags — raise each to the user instead of
-inventing evidence, and note where 'similar' tooling truthfully answers the
-ask (Postman/Karate for "SoapUI or REST API testing tools").
+NO host in the resume** list (authoring-time measure, Step 8), then its
+**INFERENCE MAP**: "no literal host" is not "no evidence" — the map
+deterministically searches the master (and the LinkedIn dump via
+`--linkedin <profile-dump.txt>`) for each no-host term's morphological
+variants and skill-family roots, and prints the evidence it finds. The
+map's evidence-gathering is mechanical; the JUDGMENT is yours: verify each
+CANDIDATE is experience the user actually has ("debugging" is intrinsic to
+every testing role; "test data management" hosts "data management"; AWS in
+a master Tools line hosts "aws services"), draft a truthful literal-phrase
+host for it, and present the whole map — candidates AND genuine gaps — to
+the user in ONE message. A term with NO deterministic evidence stays a
+never-fabricate flag: raise it instead of inventing evidence, and note
+where 'similar' tooling truthfully answers the ask (Postman/Karate for
+"SoapUI or REST API testing tools").
 
 **Soft-skill asks are inferred from action-verb evidence, not keyword-matched.**
 A qual line like "Excellent communication, stakeholder management, and
@@ -630,7 +641,9 @@ It checks the whole-resume word cap and every JD qualification phrase
 literally (host the exact phrase truthfully or raise the gap — never
 fabricate). JD-named terms with no host mean a cut killed the last host
 (Step 8's cut-protection rule) or the phrase was never mirrored — fix or
-raise.
+raise. Its findings summary auto-IGNOREs the by-rule noise (contactEmail,
+specialCharacters, education findings on an Education-free PDF — see
+below), so the remaining findings are the actionable ones.
 
 **External ATS scan (when configured).** `scripts/ats_check.py scan
 "<resume>.pdf" jd_<target>.txt` submits the deliverable to the user's ATS
@@ -653,14 +666,31 @@ a known ATS (e.g. postings hosted on job boards rather than an ATS),
 ATS-specific findings are simply unavailable — the keyword findings
 still apply.
 
-**IGNORED by rule: the contactEmail searchability finding.** The compact
-hyperlinked contact block (link text "Email" over a `mailto:` target) is a
-deliberate design the user chose for readability — NEVER widen columns,
-unwrap the header, or rewrite link display text to satisfy a literal text
-parser. One session did; the user reverted it as a readability failure
-("looks sloppy"). The address lives in the hyperlink target, which many
-ATS parsers extract; a raw-text parser's `contactEmail` fail is the known,
-accepted tradeoff. Treat that finding as noise in every external report.
+**IGNORED by rule: three classes of external finding.**
+
+1. **contactEmail** (searchability). The compact hyperlinked contact block
+   (link text "Email" over a `mailto:` target) is a deliberate design the
+   user chose for readability — NEVER widen columns, unwrap the header, or
+   rewrite link display text to satisfy a literal text parser. One session
+   did; the user reverted it as a readability failure ("looks sloppy").
+   The address lives in the hyperlink target, which many ATS parsers
+   extract; a raw-text parser's `contactEmail` fail is the known, accepted
+   tradeoff.
+2. **specialCharacters** (formatting). The resume's typographic characters
+   (Wingdings bullets, en-dash date ranges, curly apostrophes) are the
+   user's deliberate formatting — "it pops better with the current
+   formatting, so ignore". NEVER reformat the resume to satisfy a text
+   parser's character check; the finding is noise in every external
+   report.
+3. **The education findings** (`headingEducation`, `educationMatch`) when
+   the rendered resume has no Education section. The drop was a Step 3.4
+   predicate decision and the render gate already sanctioned it — the
+   scan's generic "add an Education section" advice does not re-open that
+   decision. When Education IS present, the findings report normally.
+
+`ats_audit.py` prints each ignored finding as `IGNORED` with its rule;
+never act on one, and never re-litigate the underlying decision at scan
+time.
 
 **Final human review (what the tools can't judge).** After the last render,
 re-read the full `--prefixes` dump top-to-bottom once: every kept bullet still
@@ -775,6 +805,9 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Cutting the last host of a JD-named hard skill for page math | Step 8 cut-protection: check the term's remaining hosts before any cut; `ats_audit.py --jd` catches it post-build |
 | Letting the deliverable drift past 1,000 words | Blocking validator gate + `ats_audit.py` count — cut content, never shrink fonts (Steps 3, 8, 11) |
 | Widening the contact block or rewriting link text for ATS parsers | IGNORED by rule — the compact hyperlinked contact block is deliberate design; `contactEmail` searchability findings are noise (Step 11) |
+| Reformatting typography to clear the scan's Special Characters finding | IGNORED by rule — Wingdings bullets, en-dash dates, curly quotes are the user's deliberate formatting; never reformat to satisfy a text parser (Step 11) |
+| Restoring Education because the scan wants an Education section | IGNORED by rule when Education was dropped per Step 3.4 — the render gate sanctioned the drop; the scan's generic advice does not re-open it (Step 11) |
+| Treating "no literal host" as "no evidence" and declaring honest gaps | Read measure's INFERENCE MAP (Step 2): it deterministically surfaces master/LinkedIn evidence for no-host terms — judge each candidate, host the literal phrase truthfully, present the whole map in one message; debugging/UI/data-management asks are usually demonstrated, just lexically invisible (Step 2) |
 | Treating the external report's wordCount as the cap | The service's PDF parser inflates counts — the cap is `ats_audit.py`'s own count; the report's number is a cross-check only (Step 11) |
 | Storing scan-service credentials in the repo | They live in the skill root's `.ats-check/` dot-directory (user's saved cURL exports; gitignored, 0600, invisible to `git add *`); refresh from a logged-in browser when scans 401 (Step 11) |
 | Scan says the target ATS was NOT identified | The posting URL wasn't persisted with the JD (Step 1) — add `Posting URL: <url>` as the first line of `jd_<target>.txt` and re-scan |
