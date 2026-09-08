@@ -39,6 +39,7 @@ from parse_transcript import parse_transcript, flatten  # noqa: E402  # pylint: 
 # Credentials (unchanged from the original judge.py)
 # --------------------------------------------------------------------------- #
 def load_openrouter_credentials() -> str:
+    """Load the OpenRouter API key from Pi's auth store."""
     auth_path = Path.home() / ".pi" / "agent" / "auth.json"
     if not auth_path.exists():
         raise RuntimeError(
@@ -65,6 +66,7 @@ def _build_client():
 
 
 def get_client():
+    """Return a cached OpenAI client (OpenRouter via Pi auth)."""
     return _build_client()
 
 
@@ -372,6 +374,7 @@ def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
 # Prompt construction for the LLM judge
 # --------------------------------------------------------------------------- #
 def load_rubric(path: Path) -> List[Dict[str, Any]]:
+    """Load the judging rubric JSON."""
     if path.exists():
         data = json.loads(path.read_text(encoding="utf-8"))
         return data.get("criteria", data) if isinstance(data, dict) else data
@@ -394,6 +397,7 @@ def _render_init(parsed: Dict[str, Any]) -> str:
 def build_prompt(parsed: Dict[str, Any],
                  rubric: List[Dict[str, Any]],
                  prepass: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """Build the judge LLM prompt from the parsed transcript + rubric."""
     rubric_text = "\n".join(f"- {c['name']}: {c['description']}" for c in rubric)
     init_text = _render_init(parsed)
     timeline_text = _render_flat(parsed)
@@ -473,6 +477,7 @@ Return only the JSON object.
 # LLM call
 # --------------------------------------------------------------------------- #
 def strip_code_fences(text: str) -> str:
+    """Strip code fences from an LLM reply (defensive)."""
     text = text.strip()
     if text.startswith("```"):
         text = re.sub(r"^```[a-zA-Z]*\n?", "", text)
@@ -482,6 +487,7 @@ def strip_code_fences(text: str) -> str:
 
 def judge_transcript(parsed: Dict[str, Any], rubric: List[Dict[str, Any]],
                      model: str, temperature: float) -> Dict[str, Any]:
+    """Run the LLM judge over the parsed transcript + prepass findings."""
     prepass = deterministic_prepass(parsed)
     messages = build_prompt(parsed, rubric, prepass)
     client = get_client()
@@ -512,6 +518,7 @@ def judge_transcript(parsed: Dict[str, Any], rubric: List[Dict[str, Any]],
 # Main
 # --------------------------------------------------------------------------- #
 def parse_args():
+    """Parse the judge CLI arguments."""
     p = argparse.ArgumentParser(
         description="LLM-as-a-judge for voice-AI transcripts")
     p.add_argument("--input", required=True,
@@ -546,6 +553,7 @@ def _make_run_dir(base: Path, run_id: str = None) -> Path:
 
 
 def main() -> int:
+    """Judge CLI entry point."""
     args = parse_args()
     rubric = load_rubric(Path(args.rubric))
     inputs = _resolve_inputs(Path(args.input))

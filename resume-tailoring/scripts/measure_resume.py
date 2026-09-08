@@ -215,6 +215,8 @@ def _resolved_jd_terms(jd_text, body, simulate, sim_jd_terms):
 
 
 def main():
+
+    """Measure-resume CLI entry point."""
     argv = list(sys.argv[1:])
     linkedin_file = extract_flag(argv, "--linkedin")
     simulate = extract_flag_all(argv, "--simulate")

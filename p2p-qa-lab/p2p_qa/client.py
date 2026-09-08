@@ -72,12 +72,15 @@ EXPECTED_SCHEMAS: dict[str, dict] = {
 
 @dataclass
 class SchemaIssue:
+
+    """A schema validation finding (warn/break) for one endpoint field."""
     endpoint: str
     field: str
     severity: str  # "warn" | "break"
     detail: str
 
     def to_dict(self) -> dict:
+        """Serialize the schema issue for the report JSON."""
         return {"endpoint": self.endpoint, "field": self.field,
                 "severity": self.severity, "detail": self.detail}
 
@@ -105,6 +108,7 @@ def validate_response(endpoint: str, payload) -> list[SchemaIssue]:
 
 @dataclass
 class StepRecord:  # pylint: disable=too-many-instance-attributes  # data record mirroring the wire schema (StepLogger/reporting read it flat)
+    """One recorded API step, mirroring the wire schema for the step log."""
     name: str
     method: str
     url: str
@@ -120,6 +124,7 @@ class StepRecord:  # pylint: disable=too-many-instance-attributes  # data record
     schema_issues: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
+        """Serialize the step record (JSONL format) for the step log."""
         return {
             "name": self.name, "method": self.method, "url": self.url,
             "request_payload": self.request_payload,
@@ -140,10 +145,12 @@ class StepLogger:
         self.path = path
 
     def record(self, step: StepRecord) -> None:
+        """Append one step as a JSONL line."""
         with open(self.path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(step.to_dict()) + "\n")
 
     def iter_steps(self) -> list[StepRecord]:
+        """Replay the log into StepRecord objects (skipping malformed lines)."""
         steps = []
         try:
             with open(self.path, encoding="utf-8") as fh:
@@ -246,6 +253,7 @@ class P2PClient:
 
     # ---- vendor ----
     def list_vendors(self) -> StepRecord:
+        """List all vendors (schema-validated)."""
         return self._request("GET", "list_vendors", "/vendors", schema_key="GET /vendors")
 
     def get_vendor(self, vendor_id: int) -> StepRecord:
@@ -268,6 +276,7 @@ class P2PClient:
     def create_vendor(self, name: str, status: str = "active",
                       contact_email: str | None = None,
                       bank_account_last4: str | None = None) -> StepRecord:
+        """Create a vendor (schema-validated POST)."""
         payload = {"name": name, "status": status}
         if contact_email is not None:
             payload["contact_email"] = contact_email
@@ -278,26 +287,31 @@ class P2PClient:
 
     # ---- purchase orders ----
     def create_po(self, vendor_id: int, line_items: list[dict]) -> StepRecord:
+        """Create a draft PO (schema-validated POST)."""
         return self._request("POST", "create_po", "/purchase-orders",
                              payload={"vendor_id": vendor_id, "line_items": line_items},
                              schema_key="POST /purchase-orders")
 
     def submit_po(self, po_id: int) -> StepRecord:
+        """Submit a draft PO for receipt."""
         return self._request("POST", "submit_po", f"/purchase-orders/{po_id}/submit",
                              schema_key="POST /purchase-orders/{id}/submit")
 
     def receive_po(self, po_id: int, lines: list[dict]) -> StepRecord:
+        """Record a goods receipt against a submitted PO."""
         return self._request("POST", "receive_po", f"/purchase-orders/{po_id}/receive",
                              payload={"lines": lines},
                              schema_key="POST /purchase-orders/{id}/receive")
 
     def get_po(self, po_id: int) -> StepRecord:
+        """GET PO detail + receipt status (schema-validated)."""
         return self._request("GET", "get_po", f"/purchase-orders/{po_id}",
                              schema_key="GET /purchase-orders/{id}")
 
     # ---- invoices ----
     def create_invoice(self, invoice_number: str, vendor_id: int, po_id: int,
                        amount_cents: int, account_code: str | None = None) -> StepRecord:
+        """Create an invoice against a PO (schema-validated POST)."""
         payload = {"invoice_number": invoice_number, "vendor_id": vendor_id,
                    "po_id": po_id, "amount_cents": amount_cents}
         if account_code is not None:
@@ -306,19 +320,23 @@ class P2PClient:
                              schema_key="POST /invoices")
 
     def match_invoice(self, invoice_id: int) -> StepRecord:
+        """3-way match an invoice (schema-validated POST)."""
         return self._request("POST", "match_invoice", f"/invoices/{invoice_id}/match",
                              schema_key="POST /invoices/{id}/match")
 
     def approve_invoice(self, invoice_id: int) -> StepRecord:
+        """Approve a matched invoice + post GL (schema-validated)."""
         return self._request("POST", "approve_invoice", f"/invoices/{invoice_id}/approve",
                              schema_key="POST /invoices/{id}/approve")
 
     def get_invoice(self, invoice_id: int) -> StepRecord:
+        """GET invoice detail + match/GL status."""
         return self._request("GET", "get_invoice", f"/invoices/{invoice_id}",
                              schema_key="GET /invoices/{id}")
 
     # ---- exposure / generic ----
     def get_exposure(self, vendor_id: int) -> StepRecord:
+        """Total open AP liability for a vendor (schema-validated GET)."""
         return self._request("GET", "get_exposure", f"/vendors/{vendor_id}/exposure",
                              schema_key="GET /vendors/{id}/exposure")
 

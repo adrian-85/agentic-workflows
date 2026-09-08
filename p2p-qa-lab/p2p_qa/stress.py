@@ -127,6 +127,8 @@ def _dup_and_miscredit(c, inv_no: str, vid: int, pid: int,
 
 
 def run_stress(seed: int = 0, bug_profile: str = "clean", n: int = 50) -> dict:
+
+    """Run n plan probes against an in-process mock; per-rule rates."""
     plans = generate_po_plan(seed=seed, n=n)
     app = create_app(bug_profile=bug_profile, seed=seed)
     c = TestClient(app)

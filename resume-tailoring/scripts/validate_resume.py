@@ -491,6 +491,8 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,
 
 
 def main(argv=None):
+
+    """Validate-resume CLI entry point."""
     argv = list(sys.argv[1:] if argv is None else argv)
     strict = _parse_flag(argv, "--strict")
     master = _extract_flag(argv, "--master")

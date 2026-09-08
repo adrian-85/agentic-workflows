@@ -15,12 +15,16 @@ from p2p_qa.client import StepRecord
 
 @dataclass
 class Finding:
+
+    """A deterministic pre-pass finding (rule, status, evidence)."""
     rule: str
     status: str  # HELD | BREACHED | NOT_TESTED
     evidence: dict = field(default_factory=dict)
     note: str = ""
 
     def to_dict(self) -> dict:
+
+        """Serialize the finding to the report JSON."""
         return {"rule": self.rule, "status": self.status,
                 "evidence": self.evidence, "note": self.note}
 
@@ -215,6 +219,8 @@ _FINANCIAL_RULES = {
 
 
 def run_prepass(steps: list[StepRecord], baseline: list[ProbeResult]) -> list[Finding]:
+
+    """Run the deterministic pre-pass over the step log + probes."""
     # Carry the baseline probe's status, concrete evidence, and note. A probe's
     # evidence (raw request/status/response) is the most specific we have.
     baseline_by_rule: dict[str, tuple[str, dict, str]] = {}

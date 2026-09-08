@@ -25,20 +25,28 @@ def parse_cents(value: int | str) -> int:
 
 
 def as_cents_str(cents: int) -> str:
+
+    """Render cents as a str, passthrough."""
     sign = "-" if cents < 0 else ""
     a = abs(cents)
     return f"{sign}{a // 100}.{a % 100:02d}"
 
 
 def line_value_cents(unit_price_cents: int, quantity: int) -> int:
+
+    """unit_price * quantity, validated non-negative."""
     return unit_price_cents * quantity
 
 
 def received_value_cents(lines: list[dict]) -> int:
+
+    """Sum received line values for a receipt payload."""
     return sum(line_value_cents(l["unit_price_cents"], l["quantity_received"]) for l in lines)
 
 
 def fmt_cents(cents: int) -> str:
+
+    """Format cents as $X,XXX.XX for human output."""
     sign = "-" if cents < 0 else ""
     a = abs(cents)
     return f"{sign}${a // 100}.{a % 100:02d}"

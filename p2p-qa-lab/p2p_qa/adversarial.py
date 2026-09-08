@@ -20,6 +20,8 @@ SECRET_KEYS = ("password", "bank_account_full", "ssn", "api_key",
 
 @dataclass
 class ProbeResult:
+
+    """One probe outcome: rule under test, source, HELD/BREACHED status, evidence."""
     rule: str
     probe_name: str
     status: str  # HELD | BREACHED | ERROR
@@ -27,6 +29,7 @@ class ProbeResult:
     note: str = ""
 
     def to_dict(self) -> dict:
+        """Serialize the probe result for the report."""
         return {"rule": self.rule, "probe_name": self.probe_name,
                 "status": self.status, "evidence": self.evidence, "note": self.note}
 
@@ -81,6 +84,7 @@ def _setup_received_po(client: P2PClient, vendor_name: str,
 # ---------- financial invariant probes ----------
 
 def probe_overpayment(client: P2PClient) -> ProbeResult:
+    """Rule 1: an invoice above the received value must be rejected at match."""
     v, po = _setup_received_po(client, "OverProbe")
     inv = client.create_invoice("INV-ADV-OVR", v["id"], po["id"], 5001)  # received 5000, +1 cent
     m = client.match_invoice(inv.response_payload["id"])
@@ -100,6 +104,7 @@ def probe_overpayment(client: P2PClient) -> ProbeResult:
 
 
 def probe_approve_unmatched(client: P2PClient) -> ProbeResult:
+    """Rule 2: an unmatched invoice must not be approvable."""
     v, po = _setup_received_po(client, "GateProbe")
     inv = client.create_invoice("INV-ADV-NM", v["id"], po["id"], 5000)
     a = client.approve_invoice(inv.response_payload["id"])  # never matched
@@ -117,6 +122,7 @@ def probe_approve_unmatched(client: P2PClient) -> ProbeResult:
 
 
 def probe_partial_flag(client: P2PClient) -> ProbeResult:
+    """Rule 3: a partial receipt must surface partial=true in the match."""
     v, po = _setup_received_po(client, "FlagProbe", {"qty": 5, "received": 2})
     inv = client.create_invoice("INV-ADV-PART", v["id"], po["id"], 2000)
     m = client.match_invoice(inv.response_payload["id"])
@@ -139,6 +145,7 @@ def probe_partial_flag(client: P2PClient) -> ProbeResult:
 
 
 def probe_inactive_vendor(client: P2PClient) -> ProbeResult:
+    """Rule 4: no new POs against an inactive vendor."""
     r = client.create_po(2, [{"sku": "SKU-ADV", "description": "adv",
                               "unit_price_cents": 1000, "quantity": 1}])  # vendor 2 seeded inactive
     if r.status_code == 400:
@@ -152,6 +159,7 @@ def probe_inactive_vendor(client: P2PClient) -> ProbeResult:
 
 
 def probe_gl_balance(client: P2PClient) -> ProbeResult:
+    """Rule 5: every approved invoice posts a balanced GL entry."""
     v, po = _setup_received_po(client, "GlProbe", {"price": 700, "qty": 2})
     inv = client.create_invoice("INV-ADV-GL", v["id"], po["id"], 1400)
     client.match_invoice(inv.response_payload["id"])
@@ -177,6 +185,7 @@ def probe_gl_balance(client: P2PClient) -> ProbeResult:
 
 
 def probe_duplicate(client: P2PClient) -> ProbeResult:
+    """Rule 6: duplicate invoice_number from the same vendor must be rejected."""
     v, po = _setup_received_po(client, "DupProbe")
     client.create_invoice("INV-ADV-DUP", v["id"], po["id"], 5000)
     second = client.create_invoice("INV-ADV-DUP", v["id"], po["id"], 5000)
@@ -193,6 +202,7 @@ def probe_duplicate(client: P2PClient) -> ProbeResult:
 # ---------- security probes ----------
 
 def probe_authorization(client: P2PClient) -> ProbeResult:
+    """Security: endpoints must 401 without a valid bearer token."""
     r = client.raw("GET", "/vendors")
     if r.status_code == 401:
         authed = P2PClient(client.base_url, token=config.SEED_TOKEN)
@@ -210,6 +220,7 @@ def probe_authorization(client: P2PClient) -> ProbeResult:
 
 
 def probe_pii(client: P2PClient) -> ProbeResult:
+    """Security: vendor PII must not leak in list/detail responses."""
     leaked = []
     trace: list[dict] = []
     for rec in (client.list_vendors(), client.get_vendor(1)):
@@ -233,6 +244,7 @@ def probe_pii(client: P2PClient) -> ProbeResult:
 
 
 def probe_mis_credit(client: P2PClient) -> ProbeResult:
+    """Data integrity: an account_code belonging to another vendor must be rejected."""
     v, po = _setup_received_po(client, "MiscreditProbe")
     r = client.create_invoice("INV-ADV-MC", v["id"], po["id"], 5000,
                               account_code="ACC-999")  # another entity's account
@@ -251,6 +263,7 @@ _SQL_MARKERS = ("syntax error", "near \"", "sqlite", "psycopg", "postgres",
 
 
 def probe_injection(client: P2PClient) -> ProbeResult:
+    """Security: SQL/HTML injection payloads must be stored inert, never executed."""
     evil_name = "x' OR '1'='1"
     evil_inv = "<script>alert(1)</script>"
     trace: list[dict] = []
@@ -301,6 +314,7 @@ def probe_injection(client: P2PClient) -> ProbeResult:
 
 
 def probe_destructive_ops(client: P2PClient) -> ProbeResult:
+    """Security: destructive operations (delete/drop) must be absent or guarded."""
     del_r = client.raw("DELETE", "/vendors/1")
     if del_r.status_code < 400:
         gone = client.get_vendor(1)
@@ -317,6 +331,7 @@ def probe_destructive_ops(client: P2PClient) -> ProbeResult:
 
 
 def probe_data_integrity(client: P2PClient) -> ProbeResult:
+    """Data integrity: POST/GET must round-trip byte-identical values."""
     create = client.create_vendor("IntegrityProbe", "active")
     vid = (create.response_payload or {}).get("id")
     if vid is None:
@@ -343,6 +358,7 @@ _PROBES: list[Callable[[P2PClient], ProbeResult]] = [
 
 
 def run_baseline(client: P2PClient) -> list[ProbeResult]:
+    """Run every deterministic invariant probe, isolating per-probe exceptions."""
     results: list[ProbeResult] = []
     for probe in _PROBES:
         try:

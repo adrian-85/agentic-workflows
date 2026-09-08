@@ -113,6 +113,8 @@ def _print_foldback(foldback):
 
 
 def main():
+
+    """Squeeze-resume CLI entry point."""
     argv = list(sys.argv[1:])
     plan_only = "--plan-only" in argv
     protect, jd_file, kept = extract_common(argv, extra_flags=("--plan-only",))

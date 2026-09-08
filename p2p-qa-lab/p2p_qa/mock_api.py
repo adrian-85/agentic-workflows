@@ -41,7 +41,10 @@ def _now():
 
 
 class Store:  # pylint: disable=too-few-public-methods  # data holder (bug profile + seed) feeding create_app
+    """In-memory vendor/PO/invoice store seeded per bug profile."""
     def __init__(self, bug_profile: str, seed: int):
+
+        """In-memory vendor/PO/invoice store seeded per bug profile."""
         self.bug_profile = bug_profile
         self.seed = seed
         self.vendors: dict[int, dict] = {}
@@ -69,6 +72,8 @@ class Store:  # pylint: disable=too-few-public-methods  # data holder (bug profi
         }
 
     def new_id(self, kind: str) -> int:
+
+        """Allocate the next id for an entity kind."""
         i = self._next[kind]
         self._next[kind] += 1
         return i
@@ -398,6 +403,8 @@ def _invoice_routes(appl, store, lock, require_auth: bool, bug_profile: str) -> 
 
 
 def create_app(bug_profile: str = "clean", require_auth: bool = False, seed: int = 0):
+
+    """Build the FastAPI app for a bug profile (route-builder composition)."""
     store = Store(bug_profile, seed)
     fastapi_app = FastAPI(title=f"P2P Mock API ({bug_profile})")
     lock = threading.Lock()
@@ -411,6 +418,8 @@ app = create_app()
 
 
 def main(argv=None):
+
+    """Parse argv and serve the mock API with uvicorn."""
     parser = argparse.ArgumentParser(description="P2P mock API")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)

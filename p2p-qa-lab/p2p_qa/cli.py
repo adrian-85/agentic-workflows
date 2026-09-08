@@ -43,6 +43,8 @@ def _write_atomic(path: Path, data: dict) -> None:
 
 
 def narrate(report: dict) -> str:
+
+    """Render the report dict as human-readable CLI output."""
     lines = []
     hp = report["happy_path"]
     lines.append("=== EXPLORER (happy path) ===")
@@ -67,13 +69,15 @@ def narrate(report: dict) -> str:
 
 
 def cmd_run(args) -> int:
+
+    """Run explorer + adversarial + judge; write the report."""
     run_dir = _fresh_report_dir()
     run_dir.mkdir(parents=True, exist_ok=True)
     log_path = run_dir / "steps.jsonl"
     logger = StepLogger(str(log_path))
     client = P2PClient(args.api, token=args.token or os.environ.get("P2P_API_TOKEN"))
 
-    happy_status, findings, integration, probes = _run_phases(
+    happy_status, findings, integration, _ = _run_phases(
         args, client, logger)
     summary_text = judge.llm_summary(findings, happy_status)
     report = judge.build_report(args.api, logger.iter_steps(), findings,
@@ -135,6 +139,8 @@ def _wait_ready(base_url: str, timeout: float = 20.0) -> bool:
 
 
 def cmd_demo(args) -> int:
+
+    """Boot a throwaway mock API and run the full flow against it."""
     env = dict(os.environ)
     env["P2P_BUG_PROFILE"] = args.bug_profile
     if args.require_auth:
@@ -160,6 +166,8 @@ def cmd_demo(args) -> int:
 
 
 def cmd_stress(args) -> int:
+
+    """Run the N-plan stress test; print per-rule failure rates."""
     res = stress.run_stress(seed=args.seed, bug_profile=args.bug_profile, n=args.n)
     print("=== 50-PO STRESS TEST ===")
     print(f"profile: {res['bug_profile']}  | total POs: {res['total']}  | seed: {res['seed']}")
@@ -170,6 +178,8 @@ def cmd_stress(args) -> int:
 
 
 def main(argv=None) -> int:
+
+    """Parse argv and dispatch to the subcommands."""
     parser = argparse.ArgumentParser(prog="p2p_qa", description="P2P QA lab")
     sub = parser.add_subparsers(dest="cmd", required=True)
 

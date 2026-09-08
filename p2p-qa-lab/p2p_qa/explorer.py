@@ -263,6 +263,7 @@ def _handle_tool_calls(client, logger, tool_calls, state, progress):
 
 def run_explorer(client, logger, llm_chat=None, max_steps=config.MAX_EXPLORER_STEPS,
               progress=None) -> dict:
+    """Drive the ReAct exploration loop; return the happy-path summary."""
     if llm_chat is None:
         llm_chat = p2p_llm.chat
     state = {"interp": None, "history": [], "interpretations": {},

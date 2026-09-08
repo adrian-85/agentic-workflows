@@ -391,6 +391,8 @@ def _report_findings(data, resume_text=""):
 
 
 def main(argv=None):
+
+    """ATS-audit CLI entry point."""
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv[0].startswith("-"):
         print(__doc__)

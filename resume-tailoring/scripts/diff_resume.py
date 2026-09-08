@@ -48,6 +48,8 @@ from docx_edit import load, paras, text_of
 
 
 def texts(path):
+
+    """Extract the visible paragraph texts from a docx."""
     _root, body, _names, _data, _ = load(path)
     return [text_of(p) for p in paras(body)]
 
@@ -87,6 +89,8 @@ def _regen_with_tailor(script_path):
 
 
 def main():
+
+    """Diff-resume CLI entry point."""
     if len(sys.argv) == 4 and sys.argv[1] == "--tailor":
         script_path, user_path = sys.argv[2], sys.argv[3]
         regen = _regen_with_tailor(script_path)

@@ -80,7 +80,7 @@ import zipfile
 from xml.etree import ElementTree as ET
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])  # flat-namespace siblings
-from docx_edit_gate import _deliverable_gate, tmp_jd_note  # noqa: E402  (core -> gate one-way, validate glue)
+from docx_edit_gate import _deliverable_gate, tmp_jd_note  # noqa: E402  # pylint: disable=unused-import
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 XMLNS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"

@@ -98,6 +98,8 @@ DST = "<userName> Resume - <Target>.docx"
 
 
 def main():
+
+    """Tailor-resume CLI entry point."""
     shutil.copy(SRC, DST)
     root, body, names, data, _ = load(DST)
     ps = paras(body)

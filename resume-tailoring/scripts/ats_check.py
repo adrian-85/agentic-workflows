@@ -256,6 +256,7 @@ def _browser_headers(saved_headers):
 
 def request(url, headers, *, method=None, json_body=None, multipart=None,
             timeout=90):
+    """Issue one HTTP request with retries; returns (status, body, headers)."""
     cmd = ["curl", "-s", "-S", "--max-time", str(timeout),
            "-b", JAR_FILE, "-c", JAR_FILE, "-w", "\n%{http_code}"]
     if method and method != "GET":
@@ -363,6 +364,7 @@ def _opportunity_update_body(saved_body, opp_id, resume_id, job_id):
 
 def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
          config=CURL_FILE, company=None):
+    """Poll the ATS until the posting is indexed; return the match result."""
     if not os.path.exists(resume_path):
         raise SystemExit(f"error: resume file not found: {resume_path}")
     if not os.path.exists(jd_path):
@@ -529,6 +531,7 @@ def check(config=CURL_FILE):
 
 
 def main(argv=None):
+    """ATS-check CLI entry point."""
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv:
         print(__doc__)

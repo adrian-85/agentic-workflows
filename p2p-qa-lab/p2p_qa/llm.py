@@ -18,6 +18,8 @@ _AUTH_STORE_PATH = Path.home() / ".pi" / "agent" / "auth.json"
 
 
 def resolve_key() -> str:
+
+    """Resolve the LLM API key from env then Pi auth store."""
     key = os.environ.get("OPENAI_API_KEY")
     if key:
         return key
