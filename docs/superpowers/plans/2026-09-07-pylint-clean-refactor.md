@@ -8,6 +8,8 @@
 
 **Tech Stack:** Python 3.13, pylint 4.0.8 (pinned), stdlib-only resume-tailoring, fastapi/uvicorn/httpx/openai/pytest for p2p-qa, bash (improve scripts), TOML (pylint config).
 
+**Status**: Implemented 2026-09-07 (branch pylint-clean-refactor).
+
 **Spec:** `docs/superpowers/specs/2026-09-07-pylint-clean-refactor-design.md` — the plan argues from the spec; executors read both.
 
 ## Global Constraints

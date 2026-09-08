@@ -1,7 +1,7 @@
 # Pylint-Clean Refactor — Design Spec
 
 **Date**: 2026-09-07
-**Status**: Draft
+**Status**: Implemented (2026-09-07, branch pylint-clean-refactor)
 **Author**: Pi Agent (brainstorming session)
 
 ---
@@ -433,3 +433,30 @@ keep their names and 1:1 mapping (may stay > 1000 lines). Each:
 
 - Deferred: `2026-09-07-script-api-promotion-design.md`
 - Deferred: `2026-09-07-driftbook-refactor-design.md`
+
+## Implementation Notes (2026-09-07)
+
+Implemented on branch `pylint-clean-refactor`; `pylint $(git ls-files
+'*.py')` exits 0 (10.00/10). Deviations from this spec, all caught and
+corrected during execution:
+
+- **Gate knob**: `fail-under = 0.0` does NOT gate (pylint 4 exits 0 at
+  any score >= 0). The deterministic gate is `fail-on =
+  ["C","W","R","E","F"]` — any emitted message → non-zero. (Plan/spec
+  corrected to match; verified empirically.)
+- **Source splits grew**: `docx_edit.py` needed TWO extrusions (CLI +
+  validate-gate) to clear C0302; `_top_block_candidates` lives in the jd
+  module (not format) to keep jd→format one-way; measure_resume's split
+  moved `_iter_plan_roles` (shared plan-role iteration) which the shim
+  re-exports.
+- **Per-function complexity**: ~23 genuine orchestrators (report
+  entry-points, the pre-pass, validator, scan loop) carry per-function
+  `# pylint: disable=too-many-*` with written rationale — extraction
+  would fragment cohesive report emission. This is NOT a threshold
+  change (no `max-*` config touched).
+- **Test folds reduced suite count** 400 → 386: the word-cap matrix +
+  punctuation folds collapsed near-identical tests into parameterized
+  ones (all pass, coverage preserved).
+- **`# noqa: E501` does not work for pylint** — long lines use
+  `# pylint: disable=line-too-long`.
+
