@@ -17,139 +17,15 @@ from xml.etree import ElementTree as ET
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
 import docx_edit as de  # noqa: E402
+import test_helpers
 import measure_resume as mr  # noqa: E402
 import validate_resume as vr  # noqa: E402
 
 W = de.W
 
 
-def mk(text, style=None, numId=None):
-    """Build a <w:p> with optional pStyle/numId (mirrors the master)."""
-    p = ET.Element(W + "p")
-    if style is not None or numId is not None:
-        pPr = ET.SubElement(p, W + "pPr")
-        if style is not None:
-            st = ET.SubElement(pPr, W + "pStyle")
-            st.set(W + "val", style)
-        if numId is not None:
-            np = ET.SubElement(pPr, W + "numPr")
-            ni = ET.SubElement(np, W + "numId")
-            ni.set(W + "val", str(numId))
-    r = ET.SubElement(p, W + "r")
-    t = ET.SubElement(r, W + "t")
-    t.text = text
-    return p
-
-
-def body(*ps):
-    b = ET.Element(W + "body")
-    for p in ps:
-        b.append(p)
-    return b
-
-
-class StructuralTests(unittest.TestCase):
-    def test_clean_region_no_errors(self):
-        region = [
-            mk("Acme Corp, Springfield, MA (Remote)03/2022 – 02/2023",
-               style=mr.COMPANY_STYLE),
-            mk("Staff Engineer", style=vr.TITLE_STYLE),
-            mk("Bullet one", numId=4),
-            mk("Tools & Technologies: Go"),
-        ]
-        self.assertEqual(vr._structural_errors(region), [])
-
-    def test_dangling_title_is_error(self):
-        # A company header was removed but its title survived, sitting right
-        # after the previous role's Tools line (the orphan-title failure).
-        region = [
-            mk("Globex, TX08/2014 – 03/2015", style=mr.COMPANY_STYLE),
-            mk("Senior QA Engineer", style=vr.TITLE_STYLE),
-            mk("bullet", numId=4),
-            mk("Tools & Technologies: Java"),
-            mk("Senior QA Engineer", style=vr.TITLE_STYLE),  # dangling
-        ]
-        errs = vr._structural_errors(region)
-        self.assertTrue(
-            any("without a preceding company" in e for e in errs),
-            f"expected orphan-title error, got: {errs}",
-        )
-
-    def test_company_without_title_is_error(self):
-        region = [
-            mk("Co A, City11/2017", style=mr.COMPANY_STYLE),
-            mk("bullet without a title", numId=4),
-        ]
-        errs = vr._structural_errors(region)
-        self.assertTrue(any("no job title" in e for e in errs))
-
-    def test_orphaned_bullets_after_tools_flagged(self):
-        region = [
-            mk("Co A, City11/2017", style=mr.COMPANY_STYLE),
-            mk("Title A", style=vr.TITLE_STYLE),
-            mk("bullet A", numId=4),
-            mk("Tools & Technologies: Go"),
-            mk("leftover bullet with no company", numId=4),
-        ]
-        errs = vr._structural_errors(region)
-        self.assertTrue(any("orphaned" in e for e in errs))
-
-    def test_region_stops_at_next_section_heading(self):
-        b = body(
-            mk("Career Experience", style="SectionHeading"),
-            mk("Co A, City11/2017", style=mr.COMPANY_STYLE),
-            mk("bullet", numId=4),
-            mk("Open Source", style="SectionHeading"),
-            mk("an unrelated project bullet", numId=4),
-        )
-        region = vr._region(b)
-        self.assertEqual(len(region), 2)
-        self.assertTrue(all("Open Source" not in de.text_of(p) for p in region))
-
-
-class DuplicateTests(unittest.TestCase):
-    def test_near_duplicate_detected(self):
-        # A merge that left the source's old text beside the rewritten
-        # target — a merge-into case from real tailoring sessions.
-        region = [
-            mk("Developed an internal workflow integrating Azure CLI, "
-               "GitHub CLI, and SonarQube API tooling", numId=4),
-            mk("The internal workflow integrated Azure CLI, GitHub CLI, "
-               "and SonarQube API tooling", numId=4),
-        ]
-        dups = list(vr._near_duplicates(region))
-        self.assertEqual(len(dups), 1)
-
-    def test_distinct_bullets_not_flagged(self):
-        region = [
-            mk("Refactored the Go integration test framework into modules", numId=4),
-            mk("Built weekly release pipeline cutting lead time by 90%", numId=4),
-        ]
-        self.assertEqual(list(vr._near_duplicates(region)), [])
-
-
-class ClaimTests(unittest.TestCase):
-    def test_claim_years_parses(self):
-        self.assertEqual(vr._claim_years("7+ years of testing experience"), 7)
-        self.assertEqual(vr._claim_years("15 years"), 15)
-        self.assertIsNone(vr._claim_years("nothing here"))
-
-    def test_visible_span_from_company_dates(self):
-        headers = [
-            "Acme, MA (Remote)05/2021 – 02/2023",
-            "Globex, TX03/2017 – 04/2018",
-        ]
-        first, last = mr._visible_span(headers)
-        self.assertAlmostEqual(first, 2017 + 2 / 12, places=2)
-        self.assertAlmostEqual(last, 2023 + 1 / 12, places=2)
-
-    def test_undated_region_span_none(self):
-        self.assertEqual(mr._visible_span(["plain paragraph"]), (None, None))
-
-    def test_num_claim_regex_extracts_quantified_tokens(self):
-        toks = [m.group(0) for m in
-                vr.NUM_CLAIM.finditer("raised stability 50% and saved 40 hours")]
-        self.assertEqual(toks, ["50%", "40 hours"])
+mk = test_helpers._para
+body = test_helpers._body
 
 
 def _write_docx(path, company_dates, education=True):
@@ -460,61 +336,45 @@ class WordCapTests(unittest.TestCase):
         return de.load(path)[1]
 
     def test_word_count_counts_alphanumeric_tokens_only(self):
-        body_el = body(
+        body_el = body([
             mk("Adrian Sample"),
             mk("Quality Assurance Engineer"),
             mk("\uf075"),  # bullet dingbat — not a word
             mk("Validated APIs and data quality.", numId=4),
-        )
+        ])
         # 2 (name) + 3 (headline) + 5 (bullet: Validated APIs and data
         # quality) — the dingbat is excluded.
         self.assertEqual(vr._word_count(body_el), 10)
 
-    def test_within_cap_ok(self):
-        path = os.path.join(tempfile.mkdtemp(), "Resume - T.docx")
-        try:
-            self._docx(path, bullet_words=99)  # ~800 words
-            result = vr.validate_tree(path, self._body(path))
-            report = "\n".join(result["lines"])
-            self.assertEqual(result["blocking"], 0, report)
-            self.assertIn("within the 1000-word cap", report)
-        finally:
-            os.unlink(path)
-
-    def test_over_cap_blocks(self):
-        path = os.path.join(tempfile.mkdtemp(), "Resume - T.docx")
-        try:
-            self._docx(path, bullet_words=140)  # ~1130 words
-            result = vr.validate_tree(path, self._body(path))
-            report = "\n".join(result["lines"])
-            self.assertEqual(result["blocking"], 1)
-            self.assertIn("exceeds the 1000-word cap", report)
-            self.assertIn("WORD COUNT", report)
-        finally:
-            os.unlink(path)
-
-    def test_master_input_exempt(self):
-        path = os.path.join(tempfile.mkdtemp(),
-                            "Sample Master Resume.docx")
-        try:
-            self._docx(path, bullet_words=140)
-            result = vr.validate_tree(path, self._body(path))
-            report = "\n".join(result["lines"])
-            self.assertIn("input is a master", report)
-            self.assertNotIn("exceeds the 1000-word cap", report)
-        finally:
-            os.unlink(path)
-
-    def test_max_words_zero_disables(self):
-        path = os.path.join(tempfile.mkdtemp(), "Resume - T.docx")
-        try:
-            self._docx(path, bullet_words=140)
-            result = vr.validate_tree(path, self._body(path), max_words=None)
-            report = "\n".join(result["lines"])
-            self.assertNotIn("exceeds the 1000-word cap", report)
-            self.assertIn("word cap disabled", report)
-        finally:
-            os.unlink(path)
+    def test_word_cap_matrix(self):
+        """Whole-resume word cap: within = pass, over = block, master input
+        exempt, --max-words None disables. One table drives the repeated
+        tempfile + validate_tree shape (data-driven)."""
+        cases = [
+            # bullet_words, max_words_kw, filename, blocking, in_needles, out_needles
+            (99, {}, "Resume - T.docx", 0,
+             ["within the 1000-word cap"], []),
+            (140, {}, "Resume - T.docx", 1,
+             ["exceeds the 1000-word cap", "WORD COUNT"], []),
+            (140, {}, "Sample Master Resume.docx", None,
+             ["input is a master"], ["exceeds the 1000-word cap"]),
+            (140, {"max_words": None}, "Resume - T.docx", None,
+             ["word cap disabled"], ["exceeds the 1000-word cap"]),
+        ]
+        for bullet_words, kw, fname, blocking, in_needles, out_needles in cases:
+            path = os.path.join(tempfile.mkdtemp(), fname)
+            try:
+                self._docx(path, bullet_words=bullet_words)
+                result = vr.validate_tree(path, self._body(path), **kw)
+                report = "\n".join(result["lines"])
+                if blocking is not None:
+                    self.assertEqual(result["blocking"], blocking, report)
+                for needle in in_needles:
+                    self.assertIn(needle, report)
+                for needle in out_needles:
+                    self.assertNotIn(needle, report)
+            finally:
+                os.unlink(path)
 
     def test_max_words_flag_lowers_cap(self):
         path = os.path.join(tempfile.mkdtemp(), "Resume - T.docx")
@@ -1074,7 +934,7 @@ class GuidanceTests(unittest.TestCase):
                      style=mr.COMPANY_STYLE))
         ps.append(mk("Engineer", style=vr.TITLE_STYLE))
         ps.append(mk("Did things.", numId=4))
-        b = body(summary_p, *ps)
+        b = body([summary_p, *ps])
         return b, summary_p
 
     def test_long_summary_warns(self):
@@ -1102,7 +962,7 @@ class GuidanceTests(unittest.TestCase):
             mk("Engineer", style=vr.TITLE_STYLE),
             mk(" ".join(f"w{i}" for i in range(43)) + ".", numId=4),
         ]
-        b = body(summary, *ps)
+        b = body([summary, *ps])
         notes = vr._readability_guidance(b, summary)
         warns = [c for lvl, c in notes if lvl == "warn"]
         self.assertTrue(any("Bullet has 43 words" in w for w in warns), warns)

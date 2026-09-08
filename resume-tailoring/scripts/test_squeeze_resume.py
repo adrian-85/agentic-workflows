@@ -18,33 +18,14 @@ from xml.etree import ElementTree as ET
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
 import docx_edit as de  # noqa: E402
+import test_helpers
 import squeeze_resume as sq  # noqa: E402
 
 W = de.W
 
 
-def _para(text, style=None, numId=None):
-    p = ET.Element(W + "p")
-    if style is not None or numId is not None:
-        pPr = ET.SubElement(p, W + "pPr")
-        if style is not None:
-            st = ET.SubElement(pPr, W + "pStyle")
-            st.set(W + "val", style)
-        if numId is not None:
-            np = ET.SubElement(pPr, W + "numPr")
-            ni = ET.SubElement(np, W + "numId")
-            ni.set(W + "val", str(numId))
-    r = ET.SubElement(p, W + "r")
-    t = ET.SubElement(r, W + "t")
-    t.text = text
-    return p
-
-
-def _body(ps):
-    body = ET.Element(W + "body")
-    for p in ps:
-        body.append(p)
-    return body
+_para = test_helpers._para
+_body = test_helpers._body
 
 
 class ApplyDropsTests(unittest.TestCase):
