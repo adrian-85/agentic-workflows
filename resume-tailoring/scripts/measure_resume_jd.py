@@ -1,5 +1,12 @@
 """measure_resume JD vocabulary / requirements / inference / title analysis. Split from measure_resume.py; imported one-way by measure_resume_drops + the shim."""
 
+# pylint: disable=wrong-import-position,import-outside-toplevel
+# flat-namespace sibling imports require the sys.path bootstrap; the
+# sibling import must precede use, which pylint flags as wrong position.
+# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
+# the specific rationale at each site where one is retained.
+
+
 import re
 import textwrap
 import sys
@@ -895,5 +902,3 @@ def _jd_kept(text, jd_terms, corpus=None):
     else:
         strong, _ = _jd_hits_classified(text, jd_terms, corpus)
     return bool(strong) or bool(_concept_hits(text))
-
-

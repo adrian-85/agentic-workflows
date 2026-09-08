@@ -6,6 +6,15 @@ cycle. Mirrors the per-script parsing loops verbatim; each script's
 main() composes these.
 """
 
+import sys
+
+# pylint: disable=wrong-import-position,import-outside-toplevel
+# flat-namespace sibling imports require the sys.path bootstrap; the
+# sibling import must precede use, which pylint flags as wrong position.
+# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
+# the specific rationale at each site where one is retained.
+
+
 # Whole-resume word cap for a tailored deliverable (SKILL Step 8).
 # Home here (not validate_resume) so docx_edit's deliverable gate can
 # apply the default without importing validate_resume (cycle break).
@@ -42,7 +51,6 @@ def extract_flag_all(argv, flag):
 def read_jd_text(jd_file):
     """Read a --jd job-description file, exiting 2 on unreadable paths
     (shared by measure_resume + squeeze_resume; dedups identical blocks)."""
-    import sys
     try:
         with open(jd_file, encoding="utf-8", errors="replace") as f:
             return f.read()
@@ -62,11 +70,14 @@ def extract_common(argv, extra_flags=()):
     while i < len(argv):
         a = argv[i]
         if a == "--protect" and i + 1 < len(argv):
-            protect.append(argv[i + 1]); i += 2
+            protect.append(argv[i + 1])
+            i += 2
         elif a == "--jd" and i + 1 < len(argv):
-            jd_file = argv[i + 1]; i += 2
+            jd_file = argv[i + 1]
+            i += 2
         elif a in extra_flags:
             i += 1
         else:
-            kept.append(a); i += 1
+            kept.append(a)
+            i += 1
     return protect, jd_file, kept

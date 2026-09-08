@@ -7,6 +7,13 @@ its __main__ guard delegates here, which pylint treats as cycle-free),
 so `python3 scripts/docx_edit.py` keeps working unchanged.
 """
 
+# pylint: disable=wrong-import-position,import-outside-toplevel
+# flat-namespace sibling imports require the sys.path bootstrap; the
+# sibling import must precede use, which pylint flags as wrong position.
+# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
+# the specific rationale at each site where one is retained.
+
+
 import sys
 
 from docx_edit import (TITLE_STYLE, clone_after, find_p, load, paras, save,

@@ -1,3 +1,10 @@
+# pylint: disable=wrong-import-position,import-outside-toplevel
+# flat-namespace sibling imports require the sys.path bootstrap; the
+# sibling import must precede use, which pylint flags as wrong position.
+# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
+# the specific rationale at each site where one is retained.
+
+
 #!/usr/bin/env python3
 """ATS Check — run an external ATS scan on the rendered deliverable.
 

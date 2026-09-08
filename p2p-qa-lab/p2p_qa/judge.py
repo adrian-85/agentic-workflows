@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 
 from p2p_qa import config
 from p2p_qa.adversarial import ProbeResult
+from p2p_qa import llm as p2p_llm
 from p2p_qa.client import StepRecord
 
 
@@ -296,8 +297,7 @@ def llm_summary(findings: list[Finding], happy_status: str = "PASS",
                 llm_chat=None) -> str:
     """LLM narrative summary, constrained by the deterministic findings."""
     if llm_chat is None:
-        from p2p_qa import llm
-        llm_chat = llm.chat
+        llm_chat = p2p_llm.chat
     payload = {"happy_path_status": happy_status,
                "findings": [f.to_dict() for f in findings]}
     try:

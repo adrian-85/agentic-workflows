@@ -1,5 +1,12 @@
 """measure_resume drop planning / fit audit / reclaim batching. Split from measure_resume.py; imported one-way by the measure_resume shim."""
 
+# pylint: disable=wrong-import-position,import-outside-toplevel
+# flat-namespace sibling imports require the sys.path bootstrap; the
+# sibling import must precede use, which pylint flags as wrong position.
+# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
+# the specific rationale at each site where one is retained.
+
+
 import contextlib
 import io
 import math
@@ -583,5 +590,3 @@ def _reclaim_batch(matched, per_bullet, gap):
             plan.append((key, f"consider dropping the whole role (saves ~{rendered:.0f} lines)", rendered))
             remaining -= rendered
     return plan, remaining
-
-

@@ -1,3 +1,10 @@
+# pylint: disable=wrong-import-position,import-outside-toplevel
+# flat-namespace sibling imports require the sys.path bootstrap; the
+# sibling import must precede use, which pylint flags as wrong position.
+# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
+# the specific rationale at each site where one is retained.
+
+
 #!/usr/bin/env python3
 """ATS audit — literal-phrase verification of the RENDERED deliverable.
 
@@ -43,9 +50,13 @@ gate already sanctioned; the scan's generic advice does not re-open it).
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import measure_resume as mr  # noqa: E402
 
 DEFAULT_MAX_WORDS = 1000
 
@@ -189,7 +200,6 @@ def _jd_literal_terms(jd_text):
     capital is prose, not a product name — "Assess whether…" must not
     mine "assess"), plus CORE_TECH_NOUNS/markers they might miss.
     """
-    import measure_resume as mr  # sibling module
     stop_vague = _VAGUE_STOP | mr.JD_SELF_ASSESSMENT
     terms = set()
     for line in mr._jd_requirement_lines(jd_text):

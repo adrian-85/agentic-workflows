@@ -1,5 +1,12 @@
 """measure_resume format assumptions + layout/pages/roles measurement. Split from measure_resume.py; imported one-way by measure_resume_jd/drops/shim."""
 
+# pylint: disable=wrong-import-position,import-outside-toplevel
+# flat-namespace sibling imports require the sys.path bootstrap; the
+# sibling import must precede use, which pylint flags as wrong position.
+# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
+# the specific rationale at each site where one is retained.
+
+
 import os
 import re
 import subprocess
@@ -392,5 +399,3 @@ def _proficiency_block(body):
         if de.text_of(p).strip():
             out.append(de.text_of(p))
     return out
-
-

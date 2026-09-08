@@ -1,5 +1,12 @@
 """validate_resume's deterministic structural/punctuation/text-integrity checks. Split from validate_resume.py; imported one-way by validate_resume_master and the shim."""
 
+# pylint: disable=wrong-import-position,import-outside-toplevel
+# flat-namespace sibling imports require the sys.path bootstrap; the
+# sibling import must precede use, which pylint flags as wrong position.
+# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
+# the specific rationale at each site where one is retained.
+
+
 import re
 import sys
 import unicodedata
@@ -359,5 +366,3 @@ def _word_count(body):
         total += sum(1 for t in de.text_of(p).split()
                      if re.search(r"[A-Za-z0-9]", t))
     return total
-
-
