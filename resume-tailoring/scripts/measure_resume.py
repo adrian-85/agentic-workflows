@@ -1609,22 +1609,15 @@ def _role_jd_evidence_lines(roles, header_text, jd_terms):
 
 
 def _jd_fit_audit(roles, jd_terms, protect=()):
-    """Per-role JD-fit audit — printed for EVERY role when --jd is passed,
-    independent of the page math (returns [] when there is nothing to
-    flag).
+    """Per-role JD-fit audit — printed for EVERY role when --jd is passed.
 
-    JD alignment is the FIRST priority (SKILL Step 8): every bullet this
-    audit classifies OFF-JD or weak-only is a FIRST-PASS cut, regardless
-    of the page target — the page budget never keeps irrelevant content,
-    and the DROP PLAN's page-math sizing is only the residual question
-    after these cuts land. This audit classifies every bullet with the
-    same machinery as the plan: strong/practice-phrase hits carry JD
-    evidence; weak-only hits (generic terms) are cuttable; ZERO hits
-    means the bullet is OFF-JD — the prime cut candidate, or
-    1-bullet-stub material for a mostly irrelevant role whose whole
-    removal would open an employment gap. ``protect`` phrases
-    (--protect) count as evidence: the user confirmed those facts, so
-    they are never cut candidates.
+    Classifies every bullet by JD alignment strength: strong/practice-
+    phrase hits carry JD evidence; weak-only hits (generic terms) are
+    cuttable; ZERO hits means the bullet is OFF-JD — the prime first-pass
+    cut candidate, or 1-bullet-stub material when dropping the role would
+    open an employment gap. ``protect`` phrases (--protect) count as
+    evidence: the user confirmed those facts, so they are never cut
+    candidates.
     """
     if not jd_terms:
         return []

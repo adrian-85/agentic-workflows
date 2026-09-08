@@ -496,16 +496,14 @@ see `_jd_literal_terms` for the full precision rules); zero-host terms mean a
 cut killed the last host (Step 8 cut-protection) or the phrase was never
 mirrored — host the exact phrase truthfully or raise the gap, never fabricate;
 and before raising a no-host term as a genuine gap, grep the MASTER for it
-(including bullets the first pass cut — a real session kept `cybersecurity`
-on the FAIL list while its only host, a cut CareMetx security bullet, sat
-in the master); (3) with `--phrases-file` (one phrase per line) or `--report-json` (an external
+(including bullets the first pass cut — see SKILL Step 11 for the
+rationale and an example); (3) with `--phrases-file` (one phrase per line) or `--report-json` (an external
 scan report, below), literal checks of externally supplied phrases — a
 skill's `resumeCount` from the report is the authoritative host signal, the
 literal check is the fallback. Report soft-skill no-hosts warn as
-ACTIONABLE (SKILL Steps 2/11): soft skills are safe to infer — host each
-literal phrase where the action-verb evidence lives; a real session's
-"advisory" skips cost 27 points of live match rate until hosted (59 → 86).
-Exit 0 clean, 1 findings, 2 usage/IO error.
+ACTIONABLE (SKILL Steps 2/11: soft skills are safe to infer — host each
+literal phrase where the action-verb evidence lives). Exit 0 clean,
+1 findings, 2 usage/IO error.
 
 IGNORED by rule: the report's contactEmail searchability finding — the
 compact hyperlinked contact block is a deliberate design (Step 11, SKILL.md);

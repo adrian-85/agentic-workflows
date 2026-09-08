@@ -131,13 +131,10 @@ manual habits are:
    and the anchor's position is genuinely unknown.
 8. **After any multi-edit round on a script, count the anchors before the
    syntax check.** `grep -c` the expected number of each anchor string
-   that should now exist. Two failure modes this catches in seconds:
-   an edit meant to ADD a `set_text` block can silently REPLACE its
-   neighbor instead (two real sessions clobbered a contract-testing
-   rewrite and a presentation rewrite this way, restoring each a wasted
-   round later), and one non-matching oldText fails the entire
-   multi-edit call. When adding a new block, anchor it against a unique
-   existing line rather than editing around a sibling.
+   that should now exist — an edit meant to ADD a `set_text` block can
+   silently REPLACE its neighbor (a wasted repair round), and one
+   non-matching oldText fails the entire call. When adding a new block,
+   anchor it against a unique existing line.
 
 Tool-enforced (no instruction needed): `render_pdf.sh` refuses broken or unapproved-elimination
 docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
@@ -460,21 +457,14 @@ flagged as a miss. When a built role's count differs from the intent,
 fix the drop list.
 
 **Off-JD content is never kept — first pass, every role, every section.**
-There is no page-math condition on JD-fit pruning: the first authoring
-pass cuts EVERY bullet the JD-FIT AUDIT flags OFF-JD or weak-match, from
+No page-math condition: the first pass cuts every OFF-JD/weak bullet from
 every role (most recent included) and every section (proficiencies,
-certifications, Tools lines) — whether or not the pages are already at
-target. Shorter is always better for readability: the screener is pulled
-to the content they care about, and irrelevant content fails the
-JD-match goal twice over (noise for the screener, lines the JD-relevant
-content paid for). A session that pruned to the page budget first and
-kept "maybe useful" borderline bullets spent six extra cut-render cycles
-cutting exactly those bullets later. Restores are the cheap direction:
-if a scan or the coverage map later asks for a term whose only host was
-cut, hosting the literal phrase in a kept JD bullet is a one-line edit —
-a late cut is never. The employment-gap stub (below) is the ONLY
-exception. Re-read the **JD-FIT AUDIT** after the build — a clean render
-is not a JD-tight resume — and give each kept bullet a one-line JD
+certifications, Tools lines) — whether or not pages are at target.
+Shorter is always better for readability. Restores are cheap (host a
+term in a kept JD bullet: one-line edit); late cuts are the 6-cycle
+loop. The employment-gap stub (below) is the ONLY exception. Re-read
+the **JD-FIT AUDIT** after the build — a clean render is not a
+JD-tight resume — and give each kept bullet a one-line JD
 reason.
 
 **Whole-resume word cap: ≤1,000 words — second in precedence, never
@@ -699,14 +689,11 @@ master still hosts what the deliverable lost: a real session kept
 truthful host — a CareMetx security bullet cut during compression — sat
 in the master; the user had to point at it, and folding the term into a
 kept JD bullet (Snyk is a cybersecurity tool) cleared it in one edit.
-The same session mislabeled the report's soft-skill no-hosts ("excellent
-written communication", "willingness to learn", "reliability") as
-advisory — they are ACTIONABLE: host each literally where the
-action-verb evidence lives (Step 2's inference rule; soft skills are
-safe to infer), which moved the live match rate 59 → 86. Its findings
-summary auto-IGNOREs the by-rule noise (contactEmail,
-specialCharacters, education findings on an Education-free PDF — see
-below), so the remaining findings are the actionable ones.
+The report's soft-skill no-hosts are ACTIONABLE (Step 2's inference rule;
+soft skills are safe to infer) — not advisory. Its findings summary
+auto-IGNOREs the by-rule noise (contactEmail, specialCharacters,
+education findings on an Education-free PDF — see below), so the
+remaining findings are the actionable ones.
 
 **External ATS scan (when configured).** `scripts/ats_check.py scan
 "<resume>.pdf" jd_<target>.txt` submits the deliverable to the user's ATS
@@ -845,7 +832,6 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Running squeeze in apply mode on the tailored .docx and then folding cuts back into the script by hand | Harvest with `--plan-only` BEFORE the script's first run — same loop, same fold-back block, file untouched (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
 | Pruning only the oldest roles while the most-recent role keeps 15+ bullets | The hard per-role cap (8) applies to EVERY role — check the DROP PLAN's weak-match (cuttable) listing for the top role (Steps 6, 8) |
-| Keeping an off-JD bullet because the pages are already at target, or pruning to the page budget instead of the JD | Off-JD content is never kept — the first pass cuts every OFF-JD/weak bullet in every role and section, no page-math condition; restores are a one-line edit, late cuts are the 6-cycle loop (Step 8) |
 | Treating a proficiencies/Tools-line host as proof of a JD ask | JD REQUIREMENT COVERAGE prints [weak] for non-bullet hosts — weave the skill into the bullet where it was used (Step 5); [UNCOVERED] means demonstrate it or raise the gap, never fabricate |
 | "Keep N" with a drop list that doesn't add up | intended keep + len(drop list) == the role's master bullet count (23 − 16 = 7, not 8); a built role whose count differs from intent is a MISS to fix, not a counting convention (Step 8) |
 | Carrying the master measure's per-role budgets into the build | The plan's WHICH transfers; its HOW MANY is derived from the measured state and changes with your content edits — re-run measure on the build (Step 8, practice #2) |
@@ -855,7 +841,6 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (`save()` prints one summary line if element-form was used). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form (Helper library) |
 | Iterating Tools-line trims because a trimmed line still wraps | Rare now: TOOLS LINES THAT WRAP reports the MEASURED budget per line ("value is N chars, wraps after ~M — cut ~N-M chars"), so the first trim lands. Trim to the reported budget, not a tool count — the proportional font makes "~8 tools" unreliable (Step 8) |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
-| Re-asking for communication/leadership evidence the user already confirmed, leaving a report soft-skill unhosted as "advisory", or refusing to state a soft skill their bullets demonstrate | Soft skills are safe to infer: the action-verb evidence is the authority — host the JD's literal phrase where the evidence lives, by default, without waiting for the scan or the user (Steps 2, 11; Accuracy) |
 | Ending the session at the rendered PDF without folding confirmed experience back into the master | Step 12 is part of the workflow — every user-confirmed fact lands in the master (additively) before the session closes |
 | Storing the JD in /tmp | Persist it as `jd_<target>.txt` in the skill root (Step 1) — every tool and the re-run instructions reference that path across sessions |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 5) |
@@ -867,13 +852,11 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 9) |
 | Trusting the internal JD matchers as the ATS score | Internal matching is term/concept-based; ATS tools match literal phrases — run `ats_audit.py` on the rendered PDF before declaring done (Step 11) |
 | Cutting the last host of a JD-named hard skill for page math | Step 8 cut-protection: check the term's remaining hosts before any cut; `ats_audit.py --jd` catches it post-build |
-| Letting the deliverable drift past 1,000 words | Blocking validator gate + `ats_audit.py` count — cut content, never shrink fonts (Steps 3, 8, 11) |
 | Widening the contact block or rewriting link text for ATS parsers | IGNORED by rule — the compact hyperlinked contact block is deliberate design; `contactEmail` searchability findings are noise (Step 11) |
 | Reformatting typography to clear the scan's Special Characters finding | IGNORED by rule — Wingdings bullets, en-dash dates, curly quotes are the user's deliberate formatting; never reformat to satisfy a text parser (Step 11) |
 | Restoring Education because the scan wants an Education section | IGNORED by rule when Education was dropped per Step 3.4 — the render gate sanctioned the drop; the scan's generic advice does not re-open it (Step 11) |
 | Treating "no literal host" as "no evidence" and declaring honest gaps | Read measure's INFERENCE MAP (Step 2): it deterministically surfaces master/LinkedIn evidence for no-host terms — judge each candidate, host the literal phrase truthfully, present the whole map in one message; debugging/UI/data-management asks are usually demonstrated, just lexically invisible (Step 2) |
 | Treating the external report's wordCount as the cap | The service's PDF parser inflates counts — the cap is `ats_audit.py`'s own count; the report's number is a cross-check only (Step 11) |
 | Storing scan-service credentials in the repo | They live in the skill root's `.ats-check/` dot-directory (user's saved cURL exports; gitignored, 0600, invisible to `git add *`); refresh from a logged-in browser when scans 401 (Step 11) |
-| Scan says the target ATS was NOT identified | The posting URL wasn't persisted with the JD (Step 1) — add `Posting URL: <url>` as the first line of `jd_<target>.txt` and re-scan |
 | Punctuation in prose (em dash, semicolon, colon, ellipsis) | Periods and commas ONLY — no em dashes, double hyphens, semicolons, colons, or ellipses (`...`); split into a new sentence or use a comma. The Tools line's `Label: values` colon is the one exempt structural colon (Step 9) |
 | JD asks for fewer years than the candidate has | Offer Step 3 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it. The token needs the user's authority: their chat reply or pre-authorization in the request; never pass it on your own |
