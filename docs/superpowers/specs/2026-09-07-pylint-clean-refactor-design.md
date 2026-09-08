@@ -37,7 +37,8 @@ only).
 
 - `pylint $(git ls-files '*.py')` exits 0, deterministically, local == CI
 - Hard gate via the **improve workflow**: `verify-worktree.sh` blocks
-  any merge to `main` that fails lint or the test suites
+  any merge to `main` whose **change set** fails the pinned lint or the
+  test suites
 - Large **source** files split below 1000 lines (clears `C0302`)
 - **Test** files stay one-file-per-source (may exceed 1000 lines) per
   maintainability ruling — mapping test → source must stay obvious
@@ -114,21 +115,37 @@ at the specific class/line scope.
 The **enforcement point is the `improve` workflow, not GitHub branch
 protection**: nothing lands on `main` except through its four approval
 `>STOP.` gates + `merge-worktree.sh` step. The pylint gate therefore
-lives **in that flow** — main only ever receives a worktree merge that
-already passed the pinned lint + both test suites, locally, at the same
-pinned version CI uses.
+lives **in that flow** — main only ever receives a worktree merge whose
+**change set** (its diff vs `main`) passed the pinned lint scoped to
+that diff, plus both test suites, locally, at the same pinned version
+CI uses.
 
 #### New: `improve/scripts/verify-worktree.sh`
 
-Run **inside the worktree, before any merge**. It:
+Run **inside the worktree, before any merge**, scoped to the **change
+set** — exactly like every other check in the improve workflow
+(analysis, reviews, gates all target the improvement's diff, never the
+whole repo):
 
 1. Installs/uses the pinned toolchain (deps via
    `p2p-qa-lab/requirements.txt`, `pylint==4.0.8`)
-2. Runs the exact CI command `pylint $(git ls-files '*.py')` —
-   **fails (non-zero exit) if any message remains**
+2. **Lints only the changed Python files**: resolves the change set as
+   `git diff --name-only main...HEAD -- '*.py'` and runs pylint on
+   exactly those files (no `.py` changed → lint skipped). Fails
+   (non-zero) on any message in a changed file. Lint debt is per-file
+   and additive, so a SKILL.md-only or otherwise unrelated improvement
+   must never trip on repo lint debt outside its diff. Once this
+   effort lands (whole repo exits 0), this is equivalent to "fail on
+   new lint debt" — every touched file is clean on `main`.
 3. Runs both suites (398 unittest resume + 54 pytest p2p-qa, same
-   `*_live` exclusions)
+   `*_live` exclusions) — tests are a *correctness* gate and run
+   repo-wide: the merged change set must keep every consumer green.
 4. Prints `✓ lint + tests pass` or a blocking failure summary
+
+The pylint-clean effort **itself** exercises the whole-repo form
+`pylint $(git ls-files '*.py')` as *its own* acceptance criterion — its
+change set *is* the entire repo. That acceptance lives in the plan's
+tasks, not in `verify-worktree.sh`.
 
 #### Wiring (two points)
 
@@ -143,8 +160,8 @@ Run **inside the worktree, before any merge**. It:
 
 This applies **to `improve` itself** as well: when the workflow
 improves its own files (including `verify-worktree.sh` and
-`merge-worktree.sh`), the gate runs on the self-improved worktree
-before merge (user-confirmed).
+`merge-worktree.sh`), the change-set gate runs on the self-improved
+diff before merge (user-confirmed).
 
 #### CI workflow stays as the remote signal/backstop
 

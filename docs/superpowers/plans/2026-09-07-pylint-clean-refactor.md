@@ -663,28 +663,38 @@ git commit -m "lint: suppression headers with rationale, source docstrings, refl
 - Modify: `improve/SKILL.md`, `improve/scripts/merge-worktree.sh`
 
 **Interfaces:**
-- Consumes: the pinned toolchain + the exact lint/suite commands from Tasks 1-9
-- Produces: `verify-worktree.sh` (exit 0 = mergeable) wired into hard stop #4 and the merge script
+- Consumes: the pinned toolchain + the change-set lint command (`git
+  diff --name-only main...HEAD -- '*.py'` → pylint on those files) and
+  the suite commands from Tasks 1-9
+- Produces: `verify-worktree.sh` (exit 0 = this change set is mergeable) wired into hard stop #4 and the merge script
 
 - [ ] **Step 1: Create `improve/scripts/verify-worktree.sh`**
 
 ```bash
 #!/bin/bash
-# verify-worktree.sh - Block a worktree merge unless lint + tests pass.
-# Hard gate for the improve workflow: main only ever receives a merge
-# that passed the pinned pylint + both test suites, in the worktree.
+# verify-worktree.sh - Block a worktree merge unless the CHANGE SET passes.
+# Scoped like every other improve check (analysis/reviews/gates all target
+# the diff vs main, never the whole repo): lint only the Python files this
+# branch touches; the suites run repo-wide as the correctness gate.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
 echo "== verify-worktree: dependencies =="
-python3 -m pip install --quiet --break-system-packages \
-    -r p2p-qa-lab/requirements.txt pylint==4.0.8 2>/dev/null \
-  || python3 -m pip install --quiet -r p2p-qa-lab/requirements.txt pylint==4.0.8
+python3 -m pip install --quiet -r p2p-qa-lab/requirements.txt pylint==4.0.8 2>/dev/null \
+  || python3 -m pip install --quiet --break-system-packages \
+       -r p2p-qa-lab/requirements.txt pylint==4.0.8
 
-echo "== verify-worktree: pylint =="
-pylint $(git ls-files '*.py')
+echo "== verify-worktree: pylint (changed files only) =="
+CHANGED_PY="$(git diff --name-only main...HEAD -- '*.py')"
+if [ -z "$CHANGED_PY" ]; then
+    echo "no Python files changed — skipping pylint"
+else
+    echo "linting:"
+    echo "$CHANGED_PY"
+    pylint $CHANGED_PY
+fi
 echo "✓ pylint clean"
 
 echo "== verify-worktree: resume-tailoring suite =="
@@ -700,7 +710,7 @@ echo "✓ p2p-qa suite green"
 echo "== verify-worktree: PASS =="
 ```
 
-(`--break-system-packages` covers Debian-managed Python where pip refuses; the `||` fallback covers venvs. If the repo uses a venv at runtime, the caller should ensure the toolchain is active — verify-worktree uses whatever python3/pylint is on PATH after a best-effort install.)
+(`--break-system-packages` covers Debian-managed Python where pip refuses; the `||` fallback covers venvs. If the repo uses a venv at runtime, the caller should ensure the toolchain is active — verify-worktree uses whatever python3/pylint is on PATH after a best-effort install. `pylint $CHANGED_PY` relies on word-splitting; safe here because repo paths contain no spaces.)
 
 - [ ] **Step 2: Wire into `improve/SKILL.md` Phase 3**
 
@@ -728,7 +738,7 @@ echo "✓ hard gate passed; merging."
 
 - [ ] **Step 4: Verify the gate end-to-end**
 
-From a clean worktree of the repo: run `improve/scripts/verify-worktree.sh` → PASS. Prove it blocks: `echo "x = 1" >> resume-tailoring/scripts/diff_resume.py` in a scratch worktree, run verify → non-zero with `pylint` message; revert. Confirm `merge-worktree.sh` runs verify (stub a failing verify, watch the merge abort before checkout).
+From a clean worktree of the repo: run `improve/scripts/verify-worktree.sh` → PASS. Prove it blocks a **change-set** lint failure: in a scratch worktree, `echo "x = 1" >> resume-tailoring/scripts/diff_resume.py && git add -A && git commit -m "inject"` — the injection must be **committed**, because the change set is `git diff main...HEAD`, which only sees committed changes — then run verify → non-zero with a `pylint` message on `diff_resume.py`; revert. Prove a docs-only change set skips lint cleanly: touch only a `SKILL.md`/`.md` file, commit, run verify → `no Python files changed — skipping pylint`, suites green, PASS. Confirm `merge-worktree.sh` runs verify (stub a failing verify, watch the merge abort before checkout).
 
 - [ ] **Step 5: Confirm the self-improvement gate**
 
@@ -744,4 +754,14 @@ git commit -m "feat: verify-worktree.sh hard gate wired into improve Phase 3 and
 
 - [ ] **Step 7: Final acceptance**
 
-Fresh checkout → `verify-worktree.sh` PASS; `pylint $(git ls-files '*.py')` exit 0; both suites green; CI workflow green on a push; the improve merge path runs the gate. Update the plan's spec status to implemented.
+Two distinct acceptances:
+
+1. **Effort acceptance** — `pylint $(git ls-files '*.py')` exit 0 on a
+   clean checkout. This effort's change set *is* the whole repo, so the
+   whole-repo form is its own bar (per the spec's verify section).
+2. **General gate** — `verify-worktree.sh` PASS from a worktree: no
+   diff vs `main` → lint skipped, suites green; a committed bad line in
+   a changed file blocks; a docs-only change set passes.
+
+Also: both suites green, CI workflow green on a push, the improve merge
+path runs the gate. Update the plan's spec status to implemented.
