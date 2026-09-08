@@ -817,11 +817,12 @@ interview, and a made-up tool usage is the easiest thing to catch.
 never-fabricate rule governs tools and employers. Communication,
 leadership, and stakeholder management are different: the master's
 presented/demoed/led/mentored/trained bullets ARE the evidence (Step 2's
-inference rule), and the user's explicit statement ("my communication was
-excellent at every position") is the authority for the literal adjective.
-Declining to state a skill the user has confirmed — or re-asking after
-they confirmed it — is over-caution that costs round-trips and leaves JD
-lines flagged for no reason.
+inference rule), and that action-verb evidence itself authorizes hosting
+the JD's literal phrase — by default, no explicit statement required
+(soft skills are safe to infer; Step 2). Declining to state a skill the
+user has confirmed — or re-asking after they confirmed it — is
+over-caution that costs round-trips and leaves JD lines flagged for no
+reason.
 
 ## Common mistakes
 
