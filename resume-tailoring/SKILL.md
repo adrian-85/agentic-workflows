@@ -40,7 +40,7 @@ tiebreakers, never a cut signal and never an exemption.
 | 5 | No sections between Summary & Proficiencies | — |
 | 6 | Re-anchor senior role (merge, don't append) | `set_text`, `merge_into` |
 | 7 | Expand role adjacent to JD industry/stage | `set_text` |
-| 8 | Compress any section, any role (measure first): every role's off-JD bullets under the per-role cap, then off-JD proficiencies/certs | `measure_resume.py` `--jd` (DROP PLAN + weak-match listing + TOP-BLOCK CANDIDATES); `squeeze_resume.py` for the residual gap |
+| 8 | Compress: cut ALL off-JD/weak content from every role and section in the FIRST pass (no page-math condition), under the per-role cap | `measure_resume.py` `--jd` (DROP PLAN + weak-match listing + TOP-BLOCK CANDIDATES); `squeeze_resume.py --protect` for the residual gap |
 | 9 | Fix grammar, typos, punctuation | grep + `validate_resume.py` |
 | 10 | Save tailored copy (never overwrite master) | `save()` |
 | 11 | Render + verify PDF | `render_pdf.sh` |
@@ -129,6 +129,15 @@ manual habits are:
    rounds; targeted views keep the edit anchors exact at a fraction of
    the tokens. Full re-read only when paragraph/script indices shifted
    and the anchor's position is genuinely unknown.
+8. **After any multi-edit round on a script, count the anchors before the
+   syntax check.** `grep -c` the expected number of each anchor string
+   that should now exist. Two failure modes this catches in seconds:
+   an edit meant to ADD a `set_text` block can silently REPLACE its
+   neighbor instead (two real sessions clobbered a contract-testing
+   rewrite and a presentation rewrite this way, restoring each a wasted
+   round later), and one non-matching oldText fails the entire
+   multi-edit call. When adding a new block, anchor it against a unique
+   existing line rather than editing around a sibling.
 
 Tool-enforced (no instruction needed): `render_pdf.sh` refuses broken or unapproved-elimination
 docs (validator, Step 11); `measure_resume.py` prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
@@ -159,6 +168,11 @@ the residual page gap automatically.
   several findings depend on that match, and without the URL the match
   fails (the report degrades to generic advice). The line sits outside
   the qualification sections, so the internal matchers ignore it.
+  **When the URL is unknown, OMIT the line entirely — never write a
+  placeholder** (`Posting URL: (not provided)`, `…(ask user)`): a real
+  session's placeholder reached the scan service as `url=(not)`, garbage
+  in the report. `ats_check.py` treats a non-http(s) token as missing,
+  but the convention is: line present means a real URL.
 - Read the **master resume**. If it is a `.docx`, use `docx_edit.py` to edit. If
   only a PDF is available, ask for the `.docx` source — PDFs can be read but
   not edited precisely.
@@ -217,15 +231,26 @@ kept bullets carry that action evidence; one user confirmation ("my
 communication was excellent at every position") covers every role at once —
 do not re-ask per company.
 
-Never chase the literal adjective as a keyword: a self-assessment adjective
-is the user's word to stand behind, so inject it into a bullet only when
-the user states it or asks for the literal term (and then host it in a
-bullet where the action evidence lives). The never-fabricate rule is for
-tools and employers (Appium, LoadRunner) — not for judging the user's own
-confirmed abilities.
+**Soft skills are safe to infer — host the literal phrase by DEFAULT.**
+Unlike hard skills (never-fabricate), a soft-skill ask is almost always a
+re-wording of experience the kept bullets already demonstrate. When the
+action-verb evidence exists, host the JD's literal phrase ("Excellent
+written communication", "willingness to learn") in the bullet or Summary
+where that evidence lives — without waiting for the external scan to
+flag the absence or for the user to ask. External ATS tools score the
+literal phrase, not the concept: a real session left "excellent written
+communication", "willingness to learn", and "reliability" unhosted as
+"advisory" no-hosts, the scan scored the absences, and hosting them
+moved the live match rate 59 → 86. The literal adjective is the user's
+word to stand behind, and the action-verb evidence IS the user's record
+of it. The never-fabricate rule is for tools and employers (Appium,
+LoadRunner) — not for soft skills backed by the candidate's own
+demonstrated history.
 
 ### 3. Decide length up front
-- **Target 2 pages; accept 3 for senior/Staff; 4 is too long.** "Senior"
+- **Target 2 pages; accept 3 for senior/Staff; 4 is too long.** The target
+  is a MAX, never a requirement — a resume that lands under it is always
+  fine, and never add or keep content to fill pages. "Senior"
   is mechanical, not a judgment call: the JD's stated title is
   Senior/Staff/Principal, OR the candidate's visible background is
   Staff-level — EITHER condition targets 3. A JD asking "7-10 years" (a
@@ -432,28 +457,39 @@ post-build table that showed 7 got rationalized as "the intro" instead of
 flagged as a miss. When a built role's count differs from the intent,
 fix the drop list.
 
-**Below the cap, pruning is JD-driven, not page-driven.** The DROP PLAN
-fires only when the page math demands cuts — which is how an under-cap
-role keeps every bullet, including ones no JD term names, after other
-roles close the gap (a 5-bullet role kept 5/5; two matched nothing the JD
-asks for). measure's **JD-FIT AUDIT** (printed for every role with
-`--jd`, whether or not the resume is on target) closes the hole: cut its
-OFF-JD bullets (no JD term, no practice phrase) and its weak-match
-bullets even when the page target is already met, and re-read the audit
-AFTER the build — a clean render is not a JD-tight resume. Irrelevant
-bullets fail the JD-match goal twice over: they are noise for the
-screener and lines the JD-relevant content paid for. The validator now
-carries the same check into the render path, so the deliverable gate
-re-reports the count — act on it or give each kept bullet a one-line JD
+**Off-JD content is never kept — first pass, every role, every section.**
+There is no page-math condition on JD-fit pruning: the first authoring
+pass cuts EVERY bullet the JD-FIT AUDIT flags OFF-JD or weak-match, from
+every role (most recent included) and every section (proficiencies,
+certifications, Tools lines) — whether or not the pages are already at
+target. Shorter is always better for readability: the screener is pulled
+to the content they care about, and irrelevant content fails the
+JD-match goal twice over (noise for the screener, lines the JD-relevant
+content paid for). A session that pruned to the page budget first and
+kept "maybe useful" borderline bullets spent six extra cut-render cycles
+cutting exactly those bullets later. Restores are the cheap direction:
+if a scan or the coverage map later asks for a term whose only host was
+cut, hosting the literal phrase in a kept JD bullet is a one-line edit —
+a late cut is never. The employment-gap stub (below) is the ONLY
+exception. Re-read the **JD-FIT AUDIT** after the build — a clean render
+is not a JD-tight resume — and give each kept bullet a one-line JD
 reason.
 
-**Whole-resume word cap: ≤1,000 words.** Every cut/keep decision above also
-answers to the deliverable's total word count — a tailored resume is a
-compressed document, and a padded one reads as a wall to the screener and
-scores worse with ATS tools. Enforced as a blocking gate by
-`validate_resume.py` (save + render) and re-measured on the RENDERED PDF by
-`ats_audit.py` (Step 11). Cut content; never shrink fonts or margins to dodge
-the cap.
+**Whole-resume word cap: ≤1,000 words — second in precedence, never
+bypassed.** Page count runs FIRST: the page target is a max, and page
+cuts are placed before any word-count consideration (a page-max build is
+almost always under the cap already — the first-pass pruning above does
+most of the word work). Only once the pages are satisfied is the word
+cap measured: a padded resume reads as a wall to the screener and scores
+worse with ATS tools. Enforced as a blocking gate by `validate_resume.py`
+(save + render) and re-measured on the RENDERED PDF by `ats_audit.py`
+(Step 11). There is no bypass — never reach for `--max-words 0` (or any
+override) to get a build on disk: if the gate blocks on words
+mid-page-work, the cut set is simply incomplete. Extend it from the
+authoring-time master measure's weakest-first plan (its page cuts
+usually bring the word count under on their own), re-run, and only then
+measure pages. Cut content; never shrink fonts or margins to dodge the
+cap.
 
 **JD-named hard skills are cut-protected.** Never cut the LAST host of a
 hard skill the JD names — a Tools-line trim removed a JD-named test framework
@@ -515,10 +551,13 @@ fine) — it just never substitutes for a measured removal.
 reports the exact reclaim gap, the BATCH RECLAIM PLAN (oldest roles first),
 and the DROP PLAN (which bullets to cut, ranked weakest-first). See
 [docs/api.md](docs/api.md) for the full command reference, `--jd`/`--protect`
-flags, squeeze harvesting (`--plan-only`), and spacing procedures.
+flags, squeeze harvesting (`--plan-only`, `--protect`), and spacing procedures.
 
 **Apply the DROP PLAN, not your own instinct.** The plan names *which*
-bullets; page math says *how many*. DEAD-END PLANS and weak-match
+bullets, weakest-first. Under the first-pass rule the *how many* is not
+the page budget: every OFF-JD/weak bullet the JD-FIT AUDIT lists goes in
+pass one — the DROP PLAN's page-math sizing matters only if the pages
+are somehow still over after that. DEAD-END PLANS and weak-match
 `(cuttable)` listings are in the measure output — read them; don't guess.
 
 **Check DEAD-END PLANS before cutting anything.** A role whose DROP PLAN
@@ -557,6 +596,15 @@ gapless.
 Still a few lines over? Trim the oldest roles' Tools lines and drop blank
 spacers — see [docs/api.md](docs/api.md) for TOOLS LINES THAT WRAP
 budgets, `squeeze_resume.py`, and the `render_pdf.sh` verification render.
+When squeeze's `--plan-only` output is harvested, **JD-judge every line
+before folding it back** — squeeze is page-math-only (same scorer as
+measure's plan, sized to the page budget) and cannot see concept-level
+asks: a real session's squeeze plan cut an ETL data-layer bullet, a
+security-posture bullet, and a test-data bullet, all JD responsibilities
+no JD term named. Pass `--protect "<phrase>"` (same flag as measure) for
+concept-level asks, and drop any fold-back line that carries such
+evidence — the fold-back block is a suggestion sized to pages, not a
+JD-fit verdict.
 
 **Readability spacing — lowest priority, only when there is room.** After
 every cut is placed and the measure shows the last page at/below target
@@ -642,7 +690,19 @@ It checks the whole-resume word cap and every JD qualification phrase
 literally (host the exact phrase truthfully or raise the gap — never
 fabricate). JD-named terms with no host mean a cut killed the last host
 (Step 8's cut-protection rule) or the phrase was never mirrored — fix or
-raise. Its findings summary auto-IGNOREs the by-rule noise (contactEmail,
+raise. **Before raising a no-host term as a genuine gap, grep the MASTER
+for it — including the bullets the first pass cut.** Cut-first means the
+master still hosts what the deliverable lost: a real session kept
+`cybersecurity` on the FAIL list for two scan rounds while the only
+truthful host — a CareMetx security bullet cut during compression — sat
+in the master; the user had to point at it, and folding the term into a
+kept JD bullet (Snyk is a cybersecurity tool) cleared it in one edit.
+The same session mislabeled the report's soft-skill no-hosts ("excellent
+written communication", "willingness to learn", "reliability") as
+advisory — they are ACTIONABLE: host each literally where the
+action-verb evidence lives (Step 2's inference rule; soft skills are
+safe to infer), which moved the live match rate 59 → 86. Its findings
+summary auto-IGNOREs the by-rule noise (contactEmail,
 specialCharacters, education findings on an Education-free PDF — see
 below), so the remaining findings are the actionable ones.
 
@@ -782,7 +842,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Running squeeze in apply mode on the tailored .docx and then folding cuts back into the script by hand | Harvest with `--plan-only` BEFORE the script's first run — same loop, same fold-back block, file untouched (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
 | Pruning only the oldest roles while the most-recent role keeps 15+ bullets | The hard per-role cap (8) applies to EVERY role — check the DROP PLAN's weak-match (cuttable) listing for the top role (Steps 6, 8) |
-| Leaving an under-cap role unpruned because the page math closed | Below the cap, pruning is JD-driven, not page-driven: the JD-FIT AUDIT lists OFF-JD/weak bullets per role — cut or shorten them even on target, stub a mostly-irrelevant role at 1 bullet (Step 8) |
+| Keeping an off-JD bullet because the pages are already at target, or pruning to the page budget instead of the JD | Off-JD content is never kept — the first pass cuts every OFF-JD/weak bullet in every role and section, no page-math condition; restores are a one-line edit, late cuts are the 6-cycle loop (Step 8) |
 | Treating a proficiencies/Tools-line host as proof of a JD ask | JD REQUIREMENT COVERAGE prints [weak] for non-bullet hosts — weave the skill into the bullet where it was used (Step 5); [UNCOVERED] means demonstrate it or raise the gap, never fabricate |
 | "Keep N" with a drop list that doesn't add up | intended keep + len(drop list) == the role's master bullet count (23 − 16 = 7, not 8); a built role whose count differs from intent is a MISS to fix, not a counting convention (Step 8) |
 | Carrying the master measure's per-role budgets into the build | The plan's WHICH transfers; its HOW MANY is derived from the measured state and changes with your content edits — re-run measure on the build (Step 8, practice #2) |
@@ -792,7 +852,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (`save()` prints one summary line if element-form was used). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form (Helper library) |
 | Iterating Tools-line trims because a trimmed line still wraps | Rare now: TOOLS LINES THAT WRAP reports the MEASURED budget per line ("value is N chars, wraps after ~M — cut ~N-M chars"), so the first trim lands. Trim to the reported budget, not a tool count — the proportional font makes "~8 tools" unreliable (Step 8) |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
-| Re-asking for communication/leadership evidence the user already confirmed, or refusing to state a soft skill their bullets demonstrate | Soft-skill asks are covered by action-verb evidence (presented/demoed/led/mentored/trained); one user confirmation covers every role; the literal adjective only with their stated authority (Steps 2, 8; Accuracy) |
+| Re-asking for communication/leadership evidence the user already confirmed, leaving a report soft-skill unhosted as "advisory", or refusing to state a soft skill their bullets demonstrate | Soft skills are safe to infer: the action-verb evidence is the authority — host the JD's literal phrase where the evidence lives, by default, without waiting for the scan or the user (Steps 2, 11; Accuracy) |
 | Ending the session at the rendered PDF without folding confirmed experience back into the master | Step 12 is part of the workflow — every user-confirmed fact lands in the master (additively) before the session closes |
 | Storing the JD in /tmp | Persist it as `jd_<target>.txt` in the skill root (Step 1) — every tool and the re-run instructions reference that path across sessions |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 5) |

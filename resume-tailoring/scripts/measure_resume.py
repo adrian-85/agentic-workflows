@@ -1613,16 +1613,18 @@ def _jd_fit_audit(roles, jd_terms, protect=()):
     independent of the page math (returns [] when there is nothing to
     flag).
 
-    The DROP PLAN only fires when cuts are needed to hit the page target,
-    which is how an under-cap role ends up keeping every bullet —
-    including ones no JD term names — once other roles closed the gap.
-    JD alignment is the FIRST priority (SKILL Step 8), so this audit
-    classifies every bullet with the same machinery as the plan:
-    strong/practice-phrase hits carry JD evidence; weak-only hits
-    (generic terms) are cuttable; ZERO hits means the bullet is OFF-JD —
-    the prime cut candidate, or 1-bullet-stub material for a mostly
-    irrelevant role. ``protect`` phrases (--protect) count as evidence:
-    the user confirmed those facts, so they are never cut candidates.
+    JD alignment is the FIRST priority (SKILL Step 8): every bullet this
+    audit classifies OFF-JD or weak-only is a FIRST-PASS cut, regardless
+    of the page target — the page budget never keeps irrelevant content,
+    and the DROP PLAN's page-math sizing is only the residual question
+    after these cuts land. This audit classifies every bullet with the
+    same machinery as the plan: strong/practice-phrase hits carry JD
+    evidence; weak-only hits (generic terms) are cuttable; ZERO hits
+    means the bullet is OFF-JD — the prime cut candidate, or
+    1-bullet-stub material for a mostly irrelevant role whose whole
+    removal would open an employment gap. ``protect`` phrases
+    (--protect) count as evidence: the user confirmed those facts, so
+    they are never cut candidates.
     """
     if not jd_terms:
         return []
@@ -2345,16 +2347,17 @@ def main():
                       "where used (SKILL Step 5).")
             print()
 
-    # JD-FIT AUDIT — every role, independent of the page math. The DROP
-    # PLAN above fires only when cuts are needed to hit the target; JD
-    # alignment is the FIRST priority (SKILL Step 8), so weak and OFF-JD
-    # bullets surface even when the resume is already on target. Read it
-    # AFTER the build as well — a clean render is not a JD-tight resume.
+    # JD-FIT AUDIT — every role, independent of the page math. These are
+    # FIRST-PASS cuts (SKILL Step 8): every OFF-JD/weak bullet listed here
+    # goes in the first authoring pass — no page-math condition. The DROP
+    # PLAN above is only the page-budget question after these land. Read
+    # it AFTER the build as well — a clean render is not a JD-tight resume.
     if jd_terms:
         audit = _jd_fit_audit(roles, jd_terms, protect=protect)
         if audit:
-            print("JD-FIT AUDIT (every role, independent of the page math — "
-                  "the DROP PLAN above fires only under page pressure):")
+            print("JD-FIT AUDIT (every role — cut every OFF-JD/weak bullet "
+                  "listed here in the FIRST pass, no page-math condition; "
+                  "the DROP PLAN above is only the page-budget subset):")
             for section in audit:
                 print(section)
                 print()
