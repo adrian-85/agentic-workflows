@@ -306,7 +306,7 @@ def llm_summary(findings: list[Finding], happy_status: str = "PASS",
         text = (resp.get("content") or "").strip()
         if text:
             return text
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught  # boundary: LLM unavailable → dev-only deterministic fallback below
         pass
     # dev-only deterministic fallback if the LLM is unavailable
     breached = [f.rule for f in findings if f.status == "BREACHED"]

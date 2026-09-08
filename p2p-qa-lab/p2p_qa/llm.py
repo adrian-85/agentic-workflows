@@ -27,7 +27,7 @@ def resolve_key() -> str:
             key = store.get("openrouter", {}).get("key")
             if key:
                 return key
-        except Exception:
+        except (OSError, ValueError, KeyError):
             pass
     raise AgentError(
         "No LLM key: set OPENAI_API_KEY (OpenRouter or OpenAI) or run inside "

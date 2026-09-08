@@ -493,7 +493,7 @@ def _load_master_body(master_path):
     try:
         root, mbody, _n, _d, _ = de.load(master_path)
         return root, mbody
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught  # boundary: master parse failure → None, None (caller falls back)
         return None, None
 
 

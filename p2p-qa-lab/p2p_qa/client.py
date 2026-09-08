@@ -138,11 +138,10 @@ class StepLogger:
 
     def __init__(self, path: str):
         self.path = path
-        self._fh = open(path, "a", encoding="utf-8")
 
     def record(self, step: StepRecord) -> None:
-        self._fh.write(json.dumps(step.to_dict()) + "\n")
-        self._fh.flush()
+        with open(self.path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(step.to_dict()) + "\n")
 
     def iter_steps(self) -> list[StepRecord]:
         steps = []
@@ -161,10 +160,11 @@ class StepLogger:
         return steps
 
     def close(self) -> None:
-        try:
-            self._fh.close()
-        except Exception:
-            pass
+        """Compatibility no-op (kept for callers expecting a file handle).
+
+        record() opens/closes per write, so there is no held handle to
+        release.
+        """
 
 
 class P2PClient:
@@ -195,7 +195,7 @@ class P2PClient:
                 duration = (time.monotonic() - start) * 1000.0
                 try:
                     body = resp.json()
-                except Exception:
+                except ValueError:
                     body = {"raw": resp.text[:2000]}
                 step = StepRecord(name=name, method=method, url=url,
                                   request_payload=payload, status_code=resp.status_code,
@@ -341,10 +341,10 @@ class P2PClient:
         if got.status_code >= 400:
             return False, f"GET proof failed ({got.status_code}): resource did not persist"
         mismatches = []
-        for field, expected in expected_fields.items():
-            actual = (got.response_payload or {}).get(field)
+        for fname, expected in expected_fields.items():
+            actual = (got.response_payload or {}).get(fname)
             if actual != expected:
-                mismatches.append(f"{field}: expected {expected!r}, got {actual!r}")
+                mismatches.append(f"{fname}: expected {expected!r}, got {actual!r}")
         if mismatches:
             return False, "POST/GET discrepancy: " + "; ".join(mismatches)
         return True, "GET proof matches POST values"
@@ -360,15 +360,15 @@ def double_verify(create: StepRecord, get_fn: Callable[[], StepRecord],
         return (False, None, f"create failed ({create.status_code}); nothing to verify")
     try:
         got = get_fn()
-    except Exception as e:  # noqa: BLE001
+    except httpx.HTTPError as e:
         return (False, None, f"GET proof failed: {e}")
     if got.status_code >= 400:
         return (False, got, f"GET proof failed ({got.status_code}): resource did not persist")
     mismatches = []
-    for field, expected in expected_fields.items():
-        actual = (got.response_payload or {}).get(field)
+    for fname, expected in expected_fields.items():
+        actual = (got.response_payload or {}).get(fname)
         if actual != expected:
-            mismatches.append(f"{field}: expected {expected!r}, got {actual!r}")
+            mismatches.append(f"{fname}: expected {expected!r}, got {actual!r}")
     if mismatches:
         return (False, got, "POST/GET discrepancy: " + "; ".join(mismatches))
     return (True, got, "GET proof matches POST values")

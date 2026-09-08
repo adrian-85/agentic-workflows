@@ -34,7 +34,7 @@ def p2p_api(request):
         try:
             if httpx.get(base + "/vendors").status_code in (200, 401):
                 break
-        except Exception:
+        except httpx.HTTPError:
             time.sleep(0.1)
     else:
         proc.terminate()

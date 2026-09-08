@@ -133,7 +133,7 @@ def run_stress(seed: int = 0, bug_profile: str = "clean", n: int = 50) -> dict:
         inv_no = f"INV-STRESS-{seed}-{i}"
         try:
             verdicts = _run_plan_probes(c, plan, inv_no)
-        except Exception:  # noqa: BLE001 — a plan that 500s is itself a failure signal
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught  # boundary: a plan that 500s is itself a failure signal
             verdicts = {"overpayment_protection": "BREACHED",
                         "duplicate_detection": "BREACHED"}
         for rule, status in verdicts.items():

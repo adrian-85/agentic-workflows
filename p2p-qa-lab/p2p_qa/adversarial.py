@@ -33,7 +33,7 @@ def _truncate(payload, limit: int = 400) -> str:
     import json
     try:
         s = json.dumps(payload, default=str)
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught  # boundary: never crash a verdict on payload stringification; fall back to str()
         s = str(payload)
     return s[:limit] + ("..." if len(s) > limit else "")
 
@@ -337,7 +337,7 @@ def run_baseline(client: P2PClient) -> list[ProbeResult]:
     for probe in _PROBES:
         try:
             results.append(probe(client))
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught  # boundary: one probe's exception must never abort the suite
             results.append(ProbeResult(getattr(probe, "__name__", "probe"),
                                        "exception", "ERROR", {"error": str(e)[:300]}))
     return results
@@ -495,7 +495,7 @@ def run_hacker(client: P2PClient, llm_chat=None, max_probes: int = config.MAX_HA
     last_step = None
     probes_executed = 0
     finished = False
-    VERDICT_PROMPT = ("For each probe whose result you just received, write exactly one line:\n"
+    verdict_prompt = ("For each probe whose result you just received, write exactly one line:\n"
                       "VERDICT: HELD|BREACHED <rule> <one sentence of reasoning with evidence>\n"
                       "If a probe was pure reconnaissance with no rule under test, write: VERDICT: INFO <reason>.\n"
                       "Do not fire new tools in this reply; verdicts only.")
@@ -547,7 +547,7 @@ def run_hacker(client: P2PClient, llm_chat=None, max_probes: int = config.MAX_HA
             continue
 
         # Reflection turn: force the verdict lines for the probes just executed.
-        vresp = llm_chat(HACKER_SYSTEM, history + [{"role": "user", "content": VERDICT_PROMPT}])
+        vresp = llm_chat(HACKER_SYSTEM, history + [{"role": "user", "content": verdict_prompt}])
         vtext = vresp.get("content") or ""
         history.append({"role": "assistant", "content": vtext})
         for status, rule, reasoning in _extract_verdicts(vtext):

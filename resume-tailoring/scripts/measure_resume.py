@@ -1110,10 +1110,10 @@ def _inference_map(missing_terms, body, evidence_text=None):
         "user's real experience before hosting — never fabricate):",
         width=76, initial_indent="  ", subsequent_indent="    ")]
     for term in missing_terms:
-        variants = _inference_variants(term)
-        roots = _family_roots(term)
+        _variants = _inference_variants(term)
+        _roots = _family_roots(term)
 
-        def _hits(texts):
+        def _hits(texts, variants=_variants, roots=_roots):
             matched = []
             for t in texts:
                 low = t.lower()

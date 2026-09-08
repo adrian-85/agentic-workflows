@@ -57,5 +57,5 @@ def classify(response_text: str, llm_chat=None) -> str:
         if "CLEAN" in text and "VIOLATION" not in text:
             return "CLEAN"
         return "VIOLATION"  # fail-safe on garbage output
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught  # boundary: money judgment must fail-safe (over-flag) on any LLM error
         return "VIOLATION"  # fail-safe: better to over-flag than under-flag money

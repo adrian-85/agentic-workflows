@@ -809,7 +809,7 @@ def remove(body, p):
     _APPLIED += 1
 
 
-def drop(body, prefixes):
+def drop(body, pfxes):
     """Remove paragraphs whose text starts with any of ``prefixes``.
 
     The library replacement for the per-script ``_drop`` helper, and the
@@ -834,7 +834,7 @@ def drop(body, prefixes):
     :func:`_prefix_arg`), so a script that mixes element-taking and
     string-taking APIs cannot crash on the mismatch.
     """
-    for prefix in prefixes:
+    for prefix in pfxes:
         prefix = _prefix_arg(prefix, "drop")
         p = find_p(paras(body), prefix)
         if p is None:

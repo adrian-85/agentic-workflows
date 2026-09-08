@@ -181,7 +181,7 @@ class ConfigLocationTests(unittest.TestCase):
             os.chmod(path, 0o644)
             ac._write_private(path, "secret content")
             self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
-            self.assertEqual(open(path).read(), "secret content")
+            self.assertEqual(open(path, encoding="utf-8").read(), "secret content")
         finally:
             os.unlink(path)
 

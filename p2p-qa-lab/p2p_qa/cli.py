@@ -124,7 +124,7 @@ def _wait_ready(base_url: str, timeout: float = 20.0) -> bool:
         try:
             if httpx.get(base_url + "/vendors").status_code in (200, 401):
                 return True
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught  # boundary: server-wait retry swallows any connection error until ready/timeout
             time.sleep(0.2)
     return False
 
@@ -135,23 +135,23 @@ def cmd_demo(args) -> int:
     if args.require_auth:
         env["P2P_REQUIRE_AUTH"] = "1"
     port = args.port
-    proc = subprocess.Popen(
-        [sys.executable, "-m", "p2p_qa.mock_api", "--host", "127.0.0.1",
-         "--port", str(port), "--bug-profile", args.bug_profile]
-        + (["--require-auth"] if args.require_auth else []),
-        env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    base = f"http://127.0.0.1:{port}"
-    try:
-        if not _wait_ready(base):
-            print("mock failed to start", file=sys.stderr)
-            return 1
-        return cmd_run(argparse.Namespace(
-            api=base, token=config.SEED_TOKEN if args.require_auth else None,
-            skip_explorer=args.skip_explorer, prepass_only=args.prepass_only,
-            report=args.report))
-    finally:
-        proc.terminate()
-        proc.wait(timeout=5)
+    with subprocess.Popen(
+            [sys.executable, "-m", "p2p_qa.mock_api", "--host", "127.0.0.1",
+             "--port", str(port), "--bug-profile", args.bug_profile]
+            + (["--require-auth"] if args.require_auth else []),
+            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) as proc:
+        base = f"http://127.0.0.1:{port}"
+        try:
+            if not _wait_ready(base):
+                print("mock failed to start", file=sys.stderr)
+                return 1
+            return cmd_run(argparse.Namespace(
+                api=base, token=config.SEED_TOKEN if args.require_auth else None,
+                skip_explorer=args.skip_explorer, prepass_only=args.prepass_only,
+                report=args.report))
+        finally:
+            proc.terminate()
+            proc.wait(timeout=5)
 
 
 def cmd_stress(args) -> int:

@@ -17,6 +17,7 @@ API key entry is required when running inside a Pi environment.
 """
 
 import argparse
+import functools
 import json
 import os
 import re
@@ -26,11 +27,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-# Import the parser from the sibling module.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from parse_transcript import parse_transcript, flatten  # noqa: E402
+from openai import OpenAI
 
-_OPENAI_CLIENT = None
+# Import the parser from the sibling module. sys.path bootstrap must
+# precede the sibling import (flat namespace); pylint flags the position.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from parse_transcript import parse_transcript, flatten  # noqa: E402  # pylint: disable=wrong-import-position
 
 
 # --------------------------------------------------------------------------- #
@@ -50,19 +52,20 @@ def load_openrouter_credentials() -> str:
         raise RuntimeError("OpenRouter key not present in Pi auth store.") from exc
 
 
-def get_client():
-    global _OPENAI_CLIENT
-    if _OPENAI_CLIENT is not None:
-        return _OPENAI_CLIENT
+@functools.cache
+
+def _build_client():
     api_key = os.environ.get("OPENAI_API_KEY") or load_openrouter_credentials()
     base_url = os.environ.get("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
-    from openai import OpenAI
-    _OPENAI_CLIENT = OpenAI(
+    return OpenAI(
         api_key=api_key,
         base_url=base_url,
         default_headers={"HTTP-Referer": "https://localhost", "X-Title": "ai-judge"},
     )
-    return _OPENAI_CLIENT
+
+
+def get_client():
+    return _build_client()
 
 
 # --------------------------------------------------------------------------- #

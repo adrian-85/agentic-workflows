@@ -78,7 +78,7 @@ def _allowed(bug_profile: str, *profiles: str) -> bool:
 
 def create_app(bug_profile: str = "clean", require_auth: bool = False, seed: int = 0):
     store = Store(bug_profile, seed)
-    app = FastAPI(title=f"P2P Mock API ({bug_profile})")
+    fastapi_app = FastAPI(title=f"P2P Mock API ({bug_profile})")
     lock = threading.Lock()
 
     async def guard(authorization: str | None = Header(default=None)):
@@ -132,17 +132,17 @@ def create_app(bug_profile: str = "clean", require_auth: bool = False, seed: int
                    for rl in receipt.get("lines", []))
 
     # ---------------- vendors ----------------
-    @app.get("/vendors")
+    @fastapi_app.get("/vendors")
     async def list_vendors(_=Depends(guard)):
         with lock:
             return [vendor_out(v) for v in store.vendors.values()]
 
-    @app.get("/vendors/{vendor_id}")
+    @fastapi_app.get("/vendors/{vendor_id}")
     async def get_vendor(vendor_id: int, _=Depends(guard)):
         with lock:
             return vendor_out(get_vendor_or_404(vendor_id))
 
-    @app.post("/vendors", status_code=201)
+    @fastapi_app.post("/vendors", status_code=201)
     async def create_vendor(body: dict, _=Depends(guard)):
         with lock:
             name = (body.get("name") or "").strip()
@@ -168,7 +168,7 @@ def create_app(bug_profile: str = "clean", require_auth: bool = False, seed: int
             return vendor_out(rec)
 
     # ---------------- purchase orders ----------------
-    @app.post("/purchase-orders", status_code=201)
+    @fastapi_app.post("/purchase-orders", status_code=201)
     async def create_po(body: dict, _=Depends(guard)):
         with lock:
             vid = body.get("vendor_id")
@@ -200,7 +200,7 @@ def create_app(bug_profile: str = "clean", require_auth: bool = False, seed: int
             store.pos[pid] = stored
             return rec
 
-    @app.post("/purchase-orders/{po_id}/submit")
+    @fastapi_app.post("/purchase-orders/{po_id}/submit")
     async def submit_po(po_id: int, _=Depends(guard)):
         with lock:
             p = get_po_or_404(po_id)
@@ -209,7 +209,7 @@ def create_app(bug_profile: str = "clean", require_auth: bool = False, seed: int
             p["status"] = "submitted"
             return p
 
-    @app.post("/purchase-orders/{po_id}/receive")
+    @fastapi_app.post("/purchase-orders/{po_id}/receive")
     async def receive_po(po_id: int, body: dict, _=Depends(guard)):
         with lock:
             p = get_po_or_404(po_id)
@@ -241,14 +241,14 @@ def create_app(bug_profile: str = "clean", require_auth: bool = False, seed: int
                                             for s in by_sku) else "submitted"
             return {**p, "received_value_cents": po_received_value(p)}
 
-    @app.get("/purchase-orders/{po_id}")
+    @fastapi_app.get("/purchase-orders/{po_id}")
     async def get_po(po_id: int, _=Depends(guard)):
         with lock:
             p = get_po_or_404(po_id)
             return {**p, "received_value_cents": po_received_value(p)}
 
     # ---------------- invoices ----------------
-    @app.post("/invoices", status_code=201)
+    @fastapi_app.post("/invoices", status_code=201)
     async def create_invoice(body: dict, _=Depends(guard)):
         with lock:
             inv_no = (body.get("invoice_number") or "").strip()
@@ -291,7 +291,7 @@ def create_app(bug_profile: str = "clean", require_auth: bool = False, seed: int
             store.invoices[iid] = rec
             return rec
 
-    @app.post("/invoices/{invoice_id}/match")
+    @fastapi_app.post("/invoices/{invoice_id}/match")
     async def match_invoice(invoice_id: int, _=Depends(guard)):
         with lock:
             inv = get_invoice_or_404(invoice_id)
@@ -320,7 +320,7 @@ def create_app(bug_profile: str = "clean", require_auth: bool = False, seed: int
             }
             return inv
 
-    @app.post("/invoices/{invoice_id}/approve")
+    @fastapi_app.post("/invoices/{invoice_id}/approve")
     async def approve_invoice(invoice_id: int, _=Depends(guard)):
         with lock:
             inv = get_invoice_or_404(invoice_id)
@@ -344,13 +344,13 @@ def create_app(bug_profile: str = "clean", require_auth: bool = False, seed: int
             }
             return inv
 
-    @app.get("/invoices/{invoice_id}")
+    @fastapi_app.get("/invoices/{invoice_id}")
     async def get_invoice(invoice_id: int, _=Depends(guard)):
         with lock:
             return get_invoice_or_404(invoice_id)
 
     # ---------------- exposure ----------------
-    @app.get("/vendors/{vendor_id}/exposure")
+    @fastapi_app.get("/vendors/{vendor_id}/exposure")
     async def exposure(vendor_id: int, _=Depends(guard)):
         with lock:
             v = store.vendors.get(vendor_id)
@@ -360,7 +360,7 @@ def create_app(bug_profile: str = "clean", require_auth: bool = False, seed: int
                         if i["vendor_id"] == vendor_id and i["status"] == "approved")
             return {"vendor_id": vendor_id, "open_ap_cents": total}
 
-    return app
+    return fastapi_app
 
 
 app = create_app()
