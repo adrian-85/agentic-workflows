@@ -18,6 +18,12 @@ reference. The non-obvious rules while authoring:
   as of `load()` time, so a script's own earlier edits can't collide mid-run.
   Smart punctuation is collapsed (curly quotes/dashes match ASCII). For
   duplicate job titles, use `after=<company-header>` or `nth=N`.
+- **Return-value asymmetry**: `drop`/`drop_role`/`drop_section` return the
+  refreshed paragraph list (assign them: `ps = drop(body, [...])`);
+  `set_text`/`set_labeled`/`replace_text` return None — never assign their
+  return (`ps = set_text(...)` threads None into the next `find_p`, which
+  now raises a targeted TypeError naming the cause, instead of a bare
+  `'NoneType' object is not iterable` three frames deep).
 - **`drop(body, prefixes)`**: removes by prefix and returns the refreshed
   list — `ps = drop(body, [...])`. Library replacement for per-script
   `_drop` helpers: every prefix resolves against a fresh `paras(body)`, so
@@ -268,12 +274,24 @@ against a throwaway in-memory copy and prints the same fold-back block
 WITHOUT touching the .docx (no backup, no log, no edit):
 
 ```bash
-python3 scripts/squeeze_resume.py "<Target>.docx" 3 --jd "<JD>.txt" --plan-only
+python3 scripts/squeeze_resume.py "<Target>.docx" 3 --jd "<JD>.txt" \
+    --protect "<concept-level ask>" --plan-only
 ```
+
+`--protect` works exactly as in measure — pass it for JD asks that are
+real responsibilities but name no extractable term (a real session's
+squeeze plan cut an ETL data-layer bullet, a security-posture bullet,
+and a test-data bullet: all JD responsibilities no JD term named).
 
 (Without `--plan-only`, it backs up to `<docx>.pre-squeeze.docx` and logs
 every cut to `<docx>.squeeze.json`; reserve apply mode for a doc you will
 NOT regenerate from the tailor script.)
+
+**JD-judge every fold-back line before pasting it.** Squeeze is
+page-math-only — its plan is sized to the page budget and cannot see
+concept-level asks. Drop any fold-back line that carries such evidence
+before it reaches the script; the block is a page-budget suggestion,
+not a JD-fit verdict.
 
 Paste the printed fold-back block (or the DROP PLAN's `find_p` prefix strings)
 straight into a `drop(body, [...])` call in the tailor script (never re-derive
@@ -446,7 +464,11 @@ and a false load-bearing education warning. `validate_resume.py` warns when
 paragraph's alphanumeric tokens and blocks over `MAX_WORDS` (1000) for
 tailored resumes — the master input is exempt, like the bullet cap. Override
 or disable the threshold with `--max-words <N>` (`--max-words 0` disables);
-the same flag works in `RESUME_VALIDATE_ARGS` for the save-time gate. The
+the same flag works in `RESUME_VALIDATE_ARGS` for the save-time gate.
+**Never used as an authoring bypass** (SKILL Step 8 ordering): page count
+runs first and the cap is measured only once the page goal is satisfied —
+a gate block on words mid-page-work means the cut set is incomplete, not
+that the cap should be disabled. The
 cap's authoritative measurement on the RENDERED text is `ats_audit.py`
 (below), whose counting strips page furniture a text extractor emits.
 
@@ -473,10 +495,17 @@ extracted only from the text following skill-introducing cues like
 see `_jd_literal_terms` for the full precision rules); zero-host terms mean a
 cut killed the last host (Step 8 cut-protection) or the phrase was never
 mirrored — host the exact phrase truthfully or raise the gap, never fabricate;
-(3) with `--phrases-file` (one phrase per line) or `--report-json` (an external
+and before raising a no-host term as a genuine gap, grep the MASTER for it
+(including bullets the first pass cut — a real session kept `cybersecurity`
+on the FAIL list while its only host, a cut CareMetx security bullet, sat
+in the master); (3) with `--phrases-file` (one phrase per line) or `--report-json` (an external
 scan report, below), literal checks of externally supplied phrases — a
 skill's `resumeCount` from the report is the authoritative host signal, the
-literal check is the fallback. Exit 0 clean, 1 findings, 2 usage/IO error.
+literal check is the fallback. Report soft-skill no-hosts warn as
+ACTIONABLE (SKILL Steps 2/11): soft skills are safe to infer — host each
+literal phrase where the action-verb evidence lives; a real session's
+"advisory" skips cost 27 points of live match rate until hosted (59 → 86).
+Exit 0 clean, 1 findings, 2 usage/IO error.
 
 IGNORED by rule: the report's contactEmail searchability finding — the
 compact hyperlinked contact block is a deliberate design (Step 11, SKILL.md);
@@ -504,7 +533,10 @@ deletes `.ats-check/cookies.txt` to re-seed. The service dedupes an
 identical resume + JD pair (409) and the tool reuses the returned opportunity.
 The scan output prints the match rate, the report's wordCount (cross-check
 only — its PDF parser inflates counts), and the identified target ATS; the
-latter requires the job posting URL persisted with the JD (Step 1).
+latter requires the job posting URL persisted with the JD (Step 1) — a
+real URL on the `Posting URL:` line, never a placeholder: non-http(s)
+tokens ("(not provided)", "TBD") are treated as a missing URL, since a
+placeholder PATCHed to the service is garbage in the report.
 
 **Fix tool bugs in the session that finds them.** If a script in this
 skill misbehaves or contradicts its documented behavior, do not route
