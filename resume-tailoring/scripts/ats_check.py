@@ -11,7 +11,7 @@ cookies come from the user's own "Copy as cURL" exports saved in
 sees the resume text — assume nothing else in the repo does). See
 "Setup".
 
-Setup — save four cURL requests, captured from the scan service's web
+Setup — save five cURL requests, captured from the scan service's web
 app in the browser DevTools (Network tab, "Copy as cURL"), into
 `<skill-root>/.ats-check/curl.txt`, separated by blank lines (the skill
 root is this repo's resume-tailoring/ directory — the config lives with
@@ -21,11 +21,14 @@ cleanup):
     1. the resume-upload POST (multipart, file upload)
     2. the job-description POST (JSON body with the JD text)
     3. the opportunity POST (JSON body linking resume + job description)
-    4. the report GET (fetches the match report for one opportunity)
+    4. the opportunity-update PUT (re-points an existing opportunity at
+       the freshly uploaded resume — required so a re-scan of the same
+       resume+JD pair reflects the NEW upload instead of the first one)
+    5. the report GET (fetches the match report for one opportunity)
 
-This tool classifies each request by its path/body, rebuilds the chain
-for a NEW scan (fresh ids, the deliverable's file, this JD's text), and
-chains the rotating session cookies itself: every response rotates the
+This tool classifies each request by its path/body/method, rebuilds the
+chain for a NEW scan (fresh ids, the deliverable's file, this JD's text),
+and chains the rotating session cookies itself: every response rotates the
 session cookies, so requests run through a curl cookie jar (-b/-c) and
 the CSRF header is re-derived from the jar before each request (the
 header is the URL-decoded token cookie value).
@@ -119,16 +122,22 @@ def parse_curl_file(path=CURL_FILE):
         if m:
             req["body"] = m.group(1)
             req["method"] = "POST"
+        # Explicit verb (-X PUT, --request PUT) overrides the data-raw POST
+        # default — the opportunity-update request is a PUT with a JSON body.
+        m = re.search(r"(?:-X|--request)\s+'([^']+)'", joined)
+        if m:
+            req["method"] = m.group(1).upper()
         requests.append(req)
     return requests
 
 
 def classify(reqs):
-    """Identify the four chain requests from the saved exports.
+    """Identify the five chain requests from the saved exports.
 
-    Returns {"resume", "job", "opportunity", "report"} request dicts.
-    The report GET's numeric opportunity id is replaced with {id} so the
-    template serves future scans.
+    Returns {"resume", "job", "opportunity", "opportunity_update",
+    "report"} request dicts. The report GET's and the opportunity PUT's
+    numeric opportunity id are replaced with {id} so the templates serve
+    future scans.
     """
     kinds = {}
     for r in reqs:
@@ -155,12 +164,20 @@ def classify(reqs):
             kinds["job"] = r
         elif r["method"] == "POST" and "opportunities" in path:
             kinds["opportunity"] = r
-    missing = {"resume", "job", "opportunity", "report"} - set(kinds)
+        elif r["method"] == "PUT" and re.search(r"/opportunities/\d+", path):
+            # The re-scan update: bound to a freshly uploaded resume. The
+            # saved export's literal id becomes {id}; the body's ids are
+            # rebuilt at scan time (see _opportunity_update_body).
+            url = re.sub(r"/opportunities/\d+", "/opportunities/{id}",
+                         r["url"])
+            kinds["opportunity_update"] = dict(r, url=url)
+    missing = {"resume", "job", "opportunity", "opportunity_update",
+               "report"} - set(kinds)
     if missing:
         raise SystemExit(
             "error: could not classify saved request(s) as "
             + ", ".join(sorted(missing))
-            + " — re-export the four requests (see Setup)")
+            + " — re-export the requests (see Setup)")
     return kinds
 
 
@@ -302,6 +319,36 @@ def _posting_url(jd_text):
     return None
 
 
+def _opportunity_update_body(saved_body, opp_id, resume_id, job_id):
+    """Rebuild the saved opportunity-update body with the fresh ids.
+
+    The saved export's ``--data-raw`` body is the per-scan shape
+    ("{id, resume_id, job_description_id}" here). The numeric values are
+    the first scan's ids and must be replaced with this run's uploads — a
+    bare re-post of the template would silently re-point the opportunity
+    at the STALE resume. Keys are recognized by name, so the body shape
+    stays the service's; unknown keys keep their saved values. Returns
+    None when the body is not JSON (caller aborts with an actionable
+    error rather than sending a proxybag).
+    """
+    try:
+        obj = json.loads(saved_body)
+    except (TypeError, ValueError):
+        return None
+    mapping = {"id": opp_id, "opportunity_id": opp_id,
+               "resume_id": resume_id, "job_description_id": job_id}
+
+    def _sub(o):
+        if isinstance(o, dict):
+            return {k: (mapping.get(k, v) if k in mapping else _sub(v))
+                    for k, v in o.items()}
+        if isinstance(o, list):
+            return [_sub(x) for x in o]
+        return o
+
+    return _sub(obj)
+
+
 def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
          config=CURL_FILE, company=None):
     if not os.path.exists(resume_path):
@@ -362,6 +409,28 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
     if not opp_id:
         _fail(code, body)
 
+    # Re-point the opportunity at the freshly uploaded resume. The
+    # service dedupes identical resume+JD pairs, so a re-scan can reuse
+    # an existing opportunity created against an EARLIER upload — without
+    # this PUT the report stays bound to the old resume's text and a
+    # "score didn't move" is actually a stale parse (the bug fixed here).
+    update = kinds.get("opportunity_update")
+    if update:
+        update_body = _opportunity_update_body(
+            update.get("body"), opp_id, resume_id, job_id)
+        if update_body is None:
+            raise SystemExit(
+                "error: could not parse the saved opportunity-update body "
+                "(expected JSON --data-raw) — re-export the PUT request")
+        update_url = update["url"].replace("{id}", str(opp_id))
+        code, data, body = request(
+            update_url, _browser_headers(update["headers"]),
+            method="PUT", json_body=update_body)
+        print(f"[3b] opportunity update -> {code} "
+              f"(resume_id={resume_id}, job_description_id={job_id})")
+        if code not in (200, 201, 204):
+            _fail(code, body)
+
     # Attach the posting metadata the way the browser flow does — the
     # service's ATS-identification and several findings depend on the
     # posting URL (SKILL Step 1 persists it with the JD).
@@ -374,10 +443,10 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
             f"{kinds['opportunity']['url']}/{opp_id}",
             _browser_headers(kinds["opportunity"]["headers"]),
             method="PATCH", json_body=patch)
-        print(f"[3b] opportunity metadata -> {code} "
+        print(f"[3c] opportunity metadata -> {code} "
               f"(url={posting_url}{', company=' + company if company else ''})")
     else:
-        print("[3b] no Posting URL in the JD file — ATS cannot be "
+        print("[3c] no Posting URL in the JD file — ATS cannot be "
               "identified (SKILL Step 1)")
 
     report_url = kinds["report"]["url"].replace("{id}", str(opp_id))

@@ -39,6 +39,13 @@ curl --url 'https://ats.example/api/v4/opportunities' \\
   -b 'session_cookie=abc123; csrf_token=DEF456%3D' \\
   --data-raw '{"job_description_id":83215311,"resume_id":28475091,"stage":"saved"}'
 
+curl --url 'https://ats.example/api/v4/opportunities/12807851' \
+  -X 'PUT' \
+  -H 'accept: application/json, text/plain, */*' \
+  -H 'content-type: application/json' \
+  -b 'session_cookie=abc123; csrf_token=DEF456%3D' \
+  --data-raw '{"id":12807851,"resume_id":28475091,"job_description_id":83215311}'
+
 curl --url 'https://ats.example/api/v4/opportunities/12807851' \\
   -H 'accept: application/json, text/plain, */*' \\
   -b 'session_cookie=abc123; csrf_token=DEF456%3D'
@@ -57,8 +64,8 @@ class ConfigParsingTests(unittest.TestCase):
     def tearDownClass(cls):
         os.unlink(cls.path)
 
-    def test_four_requests_parsed(self):
-        self.assertEqual(len(self.reqs), 4)
+    def test_five_requests_parsed(self):
+        self.assertEqual(len(self.reqs), 5)
 
     def test_urls_extracted(self):
         self.assertEqual(self.reqs[0]["url"],
@@ -73,8 +80,10 @@ class ConfigParsingTests(unittest.TestCase):
                              for h in self.reqs[0]["headers"]))
 
     def test_methods_detected(self):
+        # The opportunity-update PUT is the fifth request; the data-raw
+        # body would default to POST, so the explicit -X 'PUT' must win.
         self.assertEqual([r["method"] for r in self.reqs],
-                         ["POST", "POST", "POST", "GET"])
+                         ["POST", "POST", "POST", "PUT", "GET"])
 
     def test_multiline_body_parsed(self):
         self.assertIn("form-data", self.reqs[0]["body"])
@@ -92,7 +101,7 @@ class ClassifyTests(unittest.TestCase):
         "curl --url 'https://ats.example/api/v4/opportunities/12807851"
         "/match-report?advanced_parser_enabled=true' \\")
 
-    def test_all_four_kinds_classified(self):
+    def test_all_five_kinds_classified(self):
         fd, path = tempfile.mkstemp(suffix=".txt")
         with os.fdopen(fd, "w") as f:
             f.write(SAMPLE_CURLS)
@@ -101,7 +110,8 @@ class ClassifyTests(unittest.TestCase):
         finally:
             os.unlink(path)
         self.assertEqual(set(kinds),
-                         {"resume", "job", "opportunity", "report"})
+                         {"resume", "job", "opportunity",
+                          "opportunity_update", "report"})
 
     def test_report_url_templated_with_report_suffix(self):
         fd, path = tempfile.mkstemp(suffix=".txt")
@@ -235,6 +245,26 @@ class PostingUrlTests(unittest.TestCase):
 
 
 class ResponseTests(unittest.TestCase):
+    def test_opportunity_update_body_rebuilds_ids(self):
+        body = '{"id":12807851,"resume_id":28475091,"job_description_id":83215311}'
+        out = ac._opportunity_update_body(body, 99, 100, 101)
+        self.assertEqual(out,
+                         {"id": 99, "resume_id": 100,
+                          "job_description_id": 101})
+
+    def test_opportunity_update_body_nested(self):
+        body = '{"opportunity":{"id":7},"resume_id":2}'
+        out = ac._opportunity_update_body(body, 99, 100, 101)
+        self.assertEqual(out, {"opportunity": {"id": 99}, "resume_id": 100})
+
+    def test_opportunity_update_body_unknown_keys_kept(self):
+        body = '{"id":1,"stage":"saved","other":3}'
+        out = ac._opportunity_update_body(body, 99, 100, 101)
+        self.assertEqual(out, {"id": 99, "stage": "saved", "other": 3})
+
+    def test_opportunity_update_body_not_json_returns_none(self):
+        self.assertIsNone(ac._opportunity_update_body("not json", 1, 2, 3))
+
     def test_extract_id_top_level_object(self):
         # Resume upload: the object sits at top level AND carries its own
         # "data" field (docx parse metadata) — the top-level id wins.
