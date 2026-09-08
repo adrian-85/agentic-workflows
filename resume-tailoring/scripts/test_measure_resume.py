@@ -27,6 +27,11 @@ sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
 import docx_edit as de  # noqa: E402
 import measure_resume as mr  # noqa: E402
+import measure_resume_format as mrf  # noqa: E402  (constants live here post-split)
+
+# Format-assumption constants are READ through the owning module's globals
+# (mr.* aliases the same objects), so white-box patches target mrf.
+MR_PATCH = mrf
 
 W = de.W
 
@@ -84,13 +89,13 @@ class CompanyKeyTests(unittest.TestCase):
     def test_custom_date_pattern(self):
         saved = mr.DATE_RE
         try:
-            mr.DATE_RE = re.compile(r"\d{4}-\d{2}")
+            mrf.DATE_RE = re.compile(r"\d{4}-\d{2}")
             self.assertEqual(
                 mr._company_key("Widgets Inc2024-03 – 2025-01"),
                 "Widgets Inc",
             )
         finally:
-            mr.DATE_RE = saved
+            mrf.DATE_RE = saved
 
 
 class RolesTests(unittest.TestCase):
@@ -153,7 +158,7 @@ class RolesTests(unittest.TestCase):
         # follows BULLET_STYLES, so a custom list style is honored.
         saved = mr.BULLET_STYLES
         try:
-            mr.BULLET_STYLES = ("MyBullet",)
+            mrf.BULLET_STYLES = ("MyBullet",)
             body = _body([
                 _para(mr.SECTION_CAREER, style="SectionHeading"),
                 _para("Company ABC, Phoenix, AZ07/2014 – 08/2016",
@@ -163,7 +168,7 @@ class RolesTests(unittest.TestCase):
             ])
             roles = mr._roles(body)
         finally:
-            mr.BULLET_STYLES = saved
+            mrf.BULLET_STYLES = saved
         self.assertEqual(roles[0]["bullets"], 1)
 
     def test_parses_alternative_resume_via_constants(self):
@@ -172,10 +177,10 @@ class RolesTests(unittest.TestCase):
         saved = (mr.SECTION_CAREER, mr.SECTION_EDUCATION,
                  mr.COMPANY_STYLE, mr.DATE_RE)
         try:
-            mr.SECTION_CAREER = "Work History"
-            mr.SECTION_EDUCATION = "Training"
-            mr.COMPANY_STYLE = "RoleHeader"
-            mr.DATE_RE = re.compile(r"\d{4}-\d{2}")
+            mrf.SECTION_CAREER = "Work History"
+            mrf.SECTION_EDUCATION = "Training"
+            mrf.COMPANY_STYLE = "RoleHeader"
+            mrf.DATE_RE = re.compile(r"\d{4}-\d{2}")
             body = _body([
                 _para("Work History", style="SectionHeading"),
                 _para("Widgets Inc2024-03 – 2025-01", style="RoleHeader"),
@@ -184,8 +189,8 @@ class RolesTests(unittest.TestCase):
             ])
             roles = mr._roles(body)
         finally:
-            (mr.SECTION_CAREER, mr.SECTION_EDUCATION,
-             mr.COMPANY_STYLE, mr.DATE_RE) = saved
+            (mrf.SECTION_CAREER, mrf.SECTION_EDUCATION,
+             mrf.COMPANY_STYLE, mrf.DATE_RE) = saved
         self.assertEqual(len(roles), 1)
         r = roles[0]
         self.assertEqual(r["key"], "Widgets Inc")
@@ -1353,12 +1358,12 @@ class VisibleSpanTests(unittest.TestCase):
     def test_iso_dates(self):
         saved = mr.DATE_RE
         try:
-            mr.DATE_RE = re.compile(r"\d{4}-\d{2}")
+            mrf.DATE_RE = re.compile(r"\d{4}-\d{2}")
             first, last = mr._visible_span([
                 "Widgets Inc2024-03 – 2025-01",
             ])
         finally:
-            mr.DATE_RE = saved
+            mrf.DATE_RE = saved
         self.assertAlmostEqual(first, 2024 + 2 / 12, places=2)
         self.assertAlmostEqual(last, 2025, places=2)
 
