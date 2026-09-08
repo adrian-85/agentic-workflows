@@ -1,0 +1,18 @@
+[tool.pylint]
+reports = "no"
+
+[tool.pylint."messages control"]
+# Deterministic hard gate: exit non-zero on ANY emitted message
+# (convention through fatal). Pylint 4's `fail-under` is score-based and
+# cannot zero it out reliably; `fail-on` maps 1:1 to "any message →
+# non-zero exit" (verified: convention-only file exits 16, clean exits 0).
+fail-on = ["C", "W", "R", "E", "F"]
+
+# Repo-wide convention with written rationale: the resume-tailoring
+# scripts live in a flat namespace and deliberately share underscore-
+# prefixed helpers across sibling modules (their "internal API"). Tests
+# white-box the same helpers. Expected until the API-promotion spec
+# lands; see docs/superpowers/specs/2026-09-07-script-api-promotion-design.md
+disable = [
+    "protected-access",
+]
