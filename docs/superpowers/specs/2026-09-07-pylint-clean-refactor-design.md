@@ -38,7 +38,7 @@ only).
 - `pylint $(git ls-files '*.py')` exits 0, deterministically, local == CI
 - Hard gate via the **improve workflow**: `verify-worktree.sh` blocks
   any merge to `main` whose **change set** fails the pinned lint or the
-  test suites
+  full test suite of each workflow that change set touches
 - Large **source** files split below 1000 lines (clears `C0302`)
 - **Test** files stay one-file-per-source (may exceed 1000 lines) per
   maintainability ruling — mapping test → source must stay obvious
@@ -117,8 +117,8 @@ protection**: nothing lands on `main` except through its four approval
 `>STOP.` gates + `merge-worktree.sh` step. The pylint gate therefore
 lives **in that flow** — main only ever receives a worktree merge whose
 **change set** (its diff vs `main`) passed the pinned lint scoped to
-that diff, plus both test suites, locally, at the same pinned version
-CI uses.
+that diff plus the full test suite of each workflow that change set
+touches, locally, at the same pinned version CI uses.
 
 #### New: `improve/scripts/verify-worktree.sh`
 
@@ -137,15 +137,38 @@ whole repo):
    must never trip on repo lint debt outside its diff. Once this
    effort lands (whole repo exits 0), this is equivalent to "fail on
    new lint debt" — every touched file is clean on `main`.
-3. Runs both suites (398 unittest resume + 54 pytest p2p-qa, same
-   `*_live` exclusions) — tests are a *correctness* gate and run
-   repo-wide: the merged change set must keep every consumer green.
+3. **Runs the full test suite of each workflow the change set touches**
+   — per-workflow containment: the repo is a collection of independent,
+   self-contained workflows (resume-tailoring, p2p-qa-lab, ai-judge,
+   …). A workflow's changes **never** run another workflow's tests:
+   - the change set is classified by the workflow prefix(es) it
+     touches: `resume-tailoring/` → its full unittest suite (6
+     modules, 398 tests); `p2p-qa-lab/` → its full pytest suite minus
+     the `*_live` network tests (54); `ai-judge/`, `improve/`, docs,
+     and repo-config → no suite;
+   - every suite is run **in full** for each touched workflow — the
+     suites are small (0.2 s / 34 s), so full-per-workflow is the
+     rule, not the exception. Larger or higher-risk changes need no
+     special path: the full affected-workflow suite is already the
+     default;
+   - a change set touching several workflows (this effort itself
+     touches resume-tailoring + p2p-qa-lab + ai-judge) runs every
+     touched workflow's full suite — never more than the touched
+     workflows;
+   - a change set touching no workflow (docs/README/config-only) runs
+     no tests and passes — docs-only improvements are the improve
+     workflow's bread-and-butter.
+   The existing `*_live` p2p exclusions still apply (network tests are
+   never auto-run by the gate).
 4. Prints `✓ lint + tests pass` or a blocking failure summary
 
-The pylint-clean effort **itself** exercises the whole-repo form
-`pylint $(git ls-files '*.py')` as *its own* acceptance criterion — its
-change set *is* the entire repo. That acceptance lives in the plan's
-tasks, not in `verify-worktree.sh`.
+The pylint-clean effort **itself** exercises the whole-repo forms
+(`pylint $(git ls-files '*.py')` and the full 398-unittest + 54-pytest
+suites) as *its own* acceptance criteria — its change set spans
+resume-tailoring, p2p-qa-lab, and ai-judge, so the gate's per-workflow
+rule runs every touched workflow's full suite (which here is the whole
+repo that has tests). Those acceptance checks live in the plan's tasks,
+not in `verify-worktree.sh`.
 
 #### Wiring (two points)
 
