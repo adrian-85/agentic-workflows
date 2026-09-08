@@ -295,6 +295,19 @@ class FindPTests(unittest.TestCase):
         ps = [mkp(("alpha", False)), mkp(("beta gamma", True))]
         self.assertIs(de.find_p(ps, "beta"), ps[1])
 
+    def test_none_paragraphs_raises_targeted_error(self):
+        # The real failure mode: set_text(...) returns None (unlike
+        # drop()), so `ps = set_text(...)` threads None into the next
+        # find_p — which crashed as a bare 'NoneType' object is not
+        # iterable' three calls deep. The error must name the cause.
+        with self.assertRaises(TypeError) as cm:
+            de.find_p(None, "alpha")
+        msg = str(cm.exception)
+        self.assertIn("paragraphs=None", msg)
+        self.assertIn("set_text", msg)
+        self.assertIn("return None", msg)
+        self.assertIn("drop()", msg)
+
     def test_returns_none_when_missing(self):
         ps = [mkp(("alpha", False))]
         self.assertIsNone(de.find_p(ps, "zzz"))

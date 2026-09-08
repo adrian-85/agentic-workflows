@@ -518,6 +518,14 @@ def find_p(paragraphs, startswith, *, after=None, nth=None):
     rather than mutate. Use a unique prefix (see `prefixes()`).
     """
     pref = _matchkey(startswith)
+    if paragraphs is None:
+        raise TypeError(
+            "find_p got paragraphs=None. Likely cause: a set_text/"
+            "set_labeled/replace_text return value was assigned (they "
+            "return None — unlike drop()/drop_role(), which return the "
+            "refreshed list). Call set_text(...) without assignment and "
+            "thread the ps list from paras()/drop() only."
+        )
     after_idx = None
     if after is not None:
         for i, p in enumerate(paragraphs):
