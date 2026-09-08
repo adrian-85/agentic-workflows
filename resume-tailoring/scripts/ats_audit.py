@@ -31,9 +31,13 @@ Checks (exit 0 clean, 1 findings, 2 usage/IO error):
      zero-hits warn (several are deliberate no-evidence skips).
 
 Run on the PDF (pdftotext), not the .docx — the deliverable is what the
-screener parses. The report's contactEmail searchability finding is
-IGNORED by rule (SKILL Step 11): the compact hyperlinked contact block is
-a deliberate design the user chose for readability.
+screener parses. Three classes of external finding are IGNORED by rule
+(SKILL Step 11): contactEmail (the compact hyperlinked contact block is
+deliberate design), specialCharacters (the typographic characters are
+deliberate formatting the user chose — never reformat to satisfy a text
+parser), and the education findings when the rendered resume has no
+Education section (the drop was a Step 3.4 predicate decision the render
+gate already sanctioned; the scan's generic advice does not re-open it).
 """
 
 import json
@@ -309,13 +313,39 @@ def _report_word_count(data):
     return None
 
 
-def _report_findings(data):
-    """Report findings[] summary. contactEmail is IGNORED by rule (the
-    hyperlinked contact block is deliberate design). Returns warn lines."""
+def _has_education_heading(text):
+    """A line starting with "Education" in the rendered text — the
+    section is present. A miss on prose that happens to start a line is
+    the conservative direction: the education findings are then REPORTED
+    (the pre-rule behavior), not ignored."""
+    return bool(re.search(r"(?m)^\s*education\b", text, re.I))
+
+
+def _report_findings(data, resume_text=""):
+    """Report findings[] summary. Three classes are IGNORED by rule
+    (SKILL Step 11):
+
+    - contactEmail — the hyperlinked contact block is deliberate design;
+      a raw-text parser's fail is the known, accepted tradeoff.
+    - specialCharacters — the Wingdings bullets, en-dash date ranges and
+      curly apostrophes are the user's deliberate formatting ("it pops
+      better with the current formatting"); NEVER reformat the resume
+      to satisfy a text parser's character check.
+    - the education findings (headingEducation, educationMatch) when the
+      rendered resume has no Education section — the drop was a Step 3.4
+      predicate decision, and validate_resume's education gate already
+      blocks any UNSANCTIONED drop at render time; a PDF without
+      Education therefore reached the audit only through an approved
+      drop. The scan's generic "add an Education section" advice does
+      not re-open that decision. When Education IS present, the findings
+      report normally.
+
+    Returns warn lines."""
     lines = []
     findings = data.get("findings") if isinstance(data, dict) else None
     if not isinstance(findings, list):
         return lines
+    education_present = _has_education_heading(resume_text)
     for f in findings:
         if not isinstance(f, dict):
             continue
@@ -323,12 +353,26 @@ def _report_findings(data):
         status = str(f.get("status", "")).lower()
         if status == "pass":
             continue
-        if "contactemail" in re.sub(r"[_\s-]", "",
-                                    str(f.get("key", ""))).lower():
+        key = re.sub(r"[_\s-]", "", str(f.get("key", ""))).lower()
+        if key == "contactemail":
             lines.append(
                 f"  IGNORED contactEmail ({status}): the compact "
                 "hyperlinked contact block is deliberate design — do not "
                 "alter it (SKILL Step 11)")
+            continue
+        if key == "specialcharacters":
+            lines.append(
+                f"  IGNORED specialCharacters ({status}): the typographic "
+                "characters are the user's deliberate formatting — never "
+                "reformat to satisfy a text parser (SKILL Step 11)")
+            continue
+        if key in ("headingeducation", "educationmatch") \
+                and not education_present:
+            lines.append(
+                f"  IGNORED {name} ({status}): Education was dropped "
+                "deliberately (Step 3.4 predicate; the render gate "
+                "sanctioned it) — the scan's generic advice does not "
+                "re-open that decision")
             continue
         lines.append(f"  {status.upper()}: {name}")
     return lines
@@ -435,7 +479,7 @@ def main(argv=None):
         elif soft:
             ok_lines.append(f"report soft skills: {len(soft)}/{len(soft)} "
                             "hosted")
-        for line in _report_findings(report_data):
+        for line in _report_findings(report_data, text):
             warns.append(line)
 
     print("== ATS AUDIT ==")

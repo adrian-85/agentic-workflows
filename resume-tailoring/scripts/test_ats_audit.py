@@ -184,6 +184,46 @@ class FindingsReportTests(unittest.TestCase):
         self.assertTrue(any("WARN: Measurable Results" in l for l in lines))
         self.assertEqual(sum(1 for l in lines if "ATS Tip" in l), 0)
 
+    def test_special_characters_ignored_by_rule(self):
+        # The user's typographic formatting (Wingdings bullets, en-dash
+        # date ranges, curly quotes) is deliberate: the finding is noise
+        # in every report and must never trigger a reformat.
+        data = {"findings": [
+            {"key": "specialCharacters", "name": "Special Characters",
+             "status": "fail"},
+        ]}
+        lines = aa._report_findings(data)
+        self.assertTrue(any("IGNORED specialCharacters" in l for l in lines),
+                        lines)
+        self.assertNotIn("FAIL:", "\n".join(lines))
+
+    def test_education_findings_ignored_when_section_dropped(self):
+        # A PDF with no Education section got past the render gate, so
+        # the drop was sanctioned (Step 3.4 predicate) — the scan's
+        # generic advice does not re-open it.
+        data = {"findings": [
+            {"key": "headingEducation", "name": "Education Heading",
+             "status": "fail"},
+            {"key": "educationMatch", "name": "Education Match",
+             "status": "warn"},
+        ]}
+        lines = aa._report_findings(data, "Summary\nWork Experience\n")
+        joined = "\n".join(lines)
+        self.assertEqual(joined.count("IGNORED"), 2, joined)
+        self.assertNotIn("FAIL:", joined)
+        self.assertNotIn("WARN:", joined)
+
+    def test_education_findings_reported_when_section_present(self):
+        # With Education in the resume, the findings are real signal and
+        # report normally (the conservative direction on a detection
+        # miss).
+        data = {"findings": [
+            {"key": "headingEducation", "name": "Education Heading",
+             "status": "fail"},
+        ]}
+        lines = aa._report_findings(data, "Experience\nEducation\nB.S.\n")
+        self.assertEqual(lines, ["  FAIL: Education Heading"])
+
 
 class MainTests(unittest.TestCase):
     def _run(self, *args):
