@@ -63,7 +63,8 @@
 ```toml
 [tool.pylint]
 reports = "no"
-fail-under = 0.0
+fail-on = ["C", "W", "R", "E", "F"]  # any emitted message → non-zero exit
+                                # (pylint 4: fail-under is score-based, NOT a gate)
 
 [tool.pylint."messages control"]
 # Repo-wide convention with written rationale: the resume-tailoring

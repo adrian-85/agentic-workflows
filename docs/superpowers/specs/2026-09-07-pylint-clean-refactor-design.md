@@ -81,7 +81,8 @@ local and CI.
 ```toml
 [tool.pylint]
 reports = "no"          # cleaner output; score line off
-fail-under = 0.0        # any message → non-zero exit (hard gate)
+fail-on = ["C", "W", "R", "E", "F"]  # any emitted message → non-zero exit
+                          # (hard gate; pylint 4 is score-based without this)
 
 [tool.pylint."messages control"]
 # Repo-wide convention, one written rationale:
@@ -97,9 +98,11 @@ disable = [
 ```
 
 Everything else stays at pylint defaults (line length 100,
-`too-many-*` defaults, etc.). `fail-under = 0.0` makes exit code
-deterministic: convention messages alone exit 16 (verified), so **any
-residual message fails the gate**.
+`too-many-*` defaults, etc.). `fail-on = ["C", "W", "R", "E", "F"]`
+makes the exit code deterministic: **any emitted message** (convention
+through fatal) → non-zero exit, clean → 0 (verified: `fail-under` is
+score-based and exits 0 at any score >= 0, so it is NOT the gate; do
+not use it for this).
 
 ### Per-file suppression mechanism (important)
 
