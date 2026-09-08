@@ -36,6 +36,7 @@
 - `resume-tailoring/scripts/validate_resume_master.py` — master/integrity/gate/flags
 - `resume-tailoring/scripts/script_args.py` — shared argv/flag parsing
 - `resume-tailoring/scripts/test_helpers.py` — sys.path bootstrap + shared fixtures
+- `improve/scripts/select-tests.py` — change-set test selection
 - `improve/scripts/verify-worktree.sh` — the hard-gate verify
 
 **Modified:**
@@ -659,23 +660,141 @@ git commit -m "lint: suppression headers with rationale, source docstrings, refl
 ### Task 10: Hard-gate closeout — `verify-worktree.sh` + improve wiring
 
 **Files:**
-- Create: `improve/scripts/verify-worktree.sh`
+- Create: `improve/scripts/select-tests.py`, `improve/scripts/verify-worktree.sh`
 - Modify: `improve/SKILL.md`, `improve/scripts/merge-worktree.sh`
 
 **Interfaces:**
-- Consumes: the pinned toolchain + the change-set lint command (`git
-  diff --name-only main...HEAD -- '*.py'` → pylint on those files) and
-  the suite commands from Tasks 1-9
-- Produces: `verify-worktree.sh` (exit 0 = this change set is mergeable) wired into hard stop #4 and the merge script
+- Consumes: the pinned toolchain, the change-set lint command (`git
+  diff --name-only main...HEAD -- '*.py'` → pylint on those files), and
+  `select-tests.py` (change set → implicated test targets)
+- Produces: `select-tests.py` prints `unittest:<modules>` then
+  `pytest:<relative paths>` for the current branch's change set;
+  `verify-worktree.sh` (exit 0 = this change set is mergeable) wired
+  into hard stop #4 and the merge script
 
-- [ ] **Step 1: Create `improve/scripts/verify-worktree.sh`**
+- [ ] **Step 1: Create `improve/scripts/select-tests.py`**
+
+```python
+#!/usr/bin/env python3
+"""select-tests.py — change-set test selection for verify-worktree.sh.
+
+Prints two lines for the current branch's change set:
+
+    unittest:<space-separated resume-tailoring test modules>
+    pytest:<space-separated relative p2p-qa test paths>
+
+Selection is derived from the WORKTREE's own import statements, so it
+stays correct across the refactors that split/rename modules: a changed
+source module selects every test file that (transitively) imports it; a
+changed test file selects itself; conftest / package entry files widen
+to the whole package's tests. A change set implicating no tests prints
+two empty lines (no tests run).
+"""
+import os
+import re
+import subprocess
+
+RESUME_SCRIPTS = "resume-tailoring/scripts"
+P2P_SRC = "p2p-qa-lab/p2p_qa"
+P2P_TESTS = "p2p-qa-lab/tests"
+
+IMPORT_RE = re.compile(r"(?m)^\s*(?:from|import)\s+([\w.]+)")
+
+
+def repo_root():
+    """Absolute path of the enclosing git worktree root."""
+    return subprocess.check_output(["git", "rev-parse", "--show-toplevel"],
+                                   text=True).stdout.strip()
+
+
+def changed_py(root):
+    """Set of .py paths changed on this branch vs main."""
+    out = subprocess.run(
+        ["git", "-C", root, "diff", "--name-only", "main...HEAD", "--", "*.py"],
+        capture_output=True, text=True, check=False)
+    return {p for p in out.stdout.splitlines() if p}
+
+
+def imports(path, root):
+    """Module-name tokens `path` imports (first segment per line)."""
+    with open(os.path.join(root, path), encoding="utf-8") as fh:
+        text = fh.read()
+    out = set()
+    for match in IMPORT_RE.findall(text):
+        parts = match.split(".")
+        out.add(parts[0])
+        if parts[0] == "p2p_qa" and len(parts) > 1:
+            out.add(parts[1])
+    return out
+
+
+def main():
+    root = repo_root()
+    py_files = [os.path.join(d, f) for d in (RESUME_SCRIPTS, P2P_SRC, P2P_TESTS)
+                for f in sorted(os.listdir(os.path.join(root, d)))
+                if f.endswith(".py")]
+    key = {p: os.path.basename(p)[:-3] for p in py_files}
+    names = set(key.values())
+    reverse = {}   # module name -> {importers}
+    for path in py_files:
+        for dep in imports(path, root):
+            if dep in names:
+                reverse.setdefault(dep, set()).add(key[path])
+
+    test_keys = {name for path, name in key.items()
+                 if name.startswith("test_") and name != "test_helpers"}
+    resume_test_keys = {name for path, name in key.items()
+                        if path.startswith(RESUME_SCRIPTS + "/")
+                        and name in test_keys}
+    p2p_test_keys = {name for path, name in key.items()
+                     if path.startswith(P2P_TESTS + "/") and name in test_keys}
+
+    def select(name, seen=None):
+        """Test names that (transitively) import `name`."""
+        if seen is None:
+            seen = set()
+        if name in seen:
+            return set()
+        seen.add(name)
+        found = {name} if name in test_keys else set()
+        for importer in reverse.get(name, ()):
+            found |= select(importer, seen)
+        return found
+
+    selected = set()
+    for path in changed_py(root):
+        if path not in key:
+            continue
+        name = key[path]
+        hit = select(name)
+        if hit:
+            selected |= hit
+        elif path.startswith(P2P_TESTS) or name in ("__init__", "__main__"):
+            selected |= p2p_test_keys   # conftest / package entry: whole package
+
+    out_resume = sorted(selected & resume_test_keys)
+    out_p2p = sorted(selected & p2p_test_keys)
+    print("unittest:" + " ".join(out_resume))
+    print("pytest:" + " ".join(os.path.join(P2P_TESTS, name + ".py")
+                                for name in out_p2p))
+
+
+if __name__ == "__main__":
+    main()
+```
+
+(Keep this file lint-clean — the change-set gate lints it on the commit
+that adds it. It filters import tokens by node membership in the
+worktree, so no hardcoded stdlib/third-party lists to rot.)
+
+- [ ] **Step 2: Create `improve/scripts/verify-worktree.sh`**
 
 ```bash
 #!/bin/bash
 # verify-worktree.sh - Block a worktree merge unless the CHANGE SET passes.
-# Scoped like every other improve check (analysis/reviews/gates all target
-# the diff vs main, never the whole repo): lint only the Python files this
-# branch touches; the suites run repo-wide as the correctness gate.
+# Scoped like every other improve check: lint only the Python files this
+# branch touches; run only the tests those files implicate (select-tests.py
+# over the worktree's real imports). Never the whole repo.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -697,22 +816,40 @@ else
 fi
 echo "✓ pylint clean"
 
-echo "== verify-worktree: resume-tailoring suite =="
-(cd resume-tailoring/scripts && python3 -m unittest test_docx_edit test_measure_resume \
-    test_validate_resume test_ats_check test_ats_audit test_squeeze_resume)
-echo "✓ resume-tailoring suite green"
+echo "== verify-worktree: select implicated tests =="
+TARGETS="$(python3 "$SCRIPT_DIR/select-tests.py")"
+UNITTEST_TARGETS="$(sed -n 's/^unittest://p' <<<"$TARGETS")"
+PYTEST_TARGETS="$(sed -n 's/^pytest://p' <<<"$TARGETS")"
 
-echo "== verify-worktree: p2p-qa suite =="
-(cd p2p-qa-lab && python3 -m pytest tests -x -q \
-    --ignore=tests/test_dspy_live.py --ignore=tests/test_hacker_live.py \
-    --ignore=tests/test_explorer_live.py --ignore=tests/test_report_live.py)
-echo "✓ p2p-qa suite green"
+echo "== verify-worktree: resume-tailoring tests (implicated) =="
+if [ -n "$UNITTEST_TARGETS" ]; then
+    (cd resume-tailoring/scripts && python3 -m unittest $UNITTEST_TARGETS)
+else
+    echo "no resume-tailoring tests implicated — skipping"
+fi
+echo "✓ resume-tailoring tests green"
+
+echo "== verify-worktree: p2p-qa tests (implicated) =="
+if [ -n "$PYTEST_TARGETS" ]; then
+    (cd p2p-qa-lab && python3 -m pytest $PYTEST_TARGETS -x -q \
+        --ignore=tests/test_dspy_live.py --ignore=tests/test_hacker_live.py \
+        --ignore=tests/test_explorer_live.py --ignore=tests/test_report_live.py)
+else
+    echo "no p2p-qa tests implicated — skipping"
+fi
+echo "✓ p2p-qa tests green"
 echo "== verify-worktree: PASS =="
 ```
 
-(`--break-system-packages` covers Debian-managed Python where pip refuses; the `||` fallback covers venvs. If the repo uses a venv at runtime, the caller should ensure the toolchain is active — verify-worktree uses whatever python3/pylint is on PATH after a best-effort install. `pylint $CHANGED_PY` relies on word-splitting; safe here because repo paths contain no spaces.)
+(`--break-system-packages` covers Debian-managed Python where pip
+refuses; the `||` fallback covers venvs. If the repo uses a venv at
+runtime, the caller ensures the toolchain is active — verify-worktree
+uses whatever python3/pylint is on PATH after a best-effort install.
+`pylint $CHANGED_PY` and the test-target expansion rely on
+word-splitting; safe here because repo paths and test names contain no
+spaces.)
 
-- [ ] **Step 2: Wire into `improve/SKILL.md` Phase 3**
+- [ ] **Step 3: Wire into `improve/SKILL.md` Phase 3**
 
 In the Phase 3 section, before "Generate the final diff":
 
@@ -723,7 +860,7 @@ In the Phase 3 section, before "Generate the final diff":
    verify passes.
 ```
 
-- [ ] **Step 3: Wire into `improve/scripts/merge-worktree.sh`**
+- [ ] **Step 4: Wire into `improve/scripts/merge-worktree.sh`**
 
 Insert immediately after the argument/branch checks (before any `git checkout main`):
 
@@ -736,15 +873,26 @@ echo "✓ hard gate passed; merging."
 
 (`set -e` aborts the merge on failure — belt-and-suspenders behind the SKILL.md step.)
 
-- [ ] **Step 4: Verify the gate end-to-end**
+- [ ] **Step 5: Verify the gate end-to-end**
 
-From a clean worktree of the repo: run `improve/scripts/verify-worktree.sh` → PASS. Prove it blocks a **change-set** lint failure: in a scratch worktree, `echo "x = 1" >> resume-tailoring/scripts/diff_resume.py && git add -A && git commit -m "inject"` — the injection must be **committed**, because the change set is `git diff main...HEAD`, which only sees committed changes — then run verify → non-zero with a `pylint` message on `diff_resume.py`; revert. Prove a docs-only change set skips lint cleanly: touch only a `SKILL.md`/`.md` file, commit, run verify → `no Python files changed — skipping pylint`, suites green, PASS. Confirm `merge-worktree.sh` runs verify (stub a failing verify, watch the merge abort before checkout).
+From a clean worktree of the repo: run `improve/scripts/verify-worktree.sh` → PASS. Then prove the **change-set scoping** on both axes (each case: commit the change, run `python3 improve/scripts/select-tests.py`, confirm the targets it prints and that verify runs exactly those, then revert). Expected outputs below were **verified empirically in a throwaway worktree during planning** (with the `dep in key → dep in names` membership fix); re-run the probe if the module splits change the graph:
 
-- [ ] **Step 5: Confirm the self-improvement gate**
+- **Lint blocks a committed bad line:** `echo "x = 1" >> resume-tailoring/scripts/diff_resume.py && git add -A && git commit -m "inject"` then verify → non-zero, `pylint` message on `diff_resume.py`. (Must be **committed** — the change set is `git diff main...HEAD`, which only sees committed changes.)
+- **Tests scope to the change:** change `resume-tailoring/scripts/measure_resume.py` (valid edit) → the unittest line is `test_ats_audit test_docx_edit test_measure_resume test_squeeze_resume test_validate_resume` — **`test_docx_edit` is legitimately included** because it lazily imports `measure_resume` (one test at ~line 1593); the pytest line is empty and no p2p test runs.
+- **Shared-core fan-out:** change `docx_edit.py` → the same full resume set (every resume suite imports the shared core, directly or transitively); pytest line empty.
+- **Changed test file runs itself:** touch only `resume-tailoring/scripts/test_squeeze_resume.py` → `unittest:test_squeeze_resume`, nothing else.
+- **p2p scoping:** change `p2p-qa-lab/p2p_qa/client.py` → pytest line is only the p2p tests importing client (`test_adversarial test_client_http test_client_schema test_explorer_live test_hacker_live test_judge_prepass test_report`), the unittest line is empty; the two `*_live` targets in that set are skipped by the existing `--ignore`.
+- **Infra widening:** change `p2p-qa-lab/tests/conftest.py` → every p2p-qa test file selected (whole-suite widening); change `resume-tailoring/scripts/test_helpers.py` → every resume test file that imports it (reverse-import edge, same mechanism proven above).
+- **No test home:** change `ai-judge/judge.py` → both lines empty (ai-judge has no tests; the lint gate still covers it), verify passes with both `skipping` messages.
+- **Docs-only passes without running anything:** commit only a `SKILL.md`/`.md` touch → both lines empty, verify prints both `no … tests implicated — skipping` lines and PASS.
+
+Confirm `merge-worktree.sh` runs verify (stub a failing verify, watch the merge abort before checkout).
+
+- [ ] **Step 6: Confirm the self-improvement gate**
 
 When the `improve` workflow improves itself (including `verify-worktree.sh`/`merge-worktree.sh`), the gate runs on the self-improved worktree before merge — verify by reading SKILL.md's own-improvement path still routes through Phase 3 (it does: self-improvement reuses the same phases).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 chmod +x improve/scripts/verify-worktree.sh
@@ -752,16 +900,20 @@ git add improve/scripts/verify-worktree.sh improve/scripts/merge-worktree.sh imp
 git commit -m "feat: verify-worktree.sh hard gate wired into improve Phase 3 and merge"
 ```
 
-- [ ] **Step 7: Final acceptance**
+- [ ] **Step 8: Final acceptance**
 
 Two distinct acceptances:
 
 1. **Effort acceptance** — `pylint $(git ls-files '*.py')` exit 0 on a
-   clean checkout. This effort's change set *is* the whole repo, so the
-   whole-repo form is its own bar (per the spec's verify section).
+   clean checkout, plus the full 398-unittest + 54-pytest suites
+   green. This effort's change set *is* the whole repo, so the
+   whole-repo forms are its own bar (and the scoped selector naturally
+   selects everything when the effort merges).
 2. **General gate** — `verify-worktree.sh` PASS from a worktree: no
-   diff vs `main` → lint skipped, suites green; a committed bad line in
-   a changed file blocks; a docs-only change set passes.
+   diff vs `main` → lint skipped, no tests run; a committed bad line
+   in a changed file blocks; a docs-only change set passes; test
+   selection matches the change set (fan-out on shared core, p2p
+   isolated from resume, single changed test file runs itself).
 
-Also: both suites green, CI workflow green on a push, the improve merge
-path runs the gate. Update the plan's spec status to implemented.
+Also: CI workflow green on a push, the improve merge path runs the
+gate. Update the plan's spec status to implemented.
