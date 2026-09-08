@@ -63,7 +63,7 @@ import textwrap
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 import script_args  # noqa: E402
-from script_args import extract_common, extract_flag, extract_flag_all  # noqa: E402
+from script_args import extract_common, extract_flag, extract_flag_all, read_jd_text  # noqa: E402
 
 
 W = de.W
@@ -248,15 +248,7 @@ def main():
     docx = kept[0]
     target, default_target = _target_from_args(kept)
 
-    jd_text = None
-    if jd_file:
-        try:
-            with open(jd_file, encoding="utf-8", errors="replace") as f:
-                jd_text = f.read()
-        except OSError as e:
-            print(f"error: cannot read --jd file {jd_file}: {e}",
-                  file=sys.stderr)
-            sys.exit(2)
+    jd_text = read_jd_text(jd_file) if jd_file else None
 
     evidence_text = None
     if linkedin_file:

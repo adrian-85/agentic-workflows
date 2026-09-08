@@ -51,7 +51,7 @@ import tempfile
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 import measure_resume as mr  # noqa: E402
-from script_args import extract_common  # noqa: E402
+from script_args import extract_common, read_jd_text  # noqa: E402
 
 
 def _apply_drops(body, suggestions):
@@ -121,13 +121,7 @@ def main():
 
     jd_terms = set()
     if jd_file:
-        try:
-            with open(jd_file, encoding="utf-8", errors="replace") as f:
-                jd_text = f.read()
-        except OSError as e:
-            print(f"error: cannot read --jd file {jd_file}: {e}",
-                  file=sys.stderr)
-            sys.exit(2)
+        jd_text = read_jd_text(jd_file)
         _root, body0, _n, _d, _ = de.load(docx)
         jd_terms = mr._jd_terms(jd_text, body0)
         print(f"JD-aware ranking: {len(jd_terms)} term(s) matched from "

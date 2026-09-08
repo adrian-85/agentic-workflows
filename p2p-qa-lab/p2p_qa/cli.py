@@ -6,7 +6,6 @@ demo – boot the mock API, then run against it, then tear down.
 """
 
 import argparse
-import httpx
 import json
 import os
 import subprocess
@@ -14,6 +13,8 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+
+import httpx
 
 from p2p_qa.client import P2PClient, StepLogger
 from p2p_qa import stress

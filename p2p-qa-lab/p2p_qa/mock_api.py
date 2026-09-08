@@ -26,10 +26,10 @@ Money is integer cents everywhere. Amounts may arrive as int or string.
 
 import argparse
 import os
-
-import uvicorn
 import threading
 from datetime import datetime, timezone
+
+import uvicorn
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 

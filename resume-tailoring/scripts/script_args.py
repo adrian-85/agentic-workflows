@@ -39,6 +39,19 @@ def extract_flag_all(argv, flag):
     return values
 
 
+def read_jd_text(jd_file):
+    """Read a --jd job-description file, exiting 2 on unreadable paths
+    (shared by measure_resume + squeeze_resume; dedups identical blocks)."""
+    import sys
+    try:
+        with open(jd_file, encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except OSError as e:
+        print(f"error: cannot read --jd file {jd_file}: {e}",
+              file=sys.stderr)
+        sys.exit(2)
+
+
 def extract_common(argv, extra_flags=()):
     """Split argv into (protect, jd_file, kept) using the standard --protect/
     --jd loop; extra_flags are single-value flags consumed but not returned.

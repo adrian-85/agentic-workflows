@@ -57,6 +57,12 @@ CLI (inspect structure before editing)::
     python3 scripts/docx_edit.py path/to/resume.docx 26-38 --full
         # prints paragraphs 26-38 with FULL text (no truncation)
 """
+# pylint: disable=invalid-name,global-statement
+# invalid-name: rPr/pPr/numId/… mirror OOXML w:rPr/pPr/numId schema tags
+#   verbatim so template/spec greps stay obvious.
+# global-statement: _APPLIED/_SKIPS/_ELEMENT_FORM_DROPS are module drift
+#   counters read by tests; DriftBook refactor deferred (spec 2026-09-07).
+
 
 import copy
 import hashlib
