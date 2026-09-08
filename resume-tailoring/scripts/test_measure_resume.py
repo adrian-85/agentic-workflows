@@ -1534,6 +1534,87 @@ class JdReportTests(unittest.TestCase):
         self.assertTrue(any("no candidate-tech terms" in ln for ln in lines))
 
 
+class InferenceMapTests(unittest.TestCase):
+    """The INFERENCE MAP for no-host JD terms: deterministic evidence
+    search over the master (and an optional LinkedIn dump) via term
+    variants and skill-family roots. 'No literal host' is a flag to
+    infer from, not a verdict — a real session left six demonstrated
+    skills (debugging, data management, aws services, UI, LLMs, Solving
+    Problems) at zero because absence was read as absence of evidence."""
+
+    def _body(self):
+        return _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " \u2013 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Wrote SQL queries against complex test data and shipped "
+                  "new indexes to production.", numId=2),
+            _para("Configured AWS cloud infrastructure for the team.",
+                  numId=2),
+        ])
+
+    def test_family_root_candidate_found(self):
+        # 'aws services' has no literal host, but its family root (aws,
+        # cloud) hits a master paragraph — a CANDIDATE with the evidence.
+        out = mr._inference_map(["aws services"], self._body())
+        joined = "\n".join(out)
+        self.assertIn("aws services: CANDIDATE", joined)
+        self.assertIn("AWS cloud infrastructure", joined)
+
+    def test_variant_hit_singular_and_hyphen(self):
+        # Morphological variants host too: 'llms' matches an 'LLM'
+        # paragraph, 'customer facing' matches a hyphenated one.
+        body = _body([
+            _para("Evaluated LLM evaluation harnesses and prompt tests.",
+                  numId=2),
+            _para("Advised on customer-facing production incidents.",
+                  numId=2),
+        ])
+        joined = "\n".join(mr._inference_map(["llms"], body))
+        self.assertIn("llms: CANDIDATE", joined)
+        self.assertIn("LLM evaluation", joined)
+        joined = "\n".join(mr._inference_map(["customer facing"], body))
+        self.assertIn("customer facing: CANDIDATE", joined)
+        self.assertIn("customer-facing production", joined)
+
+    def test_no_evidence_term_is_a_gap_not_a_candidate(self):
+        out = mr._inference_map(["ontology"], self._body())
+        joined = "\n".join(out)
+        self.assertIn("ontology: NO deterministic evidence", joined)
+        self.assertNotIn("ontology: CANDIDATE", joined)
+
+    def test_linkedin_dump_searched_as_second_source(self):
+        # The LinkedIn export is the richer evidence source (a real
+        # session justified the Elasticsearch fold from Skills.csv).
+        dump = "===== Skills.csv =====\nElasticsearch\nAWS\n"
+        out = mr._inference_map(["aws services"], self._body(), dump)
+        joined = "\n".join(out)
+        self.assertIn("linkedin: \"AWS\"", joined)
+
+    def test_empty_when_nothing_missing(self):
+        self.assertEqual(mr._inference_map([], self._body()), [])
+
+    def test_evidence_capped_per_source(self):
+        body = _body([
+            _para(f"AWS duty number {n}: migrated a service to AWS.",
+                  numId=2)
+            for n in range(5)
+        ])
+        out = mr._inference_map(["aws services"], body)
+        self.assertEqual(
+            sum(1 for ln in out if ln.strip().startswith("master:")),
+            mr._INFERENCE_MATCH_CAP)
+
+    def test_report_wiring_prints_map_after_no_host_list(self):
+        # _jd_report emits the map when the body misses JD terms.
+        jd = ("Required Qualifications:\n"
+              "5+ years of experience with AWS Services and Ontology\n")
+        lines = mr._jd_report("jd.txt", jd, {"sql"}, self._body())
+        joined = "\n".join(lines)
+        self.assertIn("JD terms with NO host", joined)
+        self.assertIn("INFERENCE MAP", joined)
+
+
 class TargetNoteTests(unittest.TestCase):
     """The reclaim gap must be measured against the target actually agreed
     on (Step 3): measuring a 3-page senior resume against the 2-page

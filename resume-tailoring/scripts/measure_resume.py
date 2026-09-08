@@ -962,7 +962,7 @@ def _boundaries_without_spacer(body):
     return out
 
 
-def _jd_report(jd_file, jd_text, jd_terms, body=None):
+def _jd_report(jd_file, jd_text, jd_terms, body=None, evidence_text=None):
     """Lines describing the --jd ranking (printed before the page math).
 
     Prints the full extracted term list (not just the first 8) plus the JD's
@@ -972,7 +972,10 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None):
 
     With ``body``, also lists JD qualification terms the resume does not
     host anywhere (_jd_missing_terms) — the 'never fabricate' flags made
-    mechanical instead of an agent re-reading the posting.
+    mechanical instead of an agent re-reading the posting — followed by
+    the deterministic INFERENCE MAP over those terms (master + LinkedIn
+    evidence search; ``evidence_text``). "No literal host" is a flag to
+    infer from, not a verdict.
     """
     tmp_note = de.tmp_jd_note(jd_file)
     words = len(jd_text.split())
@@ -1015,7 +1018,129 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None):
                 width=76,
                 initial_indent="  - ",
                 subsequent_indent="    "))
+            lines.extend(_inference_map(missing, body, evidence_text))
     return lines
+
+
+# ---------------------------------------------------------------------- #
+# Inference map for no-host JD terms (SKILL Step 2).                      #
+#                                                                         #
+# "No literal host" is not "no evidence": a real session reported six JD  #
+# skills as honest gaps (debugging, data management, aws services, UI,    #
+# LLMs, Solving Problems) that the user's experience clearly demonstrated #
+# — the terms were lexically invisible, not absent. This map is the       #
+# deterministic half of the fix: for each no-host term it mechanically    #
+# gathers candidate evidence from the master (and an optional LinkedIn    #
+# dump) via morphological variants and skill-family roots. The JUDGMENT   #
+# stays with the agent: a candidate is a lead to verify and host          #
+# truthfully, never a license to fabricate (SKILL Step 2).                #
+# ---------------------------------------------------------------------- #
+
+# Skill-family roots per missing-term family: a no-host term matching a
+# family key is searched for its roots in the evidence corpus. Heuristic
+# LEADS — the agent judges every candidate against the user's real
+# history before hosting the literal phrase.
+INFERENCE_FAMILIES = (
+    (("debug",),
+     ("debug", "triage", "root cause", "diagnos", "resolved",
+      "remediat", "defect")),
+    (("data management", "data modeling", "query tuning"),
+     ("test data", "sql", "query", "index", "data model", "etl")),
+    (("aws", "cloud"),
+     ("aws", "amazon web services", "cloud", "azure", "gcp")),
+    (("ui", "frontend", "front end"),
+     ("web", "user interface", "frontend", "browser", "desktop")),
+    (("customer facing",),
+     ("customer", "client", "production", "incident", "stakeholder")),
+    (("problem solving", "solving problems", "troubleshooting"),
+     ("problem", "troubleshoot", "root cause", "resolved", "issue")),
+    (("llm", "genai", "generative"),
+     ("llm", "prompt", "copilot", "gpt", "claude", "openai")),
+)
+
+_INFERENCE_MATCH_CAP = 2  # evidence lines printed per source
+
+
+def _inference_variants(term):
+    """Morphological variants of a no-host term to search whole-word:
+    the term itself, its singular form (each word's trailing 's'
+    stripped, e.g. "llms" -> "llm"), and the hyphen-joined form for
+    multiword terms ("customer facing" -> "customer-facing")."""
+    words = re.split(r"[\s-]+", term.lower())
+    sing = [re.sub(r"s$", "", w) if len(w) > 3 else w for w in words]
+    out = {" ".join(words), " ".join(sing)}
+    if len(words) > 1:
+        out.add("-".join(words))
+        out.add("-".join(sing))
+    return {v for v in out if v}
+
+
+def _family_roots(term):
+    """Roots of the skill-family the no-host term belongs to, or ()."""
+    low = term.lower()
+    for keys, roots in INFERENCE_FAMILIES:
+        for k in keys:
+            if re.search(rf"(?<![a-z0-9]){re.escape(k)}(?![a-z0-9])", low):
+                return roots
+    return ()
+
+
+def _inference_map(missing_terms, body, evidence_text=None):
+    """Lines of the INFERENCE MAP for the no-host JD terms.
+
+    For each term: search the master paragraphs (and the LinkedIn dump
+    when provided) for the term's morphological variants and its
+    skill-family roots; print up to _INFERENCE_MATCH_CAP evidence lines
+    per source. A term with any hit is a CANDIDATE (the agent verifies
+    and hosts truthfully); one with none is a genuine gap to raise, not
+    fabricate. Returns [] when nothing is missing.
+    """
+    if not missing_terms:
+        return []
+    ps = de.paras(body)
+    master_texts = [de.text_of(p).strip() for p in ps
+                    if de.text_of(p).strip()]
+    evidence_lines = ([ln.strip() for ln in evidence_text.splitlines()
+                       if ln.strip()] if evidence_text else [])
+    sources = (("master", master_texts),
+               ("linkedin", evidence_lines))
+    out = [textwrap.fill(
+        "INFERENCE MAP for no-host terms (deterministic evidence search "
+        "over the master + LinkedIn; judge each candidate against the "
+        "user's real experience before hosting — never fabricate):",
+        width=76, initial_indent="  ", subsequent_indent="    ")]
+    for term in missing_terms:
+        variants = _inference_variants(term)
+        roots = _family_roots(term)
+
+        def _hits(texts):
+            matched = []
+            for t in texts:
+                low = t.lower()
+                if any(re.search(rf"(?<![a-z0-9]){re.escape(v)}(?![a-z0-9])",
+                                 low) for v in variants) or \
+                        any(r in low for r in roots):
+                    matched.append(t)
+                    if len(matched) >= _INFERENCE_MATCH_CAP:
+                        break
+            return matched
+
+        ev = []
+        for label, texts in sources:
+            ev.extend(f'{label}: "{m[:70]}"' for m in _hits(texts))
+        if ev:
+            out.append(f"  - {term}: CANDIDATE")
+            out.extend(f"      {e}" for e in ev)
+        else:
+            out.append(
+                f"  - {term}: NO deterministic evidence — a genuine gap: "
+                "raise to the user, do not fabricate")
+    out.append(textwrap.fill(
+        "CANDIDATE = evidence exists; host the JD's literal phrase in the "
+        "truthful bullet and present the whole map — candidates AND gaps — "
+        "to the user in ONE message (SKILL Step 2).",
+        width=76, initial_indent="    ", subsequent_indent="    "))
+    return out
 
 
 # ---------------------------------------------------------------------- #
@@ -1884,6 +2009,7 @@ def main():
     argv = list(sys.argv[1:])
     protect = []
     jd_file = None
+    linkedin_file = None
     simulate = []
     kept = []
     i = 0
@@ -1895,6 +2021,9 @@ def main():
         elif a == "--jd":
             jd_file = argv[i + 1]
             i += 2
+        elif a == "--linkedin":
+            linkedin_file = argv[i + 1]
+            i += 2
         elif a == "--simulate":
             simulate.append(argv[i + 1])
             i += 2
@@ -1903,7 +2032,8 @@ def main():
             i += 1
     if len(kept) < 1:
         print("usage: measure_resume.py <resume.docx> [TARGET_PAGES] "
-              "[--jd <raw-JD.txt>] [--protect \"<JD-critical phrase>\"] "
+              "[--jd <raw-JD.txt>] [--linkedin <profile-dump.txt>] "
+              "[--protect \"<JD-critical phrase>\"] "
               "[--simulate <company-prefix>]",
               file=sys.stderr)
         print("  Renders the docx, reports per-role rendered line costs and "
@@ -1914,6 +2044,11 @@ def main():
               "practice (mentorship, shift-left), are excluded from the DROP "
               "PLAN and listed as 'JD-matched (kept)' — the scorer alone "
               "cannot know the JD.",
+              file=sys.stderr)
+        print("  --linkedin <file>: a read_profile.sh dump of the LinkedIn "
+              "export. Searched by the INFERENCE MAP (a no-host JD term's "
+              "variants and skill-family roots) for candidate evidence the "
+              "resume compressed away.",
               file=sys.stderr)
         print("  --protect: pass repeatedly; bullets containing the phrase "
               "are never suggested for cutting (candidate-specific facts "
@@ -1939,6 +2074,17 @@ def main():
         except OSError as e:
             print(f"error: cannot read --jd file {jd_file}: {e}",
                   file=sys.stderr)
+            sys.exit(2)
+
+    evidence_text = None
+    if linkedin_file:
+        try:
+            with open(linkedin_file, encoding="utf-8",
+                      errors="replace") as f:
+                evidence_text = f.read()
+        except OSError as e:
+            print(f"error: cannot read --linkedin file {linkedin_file}: "
+                  f"{e}", file=sys.stderr)
             sys.exit(2)
 
     with tempfile.TemporaryDirectory() as td:
@@ -1974,7 +2120,8 @@ def main():
 
         jd_terms = _resolved_jd_terms(jd_text, body, simulate, sim_jd_terms)
         if jd_file:
-            for line in _jd_report(jd_file, jd_text, jd_terms, body):
+            for line in _jd_report(jd_file, jd_text, jd_terms, body,
+                                   evidence_text):
                 print(line)
             print("JD TITLE vs HEADLINE:")
             lvl, msg = title_alignment_notes(body, jd_text)
