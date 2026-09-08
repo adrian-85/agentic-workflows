@@ -187,7 +187,12 @@ The chat is the approval mechanism — there is no approval script.
 
 ### Phase 3: Final Review & Merge
 
-1. **Generate the final diff:**
+1. **Verify (hard gate):** run `scripts/verify-worktree.sh` inside the
+   worktree. If it exits non-zero, **STOP** — report the failing check
+   and do not present the final diff until the worktree is fixed and
+   verify passes.
+
+2. **Generate the final diff:**
    ```bash
    source scripts/git-operations.sh
    get_diff main        # functions, not a CLI — source the library first

@@ -55,6 +55,13 @@ echo "  Branch: $BRANCH_NAME"
 MAIN_GIT_DIR=$(git -C "$WORKTREE_PATH" rev-parse --path-format=absolute --git-common-dir)
 REPO_ROOT="$(dirname "$MAIN_GIT_DIR")"
 
+# Hard gate: refuse to merge a worktree that fails lint or tests.
+# Runs from the WORKTREE (verify-worktree.sh resolves change set vs main).
+echo "Running verify-worktree hard gate..."
+cd "$WORKTREE_PATH"
+"$SCRIPT_DIR/verify-worktree.sh"
+echo "✓ hard gate passed; merging."
+
 # Switch to main branch in main working directory
 cd "$REPO_ROOT"
 echo "Switching to main branch..."
