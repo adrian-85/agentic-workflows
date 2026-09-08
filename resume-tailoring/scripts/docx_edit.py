@@ -67,7 +67,6 @@ import zipfile
 from xml.etree import ElementTree as ET
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])  # flat-namespace siblings
-from script_args import MAX_WORDS, extract_flag, extract_flag_all, parse_flag  # noqa: E402
 from docx_edit_gate import _deliverable_gate, tmp_jd_note  # noqa: E402  (core -> gate one-way, validate glue)
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"

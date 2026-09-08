@@ -41,6 +41,12 @@ content edits (Summary rewrite, proficiency retrim, role re-anchoring) and
 BEFORE the compression cuts, to plan them. Re-run render_pdf.sh after cutting
 to verify.
 """
+# pylint: disable=unused-import
+# measure_resume/validate_resume is the legacy RE-EXPORT shim: it preserves
+# the full mr.*/vr.* surface (imports that appear unused are the re-export
+# contract). Keep this header ONLY while the flat-namespace consumers
+# resolve these names through the shim.
+
 
 
 import contextlib

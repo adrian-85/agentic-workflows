@@ -89,6 +89,12 @@ Usage:
     python3 scripts/validate_resume.py <resume.docx> --jd-years 5 [--master p]
     python3 scripts/validate_resume.py <resume.docx> --jd <JD.txt> [--jd-years 5] [--education-approved] [--master p]
 """
+# pylint: disable=unused-import
+# measure_resume/validate_resume is the legacy RE-EXPORT shim: it preserves
+# the full mr.*/vr.* surface (imports that appear unused are the re-export
+# contract). Keep this header ONLY while the flat-namespace consumers
+# resolve these names through the shim.
+
 
 
 import os
