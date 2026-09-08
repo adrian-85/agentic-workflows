@@ -302,6 +302,74 @@ extract no skill terms and print `[by hand]` with the soft-skill inference
 rule — judge them on kept action-verb evidence (SKILL Step 8), never by
 chasing the adjective.
 
+### INFERENCE MAP — evidence for no-host JD terms
+
+"No literal host" is not "no evidence": a real session reported six JD
+skills as honest gaps (debugging, data management, aws services, UI, LLMs,
+Solving Problems) that the user's experience clearly demonstrated — the terms
+were lexically invisible, not absent. The INFERENCE MAP is the deterministic
+half of the fix: it mechanically gathers candidate evidence so the agent can
+judge, rather than declaring gaps prematurely.
+
+**How it works.** For each term in the "JD terms with NO host" list,
+`measure_resume.py` searches the master paragraphs (and an optional LinkedIn
+dump) via two mechanisms:
+
+1. **Morphological variants** — the term itself, its singular form (each word's
+   trailing 's' stripped: `llms` → `llm`), and the hyphen-joined form for
+   multiword terms (`customer facing` → `customer-facing`). Matched
+   whole-word in the corpus.
+2. **Skill-family roots** — an in-code table (`INFERENCE_FAMILIES`) mapping
+   term families to related evidence roots. A no-host term matching a family
+   key (whole-word) is searched for its family's roots as substrings in the
+   corpus. The 7 families cover the session's actual failure modes:
+
+| Family keys | Evidence roots |
+|---|---|
+| `debug` | debug, triage, root cause, diagnos, resolved, remediat, defect |
+| `data management`, `data modeling`, `query tuning` | test data, sql, query, index, data model, etl |
+| `aws`, `cloud` | aws, amazon web services, cloud, azure, gcp |
+| `ui`, `frontend`, `front end` | web, user interface, frontend, browser, desktop |
+| `customer facing` | customer, client, production, incident, stakeholder |
+| `problem solving`, `solving problems`, `troubleshooting` | problem, troubleshoot, root cause, resolved, issue |
+| `llm`, `genai`, `generative` | llm, prompt, copilot, gpt, claude, openai |
+
+Roots are substring-matched (loose) — `sql` matches `SQL Server`, `index`
+matches `indexed` — because these are evidence LEADS, not proof. The agent
+judges each candidate's truthfulness before hosting.
+
+**Per-source cap:** up to `_INFERENCE_MATCH_CAP` (2) evidence lines are
+printed per source (master, LinkedIn) to keep output scannable.
+
+**Output format:**
+```
+INFERENCE MAP for no-host terms (deterministic evidence search over the
+  master + LinkedIn; judge each candidate against the user's real
+  experience before hosting — never fabricate):
+  - aws services: CANDIDATE
+      master: "Cloud & Containers: AWS, GCP, Azure, Docker, Kubernetes"
+      linkedin: "AWS"
+  - ontology: NO deterministic evidence — a genuine gap: raise to the
+    user, do not fabricate
+    CANDIDATE = evidence exists; host the JD's literal phrase in the
+    truthful bullet and present the whole map — candidates AND gaps — to
+    the user in ONE message (SKILL Step 2).
+```
+
+**LinkedIn evidence.** Pass `--linkedin <profile-dump.txt>` (the
+`read_profile.sh` output) so the map also searches the LinkedIn export —
+the richer source for content the resume compressed away (a real session
+justified the Elasticsearch fold from Skills.csv via this path):
+
+```bash
+python3 scripts/measure_resume.py "<Target>.docx" 3 --jd "<JD>.txt" \
+    --linkedin /tmp/profile.txt
+```
+
+Without `--linkedin`, only the master is searched. The map still prints
+terms with no evidence as genuine gaps — the flag adds a second evidence
+source, it does not change the judgment.
+
 ### Readability spacing
 
 After every cut is placed and the measure shows the last page at/below target

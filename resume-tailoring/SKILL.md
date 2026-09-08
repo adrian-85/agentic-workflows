@@ -196,16 +196,17 @@ NO host in the resume** list (authoring-time measure, Step 8), then its
 **INFERENCE MAP**: "no literal host" is not "no evidence" — the map
 deterministically searches the master (and the LinkedIn dump via
 `--linkedin <profile-dump.txt>`) for each no-host term's morphological
-variants and skill-family roots, and prints the evidence it finds. The
-map's evidence-gathering is mechanical; the JUDGMENT is yours: verify each
-CANDIDATE is experience the user actually has ("debugging" is intrinsic to
-every testing role; "test data management" hosts "data management"; AWS in
-a master Tools line hosts "aws services"), draft a truthful literal-phrase
-host for it, and present the whole map — candidates AND genuine gaps — to
-the user in ONE message. A term with NO deterministic evidence stays a
-never-fabricate flag: raise it instead of inventing evidence, and note
-where 'similar' tooling truthfully answers the ask (Postman/Karate for
-"SoapUI or REST API testing tools").
+variants and skill-family roots, and prints the evidence it finds (see
+[docs/api.md](docs/api.md) for the family table, variant logic, and output
+format). The map's evidence-gathering is mechanical; the JUDGMENT is yours:
+verify each CANDIDATE is experience the user actually has ("debugging" is
+intrinsic to every testing role; "test data management" hosts "data
+management"; AWS in a master Tools line hosts "aws services"), draft a
+truthful literal-phrase host for it, and present the whole map — candidates
+AND genuine gaps — to the user in ONE message. A term with NO deterministic
+evidence stays a never-fabricate flag: raise it instead of inventing evidence,
+and note where 'similar' tooling truthfully answers the ask (Postman/Karate
+for "SoapUI or REST API testing tools").
 
 **Soft-skill asks are inferred from action-verb evidence, not keyword-matched.**
 A qual line like "Excellent communication, stakeholder management, and
