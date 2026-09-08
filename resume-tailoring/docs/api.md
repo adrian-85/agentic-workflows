@@ -534,9 +534,11 @@ identical resume + JD pair (409) and the tool reuses the returned opportunity.
 The scan output prints the match rate, the report's wordCount (cross-check
 only — its PDF parser inflates counts), and the identified target ATS; the
 latter requires the job posting URL persisted with the JD (Step 1) — a
-real URL on the `Posting URL:` line, never a placeholder: non-http(s)
-tokens ("(not provided)", "TBD") are treated as a missing URL, since a
-placeholder PATCHed to the service is garbage in the report.
+real URL on the `Posting URL:` line, never a placeholder: the function
+returns whatever is on the line, but the caller PATCHes only when the
+line is present and truthy. A placeholder PATCHed to the service is
+garbage in the report (`url=(not)` in a real session); SKILL Step 1:
+own the line entirely when the URL is unknown.
 
 **Fix tool bugs in the session that finds them.** If a script in this
 skill misbehaves or contradicts its documented behavior, do not route

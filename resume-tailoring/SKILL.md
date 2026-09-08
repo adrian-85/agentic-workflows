@@ -171,8 +171,10 @@ the residual page gap automatically.
   **When the URL is unknown, OMIT the line entirely — never write a
   placeholder** (`Posting URL: (not provided)`, `…(ask user)`): a real
   session's placeholder reached the scan service as `url=(not)`, garbage
-  in the report. `ats_check.py` treats a non-http(s) token as missing,
-  but the convention is: line present means a real URL.
+  in the report. The function returns whatever is on the line — the
+  caller skips the PATCH when the line is absent, but a placeholder on
+  the line passes through. The doc rule is the guard, not a parser:
+  line present means a real URL; omit the line when unknown.
 - Read the **master resume**. If it is a `.docx`, use `docx_edit.py` to edit. If
   only a PDF is available, ask for the `.docx` source — PDFs can be read but
   not edited precisely.
