@@ -14,13 +14,16 @@ spanning occurrences left in place), set_text, set_labeled, find_p, remove,
 remove_empty, clone_after.
 """
 
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position,unused-import,redefined-outer-name,consider-using-with,multiple-imports,too-many-locals
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
 # invalid-name: OOXML fixture names (pPr, numId, ...) mirror the schema.
 # import-outside-toplevel/wrong-import-position: live tests guard heavy imports at runtime;
 #   flat-namespace tests need the sys.path bootstrap before sibling imports.
+# unused-import: migrated shared fixtures leave stdlib imports unused per file.
+# redefined-outer-name/consider-using-with/multiple-imports/too-many-locals:
+#   test helpers alias fixture names; small one-off scaffolding is idiomatic.
 
 import contextlib
 import io
@@ -34,6 +37,7 @@ from xml.etree import ElementTree as ET
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
 import docx_edit as de  # noqa: E402
+import test_helpers
 import docx_edit_cli as dcli  # noqa: E402  (CLI surface — moved out of core)
 
 W = de.W
@@ -96,21 +100,10 @@ def fmt(p):
 
 
 def mkstyled(text, style, numId=None):
-    """Build a <w:p> with a pStyle (and optional numId), mirroring the
-    master's CompanyBlock/JobTitleBlock/BodyText/SectionHeading styles."""
-    p = ET.Element(W + "p")
-    pPr = ET.SubElement(p, W + "pPr")
-    st = ET.SubElement(pPr, W + "pStyle")
-    st.set(W + "val", style)
-    if numId is not None:
-        np = ET.SubElement(pPr, W + "numPr")
-        ni = ET.SubElement(np, W + "numId")
-        ni.set(W + "val", str(numId))
-    r = ET.SubElement(p, W + "r")
-    t = ET.SubElement(r, W + "t")
-    t.text = text
-    t.set(SPACE, "preserve")
-    return p
+    """Build a <w:p> with a pStyle (and optional numId); mirror of the
+    master's styles with xml:space preserve (shared test_helpers._para)."""
+    return test_helpers._para(text, style=style, numId=numId,
+                              preserve_space=True)
 
 
 class TmpJdNoteTests(unittest.TestCase):

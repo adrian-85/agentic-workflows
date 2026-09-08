@@ -156,7 +156,7 @@ def _find_agent_turn(flat: List[Dict[str, Any]],
     return "", ""
 
 
-def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # 8-rule deterministic pre-pass: each rule is a branch pair; splitting fragments the audit trail
     """
     Run cheap, high-precision rule checks. Returns a list of findings:
       {check, severity, description, turn_ref, evidence}

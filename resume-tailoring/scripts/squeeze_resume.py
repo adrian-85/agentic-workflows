@@ -50,7 +50,6 @@ Requires libreoffice + pdftotext (like measure_resume.py).
 
 import json
 import os
-import re
 import shutil
 import sys
 import tempfile
@@ -82,13 +81,7 @@ def _next_batch(roles, plan, all_texts, protect=(), jd_terms=()):
     oldest-role-first (plan order), JD-aware. Whole-role plan entries yield
     nothing (the seniority decision is the user's)."""
     out = []
-    for key, action, _saved in plan:
-        m = re.match(r"^drop (\d+) bullet\(s\)", action)
-        if not m:
-            continue
-        role = next((r for r in roles if r["key"] == key), None)
-        if not role:
-            continue
+    for _key, role, m in mr._iter_plan_roles(plan, roles):
         out.extend(mr._drop_suggestions(
             role.get("bullet_texts") or [], int(m.group(1)),
             all_texts=all_texts, protect=protect, jd_terms=jd_terms))
@@ -112,7 +105,7 @@ def _print_foldback(foldback):
     print("])")
 
 
-def main():
+def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # CLI entry: iterative squeeze loop + foldback print
 
     """Squeeze-resume CLI entry point."""
     argv = list(sys.argv[1:])

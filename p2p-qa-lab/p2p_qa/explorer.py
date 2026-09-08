@@ -77,7 +77,7 @@ def _execute_tool(client, name: str, arguments: str) -> StepRecord:
     tool surface self-documenting next to _tool_specs)."""
     args = json.loads(arguments) if arguments else {}
     handlers = {
-        "list_vendors": lambda: client.list_vendors(),
+        "list_vendors": client.list_vendors,
         "get_vendor": lambda: client.get_vendor(int(args["vendor_id"])),
         "create_vendor": lambda: client.create_vendor(args["name"], args.get("status", "active")),
         "create_po": lambda: client.create_po(int(args["vendor_id"]), args["line_items"]),

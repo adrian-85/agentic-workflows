@@ -1,6 +1,7 @@
 """measure_resume format assumptions + layout/pages/roles measurement. Split from measure_resume.py; imported one-way by measure_resume_jd/drops/shim."""
 
-# pylint: disable=wrong-import-position,import-outside-toplevel
+# pylint: disable=wrong-import-position,import-outside-toplevel,invalid-name
+# invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
 # flat-namespace sibling imports require the sys.path bootstrap; the
 # sibling import must precede use, which pylint flags as wrong position.
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
@@ -190,7 +191,7 @@ def _gap_if_dropped(roles, key):
     return max(0, gap)
 
 
-def _match_roles_to_pages(roles, pages_text):
+def _match_roles_to_pages(roles, pages_text):  # pylint: disable=too-many-locals  # role/page matching state machine
     """Attribute rendered lines to each role by locating its header in the
     PDF text. Returns list of (role, start_page_1based, end_page,
     rendered_lines).
@@ -239,7 +240,7 @@ def _match_roles_to_pages(roles, pages_text):
     return results
 
 
-def _wrapped_tools(flat, matched):
+def _wrapped_tools(flat, matched):  # pylint: disable=too-many-locals,too-many-nested-blocks  # tools-line wrap budget (closure scans sides)
     """Roles whose Tools & Technologies line wraps past one rendered line.
 
     The validator guarantees a Tools line is the last content of its role
@@ -261,7 +262,7 @@ def _wrapped_tools(flat, matched):
                 or any(line.startswith(k) for k in others))
 
     results = []
-    for r, *_ in matched:
+    for r, *_ in matched:  # pylint: disable=too-many-nested-blocks  # per-role scan depth is inherent
         if not r.get("has_tools"):
             continue
         idx = _role_header_flat(flat, r["key"])

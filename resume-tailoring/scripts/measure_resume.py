@@ -162,6 +162,7 @@ from measure_resume_drops import (
     _drop_plan_lines,
     _drop_sections,
     _drop_suggestions,
+    _iter_plan_roles,
     _jd_fit_audit,
     _jd_listing_lines,
     _layout_hints,
@@ -214,7 +215,7 @@ def _resolved_jd_terms(jd_text, body, simulate, sim_jd_terms):
     return _jd_terms(jd_text, body) if jd_text else set()
 
 
-def main():
+def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # CLI entry: prints the full DROP PLAN / JD-FIT / table report
 
     """Measure-resume CLI entry point."""
     argv = list(sys.argv[1:])

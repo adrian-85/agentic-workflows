@@ -88,7 +88,7 @@ def _approval_env():
             protect, max_words)
 
 
-def _deliverable_gate(path, root, src):
+def _deliverable_gate(path, root, src):  # pylint: disable=too-many-locals  # validate-before-write gate orchestration
     """Refuse to WRITE a deliverable that validate_resume would block.
 
     The render gate alone is not much of a gate: by render time the .docx

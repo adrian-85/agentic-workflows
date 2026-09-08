@@ -163,7 +163,7 @@ from validate_resume_master import (
     _role_groups,
     _role_integrity_errors)
 
-def validate_tree(path, body, *, master_path=None, jd_path=None,
+def validate_tree(path, body, *, master_path=None, jd_path=None,  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements  # validator entry: runs all checks, blocks/advises
                   jd_years=None, seniority_approved=False,
                   education_approved=False, protect=(),
                   max_words=MAX_WORDS):
@@ -490,7 +490,7 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,
     return {"blocking": blocking, "warnings": warn_count, "lines": lines}
 
 
-def main(argv=None):
+def main(argv=None):  # pylint: disable=too-many-locals  # CLI entry: flag parse + result print
 
     """Validate-resume CLI entry point."""
     argv = list(sys.argv[1:] if argv is None else argv)

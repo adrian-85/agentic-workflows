@@ -5,13 +5,16 @@ Run from the scripts directory:
     cd ~/.pi/agent/skills/resume-tailoring/scripts && python3 -m unittest test_validate_resume
 """
 
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position,unused-import,redefined-outer-name,consider-using-with,multiple-imports,too-many-locals
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
 # invalid-name: OOXML fixture names (pPr, numId, ...) mirror the schema.
 # import-outside-toplevel/wrong-import-position: live tests guard heavy imports at runtime;
 #   flat-namespace tests need the sys.path bootstrap before sibling imports.
+# unused-import: migrated shared fixtures leave stdlib imports unused per file.
+# redefined-outer-name/consider-using-with/multiple-imports/too-many-locals:
+#   test helpers alias fixture names; small one-off scaffolding is idiomatic.
 
 import contextlib
 import io

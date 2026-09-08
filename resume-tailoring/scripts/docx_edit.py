@@ -164,7 +164,7 @@ def load(path):
     return root, body, names, data, W
 
 
-def save(path, root, names, data, drift_key=None, src=None):
+def save(path, root, names, data, drift_key=None, src=None):  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-branches,too-many-statements  # core save: gate + zip + drift report in one coherent sequence
     """Serialize mutated root back into the .docx zip at `path`.
 
     After writing, prints an applied-vs-skipped summary so a silently
@@ -473,7 +473,7 @@ def set_text(p, text):
     _APPLIED += 1
 
 
-def set_labeled(p, label, value):
+def set_labeled(p, label, value):  # pylint: disable=too-many-locals  # rPr/pPr label rewrite: one temp per XML node
     """Rewrite a 'Label: values' proficiency paragraph, preserving the
     master's two-run structure: a BOLD label run and a NON-BOLD values run.
 

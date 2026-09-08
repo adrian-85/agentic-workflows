@@ -186,7 +186,7 @@ def _cue_tails(line):
     return tails
 
 
-def _jd_literal_terms(jd_text):
+def _jd_literal_terms(jd_text):  # pylint: disable=too-many-branches  # JD-phrase miner: one branch per term class
     """Literal hard-skill PHRASES the JD's qualification lines name.
 
     ATS keyword matching is phrase-literal ("regression testing" does not
@@ -390,7 +390,7 @@ def _report_findings(data, resume_text=""):
     return lines
 
 
-def main(argv=None):
+def main(argv=None):  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # CLI entry: prints the full sectioned audit report
 
     """ATS-audit CLI entry point."""
     argv = list(sys.argv[1:] if argv is None else argv)

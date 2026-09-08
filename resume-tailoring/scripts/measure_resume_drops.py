@@ -103,12 +103,10 @@ def _protected_count(bullets, protect=(), jd_terms=()):
                or _jd_kept(b, jd_terms, corpus=bullets))
 
 
-def _dead_end_roles(plan, roles, protect=(), jd_terms=()):
-    """Role keys whose "drop N bullet(s)" budget exceeds their unprotected
-    bullets: meeting the budget means cutting JD-matched/protected content.
-    The honest fixes are TOP-BLOCK RECLAIM CANDIDATES, a Tools-line trim,
-    or a whole-role drop — not slicing kept bullets."""
-    dead = []
+def _iter_plan_roles(plan, roles):
+    """Yield (role, m) per plan entry whose action is a drop-N-bullet and
+    whose role still exists — shared by _dead_end_roles and squeeze_resume
+    (dedupes the resolve/guard preamble)."""
     for key, action, _saved in plan:
         m = _DROP_ACTION.match(action)
         if not m:
@@ -116,6 +114,16 @@ def _dead_end_roles(plan, roles, protect=(), jd_terms=()):
         role = next((r for r in roles if r["key"] == key), None)
         if not role:
             continue
+        yield key, role, m
+
+
+def _dead_end_roles(plan, roles, protect=(), jd_terms=()):
+    """Role keys whose "drop N bullet(s)" budget exceeds their unprotected
+    bullets: meeting the budget means cutting JD-matched/protected content.
+    The honest fixes are TOP-BLOCK RECLAIM CANDIDATES, a Tools-line trim,
+    or a whole-role drop — not slicing kept bullets."""
+    dead = []
+    for key, role, m in _iter_plan_roles(plan, roles):
         bullets = role.get("bullet_texts") or []
         n = int(m.group(1))
         protected = _protected_count(bullets, protect=protect,
@@ -125,7 +133,7 @@ def _dead_end_roles(plan, roles, protect=(), jd_terms=()):
     return dead
 
 
-def _top_role_batch(matched, plan, per, required, tools_savings=0,
+def _top_role_batch(matched, plan, per, required, tools_savings=0,  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals  # reclaim batching: 8 orthogonal budget params (callers rely on signature)
                     top_block_count=0, protect=(), jd_terms=()):
     """Size the most-recent role's trim batch — the residual-gap closer.
 
@@ -240,7 +248,7 @@ def _role_jd_evidence_lines(roles, header_text, jd_terms):
     return lines
 
 
-def _jd_fit_audit(roles, jd_terms, protect=()):
+def _jd_fit_audit(roles, jd_terms, protect=()):  # pylint: disable=too-many-branches  # per-role JD-FIT classification
     """Per-role JD-fit audit — printed for EVERY role when --jd is passed.
 
     Classifies every bullet by JD alignment strength: strong/practice-
@@ -334,7 +342,7 @@ def _jd_listing_lines(bullets, jd_terms):
     return lines
 
 
-def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):
+def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):  # pylint: disable=too-many-locals  # plan -> per-role section mapping
     """Turn a BATCH RECLAIM PLAN into per-role DROP PLAN sections.
 
     Each "drop N bullet(s)" plan entry (keyed by role key) becomes a
@@ -416,7 +424,7 @@ def _protected_top_role_section(matched, jd_terms):
     ] + lines)
 
 
-def _batch_section(batch, role, header, all_texts=None, protect=(),
+def _batch_section(batch, role, header, all_texts=None, protect=(),  # pylint: disable=too-many-arguments,too-many-positional-arguments  # batch printing: orthogonal formatting params
                    jd_terms=()):
     """Render the TOP-ROLE TRIM BATCH section — the residual-gap closer.
 
@@ -443,7 +451,7 @@ def _batch_section(batch, role, header, all_texts=None, protect=(),
     return "\n".join(section)
 
 
-def _layout_hints(matched, pages_text, capacity):
+def _layout_hints(matched, pages_text, capacity):  # pylint: disable=too-many-locals  # page-fill heuristics
     """Page-fill table plus widow/underfill notes.
 
     A widow in the render is a role header that is the LAST line of a page
