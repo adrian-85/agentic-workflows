@@ -141,7 +141,6 @@ def _plan_feasibility(plan, matched, per, protect, jd_terms):
     can actually deliver (dead-end budgets shrunk to unprotected counts),
     and the adjusted plan (whole-role drops kept, superseded dead-ends
     dropped for the top role). Returns (feasible, adjusted)."""
-    by_key = {e[0]["key"]: e[0] for e in matched}
     feasible = 0.0
     adjusted = []
     for key, action, saved in plan:
@@ -150,17 +149,24 @@ def _plan_feasibility(plan, matched, per, protect, jd_terms):
             feasible += saved  # whole-role drop: feasible by definition
             adjusted.append((key, action, saved))
             continue
-        role = by_key.get(key) or {}
-        bullets = role.get("bullet_texts") or []
-        unprotected = len(bullets) - _protected_count(bullets, protect=protect,
-                                                      jd_terms=jd_terms)
-        take = min(int(m.group(1)), max(0, unprotected))
+        take = _entry_take(matched, key, m, protect, jd_terms)
         if take > 0:
             feasible += take * per
         if key == matched[0][0]["key"]:
             continue  # superseded: the batch below is the authoritative sizing
         adjusted.append((key, action, saved))
     return feasible, adjusted
+
+
+def _entry_take(matched, key, m, protect, jd_terms):
+    """Max unprotected bullets the plan asks to cut from one role (capped
+    at what the role actually has)."""
+    by_key = {e[0]["key"]: e[0] for e in matched}
+    role = by_key.get(key) or {}
+    bullets = role.get("bullet_texts") or []
+    unprotected = len(bullets) - _protected_count(bullets, protect=protect,
+                                                  jd_terms=jd_terms)
+    return min(int(m.group(1)), max(0, unprotected))
 
 
 class Budget(NamedTuple):
