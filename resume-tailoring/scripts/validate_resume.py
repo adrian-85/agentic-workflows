@@ -425,6 +425,43 @@ def validate_tree(path, body, opts=None):
 
     # Build the report lines (returned; the CLI prints them, the save-time
     # deliverable gate surfaces only the blocking ones).
+    ctx = dict(errors=errors, punct_errors=punct_errors,
+               integrity_errors=integrity_errors, dups=dups,
+               cap_errors=cap_errors, word_errors=word_errors,
+               word_count=word_count, max_words=max_words,
+               is_master_input=is_master_input,
+               seniority_errors=seniority_errors, jd_path=jd_path,
+               education_errors=education_errors,
+               education_notes=education_notes,
+               guidance_notes=guidance_notes, claim_notes=claim_notes)
+    return _assemble_report(ctx)
+
+
+def _assemble_report(ctx):
+    """Assemble the validator's sectioned report from the computed checks.
+
+    ``ctx`` mirrors validate_tree's computation locals (errors, punct_errors,
+    integrity_errors, dups, cap_errors, word_errors, word_count, max_words,
+    is_master_input, seniority_errors, jd_path, education_errors,
+    education_notes, guidance_notes, claim_notes). Returns the full
+    result dict (blocking/warnings/lines)."""
+    errors = ctx["errors"]
+    punct_errors = ctx["punct_errors"]
+    integrity_errors = ctx["integrity_errors"]
+    dups = ctx["dups"]
+    cap_errors = ctx["cap_errors"]
+    word_errors = ctx["word_errors"]
+    word_count = ctx["word_count"]
+    max_words = ctx["max_words"]
+    is_master_input = ctx["is_master_input"]
+    seniority_errors = ctx["seniority_errors"]
+    jd_path = ctx["jd_path"]
+    education_errors = ctx["education_errors"]
+    education_notes = ctx["education_notes"]
+    guidance_notes = ctx["guidance_notes"]
+    claim_notes = ctx["claim_notes"]
+    # Build the report lines (returned; the CLI prints them, the save-time
+    # deliverable gate surfaces only the blocking ones).
     lines = []
     lines.append("== STRUCTURE ==")
     for e in errors:
@@ -510,6 +547,7 @@ def validate_tree(path, body, opts=None):
         lines.append(
             f"RESULT: {blocking} blocking error(s) — fix before rendering (exit 2)")
     return {"blocking": blocking, "warnings": warn_count, "lines": lines}
+
 
 
 def main(argv=None):  # pylint: disable=too-many-locals
