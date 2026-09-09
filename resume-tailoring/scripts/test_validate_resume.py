@@ -1079,5 +1079,61 @@ blocking."""
             os.unlink(path)
 
 
+class MainBlockPlacementTests(unittest.TestCase):
+    """Regression: the ``if __name__ == '__main__'`` block must sit AFTER
+    every module-level symbol (:func:`validate_resume._jd_checks` and
+    :class:`validate_resume._JdBlocking` were once defined below it). When
+    the guard ran ``main()`` first, :func:`validate_resume.validate_tree`
+    raised ``NameError: name '_jd_checks' is not defined`` during every
+    direct run (the render/save gate), because the late definitions had
+    not executed yet. The guard lives at the END of the file, so running
+    as ``__main__`` sees the complete module namespace.
+    """
+    def test_main_guard_is_last_non_blank(self):
+        import inspect
+        import re as _re
+        path = inspect.getsourcefile(vr)
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+        # find the last non-blank / non-comment line
+        last_decl = None
+        for i, line in reversed(list(enumerate(lines))):
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            last_decl = (i + 1, s)
+            break
+        self.assertIsNotNone(last_decl)
+        lineno, text = last_decl
+        self.assertTrue(
+            text in ("if __name__ == \"__main__\":", "sys.exit(main())"),
+            f"expected the __main__ guard, then sys.exit(main()), at the "
+            f"very end of the file (line {lineno}); the guard must come "
+            f"AFTER the _jd_checks/_JdBlocking definitions")
+        # the __main__ guard line number must be > the def-line of _jd_checks
+        def_lineno = None
+        for i, line in enumerate(lines, 1):
+            if line.startswith("def _jd_checks("):
+                def_lineno = i
+                break
+        guard_lineno = None
+        for i, line in enumerate(lines, 1):
+            if line.strip() == "if __name__ == \"__main__\":":
+                guard_lineno = i
+        self.assertIsNotNone(def_lineno)
+        self.assertIsNotNone(guard_lineno)
+        self.assertGreater(guard_lineno, def_lineno,
+                           "the __main__ guard must run only after "
+                           "_jd_checks/_JdBlocking are defined")
+
+    def test_late_symbols_resolve_at_module_scope(self):
+        # The bug: when the __main__ guard sat before these defs, a direct
+        # run called main()->validate_tree()->_jd_checks before the defs
+        # executed, raising NameError. Under import (post-fix) both resolve.
+        self.assertTrue(hasattr(vr, "_jd_checks"))
+        self.assertTrue(hasattr(vr, "_JdBlocking"))
+        self.assertEqual(vr._JdBlocking.__name__, "_JdBlocking")
+
+
 if __name__ == "__main__":
     unittest.main()

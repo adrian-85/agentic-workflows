@@ -528,9 +528,6 @@ def main(argv=None):
     return 0
 
 
-if __name__ == "__main__":
-    sys.exit(main())
-
 class _JdBlocking(Exception):
     """Early-return carrier: _jd_checks raises this with the blocking
     result dict when the JD file is unreadable. validate_tree catches it
@@ -599,3 +596,6 @@ def _jd_checks(jd_path, body, span, opts, ctx):
             guidance_notes.append(("ok",
                 "JD-FIT: every bullet carries JD evidence"))
     return education_errors, education_notes
+
+if __name__ == "__main__":
+    sys.exit(main())
