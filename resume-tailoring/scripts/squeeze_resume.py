@@ -138,7 +138,7 @@ def main():
         os.environ.get("TARGET_PAGES", "2"))
     max_iters = int(os.environ.get("SQUEEZE_MAX_ITERS", "8"))
 
-    jd_terms = _squeeze_jd_setup(jd_file, docx)
+    jd_terms = _squeeze_jd_setup(jd_file, docx, plan_only)
 
 
     log = {"docx": docx, "target_pages": target, "jd_file": jd_file,

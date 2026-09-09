@@ -309,7 +309,7 @@ def _check_confirmation_loop(flat):
             "evidence": " | ".join(c["text"][:60] for c in confirms[:3]) + " ...",
         })
 
-        return findings
+    return findings
 
 
 
@@ -349,7 +349,7 @@ def _check_redundant_identity_request(sys_text, flat):
                 "evidence": ev,
             })
 
-        return findings
+    return findings
 
 
 
@@ -415,9 +415,6 @@ def _check_product_variant_unconfirmed(sys_text, flat):
                     "system_evidence": m_prod.group(0),
                 })
                 break
-
-    return findings
-
 
     return findings
 

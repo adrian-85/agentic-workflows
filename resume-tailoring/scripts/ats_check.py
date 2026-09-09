@@ -421,7 +421,7 @@ def _attach_posting(kinds, opp_id, posting_url, company):
     patch = {"url": posting_url}
     if company:
         patch["company"] = company
-    code, data, body = request(
+    code, _, _ = request(
         f"{kinds['opportunity']['url']}/{opp_id}",
         _browser_headers(kinds["opportunity"]["headers"]),
         method="PATCH", payload=("json", patch))
@@ -474,7 +474,7 @@ def _update_opportunity(kinds, opp_id, resume_id, job_id):
             "error: could not parse the saved opportunity-update body "
             "(expected JSON --data-raw) — re-export the PUT request")
     update_url = update["url"].replace("{id}", str(opp_id))
-    code, data, body = request(
+    code, _, body = request(
         update_url, _browser_headers(update["headers"]),
         method="PUT", payload=("json", update_body))
     print(f"[3b] opportunity update -> {code} "
@@ -512,7 +512,7 @@ def _poll_report(url, headers, timeout, interval):
     (or the deadline passes). Returns the report payload or None."""
     deadline = time.time() + timeout
     while time.time() < deadline:
-        code, data, body = request(url, headers)
+        code, data, _ = request(url, headers)
         if code == 200 and report_ready(data):
             return data.get("data") if isinstance(data.get("data"),
                                                   dict) else data

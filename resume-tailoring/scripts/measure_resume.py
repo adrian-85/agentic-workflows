@@ -665,7 +665,7 @@ def main():  # CLI entry: prints the full DROP PLAN / JD-FIT / table report
 
     """Measure-resume CLI entry point."""
     args = _parse_measure_args()
-    body, roles, jd_terms, pages_text, total_pages = _load_and_render(
+    body, roles, jd_terms, pages_text, _ = _load_and_render(
         args.docx, args.simulate, args.jd_file, args.jd_text,
         args.evidence_text)
     ctx = _build_ctx(args, body, roles, jd_terms, pages_text)
