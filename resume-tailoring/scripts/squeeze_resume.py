@@ -122,7 +122,7 @@ def _squeeze_jd_setup(jd_file, docx, plan_only):
     return jd_terms
 
 
-def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # CLI entry: iterative squeeze loop + foldback print
+def main():
 
     """Squeeze-resume CLI entry point."""
     argv = list(sys.argv[1:])

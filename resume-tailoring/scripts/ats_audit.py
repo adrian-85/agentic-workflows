@@ -186,7 +186,57 @@ def _cue_tails(line):
     return tails
 
 
-def _jd_literal_terms(jd_text):  # pylint: disable=too-many-branches  # JD-phrase miner: one branch per term class
+def _single_token_terms(line, stop_vague):
+    """Capitalized/tech single tokens in a JD requirement line."""
+    terms = set()
+    for m in mr.JD_SEQ_TERM_RE.finditer(line):
+        terms.add(m.group(0).lower())
+    for m in mr.JD_WORD_TERM_RE.finditer(line):
+        if m.start() == 0:
+            continue
+        low = m.group(1).lower()
+        if low in stop_vague or low in mr.JD_STOP:
+            continue
+        if re.search(r"[.!?]\s*$", line[:m.start()].strip()):
+            continue
+        terms.add(low)
+    for tok in re.findall(r"[A-Za-z][A-Za-z0-9+#\-]*", line):
+        low = tok.lower()
+        if low in mr.CORE_TECH_NOUNS or re.search(r"[#+]", low) or (
+                len(low) >= 2 and low.isupper()):
+            terms.add(low)
+    return terms
+
+
+def _phrase_terms(line, stop_vague):
+    """2-3 word skill phrases in the tails of skill-introducing cues."""
+    terms = set()
+    for tail in _cue_tails(line):
+        for size in (3, 2):
+            for i in range(len(tail) - size + 1):
+                gram = tail[i:i + size]
+                if any(w in _STRUCTURE_STOP for w in gram):
+                    continue
+                if all(w in mr.JD_STOP or w in stop_vague
+                       for w in gram):
+                    continue
+                if not any(w in _TECH_ANCHORS or w in mr.CORE_TECH_NOUNS
+                           for w in gram):
+                    continue
+                first = gram[0]
+                if (first.endswith("ing")
+                        and first not in _TECH_ANCHORS
+                        and first not in mr.CORE_TECH_NOUNS
+                        and first not in mr.JD_STOP
+                        and first not in stop_vague):
+                    continue
+                if len(set(gram)) < size:
+                    continue
+                terms.add(" ".join(gram))
+    return terms
+
+
+def _jd_literal_terms(jd_text):
     """Literal hard-skill PHRASES the JD's qualification lines name.
 
     ATS keyword matching is phrase-literal ("regression testing" does not
@@ -203,51 +253,8 @@ def _jd_literal_terms(jd_text):  # pylint: disable=too-many-branches  # JD-phras
     stop_vague = _VAGUE_STOP | mr.JD_SELF_ASSESSMENT
     terms = set()
     for line in mr._jd_requirement_lines(jd_text):
-        # Single tokens: capitalized/tech tokens anywhere in the line.
-        for m in mr.JD_SEQ_TERM_RE.finditer(line):
-            terms.add(m.group(0).lower())
-        for m in mr.JD_WORD_TERM_RE.finditer(line):
-            if m.start() == 0:
-                continue
-            low = m.group(1).lower()
-            if low in stop_vague or low in mr.JD_STOP:
-                continue
-            if re.search(r"[.!?]\s*$", line[:m.start()].strip()):
-                continue
-            terms.add(low)
-        for tok in re.findall(r"[A-Za-z][A-Za-z0-9+#\-]*", line):
-            low = tok.lower()
-            if low in mr.CORE_TECH_NOUNS or re.search(r"[#+]", low) or (
-                    len(low) >= 2 and low.isupper()):
-                terms.add(low)
-        # Phrases: only in the tails of skill-introducing cues. Commas
-        # are phrase boundaries (a tool list must not fuse into one
-        # literal phrase, "playwright selenium").
-        for tail in _cue_tails(line):
-            for size in (3, 2):
-                for i in range(len(tail) - size + 1):
-                    gram = tail[i:i + size]
-                    if any(w in _STRUCTURE_STOP for w in gram):
-                        continue
-                    if all(w in mr.JD_STOP or w in stop_vague
-                           for w in gram):
-                        continue
-                    if not any(w in _TECH_ANCHORS or w in mr.CORE_TECH_NOUNS
-                               for w in gram):
-                        continue
-                    # A gram leading with a non-anchor gerund is a verb
-                    # bridge, not a skill phrase ("implementing automated
-                    # api") — "testing data pipelines" survives (anchor).
-                    first = gram[0]
-                    if (first.endswith("ing")
-                            and first not in _TECH_ANCHORS
-                            and first not in mr.CORE_TECH_NOUNS
-                            and first not in mr.JD_STOP
-                            and first not in stop_vague):
-                        continue
-                    if len(set(gram)) < size:
-                        continue
-                    terms.add(" ".join(gram))
+        terms.update(_single_token_terms(line, stop_vague))
+        terms.update(_phrase_terms(line, stop_vague))
     return sorted(terms)
 
 
@@ -390,14 +397,12 @@ def _report_findings(data, resume_text=""):
     return lines
 
 
-def main(argv=None):  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # CLI entry: prints the full sectioned audit report
-
-    """ATS-audit CLI entry point."""
+def _parse_ats_args(argv):
+    """Parse ats_audit CLI arguments. Returns a dict, or None when argv is
+    empty/only-flags (the caller should print usage and exit 2)."""
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv[0].startswith("-"):
-        print(__doc__)
-        return 2
-    path = argv[0]
+        return None
 
     def _flag(name, cast=str):
         if name not in argv:
@@ -410,10 +415,27 @@ def main(argv=None):  # pylint: disable=too-many-locals,too-many-branches,too-ma
     max_words = _flag("--max-words", int)
     if max_words is None:
         max_words = DEFAULT_MAX_WORDS
-    jd_path = _flag("--jd")
-    phrases_file = _flag("--phrases-file")
-    report_json = _flag("--report-json")
+    return {
+        "path": argv[0],
+        "max_words": max_words,
+        "jd_path": _flag("--jd"),
+        "phrases_file": _flag("--phrases-file"),
+        "report_json": _flag("--report-json"),
+    }
 
+
+def main(argv=None):
+
+    """ATS-audit CLI entry point."""
+    args = _parse_ats_args(argv)
+    if args is None:
+        print(__doc__)
+        return 2
+    path = args["path"]
+    max_words = args["max_words"]
+    jd_path = args["jd_path"]
+    phrases_file = args["phrases_file"]
+    report_json = args["report_json"]
     text = _extract_text(path)
     text_low = text.lower().replace("\n", " ")
     errors, warns, ok_lines = [], [], []
