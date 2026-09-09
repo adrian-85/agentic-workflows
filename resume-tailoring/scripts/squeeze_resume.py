@@ -105,6 +105,23 @@ def _print_foldback(foldback):
     print("])")
 
 
+def _squeeze_jd_setup(jd_file, docx, plan_only):
+    jd_terms = set()
+    if jd_file:
+        jd_text = read_jd_text(jd_file)
+        _root, body0, _n, _d, _ = de.load(docx)
+        jd_terms = mr._jd_terms(jd_text, body0)
+        print(f"JD-aware ranking: {len(jd_terms)} term(s) matched from "
+              f"{jd_file}")
+
+    # Safety: preserve the pre-squeeze state (the .docx is session-temp, but
+    # a mistaken auto-cut should never be unrecoverable). --plan-only never
+    # writes the file, so there is nothing to back up.
+    if not plan_only:
+        shutil.copy(docx, docx + ".pre-squeeze.docx")
+    return jd_terms
+
+
 def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # CLI entry: iterative squeeze loop + foldback print
 
     """Squeeze-resume CLI entry point."""
@@ -121,19 +138,8 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
         os.environ.get("TARGET_PAGES", "2"))
     max_iters = int(os.environ.get("SQUEEZE_MAX_ITERS", "8"))
 
-    jd_terms = set()
-    if jd_file:
-        jd_text = read_jd_text(jd_file)
-        _root, body0, _n, _d, _ = de.load(docx)
-        jd_terms = mr._jd_terms(jd_text, body0)
-        print(f"JD-aware ranking: {len(jd_terms)} term(s) matched from "
-              f"{jd_file}")
+    jd_terms = _squeeze_jd_setup(jd_file, docx)
 
-    # Safety: preserve the pre-squeeze state (the .docx is session-temp, but
-    # a mistaken auto-cut should never be unrecoverable). --plan-only never
-    # writes the file, so there is nothing to back up.
-    if not plan_only:
-        shutil.copy(docx, docx + ".pre-squeeze.docx")
 
     log = {"docx": docx, "target_pages": target, "jd_file": jd_file,
            "protect": list(protect), "jd_terms": sorted(jd_terms),
