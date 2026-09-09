@@ -45,6 +45,7 @@ import sys
 import tempfile
 
 from docx_edit import load, paras, text_of
+from script_args import maybe_help  # noqa: E402  (flat-namespace sibling)
 
 
 def texts(path):
@@ -91,6 +92,7 @@ def _regen_with_tailor(script_path):
 def main():
 
     """Diff-resume CLI entry point."""
+    maybe_help(sys.argv[1:], __doc__)
     if len(sys.argv) == 4 and sys.argv[1] == "--tailor":
         script_path, user_path = sys.argv[2], sys.argv[3]
         regen = _regen_with_tailor(script_path)

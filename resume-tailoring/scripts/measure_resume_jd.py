@@ -161,6 +161,12 @@ INFERENCE_FAMILIES = (
      ("problem", "troubleshoot", "root cause", "resolved", "issue")),
     (("llm", "genai", "generative"),
      ("llm", "prompt", "copilot", "gpt", "claude", "openai")),
+    (("programming", "programming skills", "coding"),
+     ("java", "python", "javascript", "typescript", "c#", "go",
+      "coding", "programming")),
+    (("software engineering",),
+     ("software", "engineering", "engineer", "sdlc", "developed",
+      "development")),
 )
 
 
@@ -384,6 +390,17 @@ def _jd_requirement_lines(jd_text):
             if not JD_COMPANY_VOICE_RE.search(s):
                 out.append(s)
     return out
+
+
+def _jd_line_terms_map(jd_text):
+    """(qualification line, extracted terms) per qual line, in the same
+    order as :func:`_jd_requirement_coverage`'s output. The coverage
+    printer zips this in to show WHICH terms the matcher extracted —
+    an artifact like ``solid sql`` mined from "Solid SQL skills" is then
+    visible in the report, no matcher debugging required."""
+    return [(q, _jd_line_terms(q) | {c for c in JD_CONCEPTS
+                                     if c in q.lower()})
+            for q in _jd_requirement_lines(jd_text)]
 
 
 def _jd_line_terms(line):

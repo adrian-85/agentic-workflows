@@ -71,7 +71,8 @@ import textwrap
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 import script_args  # noqa: E402
-from script_args import extract_common, extract_flag, extract_flag_all, read_jd_text  # noqa: E402
+from script_args import (MAX_WORDS, extract_common, extract_flag,  # noqa: E402
+                         extract_flag_all, maybe_help, read_jd_text)
 
 
 W = de.W
@@ -141,6 +142,7 @@ from measure_resume_jd import (
     _jd_hits_classified,
     _jd_kept,
     _jd_line_terms,
+    _jd_line_terms_map,
     _jd_missing_terms,
     _jd_report,
     _jd_requirement_coverage,
@@ -515,6 +517,55 @@ def _print_reclaim_sections(ctx, state):
             print()
 
 
+def _word_tokens(text):
+    """Whitespace tokens containing at least one alphanumeric character —
+    the validator's word-count semantics (a dingbat is not a word)."""
+    return [t for t in text.split() if re.search(r"[A-Za-z0-9]", t)]
+
+
+def _print_word_budget(body):
+    """WORD BUDGET — validator-equivalent whole-resume word count with a
+    per-role breakdown and the wordiest bullets. The deliverable gate
+    blocks over MAX_WORDS (SKILL Step 8); this section surfaces the
+    arithmetic BEFORE the gate does, so cuts are planned in one pass
+    instead of hand-estimated across blocked re-run cycles. Prints only
+    near the cap (85%+) — under it the section is noise."""
+    ps = de.paras(body)
+    total = sum(len(_word_tokens(de.text_of(p))) for p in ps)
+    if total <= MAX_WORDS * 0.85:
+        return
+    delta = total - MAX_WORDS
+    if delta > 0:
+        print(f"WORD BUDGET (cap {MAX_WORDS}): {total} words — "
+              f"{delta} over")
+    else:
+        print(f"WORD BUDGET (cap {MAX_WORDS}): {total} words — "
+              f"{-delta} of headroom left")
+
+    # Bucket paragraphs: fixed top block (before the first company
+    # header), one bucket per role, Education tail last.
+    buckets = []  # (label, words)
+    label, words = "Fixed top block (Summary/Proficiencies/Certs)", 0
+    for p in ps:
+        style, _ = de.style_and_numid(p)
+        text = de.text_of(p)
+        if style == COMPANY_STYLE and text.strip():
+            buckets.append((label, words))
+            label, words = text.strip()[:40], 0
+        words += len(_word_tokens(text))
+    buckets.append((label, words))
+    for label, words in buckets:
+        if words:
+            print(f"  {words:>5}  {label}")
+
+    bullets = [(len(_word_tokens(t)), t) for t in _all_bullet_texts(body)]
+    if bullets:
+        print("  Wordiest bullets (shorten or cut first):")
+        for n, t in sorted(bullets, reverse=True)[:5]:
+            print(f"    {n:>3}w  {t[:72]}")
+    print()
+
+
 def _print_jd_coverage(ctx):
     """JD REQUIREMENT COVERAGE — per qualification line, its kept hosts."""
     if not ctx.jd_terms:
@@ -529,8 +580,16 @@ def _print_jd_coverage(ctx):
            "uncovered": "UNCOVERED", "by_hand": "by hand"}
     print("JD REQUIREMENT COVERAGE (each qualification line → "
           f"status; {len(coverage)} line(s)):")
-    for label, status, detail in coverage:
-        print(f"  [{tag[status]}] {label}")
+    term_map = _jd_line_terms_map(ctx.jd_text)
+    for (label, status, detail), (_, terms) in zip(coverage, term_map):
+        # Show the matcher's extracted terms on weak/uncovered lines: the
+        # fix for a demonstrated-but-UNCOVERED qual is hosting the JD's
+        # literal phrase, and that requires seeing WHICH phrase the
+        # matcher wants (an artifact like 'solid sql' mined from "Solid
+        # SQL skills" is visible instead of a debugging session).
+        shown = f" (extracted terms: {', '.join(sorted(terms))})" \
+            if terms and status in ("uncovered", "weak") else ""
+        print(f"  [{tag[status]}] {label}{shown}")
         if detail:
             print(f"      {detail}")
     if uncov:
@@ -614,6 +673,7 @@ class _Args(NamedTuple):
 def _parse_measure_args():
     """Parse argv and load the JD/LinkedIn text. Exits 2 on usage/error."""
     argv = list(sys.argv[1:])
+    maybe_help(argv, __doc__)
     linkedin_file = extract_flag(argv, "--linkedin")
     simulate = extract_flag_all(argv, "--simulate")
     protect, jd_file, kept = extract_common(argv)
@@ -671,6 +731,7 @@ def main():  # CLI entry: prints the full DROP PLAN / JD-FIT / table report
     _print_cost_table(ctx)
     _print_tools_wrap(ctx)
     _print_reclaim_plan(ctx)
+    _print_word_budget(body)
     _print_jd_coverage(ctx)
     _print_jd_audit(ctx)
     _print_layout_summary(ctx)

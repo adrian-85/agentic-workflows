@@ -19,6 +19,26 @@ import sys
 # apply the default without importing validate_resume (cycle break).
 MAX_WORDS = 1000
 
+# The match-rate target for the external ATS scan (SKILL Step 11): at or
+# above it the literal-hosting work is done — stop adding hard/soft
+# skills. A target to know when to stop, never a hard gate (a JD with
+# genuinely-unhostable tools may top out below it). Override with
+# ats_audit's --match-target; 0 disables.
+MATCH_RATE_TARGET = 75
+
+
+def maybe_help(argv, usage_text=None):
+    """Print usage and exit 0 when ``--help``/``-h`` is in ``argv``.
+
+    The resume-tailoring scripts parse argv by hand (extract_common &
+    friends), so without this a bare ``--help`` is consumed as the
+    positional .docx path and dies as FileNotFoundError — a real session
+    lost several tool calls to ``measure_resume.py --help``. Call this
+    FIRST, before any positional scan."""
+    if "--help" in argv or "-h" in argv:
+        print(usage_text if usage_text is not None else __doc__ or "")
+        raise SystemExit(0)
+
 def parse_flag(argv, flag):
     """Remove a boolean flag from ``argv`` (in-place) and return True if it was present."""
     if flag in argv:

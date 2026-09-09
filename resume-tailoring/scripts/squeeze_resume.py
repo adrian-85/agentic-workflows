@@ -58,7 +58,7 @@ import tempfile
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 import measure_resume as mr  # noqa: E402
-from script_args import extract_common, read_jd_text  # noqa: E402
+from script_args import extract_common, maybe_help, read_jd_text  # noqa: E402
 
 
 def _apply_drops(body, suggestions):
@@ -136,6 +136,7 @@ class _SqueezeCfg(NamedTuple):
 def _squeeze_setup(argv):
     """Parse squeeze_resume args and load the docx. Returns (cfg, root,
     body, names, data). Exits 2 on usage error."""
+    maybe_help(argv, __doc__)
     plan_only = "--plan-only" in argv
     protect, jd_file, kept = extract_common(
         argv, extra_flags=("--plan-only",))
