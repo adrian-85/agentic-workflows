@@ -254,7 +254,6 @@ def _browser_headers(saved_headers):
     return out
 
 
-# pylint: disable=too-many-arguments  # transport wrapper: 6 orthogonal curl params
 def request(url, headers, *, method=None, json_body=None, multipart=None,
             timeout=90):
     """Issue one HTTP request with retries; returns (status, body, headers)."""

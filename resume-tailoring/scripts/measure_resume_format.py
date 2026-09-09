@@ -191,15 +191,9 @@ def _gap_if_dropped(roles, key):
     return max(0, gap)
 
 
-def _match_roles_to_pages(roles, pages_text):  # pylint: disable=too-many-locals
-    """Attribute rendered lines to each role by locating its header in the
-    PDF text. Returns list of (role, start_page_1based, end_page,
-    rendered_lines).
-    """
-    flat = _flat_from_pages(pages_text)
-
-    # Find the line index where each role's header appears (in order).
-    role_starts = []  # flat-index of each role header
+def _find_role_starts(roles, flat):
+    """Find the line index where each role's header appears (in order)."""
+    role_starts = []
     search_from = 0
     for r in roles:
         key = r["key"]
@@ -208,14 +202,20 @@ def _match_roles_to_pages(roles, pages_text):  # pylint: disable=too-many-locals
             if flat[k][1].startswith(key):
                 found = k
                 break
-        if found is None:
-            # Could not match; treat as zero-cost (shouldn't normally happen).
-            role_starts.append(None)
-            continue
         role_starts.append(found)
-        search_from = found + 1
+        if found is not None:
+            search_from = found + 1
+    return role_starts
 
-    # Bound each role at the next role's header, or the education heading, or end.
+
+def _match_roles_to_pages(roles, pages_text):  # pylint: disable=too-many-locals
+    """Attribute rendered lines to each role by locating its header in the
+    PDF text. Returns list of (role, start_page_1based, end_page,
+    rendered_lines).
+    """
+    flat = _flat_from_pages(pages_text)
+    role_starts = _find_role_starts(roles, flat)
+
     def find_education_line(from_idx):
         for k in range(from_idx, len(flat)):
             if flat[k][1] == SECTION_EDUCATION:

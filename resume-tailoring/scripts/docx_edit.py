@@ -475,7 +475,7 @@ def set_text(p, text):
     _APPLIED += 1
 
 
-def set_labeled(p, label, value):  # pylint: disable=too-many-locals
+def set_labeled(p, label, value):
     """Rewrite a 'Label: values' proficiency paragraph, preserving the
     master's two-run structure: a BOLD label run and a NON-BOLD values run.
 

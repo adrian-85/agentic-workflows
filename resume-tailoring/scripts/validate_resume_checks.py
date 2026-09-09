@@ -147,7 +147,7 @@ def _bullet_cap_errors(region):
     return errors
 
 
-def _structural_errors(region):  # pylint: disable=too-many-locals
+def _structural_errors(region):
     """Structural failures (exit 2) in the career region: orphan job titles,
     companies without a title, and content orphaned after a Tools line."""
     errors = []
@@ -298,7 +298,6 @@ def _text_integrity_errors(region, summary):
     return errors
 
 
-# pylint: disable=too-many-locals,line-too-long  # readability: one local per checked category
 def _readability_guidance(body, summary, *, region=None, master_input=False):
     """Advisory readability checks (SKILL Step 4 word cap + Step 5).
 
