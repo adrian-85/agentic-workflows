@@ -208,7 +208,7 @@ def _find_role_starts(roles, flat):
     return role_starts
 
 
-def _match_roles_to_pages(roles, pages_text):  # pylint: disable=too-many-locals
+def _match_roles_to_pages(roles, pages_text):
     """Attribute rendered lines to each role by locating its header in the
     PDF text. Returns list of (role, start_page_1based, end_page,
     rendered_lines).
