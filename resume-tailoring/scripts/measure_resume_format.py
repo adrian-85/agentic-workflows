@@ -240,56 +240,59 @@ def _match_roles_to_pages(roles, pages_text):  # pylint: disable=too-many-locals
     return results
 
 
-def _wrapped_tools(flat, matched):  # pylint: disable=too-many-locals,too-many-nested-blocks
+def _tools_boundary(line, others):
+    """Return True if ``line`` is a role/section boundary."""
+    return (line in (SECTION_EDUCATION, SECTION_CAREER)
+            or any(line.startswith(k) for k in others))
+
+
+def _check_tools_wrap(flat, r, others, flat_len):
+    """Check whether role ``r``'s Tools line wraps past one rendered line.
+
+    Returns ``(key, value_chars, capacity, preview)`` if wrapped, else None.
+    ``flat_len`` is the total length of ``flat`` (avoiding repeated calls).
+    """
+    idx = _role_header_flat(flat, r["key"])
+    if idx is None:
+        return None
+    for k in range(idx + 1, flat_len):
+        line = flat[k][1]
+        if _tools_boundary(line, others):
+            return None
+        if "tools" in line.lower() and "technolog" in line.lower():
+            if k + 1 < flat_len and not _tools_boundary(flat[k + 1][1], others):
+                raw_first = flat[k][2]
+                label = "Tools & Technologies: "
+                stripped = raw_first.lstrip()
+                capacity = max(0, len(stripped) - len(label))
+                full = stripped[len(label):] if stripped.startswith(label) else stripped
+                parts = [full]
+                for cont in flat[k + 1:]:
+                    if _tools_boundary(cont[1], others):
+                        break
+                    parts.append(cont[2].strip())
+                value_chars = len(" ".join(parts).strip())
+                return (r["key"], value_chars, capacity, raw_first.strip()[:80])
+            break
+    return None
+
+
+def _wrapped_tools(flat, matched):
     """Roles whose Tools & Technologies line wraps past one rendered line.
 
-    The validator guarantees a Tools line is the last content of its role
-    (nothing legit follows it), so a wrap is exactly: the line AFTER the
-    tools line is not the next role/section boundary.
-
     Returns (key, value_chars, wrap_capacity, preview) per wrapped line:
-    ``value_chars`` is the full value length after the "Tools &
-    Technologies: " label (continuation lines joined), ``wrap_capacity`` is
-    how many value chars fit on the FIRST rendered line. The gap between
-    the two is the honest trim budget — the render's proportional font
-    makes a fixed "~N tools" heuristic wrong, so the measured wrap point
-    (not a guess) is what the trim note reports.
+    ``value_chars`` is the full value length after the label, ``wrap_capacity``
+    is how many value chars fit on the first rendered line.
     """
     others = {r["key"] for r, *_ in matched}
-
-    def is_boundary(line):
-        return (line in (SECTION_EDUCATION, SECTION_CAREER)
-                or any(line.startswith(k) for k in others))
-
+    flat_len = len(flat)
     results = []
-    for r, *_ in matched:  # pylint: disable=too-many-nested-blocks
+    for r, *_ in matched:
         if not r.get("has_tools"):
             continue
-        idx = _role_header_flat(flat, r["key"])
-        if idx is None:
-            continue
-        for k in range(idx + 1, len(flat)):
-            line = flat[k][1]
-            if is_boundary(line):
-                break  # no tools line in this role's region
-            if "tools" in line.lower() and "technolog" in line.lower():
-                if k + 1 < len(flat) and not is_boundary(flat[k + 1][1]):
-                    raw_first = flat[k][2]
-                    label = "Tools & Technologies: "
-                    stripped = raw_first.lstrip()
-                    # Capacity = value chars that fit on the first rendered
-                    # line (label excluded, indent excluded).
-                    capacity = max(0, len(stripped) - len(label))
-                    full = stripped[len(label):] if stripped.startswith(label) else stripped
-                    parts = [full]
-                    for cont in flat[k + 1:]:
-                        if is_boundary(cont[1]):
-                            break
-                        parts.append(cont[2].strip())
-                    value_chars = len(" ".join(parts).strip())
-                    results.append((r["key"], value_chars, capacity,
-                                    raw_first.strip()[:80]))
-                break
+        result = _check_tools_wrap(flat, r, others, flat_len)
+        if result is not None:
+            results.append(result)
     return results
 
 
