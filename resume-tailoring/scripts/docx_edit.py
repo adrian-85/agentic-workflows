@@ -57,6 +57,11 @@ CLI (inspect structure before editing)::
     python3 scripts/docx_edit.py path/to/resume.docx 26-38 --full
         # prints paragraphs 26-38 with FULL text (no truncation)
 """
+# pylint: disable=wrong-import-position,import-outside-toplevel
+# flat-namespace sibling imports require the sys.path bootstrap; the
+# sibling import must precede use, which pylint flags as wrong position.
+# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
+# the specific rationale at each site where one is retained.
 
 
 # pylint: disable=invalid-name,global-statement

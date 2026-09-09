@@ -78,6 +78,11 @@ is for greenfield work; a refactor is "refactored" or "re-architected". Never
 fabricate a bullet for a tool the user hasn't used — omit it and flag it to
 the user. See SKILL.md → Accuracy section.
 """
+# pylint: disable=wrong-import-position,import-outside-toplevel
+# flat-namespace sibling imports require the sys.path bootstrap; the
+# sibling import must precede use, which pylint flags as wrong position.
+# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
+# the specific rationale at each site where one is retained.
 
 
 

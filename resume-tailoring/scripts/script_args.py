@@ -8,6 +8,11 @@ parse_flag consume flags, flag_value reads without consuming.
 """
 
 import sys
+# pylint: disable=wrong-import-position,import-outside-toplevel
+# flat-namespace sibling imports require the sys.path bootstrap; the
+# sibling import must precede use, which pylint flags as wrong position.
+# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
+# the specific rationale at each site where one is retained.
 
 # Whole-resume word cap for a tailored deliverable (SKILL Step 8).
 # Home here (not validate_resume) so docx_edit's deliverable gate can
