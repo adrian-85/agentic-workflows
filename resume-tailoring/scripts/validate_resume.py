@@ -108,7 +108,7 @@ import os
 import re
 import sys
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import docx_edit as de  # noqa: E402
@@ -180,6 +180,15 @@ class TreeOptions:
     max_words: int = MAX_WORDS
 
 
+@dataclass
+class _Notes:
+    """Threads the advisory/guidance note lists through the check helpers
+    (claim_notes, guidance_notes) without multi-arg signatures."""
+
+    claim: list = field(default_factory=list)      # (severity, message)
+    guidance: list = field(default_factory=list)   # (severity, message)
+
+
 def validate_tree(path, body, opts=None):
     """Run every check against an ALREADY-LOADED document tree.
 
@@ -201,8 +210,6 @@ def validate_tree(path, body, opts=None):
     jd_path = opts.jd_path
     jd_years = opts.jd_years
     seniority_approved = opts.seniority_approved
-    education_approved = opts.education_approved
-    protect = opts.protect
     max_words = opts.max_words
     region = _region(body)
     summary = _summary_paragraph(body)
@@ -242,58 +249,14 @@ def validate_tree(path, body, opts=None):
     # the render when the section was dropped (--education-approved
     # records the override); under an 'or equivalent' clause the clause is
     # load-bearing only when the visible span does not exceed the ask.
-    education_errors, education_notes = [], []
-    if jd_path:
-        try:
-            with open(jd_path, encoding="utf-8", errors="replace") as f:
-                jd_text = f.read()
-        except OSError as e:
-            # KEEP the documented dict contract. Both consumers index the
-            # result: validate_resume.main prints result["lines"] and
-            # docx_edit's deliverable gate reads result["blocking"] BEFORE
-            # writing a tailored .docx. An int return here made the gate
-            # crash with "TypeError: 'int' object is not subscriptable"
-            # instead of blocking with a readable message (found when a
-            # session's --jd file was unreadable at save time). Blocking: 1
-            # -> the CLI still exits 2 and the gate refuses the write.
-            return {"blocking": 1, "warnings": 0, "lines": [
-                f"error: cannot read --jd file {jd_path}: {e} "
-                f"— JD-dependent gates cannot run"]}
-        education_errors, education_notes = _education_gate(
-            jd_text, body, span, jd_years, education_approved)
-        # A fabricated ask poisons every span comparison downstream (the
-        # underqualified warning, the education load-bearing check): a
-        # real session passed --jd-years 10 against a JD with no years
-        # line and got false 'underqualified' output. Warn so the number
-        # is only ever the JD's own.
-        if jd_years is not None and not YEARS_RE.search(jd_text):
-            claim_notes.append(("warn",
-                f"--jd-years {jd_years:g} passed, but the JD text states "
-                f"no 'N+ years' ask — the number looks invented; drop the "
-                f"flag unless the posting states one"))
-        # SKILL Step 4 title alignment (advisory, shared with measure): a
-        # headline MORE SENIOR than the JD's title warns — never blocks.
-        claim_notes.append(mr.title_alignment_notes(body, jd_text))
-
-        # SKILL Step 8 render-path check: the JD-FIT AUDIT lives in measure
-        # (planning); the deliverable gate runs HERE, so bullets with weak
-        # or no JD evidence surface at render time too — a clean render is
-        # not a JD-tight resume. Advisory: the human rule may keep one,
-        # with a one-line reason tied to the JD.
-        jd_fit = mr._jd_fit_audit(mr._roles(body), mr._jd_terms(jd_text, body),
-                                  protect=protect)
-        if jd_fit:
-            flagged = sum(1 for s in jd_fit for l in s.splitlines()
-                          if l.lstrip().startswith(("OFF-JD", "weak-match")))
-            guidance_notes.append(("warn",
-                f"JD-FIT: {flagged} bullet(s) across {len(jd_fit)} role(s) "
-                f"carry weak or no JD evidence (measure's JD-FIT AUDIT "
-                f"names them) — cut or shorten even when on target, or "
-                f"keep with a one-line reason tied to the JD"))
-        else:
-            guidance_notes.append(("ok",
-                "JD-FIT: every bullet carries JD evidence"))
-
+    notes = _Notes()
+    notes.claim = claim_notes
+    notes.guidance = guidance_notes
+    try:
+        education_errors, education_notes = _jd_checks(
+            jd_path, body, span, opts, notes)
+    except _JdBlocking as exc:
+        return exc.args[0]
     # Claims: numbers vs master.
     master_path = master_path or _find_master(path)
     master_texts = _master_texts(master_path)
@@ -425,15 +388,17 @@ def validate_tree(path, body, opts=None):
 
     # Build the report lines (returned; the CLI prints them, the save-time
     # deliverable gate surfaces only the blocking ones).
-    ctx = dict(errors=errors, punct_errors=punct_errors,
-               integrity_errors=integrity_errors, dups=dups,
-               cap_errors=cap_errors, word_errors=word_errors,
-               word_count=word_count, max_words=max_words,
-               is_master_input=is_master_input,
-               seniority_errors=seniority_errors, jd_path=jd_path,
-               education_errors=education_errors,
-               education_notes=education_notes,
-               guidance_notes=guidance_notes, claim_notes=claim_notes)
+    ctx = {
+        "errors": errors, "punct_errors": punct_errors,
+        "integrity_errors": integrity_errors, "dups": dups,
+        "cap_errors": cap_errors, "word_errors": word_errors,
+        "word_count": word_count, "max_words": max_words,
+        "is_master_input": is_master_input,
+        "seniority_errors": seniority_errors, "jd_path": jd_path,
+        "education_errors": education_errors,
+        "education_notes": education_notes,
+        "guidance_notes": guidance_notes, "claim_notes": claim_notes,
+    }
     return _assemble_report(ctx)
 
 
@@ -588,3 +553,73 @@ def main(argv=None):  # pylint: disable=too-many-locals
 
 if __name__ == "__main__":
     sys.exit(main())
+
+class _JdBlocking(Exception):
+    """Early-return carrier: _jd_checks raises this with the blocking
+    result dict when the JD file is unreadable. validate_tree catches it
+    and returns the dict (the documented dict contract)."""
+
+
+def _jd_checks(jd_path, body, span, opts, notes):
+    """Run the JD-dependent gates (education, title alignment, JD-FIT).
+
+    Appends to ``notes.claim``/``notes.guidance`` in place; returns
+    (education_errors, education_notes). Raises _JdBlocking with the
+    blocking result dict when the JD file cannot be read."""
+    jd_years = opts.jd_years
+    education_approved = opts.education_approved
+    protect = opts.protect
+    claim_notes = notes.claim
+    guidance_notes = notes.guidance
+    education_errors, education_notes = [], []
+    if jd_path:
+        try:
+            with open(jd_path, encoding="utf-8", errors="replace") as f:
+                jd_text = f.read()
+        except OSError as e:
+            # KEEP the documented dict contract. Both consumers index the
+            # result: validate_resume.main prints result["lines"] and
+            # docx_edit's deliverable gate reads result["blocking"] BEFORE
+            # writing a tailored .docx. An int return here made the gate
+            # crash with "TypeError: 'int' object is not subscriptable"
+            # instead of blocking with a readable message (found when a
+            # session's --jd file was unreadable at save time). Blocking: 1
+            # -> the CLI still exits 2 and the gate refuses the write.
+            raise _JdBlocking({"blocking": 1, "warnings": 0, "lines": [
+                f"error: cannot read --jd file {jd_path}: {e} "
+                f"— JD-dependent gates cannot run"]}) from e
+        education_errors, education_notes = _education_gate(
+            jd_text, body, span, jd_years, education_approved)
+        # A fabricated ask poisons every span comparison downstream (the
+        # underqualified warning, the education load-bearing check): a
+        # real session passed --jd-years 10 against a JD with no years
+        # line and got false 'underqualified' output. Warn so the number
+        # is only ever the JD's own.
+        if jd_years is not None and not YEARS_RE.search(jd_text):
+            claim_notes.append(("warn",
+                f"--jd-years {jd_years:g} passed, but the JD text states "
+                f"no 'N+ years' ask — the number looks invented; drop the "
+                f"flag unless the posting states one"))
+        # SKILL Step 4 title alignment (advisory, shared with measure): a
+        # headline MORE SENIOR than the JD's title warns — never blocks.
+        claim_notes.append(mr.title_alignment_notes(body, jd_text))
+
+        # SKILL Step 8 render-path check: the JD-FIT AUDIT lives in measure
+        # (planning); the deliverable gate runs HERE, so bullets with weak
+        # or no JD evidence surface at render time too — a clean render is
+        # not a JD-tight resume. Advisory: the human rule may keep one,
+        # with a one-line reason tied to the JD.
+        jd_fit = mr._jd_fit_audit(mr._roles(body), mr._jd_terms(jd_text, body),
+                                  protect=protect)
+        if jd_fit:
+            flagged = sum(1 for s in jd_fit for l in s.splitlines()
+                          if l.lstrip().startswith(("OFF-JD", "weak-match")))
+            guidance_notes.append(("warn",
+                f"JD-FIT: {flagged} bullet(s) across {len(jd_fit)} role(s) "
+                f"carry weak or no JD evidence (measure's JD-FIT AUDIT "
+                f"names them) — cut or shorten even when on target, or "
+                f"keep with a one-line reason tied to the JD"))
+        else:
+            guidance_notes.append(("ok",
+                "JD-FIT: every bullet carries JD evidence"))
+    return education_errors, education_notes
