@@ -57,7 +57,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import measure_resume as mr  # noqa: E402
-from script_args import MAX_WORDS, MATCH_RATE_TARGET, flag_value, maybe_help  # noqa: E402
+from script_args import MAX_WORDS, MATCH_RATE_TARGET, flag_value, maybe_help, match_target_met  # noqa: E402
 
 # Private-use glyphs (bullet dingbats) and page footers ("Page 1|3",
 # "P a g e 1 | 3") are tokens a text extractor emits that word-count
@@ -110,9 +110,10 @@ def _audit_match_rate(score, target, result):
     soft skills without chasing the residual no-host list (most of which
     is genuine never-fabricate gaps and parser artifacts anyway). Below
     it, keep hosting. Configurable via --match-target; 0 disables."""
-    if not target or score is None:
+    verdict = match_target_met(score, target)
+    if verdict is None:
         return
-    if score >= target:
+    if verdict:
         result.ok_lines.append(
             f"match rate: {score} (target {target} MET — literal hosting "
             "is done; stop adding hard/soft skills)")

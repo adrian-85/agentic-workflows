@@ -726,11 +726,8 @@ still apply.
 **The match-rate target is 75 (≥75 = the hosting loop is DONE).** A
 TARGET, not a gate: at or above it, stop weaving in hard/soft skills —
 the residual no-host list at that point is genuine never-fabricate gaps
-and parser artifacts, and chasing it adds no score (a real deliverable
-moved 69 → 88 across exactly the hosting round that closed the soft-skill
-and chaos/resilience literals). Below it, keep hosting literal phrases
-truthfully — hosting them is what moves the rate (59 → 86 in one
-session). `ats_audit.py` prints the target status when a report JSON is
+and parser artifacts, and chasing it adds no score. Below it, keep hosting literal phrases
+truthfully — hosting them is what moves the rate. `ats_audit.py` prints the target status when a report JSON is
 loaded (`--match-target` overrides; 0 disables), and `ats_check.py`
 prints the same verdict at scan time.
 

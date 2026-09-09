@@ -62,7 +62,7 @@ import time
 import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from script_args import MATCH_RATE_TARGET, flag_value, maybe_help  # noqa: E402
+from script_args import MATCH_RATE_TARGET, flag_value, maybe_help, match_target_met  # noqa: E402
 
 # Config lives in the SKILL ROOT (this repo's resume-tailoring/), next
 # to the master resume and JD files it belongs to — gitignored, durable
@@ -525,9 +525,10 @@ def _poll_report(url, headers, timeout, interval):
 def _print_match_target(score):
     """The scan print's match-rate target line (SKILL Step 11 stop signal)."""
     print(f"    matchRate: {score}")
-    if not (isinstance(score, (int, float)) and MATCH_RATE_TARGET):
+    verdict = match_target_met(score, MATCH_RATE_TARGET)
+    if verdict is None:
         return
-    if score >= MATCH_RATE_TARGET:
+    if verdict:
         print(f"    target: {MATCH_RATE_TARGET} MET — literal hosting "
               "is done; stop adding hard/soft skills")
     else:

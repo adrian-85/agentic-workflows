@@ -39,6 +39,16 @@ def maybe_help(argv, usage_text=None):
         print(usage_text if usage_text is not None else __doc__ or "")
         raise SystemExit(0)
 
+def match_target_met(score, target):
+    """True when the score meets or exceeds the target. None when the
+    check is not applicable (missing score or target disabled via 0).
+    Centralizes the ≥75 match-rate target (SKILL Step 11) so ats_audit
+    and ats_check agree on the verdict without duplicating the logic."""
+    if not target or not isinstance(score, (int, float)):
+        return None
+    return score >= target
+
+
 def parse_flag(argv, flag):
     """Remove a boolean flag from ``argv`` (in-place) and return True if it was present."""
     if flag in argv:

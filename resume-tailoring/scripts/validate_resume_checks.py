@@ -296,10 +296,7 @@ def _jd_states_years_ask(jd_text):
     against a fabricated-ask warning on a legitimate ask."""
     if YEARS_RE.search(jd_text):
         return True
-    return bool(re.search(
-        r"\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|"
-        r"twelve|thirteen|fourteen|fifteen|twenty)\s*(?:\+|or more)?\s*"
-        r"years\b", jd_text, re.I))
+    return bool(_WORD_YEARS_RE.search(jd_text))
 
 
 # A content word (>=5 chars, not in this stoplist) appearing twice within
