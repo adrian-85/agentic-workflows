@@ -11,6 +11,7 @@ import contextlib
 import io
 import math
 import re
+from typing import NamedTuple
 import shutil
 import sys
 
@@ -135,8 +136,48 @@ def _dead_end_roles(plan, roles, protect=(), jd_terms=()):
     return dead
 
 
-def _top_role_batch(matched, plan, per, required, tools_savings=0,  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
-                    top_block_count=0, protect=(), jd_terms=()):
+def _plan_feasibility(plan, matched, per, protect, jd_terms):
+    """Oldest-first pass over the plan: total line savings the listed cuts
+    can actually deliver (dead-end budgets shrunk to unprotected counts),
+    and the adjusted plan (whole-role drops kept, superseded dead-ends
+    dropped for the top role). Returns (feasible, adjusted)."""
+    by_key = {e[0]["key"]: e[0] for e in matched}
+    feasible = 0.0
+    adjusted = []
+    for key, action, saved in plan:
+        m = _DROP_ACTION.match(action)
+        if not m:
+            feasible += saved  # whole-role drop: feasible by definition
+            adjusted.append((key, action, saved))
+            continue
+        role = by_key.get(key) or {}
+        bullets = role.get("bullet_texts") or []
+        unprotected = len(bullets) - _protected_count(bullets, protect=protect,
+                                                      jd_terms=jd_terms)
+        take = min(int(m.group(1)), max(0, unprotected))
+        if take > 0:
+            feasible += take * per
+        if key == matched[0][0]["key"]:
+            continue  # superseded: the batch below is the authoritative sizing
+        adjusted.append((key, action, saved))
+    return feasible, adjusted
+
+
+class Budget(NamedTuple):
+    """Page-budget inputs for the reclaim planner (per rendered line, the
+    required reclaim, and the non-bullet savings already counted)."""
+
+    per: float
+    required: float
+    tools_savings: float
+    top_block_count: int
+
+    def shortfall_after(self, feasible: float) -> float:
+        """The reclaim gap still open after ``feasible`` savings land."""
+        return self.required - feasible
+
+
+def _top_role_batch(matched, plan, budget, protect=(), jd_terms=()):
     """Size the most-recent role's trim batch — the residual-gap closer.
 
     The BATCH RECLAIM PLAN is oldest-first and stops as soon as its listed
@@ -161,35 +202,19 @@ def _top_role_batch(matched, plan, per, required, tools_savings=0,  # pylint: di
     """
     if not matched:
         return None, list(plan), 0.0
-    by_key = {r["key"]: r for r, _sp, _ep, _l in matched}
     top_key = matched[0][0]["key"]  # matched is document order: most-recent first
-    feasible = 0.0
-    adjusted = []
-    for key, action, saved in plan:
-        m = _DROP_ACTION.match(action)
-        if not m:
-            feasible += saved  # whole-role drop: feasible by definition
-            adjusted.append((key, action, saved))
-            continue
-        role = by_key.get(key) or {}
-        bullets = role.get("bullet_texts") or []
-        prot = _protected_count(bullets, protect=protect, jd_terms=jd_terms)
-        take = min(int(m.group(1)), max(0, len(bullets) - prot))
-        if take > 0:
-            feasible += take * per
-        if key == top_key:
-            continue  # superseded: the batch below is the authoritative sizing
-        adjusted.append((key, action, saved))
-    feasible += tools_savings + top_block_count
-    shortfall = required - feasible
+    feasible, adjusted = _plan_feasibility(plan, matched, budget.per,
+                                           protect, jd_terms)
+    feasible += budget.tools_savings + budget.top_block_count
+    shortfall = budget.shortfall_after(feasible)
     top_bullets = matched[0][0].get("bullet_texts") or []
     top_protected = _protected_count(top_bullets, protect=protect,
                                      jd_terms=jd_terms)
     unprotected = max(0, len(top_bullets) - top_protected)
     if shortfall <= 0 or unprotected <= 0:
         return None, adjusted, feasible
-    n = min(unprotected, math.ceil(shortfall / per))
-    saved = n * per
+    n = min(unprotected, math.ceil(shortfall / budget.per))
+    saved = n * budget.per
     return ((top_key, f"drop {n} bullet(s) (saves ~{saved:.0f} lines)", saved),
             adjusted, feasible)
 
@@ -250,7 +275,7 @@ def _role_jd_evidence_lines(roles, header_text, jd_terms):
     return lines
 
 
-def _jd_fit_audit(roles, jd_terms, protect=()):  # pylint: disable=too-many-branches
+def _jd_fit_audit(roles, jd_terms, protect=()):
     """Per-role JD-fit audit — printed for EVERY role when --jd is passed.
 
     Classifies every bullet by JD alignment strength: strong/practice-
@@ -265,44 +290,52 @@ def _jd_fit_audit(roles, jd_terms, protect=()):  # pylint: disable=too-many-bran
         return []
     sections = []
     for role in roles:
-        bullets = role.get("bullet_texts") or []
-        if not bullets:
-            continue
-        off, weak, kept = [], [], 0
-        for b in bullets:
-            if _is_protected(b, protect):
-                kept += 1
-                continue
-            strong, weak_hits = _jd_hits_classified(b, jd_terms, bullets)
-            if strong or _concept_hits(b):
-                kept += 1
-            elif weak_hits:
-                weak.append((b, weak_hits))
-            else:
-                off.append(b)
-        if not off and not weak:
-            continue
-        lines = [f"JD-FIT AUDIT ({role['key']}): {kept} of {len(bullets)} "
-                 f"bullet(s) carry JD evidence"]
-        for b in off:
-            lines.append(f"  OFF-JD (no JD term, no practice phrase): "
-                         f"{b[:68]}")
-        for b, hits in weak:
-            lines.append(f"  weak-match (cuttable): {b[:68]}  "
-                         f"[weak: {' , '.join(hits)}]")
-        if len(off) * 2 >= len(bullets):
-            lines.append(
-                "  STUB CANDIDATE: most of this role is off-JD — cut the "
-                "OFF-JD bullets; if the role then carries no JD evidence "
-                "at all, keep a 1-bullet stub ONLY to prevent an "
-                "employment gap (SKILL Step 8).")
-        else:
-            lines.append(
-                "  Cut or shorten these even when on target — JD alignment "
-                "outranks the page math; 40 words is a ceiling, never a "
-                "target (SKILL Step 8).")
-        sections.append("\n".join(lines))
+        section = _jd_fit_section(role, jd_terms, protect)
+        if section:
+            sections.append(section)
     return sections
+
+
+def _jd_fit_section(role, jd_terms, protect):
+    """The JD-FIT AUDIT block for one role, or empty when every bullet
+    carries JD evidence (nothing to report)."""
+    bullets = role.get("bullet_texts") or []
+    if not bullets:
+        return None
+    off, weak, kept = [], [], 0
+    for b in bullets:
+        if _is_protected(b, protect):
+            kept += 1
+            continue
+        strong, weak_hits = _jd_hits_classified(b, jd_terms, bullets)
+        if strong or _concept_hits(b):
+            kept += 1
+        elif weak_hits:
+            weak.append((b, weak_hits))
+        else:
+            off.append(b)
+    if not off and not weak:
+        return None
+    lines = [f"JD-FIT AUDIT ({role['key']}): {kept} of {len(bullets)} "
+             f"bullet(s) carry JD evidence"]
+    for b in off:
+        lines.append(f"  OFF-JD (no JD term, no practice phrase): "
+                     f"{b[:68]}")
+    for b, hits in weak:
+        lines.append(f"  weak-match (cuttable): {b[:68]}  "
+                     f"[weak: {' , '.join(hits)}]")
+    if len(off) * 2 >= len(bullets):
+        lines.append(
+            "  STUB CANDIDATE: most of this role is off-JD — cut the "
+            "OFF-JD bullets; if the role then carries no JD evidence "
+            "at all, keep a 1-bullet stub ONLY to prevent an "
+            "employment gap (SKILL Step 8).")
+    else:
+        lines.append(
+            "  Cut or shorten these even when on target — JD alignment "
+            "outranks the page math; 40 words is a ceiling, never a "
+            "target (SKILL Step 8).")
+    return "\n".join(lines)
 
 
 def _jd_listing_lines(bullets, jd_terms):
@@ -344,7 +377,7 @@ def _jd_listing_lines(bullets, jd_terms):
     return lines
 
 
-def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):  # pylint: disable=too-many-locals
+def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):
     """Turn a BATCH RECLAIM PLAN into per-role DROP PLAN sections.
 
     Each "drop N bullet(s)" plan entry (keyed by role key) becomes a
@@ -359,45 +392,47 @@ def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):  # pyl
     agent re-derive it by reading each suggestion against the JD.
     """
     sections = []
-    for key, action, _saved in plan:
-        m = _DROP_ACTION.match(action)
-        if not m:
-            continue
-        role = next((r for r in roles if r["key"] == key), None)
-        if not role:
-            continue
+    for _key, role, m in _iter_plan_roles(plan, roles):
         n = int(m.group(1))
-        bullets = role.get("bullet_texts") or []
-        protected_count = _protected_count(bullets, protect=protect,
-                                           jd_terms=jd_terms)
-        unprotected_count = len(bullets) - protected_count
-        lines = _drop_plan_lines(bullets, n, all_texts=all_texts,
-                                 protect=protect, jd_terms=jd_terms)
-        section = [f"DROP PLAN ({key}): drop {n} of {len(bullets)} bullets"]
-        section.extend(_jd_listing_lines(bullets, jd_terms))
-        if n > unprotected_count and protected_count > 0:
-            if not lines:
-                section.append(
-                    f"  ALL {len(bullets)} bullet(s) protected — budget={n} "
-                    "cannot be met without cutting JD/protected content. "
-                    "Cuts can still come from ANY section: the TOP-BLOCK "
-                    "RECLAIM CANDIDATES (proficiencies/certs), a Tools-line "
-                    "trim, or a whole-role drop (seniority decision; check "
-                    "the gap warning in the BATCH RECLAIM PLAN)."
-                )
-            else:
-                section.append(
-                    f"  NOTE: budget={n} but only {unprotected_count} "
-                    f"unprotected bullet(s) — {protected_count} excluded "
-                    f"(JD-matched/protected)."
-                )
-        if lines:
-            section.append("  weakest-first (generic/no-number first — review each")
-            section.append("  against the JD before cutting):")
-            for line in lines:
-                section.append(f"    {line}")
+        section = _drop_entry_section(role, n, all_texts=all_texts,
+                                      protect=protect, jd_terms=jd_terms)
         sections.append("\n".join(section))
     return sections
+
+
+def _drop_entry_section(role, n, *, all_texts, protect, jd_terms):
+    """The DROP PLAN section for one plan entry (the n weakest bullets of
+    one role, plus the JD-evidence listing and protection notes)."""
+    bullets = role.get("bullet_texts") or []
+    protected_count = _protected_count(bullets, protect=protect,
+                                       jd_terms=jd_terms)
+    unprotected_count = len(bullets) - protected_count
+    lines = _drop_plan_lines(bullets, n, all_texts=all_texts,
+                             protect=protect, jd_terms=jd_terms)
+    section = [f"DROP PLAN ({role['key']}): drop {n} of {len(bullets)} bullets"]
+    section.extend(_jd_listing_lines(bullets, jd_terms))
+    if n > unprotected_count and protected_count > 0:
+        if not lines:
+            section.append(
+                f"  ALL {len(bullets)} bullet(s) protected — budget={n} "
+                "cannot be met without cutting JD/protected content. "
+                "Cuts can still come from ANY section: the TOP-BLOCK "
+                "RECLAIM CANDIDATES (proficiencies/certs), a Tools-line "
+                "trim, or a whole-role drop (seniority decision; check "
+                "the gap warning in the BATCH RECLAIM PLAN)."
+            )
+        else:
+            section.append(
+                f"  NOTE: budget={n} but only {unprotected_count} "
+                f"unprotected bullet(s) — {protected_count} excluded "
+                f"(JD-matched/protected)."
+            )
+    if lines:
+        section.append("  weakest-first (generic/no-number first — review each")
+        section.append("  against the JD before cutting):")
+        for line in lines:
+            section.append(f"    {line}")
+    return section
 
 
 def _protected_top_role_section(matched, jd_terms):
@@ -426,12 +461,14 @@ def _protected_top_role_section(matched, jd_terms):
     ] + lines)
 
 
-def _batch_section(batch, role, header, all_texts=None, protect=(),  # pylint: disable=too-many-arguments,too-many-positional-arguments
-                   jd_terms=()):
+def _batch_section(batch, role, header, lines, jd_listing):
     """Render the TOP-ROLE TRIM BATCH section — the residual-gap closer.
 
     ``batch`` is ``(key, action, saved_lines)`` from
-    :func:`_top_role_batch`. ``header`` is the caller-provided first line
+    :func:`_top_role_batch`; ``lines``/``jd_listing`` are the
+    caller-computed copy-pasteable cut lines and JD-evidence listing
+    (:func:`_drop_plan_lines` / :func:`_jd_listing_lines` — the caller
+    holds the JD context). ``header`` is the caller-provided first line
     (e.g. 'TOP-ROLE TRIM BATCH (Acme; closes ...)'). Returns the section
     as a multi-line string, or ``None`` when the batch/role is empty.
     """
@@ -439,12 +476,8 @@ def _batch_section(batch, role, header, all_texts=None, protect=(),  # pylint: d
     m = _DROP_ACTION.match(action)
     if not m or role is None:
         return None
-    n = int(m.group(1))
-    bullets = role.get("bullet_texts") or []
-    lines = _drop_plan_lines(bullets, n, all_texts=all_texts,
-                             protect=protect, jd_terms=jd_terms)
     section = [header]
-    section.extend(_jd_listing_lines(bullets, jd_terms))
+    section.extend(jd_listing)
     if lines:
         section.append("  weakest-first (generic/no-number first — review each")
         section.append("  against the JD before cutting):")
@@ -453,7 +486,7 @@ def _batch_section(batch, role, header, all_texts=None, protect=(),  # pylint: d
     return "\n".join(section)
 
 
-def _layout_hints(matched, pages_text, capacity):  # pylint: disable=too-many-locals
+def _layout_hints(matched, pages_text, capacity):
     """Page-fill table plus widow/underfill notes.
 
     A widow in the render is a role header that is the LAST line of a page
@@ -465,6 +498,13 @@ def _layout_hints(matched, pages_text, capacity):  # pylint: disable=too-many-lo
     cut-render-cut loop.
     """
     fills = _page_fill(pages_text)
+    out = _page_fill_table(fills, capacity, pages_text)
+    out.extend(_widow_notes(matched, pages_text))
+    return out
+
+
+def _page_fill_table(fills, capacity, pages_text):
+    """Per-page rendered-line fill lines, plus underfilled-page notes."""
     out = []
     for i, f in enumerate(fills, start=1):
         pct = (100 * f // capacity) if capacity else 0
@@ -472,40 +512,53 @@ def _layout_hints(matched, pages_text, capacity):  # pylint: disable=too-many-lo
     if capacity and len(fills) > 1:
         for i, f in enumerate(fills[:-1], start=1):
             if f < 0.85 * capacity:
-                nxt = _page_lines(pages_text[i])  # first line of page i+1
-                nxt_first = nxt[0][:60] if nxt else "(blank)"
+                nxt = _page_fill_next_first(pages_text, i)
                 out.append(
                     f"  NOTE: page {i} underfilled — holds {f} of ~{int(capacity)} lines "
                     f"({(100 * f // capacity)}% of max); page {i + 1} starts "
-                    f"with: {nxt_first} — likely a keep-with/widow break; "
+                    f"with: {nxt} — likely a keep-with/widow break; "
                     f"trimming ~{max(1, int(0.85 * capacity - f))} earlier "
                     f"line(s) may pull it up"
                 )
+    return out
+
+
+def _page_fill_next_first(pages_text, i):
+    """First line of page i+1 (truncated), for the underfill note."""
+    nxt = _page_lines(pages_text[i])
+    return nxt[0][:60] if nxt else "(blank)"
+
+
+def _widow_notes(matched, pages_text):
+    """Widow notes: role headers stranded as the last line of a page."""
+    out = []
     flat = [(pi, _norm(l), l) for pi, ptext in
             enumerate(pages_text, start=1)
             for l in _page_lines(ptext)]
     keys = [r["key"] for r, *_ in matched]
     for r, *_ in matched:
         idx = _role_header_flat(flat, r["key"])
-        if idx is not None and idx + 1 < len(flat):
-            on_page_break = flat[idx][0] != flat[idx + 1][0]
-            at_page_end = idx == 0 or flat[idx][0] == flat[idx - 1][0]
-            if on_page_break and at_page_end:
-                prev = _preceding_role_key(flat, idx, keys)
-                if prev:
-                    out.append(
-                        f"  WIDOW: {r['key'][:44]} header is the last line of page "
-                        f"{flat[idx][0]}; its body starts page {flat[idx + 1][0]} — "
-                        f"reclaim ~2 line(s) from the {prev[:44]} block (the "
-                        f"content preceding the widow) to pull the header up, "
-                        f"or merge bullets"
-                    )
-                else:
-                    out.append(
-                        f"  WIDOW: {r['key'][:44]} header is the last line of page "
-                        f"{flat[idx][0]}; its body starts page {flat[idx + 1][0]} — "
-                        f"trim earlier content or merge bullets"
-                    )
+        if idx is None or idx + 1 >= len(flat):
+            continue
+        on_page_break = flat[idx][0] != flat[idx + 1][0]
+        at_page_end = idx == 0 or flat[idx][0] == flat[idx - 1][0]
+        if not (on_page_break and at_page_end):
+            continue
+        prev = _preceding_role_key(flat, idx, keys)
+        if prev:
+            out.append(
+                f"  WIDOW: {r['key'][:44]} header is the last line of page "
+                f"{flat[idx][0]}; its body starts page {flat[idx + 1][0]} — "
+                f"reclaim ~2 line(s) from the {prev[:44]} block (the "
+                f"content preceding the widow) to pull the header up, "
+                f"or merge bullets"
+            )
+        else:
+            out.append(
+                f"  WIDOW: {r['key'][:44]} header is the last line of page "
+                f"{flat[idx][0]}; its body starts page {flat[idx + 1][0]} — "
+                f"trim earlier content or merge bullets"
+            )
     return out
 
 

@@ -155,6 +155,7 @@ from measure_resume_jd import (
     title_alignment_notes)
 
 from measure_resume_drops import (
+    Budget,
     _DROP_ACTION,
     _apply_simulate,
     _batch_section,
@@ -477,9 +478,14 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
             batch_hdr = ("closes the residual gap after the cuts above"
                          if closes else "the largest remaining safe source")
             header = f"TOP-ROLE TRIM BATCH ({batch[0]}; {batch_hdr}): "
-            section = _batch_section(batch, top_role, header,
-                                     all_texts=all_texts, protect=protect,
-                                     jd_terms=jd_terms)
+            batch_bullets = top_role.get("bullet_texts") or []
+            batch_n = int(_DROP_ACTION.match(batch[1]).group(1))
+            batch_lines = _drop_plan_lines(
+                batch_bullets, batch_n, all_texts=all_texts, protect=protect,
+                jd_terms=jd_terms)
+            batch_jd = _jd_listing_lines(batch_bullets, jd_terms)
+            section = _batch_section(batch, top_role, header, batch_lines,
+                                     batch_jd)
             if section is not None:
                 sections.append(section)
             if not closes:

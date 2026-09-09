@@ -475,9 +475,10 @@ class TopRoleBatchTests(unittest.TestCase):
             ("Old", "drop 2 bullet(s) (saves ~5 lines)", 5.0),
             ("Middle", "drop 2 bullet(s) (saves ~5 lines)", 5.0),
         ]
+        budget = mr.Budget(per=2.5, required=20, tools_savings=2,
+                           top_block_count=2)
         batch, adjusted, feasible = mr._top_role_batch(
-            self.matched, plan, 2.5, 20, tools_savings=2,
-            top_block_count=2, jd_terms=self.jd)
+            self.matched, plan, budget, jd_terms=self.jd)
         self.assertIsNotNone(batch)
         self.assertEqual(batch[0], "Recent")
         self.assertIn("drop 3 bullet(s)", batch[1])  # capped at 5-2=3 unprotected
@@ -489,9 +490,10 @@ class TopRoleBatchTests(unittest.TestCase):
 
     def test_no_batch_when_feasible_cuts_close_the_gap(self):
         plan = [("Old", "drop 2 bullet(s) (saves ~5 lines)", 5.0)]
+        budget = mr.Budget(per=2.5, required=4, tools_savings=4,
+                           top_block_count=1)
         batch, _adjusted, feasible = mr._top_role_batch(
-            self.matched, plan, 2.5, 4, tools_savings=4,
-            top_block_count=1, jd_terms=set())
+            self.matched, plan, budget, jd_terms=set())
         self.assertIsNone(batch)
         # feasible = 2 unprotected * 2.5 + 4 tools + 1 top-block = 10
         self.assertAlmostEqual(feasible, 10.0)
@@ -501,9 +503,10 @@ class TopRoleBatchTests(unittest.TestCase):
                      "bullet_texts": ["Landed Playwright as the company UI "
                                        "testing tool"]}, 1, 1, 8)]
         plan = []
+        budget = mr.Budget(per=2.5, required=10, tools_savings=0,
+                           top_block_count=0)
         batch, _adjusted, _feasible = mr._top_role_batch(
-            matched, plan, 2.5, 10, tools_savings=0, top_block_count=0,
-            jd_terms=("playwright",))
+            matched, plan, budget, jd_terms=("playwright",))
         self.assertIsNone(batch)
 
     def test_protected_section_lists_top_role_bullets_with_terms(self):
@@ -538,9 +541,10 @@ class TopRoleBatchTests(unittest.TestCase):
         # If the oldest-first loop reached the top role with a dead-end
         # budget, the batch replaces it (one authoritative sizing).
         plan = [("Recent", "drop 8 bullet(s) (saves ~20 lines)", 20.0)]
+        budget = mr.Budget(per=2.5, required=40, tools_savings=0,
+                           top_block_count=0)
         batch, adjusted, _feasible = mr._top_role_batch(
-            self.matched, plan, 2.5, 40, tools_savings=0,
-            top_block_count=0, jd_terms=set())
+            self.matched, plan, budget, jd_terms=set())
         self.assertIsNotNone(batch)
         self.assertEqual(adjusted, [])
 
@@ -548,9 +552,10 @@ class TopRoleBatchTests(unittest.TestCase):
         batch = ("Recent", "drop 2 bullet(s) (saves ~5 lines)", 5.0)
         role = self.matched[0][0]
         header = "TOP-ROLE TRIM BATCH (Recent; closes the residual gap "
-        section = mr._batch_section(
-            batch, role, header,
-            protect=(), jd_terms=self.jd)
+        bullets = role.get("bullet_texts") or []
+        lines = mr._drop_plan_lines(bullets, 2, protect=(), jd_terms=self.jd)
+        jd_listing = mr._jd_listing_lines(bullets, self.jd)
+        section = mr._batch_section(batch, role, header, lines, jd_listing)
         self.assertIn("TOP-ROLE TRIM BATCH (Recent", section)
         self.assertIn("find_p(ps,", section)
         # Protected (Playwright) bullets are not suggested.
