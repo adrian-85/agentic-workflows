@@ -127,11 +127,11 @@ def _deliverable_gate(path, root, src):
             file=sys.stderr,
         )
     try:
-        result = vr.validate_tree(
-            path, root, master_path=src, jd_path=jd_path, jd_years=jd_years,
+        result = vr.validate_tree(path, root, vr.TreeOptions(
+            master_path=src, jd_path=jd_path, jd_years=jd_years,
             seniority_approved=seniority_approved,
             education_approved=education_approved, protect=protect,
-            max_words=max_words)
+            max_words=max_words))
     except Exception as e:  # validator crashed — do not silently pass the gate
         print(
             f"DELIVERABLE GATE: validation error ({e!r}) — fix the "

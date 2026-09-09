@@ -372,7 +372,7 @@ class WordCapTests(unittest.TestCase):
             path = os.path.join(tempfile.mkdtemp(), fname)
             try:
                 self._docx(path, bullet_words=bullet_words)
-                result = vr.validate_tree(path, self._body(path), **kw)
+                result = vr.validate_tree(path, self._body(path), vr.TreeOptions(**kw))
                 report = "\n".join(result["lines"])
                 if blocking is not None:
                     self.assertEqual(result["blocking"], blocking, report)
@@ -1040,7 +1040,8 @@ blocking."""
                         "Experience with Kubernetes.\n")
             b, _s = self._body_with("Short summary.")
             test_helpers._write_docx(path, list(b))
-            result = vr.validate_tree(path, de.load(path)[1], jd_path=jd_path)
+            result = vr.validate_tree(path, de.load(path)[1],
+                                vr.TreeOptions(jd_path=jd_path))
             report = "\n".join(result["lines"])
             self.assertIn("JD-FIT: 1 bullet(s)", report)
             self.assertIn("measure's JD-FIT AUDIT", report)
@@ -1069,7 +1070,7 @@ blocking."""
             with contextlib.redirect_stdout(io.StringIO()):
                 de.save(path, root, names, data)
             result = vr.validate_tree(
-                path, body_el, jd_path="/nonexistent/jd_acme.txt")
+                path, body_el, vr.TreeOptions(jd_path="/nonexistent/jd_acme.txt"))
             self.assertIsInstance(result, dict)
             self.assertGreater(result["blocking"], 0)
             self.assertTrue(any("cannot read --jd file" in l

@@ -108,6 +108,7 @@ import os
 import re
 import sys
 import unicodedata
+from dataclasses import dataclass
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import docx_edit as de  # noqa: E402
@@ -163,11 +164,23 @@ from validate_resume_master import (
     _role_groups,
     _role_integrity_errors)
 
-# pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements  # validator entry: runs all checks, blocks/advises
-def validate_tree(path, body, *, master_path=None, jd_path=None,
-                  jd_years=None, seniority_approved=False,
-                  education_approved=False, protect=(),
-                  max_words=MAX_WORDS):
+@dataclass
+class TreeOptions:
+    """The validate-tree keyword options, bundled so validate_tree's
+    signature stays small (master_path/jd_path/jd_years/*_approved/protect/
+    max_words). All default to the same values the old keyword signature
+    used."""
+
+    master_path: str | None = None
+    jd_path: str | None = None
+    jd_years: float | None = None
+    seniority_approved: bool = False
+    education_approved: bool = False
+    protect: tuple = ()
+    max_words: int = MAX_WORDS
+
+
+def validate_tree(path, body, opts=None):
     """Run every check against an ALREADY-LOADED document tree.
 
     Returns ``{"blocking": int, "warnings": int, "lines": [str]}`` — the
@@ -183,6 +196,14 @@ def validate_tree(path, body, *, master_path=None, jd_path=None,
     education gate runs only when ``jd_path`` is given; ``*_approved``
     record user-granted overrides (never self-granted).
     """
+    opts = opts if opts is not None else TreeOptions()
+    master_path = opts.master_path
+    jd_path = opts.jd_path
+    jd_years = opts.jd_years
+    seniority_approved = opts.seniority_approved
+    education_approved = opts.education_approved
+    protect = opts.protect
+    max_words = opts.max_words
     region = _region(body)
     summary = _summary_paragraph(body)
 
