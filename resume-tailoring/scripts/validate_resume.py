@@ -515,31 +515,36 @@ def _assemble_report(ctx):
 
 
 
-def main(argv=None):  # pylint: disable=too-many-locals
+def _parse_validate_args(argv):
+    """Parse the validate-resume CLI arguments. Returns (path, strict, TreeOptions).
 
-    """Validate-resume CLI entry point."""
-    argv = list(sys.argv[1:] if argv is None else argv)
+    Mutates ``argv`` in place (removing consumed flags)."""
     strict = _parse_flag(argv, "--strict")
     master = _extract_flag(argv, "--master")
     jd_years = float(_extract_flag(argv, "--jd-years")) if "--jd-years" in argv else None
     jd_path = _extract_flag(argv, "--jd")
     protect = _extract_flag_all(argv, "--protect")
-    # --max-words 0 disables the whole-resume word cap.
     max_words = (int(_extract_flag(argv, "--max-words"))
                  if "--max-words" in argv else MAX_WORDS) or None
     seniority_approved = _parse_flag(argv, "--seniority-approved")
     education_approved = _parse_flag(argv, "--education-approved")
+    opts = TreeOptions(master_path=master, jd_path=jd_path, jd_years=jd_years,
+                       seniority_approved=seniority_approved,
+                       education_approved=education_approved, protect=protect,
+                       max_words=max_words)
+    return argv[0], strict, opts
+
+
+def main(argv=None):
+    """Validate-resume CLI entry point."""
+    argv = list(sys.argv[1:] if argv is None else argv)
     if not argv:
         print(__doc__)
         return 2
-    path = argv[0]
+    path, strict, opts = _parse_validate_args(argv)
 
     _root, body, _names, _data, _ = de.load(path)
-    result = validate_tree(path, body, TreeOptions(
-        master_path=master, jd_path=jd_path, jd_years=jd_years,
-        seniority_approved=seniority_approved,
-        education_approved=education_approved, protect=protect,
-        max_words=max_words))
+    result = validate_tree(path, body, opts)
     for line in result["lines"]:
         print(line)
     if result["blocking"]:
