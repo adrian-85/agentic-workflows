@@ -186,10 +186,9 @@ class P2PClient:
         self.integration_issues: list[dict] = []
         self._client = httpx.Client(timeout=timeout)
 
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def _request(self, method: str, name: str, path: str,
-                 payload: dict | None = None, schema_key: str | None = None,
-                 quiet: bool = False) -> StepRecord:
+                 *, payload: dict | None = None,
+                 schema_key: str | None = None) -> StepRecord:
         url = self.base_url + path
         headers = {}
         if self.token:
@@ -201,9 +200,15 @@ class P2PClient:
             try:
                 resp = self._client.request(method, url, json=payload, headers=headers)
                 duration = (time.monotonic() - start) * 1000.0
-                step = self._to_step_record(method, name, url, payload, resp,
-                                            schema_key, duration)
-                if self.logger and not quiet:
+                body = self._parse_body(resp)
+                step = StepRecord(name=name, method=method, url=url,
+                                  request_payload=payload,
+                                  status_code=resp.status_code,
+                                  response_payload=body,
+                                  duration_ms=duration)
+                if resp.status_code < 400 and schema_key:
+                    self._apply_schema_issues(step, schema_key, body)
+                if self.logger:
                     self.logger.record(step)
                 return step
             except httpx.HTTPError as e:
@@ -215,24 +220,17 @@ class P2PClient:
                                   request_payload=payload, status_code=None,
                                   response_payload=None, error=str(e),
                                   duration_ms=duration)
-                if self.logger and not quiet:
+                if self.logger:
                     self.logger.record(step)
                 return step
 
-    def _to_step_record(self, method: str, name: str, url: str,  # pylint: disable=too-many-arguments,too-many-positional-arguments
-                        payload: dict | None, resp, schema_key: str | None,
-                        duration_ms: float) -> StepRecord:
-        """Build a StepRecord from an httpx response, validating the schema."""
+    @staticmethod
+    def _parse_body(resp) -> dict:
+        """Parse an httpx response body as JSON, falling back to truncated text."""
         try:
-            body = resp.json()
+            return resp.json()
         except ValueError:
-            body = {"raw": resp.text[:2000]}
-        step = StepRecord(name=name, method=method, url=url,
-                          request_payload=payload, status_code=resp.status_code,
-                          response_payload=body, duration_ms=duration_ms)
-        if resp.status_code < 400 and schema_key:
-            self._apply_schema_issues(step, schema_key, body)
-        return step
+            return {"raw": resp.text[:2000]}
 
     def _apply_schema_issues(self, step: StepRecord, schema_key: str,
                              body) -> None:
@@ -249,8 +247,16 @@ class P2PClient:
 
     def verification_get(self, name: str, path: str, schema_key: str | None = None) -> StepRecord:
         """Fetch without logging (used as the double-verify proof GET); the
-        caller logs the returned record exactly once with its verifies tag."""
-        return self._request("GET", name, path, schema_key=schema_key, quiet=True)
+        caller logs the returned record exactly once with its verifies tag.
+
+        The logger is temporarily detached so _request does not auto-record;
+        the caller records the proof GET explicitly."""
+        saved = self.logger
+        self.logger = None
+        try:
+            return self._request("GET", name, path, schema_key=schema_key)
+        finally:
+            self.logger = saved
 
     # ---- vendor ----
     def list_vendors(self) -> StepRecord:
