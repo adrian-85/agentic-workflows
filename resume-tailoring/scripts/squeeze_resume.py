@@ -49,6 +49,7 @@ Requires libreoffice + pdftotext (like measure_resume.py).
 
 
 import json
+from typing import NamedTuple
 import os
 import shutil
 import sys
@@ -122,12 +123,22 @@ def _squeeze_jd_setup(jd_file, docx, plan_only):
     return jd_terms
 
 
-def main():
+class _SqueezeCfg(NamedTuple):
+    """Immutable squeeze-loop config."""
+    docx: str
+    target: int
+    max_iters: int
+    plan_only: bool
+    protect: list
+    jd_terms: set
 
-    """Squeeze-resume CLI entry point."""
-    argv = list(sys.argv[1:])
+
+def _squeeze_setup(argv):
+    """Parse squeeze_resume args and load the docx. Returns (cfg, root,
+    body, names, data). Exits 2 on usage error."""
     plan_only = "--plan-only" in argv
-    protect, jd_file, kept = extract_common(argv, extra_flags=("--plan-only",))
+    protect, jd_file, kept = extract_common(
+        argv, extra_flags=("--plan-only",))
     if not kept:
         print("usage: squeeze_resume.py <resume.docx> [TARGET_PAGES] "
               "[--jd <raw-JD.txt>] [--protect \"<phrase>\"] [--plan-only]",
@@ -137,46 +148,65 @@ def main():
     target = int(kept[1]) if len(kept) > 1 else int(
         os.environ.get("TARGET_PAGES", "2"))
     max_iters = int(os.environ.get("SQUEEZE_MAX_ITERS", "8"))
-
     jd_terms = _squeeze_jd_setup(jd_file, docx, plan_only)
-
-
-    log = {"docx": docx, "target_pages": target, "jd_file": jd_file,
-           "protect": list(protect), "jd_terms": sorted(jd_terms),
-           "iterations": [], "drop_texts": [], "final_pages": None}
-    foldback = []  # (prefix, full text) of every applied cut, in order
-
-    # One load, mutated in memory across iterations. In apply mode the file
-    # is re-saved after each iteration (so a crash leaves the cuts applied
-    # on disk); in plan-only mode nothing is ever written back.
+    cfg = _SqueezeCfg(docx, target, max_iters, plan_only, protect, jd_terms)
     root, body, names, data, _ = de.load(docx)
-    for it in range(1, max_iters + 1):
-        roles = mr._roles(body)
-        with tempfile.TemporaryDirectory() as td:
-            if plan_only:
-                # Render a THROWAWAY copy of the in-memory state: the loop
-                # sees exactly what apply mode would see, and the input
-                # .docx and its sidecars stay untouched.
-                probe = os.path.join(td, "plan_probe.docx")
-                de.save(probe, root, names, data)
-                pdf = mr._render_pdf(probe, td)
-            else:
-                pdf = mr._render_pdf(docx, td)
-            pages_text = mr._pdf_pages_text(pdf)
+    return cfg, root, body, names, data
+
+
+def _render_iter(cfg, root, names, data, body):
+    """Render the in-memory docx state to page text. In plan-only mode a
+    throwaway probe copy is rendered so the input file stays untouched."""
+    with tempfile.TemporaryDirectory() as td:
+        if cfg.plan_only:
+            probe = os.path.join(td, "plan_probe.docx")
+            de.save(probe, root, names, data)
+            pdf = mr._render_pdf(probe, td)
+        else:
+            pdf = mr._render_pdf(cfg.docx, td)
+        return mr._pdf_pages_text(pdf)
+
+
+def _next_squeeze_batch(body, roles, pages_text, cfg):
+    """Compute the next JD-safe bullet cut batch. Returns the batch list
+    (possibly empty) — an empty batch means no safe cuts remain."""
+    overflow = sum(len(mr._page_lines(p)) for p in pages_text[cfg.target:])
+    matched = mr._match_roles_to_pages(roles, pages_text)
+    per = mr._measured_lines_per_bullet(matched)
+    plan, _remaining = mr._reclaim_batch(matched, per, overflow + per)
+    all_texts = [de.text_of(p) for p in de.paras(body)]
+    return _next_batch(roles, plan, all_texts, protect=cfg.protect,
+                       jd_terms=cfg.jd_terms)
+
+
+def _squeeze_finalize(cfg, log, foldback):
+    """Write the squeeze log / foldback report (plan-only vs apply mode)."""
+    if cfg.plan_only:
+        print("plan-only: no edits written — the .docx on disk is unchanged.")
+        return
+    log["drop_texts"] = [[p, t] for p, t in foldback]
+    log_path = cfg.docx + ".squeeze.json"
+    with open(log_path, "w", encoding="utf-8") as f:
+        json.dump(log, f, indent=2)
+    print(f"log: {log_path}")
+    _print_foldback(foldback)
+
+
+def main():
+    """Squeeze-resume CLI entry point."""
+    cfg, root, body, names, data = _squeeze_setup(list(sys.argv[1:]))
+    log = {"docx": cfg.docx, "target_pages": cfg.target, "jd_file": None,
+           "protect": list(cfg.protect), "jd_terms": sorted(cfg.jd_terms),
+           "iterations": [], "drop_texts": [], "final_pages": None}
+    foldback = []
+    for it in range(1, cfg.max_iters + 1):
+        pages_text = _render_iter(cfg, root, names, data, body)
         total = len(pages_text)
-        print(f"[iter {it}] pages: {total} (target {target})")
-        if total <= target:
+        print(f"[iter {it}] pages: {total} (target {cfg.target})")
+        if total <= cfg.target:
             log["final_pages"] = total
             break
-
-        overflow = sum(len(mr._page_lines(p))
-                       for p in pages_text[target:])
-        matched = mr._match_roles_to_pages(roles, pages_text)
-        per = mr._measured_lines_per_bullet(matched)
-        plan, _remaining = mr._reclaim_batch(matched, per, overflow + per)
-        all_texts = [de.text_of(p) for p in de.paras(body)]
-        batch = _next_batch(roles, plan, all_texts, protect=protect,
-                            jd_terms=jd_terms)
+        batch = _next_squeeze_batch(body, mr._roles(body), pages_text, cfg)
         if not batch:
             print("  no JD-safe bullet cuts remain — every remaining bullet "
                   "is JD-matched or protected. Cuts can still come from ANY "
@@ -187,7 +217,6 @@ def main():
                   "in measure's BATCH RECLAIM PLAN).", file=sys.stderr)
             log["final_pages"] = total
             break
-
         applied, skipped = _apply_drops(body, batch)
         if applied == 0:
             print(f"  0 drops applied (skipped={skipped}) — stopping to "
@@ -195,9 +224,8 @@ def main():
                   "match the docx.", file=sys.stderr)
             log["final_pages"] = total
             break
-
-        if not plan_only:
-            de.save(docx, root, names, data)
+        if not cfg.plan_only:
+            de.save(cfg.docx, root, names, data)
         log["iterations"].append({
             "iteration": it, "pages_before": total, "applied": applied,
             "skipped": skipped, "drops": [p for p, _ in batch],
@@ -206,20 +234,11 @@ def main():
         print(f"  dropped {applied} bullet(s):")
         for prefix, text in batch:
             print(f"    find_p(ps, {prefix!r})  # {text[:64]}")
-        if it == max_iters:
-            print(f"  stopped at max iterations ({max_iters}); still {total} "
-                  "pages — raise SQUEEZE_MAX_ITERS or cut a whole role.",
-                  file=sys.stderr)
-
-    if plan_only:
-        print("plan-only: no edits written — the .docx on disk is unchanged.")
-    else:
-        log["drop_texts"] = [[p, t] for p, t in foldback]
-        log_path = docx + ".squeeze.json"
-        with open(log_path, "w", encoding="utf-8") as f:
-            json.dump(log, f, indent=2)
-        print(f"log: {log_path}")
-    _print_foldback(foldback)
+        if it == cfg.max_iters:
+            print(f"  stopped at max iterations ({cfg.max_iters}); still "
+                  "{total} pages — raise SQUEEZE_MAX_ITERS or cut a whole "
+                  "role.", file=sys.stderr)
+    _squeeze_finalize(cfg, log, foldback)
 
 
 if __name__ == "__main__":
