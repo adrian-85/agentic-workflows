@@ -257,9 +257,7 @@ class _ReportCtx(NamedTuple):
     target: int
     default_target: bool
     jd_text: str | None
-    jd_file: str | None
     jd_terms: set
-    evidence_text: str | None
     protect: list
     body: object
     roles: list
@@ -653,8 +651,8 @@ def _build_ctx(args, body, roles, jd_terms, pages_text):
     wrapped = _wrapped_tools(_flat_from_pages(pages_text), matched)
     return _ReportCtx(
         target=args.target, default_target=args.default_target,
-        jd_text=args.jd_text, jd_file=args.jd_file, jd_terms=jd_terms,
-        evidence_text=args.evidence_text, protect=args.protect,
+        jd_text=args.jd_text, jd_terms=jd_terms,
+        protect=args.protect,
         body=body, roles=roles, matched=matched, pages_text=pages_text,
         total_pages=total_pages, over=over, overflow_lines=overflow_lines,
         capacity=capacity, fixed_top=fixed_top, role_lines=role_lines,
