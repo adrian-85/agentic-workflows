@@ -5,16 +5,13 @@ Run from the scripts directory:
     cd ~/.pi/agent/skills/resume-tailoring/scripts && python3 -m unittest test_validate_resume
 """
 
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position,unused-import,redefined-outer-name,consider-using-with,multiple-imports,too-many-locals
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
 # invalid-name: OOXML fixture names (pPr, numId, ...) mirror the schema.
 # import-outside-toplevel/wrong-import-position: live tests guard heavy imports at runtime;
 #   flat-namespace tests need the sys.path bootstrap before sibling imports.
-# unused-import: migrated shared fixtures leave stdlib imports unused per file.
-# redefined-outer-name/consider-using-with/multiple-imports/too-many-locals:
-#   test helpers alias fixture names; small one-off scaffolding is idiomatic.
 
 import contextlib
 import io
@@ -23,7 +20,6 @@ import sys
 import tempfile
 import unittest
 import zipfile
-from xml.etree import ElementTree as ET
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
@@ -36,7 +32,7 @@ W = de.W
 
 
 mk = test_helpers._para
-body = test_helpers._body
+mkbody = test_helpers._body
 
 
 def _write_docx(path, company_dates, education=True):
@@ -347,7 +343,7 @@ class WordCapTests(unittest.TestCase):
         return de.load(path)[1]
 
     def test_word_count_counts_alphanumeric_tokens_only(self):
-        body_el = body([
+        body_el = mkbody([
             mk("Adrian Sample"),
             mk("Quality Assurance Engineer"),
             mk("\uf075"),  # bullet dingbat — not a word
@@ -622,16 +618,15 @@ class RoleIntegrityTests(unittest.TestCase):
             de.save(path, root, names, data)
 
     def _run(self, master_roles, target_roles):
-        td = tempfile.TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        master = os.path.join(td.name, "Test Master Resume.docx")
-        target = os.path.join(td.name, "Test Resume - Target.docx")
-        self._write(master, master_roles)
-        self._write(target, target_roles)
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            rc = vr.main([target, "--master", master, "--seniority-approved"])
-        return rc, out.getvalue()
+        with tempfile.TemporaryDirectory() as td:
+            master = os.path.join(td, "Test Master Resume.docx")
+            target = os.path.join(td, "Test Resume - Target.docx")
+            self._write(master, master_roles)
+            self._write(target, target_roles)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = vr.main([target, "--master", master, "--seniority-approved"])
+            return rc, out.getvalue()
 
     def test_clean_tailoring_passes(self):
         roles = [
@@ -945,7 +940,7 @@ class GuidanceTests(unittest.TestCase):
                      style=mr.COMPANY_STYLE))
         ps.append(mk("Engineer", style=vr.TITLE_STYLE))
         ps.append(mk("Did things.", numId=4))
-        b = body([summary_p, *ps])
+        b = mkbody([summary_p, *ps])
         return b, summary_p
 
     def test_long_summary_warns(self):
@@ -973,7 +968,7 @@ class GuidanceTests(unittest.TestCase):
             mk("Engineer", style=vr.TITLE_STYLE),
             mk(" ".join(f"w{i}" for i in range(43)) + ".", numId=4),
         ]
-        b = body([summary, *ps])
+        b = mkbody([summary, *ps])
         notes = vr._readability_guidance(b, summary)
         warns = [c for lvl, c in notes if lvl == "warn"]
         self.assertTrue(any("Bullet has 43 words" in w for w in warns), warns)
@@ -1043,18 +1038,9 @@ blocking."""
                 f.write("Required Qualifications:\n"
                         "5+ years of Java experience. "
                         "Experience with Kubernetes.\n")
-            with zipfile.ZipFile(path, "w") as z:
-                z.writestr("word/document.xml",
-                    '<?xml version="1.0"?><w:document xmlns:w="'
-                    + de.XMLNS + '"><w:body/></w:document>')
-                z.writestr("[Content_Types].xml", "<Types/>")
-            root, body_el, names, data, _ = de.load(path)
             b, _s = self._body_with("Short summary.")
-            for p in list(b):
-                body_el.append(p)
-            with contextlib.redirect_stdout(io.StringIO()):
-                de.save(path, root, names, data)
-            result = vr.validate_tree(path, body_el, jd_path=jd_path)
+            test_helpers._write_docx(path, list(b))
+            result = vr.validate_tree(path, de.load(path)[1], jd_path=jd_path)
             report = "\n".join(result["lines"])
             self.assertIn("JD-FIT: 1 bullet(s)", report)
             self.assertIn("measure's JD-FIT AUDIT", report)

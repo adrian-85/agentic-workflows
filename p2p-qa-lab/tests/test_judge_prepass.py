@@ -1,11 +1,10 @@
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position,unused-import,redefined-outer-name,consider-using-with,multiple-imports,too-many-locals,line-too-long
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
 # invalid-name: OOXML fixture names (pPr, numId, ...) mirror the schema.
 # import-outside-toplevel/wrong-import-position: live tests guard heavy imports at runtime;
 #   flat-namespace tests need the sys.path bootstrap before sibling imports.
-# line-too-long: expected-value strings and fixture literals exceed 100 chars.
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
@@ -66,7 +65,9 @@ def test_prepass_data_integrity_from_steps():
     steps = [
         StepRecord(name="create_vendor", method="POST", url="/vendors",
                    request_payload={"name": "GhostCo", "status": "active"},
-                   status_code=201, response_payload={"id": 7, "name": "GhostCo", "status": "active"}),
+                   status_code=201,
+                   response_payload={"id": 7, "name": "GhostCo",
+                                     "status": "active"}),
         StepRecord(name="get_vendor", method="GET", url="/vendors/7",
                    request_payload=None, status_code=404, response_payload={"detail": "no"}),
     ]

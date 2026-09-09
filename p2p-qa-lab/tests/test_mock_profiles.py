@@ -1,11 +1,10 @@
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position,unused-import,redefined-outer-name,consider-using-with,multiple-imports,too-many-locals,line-too-long
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
 # invalid-name: OOXML fixture names (pPr, numId, ...) mirror the schema.
 # import-outside-toplevel/wrong-import-position: live tests guard heavy imports at runtime;
 #   flat-namespace tests need the sys.path bootstrap before sibling imports.
-# line-too-long: expected-value strings and fixture literals exceed 100 chars.
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
@@ -25,7 +24,8 @@ def test_overpayment_leak_allows_breach(request):
         po = c.post("/purchase-orders", json={"vendor_id": vid, "line_items": [
             {"sku": "S", "description": "d", "unit_price_cents": 1000, "quantity": 1}]}).json()
         c.post(f"/purchase-orders/{po['id']}/submit").raise_for_status()
-        c.post(f"/purchase-orders/{po['id']}/receive", json={"lines": [{"sku": "S", "quantity_received": 1}]}).raise_for_status()
+        c.post(f"/purchase-orders/{po['id']}/receive",
+               json={"lines": [{"sku": "S", "quantity_received": 1}]}).raise_for_status()
         inv = c.post("/invoices", json={"invoice_number": "INV-LEAK", "vendor_id": vid,
                                         "po_id": po["id"], "amount_cents": 5000}).json()
         assert c.post(f"/invoices/{inv['id']}/match").status_code == 200  # engine bug: accepts 5x
@@ -39,7 +39,8 @@ def test_partial_flag_missing_hides_flag(request):
         po = c.post("/purchase-orders", json={"vendor_id": vid, "line_items": [
             {"sku": "S", "description": "d", "unit_price_cents": 1000, "quantity": 10}]}).json()
         c.post(f"/purchase-orders/{po['id']}/submit").raise_for_status()
-        c.post(f"/purchase-orders/{po['id']}/receive", json={"lines": [{"sku": "S", "quantity_received": 3}]}).raise_for_status()
+        c.post(f"/purchase-orders/{po['id']}/receive",
+               json={"lines": [{"sku": "S", "quantity_received": 3}]}).raise_for_status()
         inv = c.post("/invoices", json={"invoice_number": "INV-PART", "vendor_id": vid,
                                         "po_id": po["id"], "amount_cents": 3000}).json()
         body = c.post(f"/invoices/{inv['id']}/match").json()
@@ -54,7 +55,8 @@ def test_gl_unbalanced_posts_uneven(request):
         po = c.post("/purchase-orders", json={"vendor_id": vid, "line_items": [
             {"sku": "S", "description": "d", "unit_price_cents": 1000, "quantity": 1}]}).json()
         c.post(f"/purchase-orders/{po['id']}/submit").raise_for_status()
-        c.post(f"/purchase-orders/{po['id']}/receive", json={"lines": [{"sku": "S", "quantity_received": 1}]}).raise_for_status()
+        c.post(f"/purchase-orders/{po['id']}/receive",
+               json={"lines": [{"sku": "S", "quantity_received": 1}]}).raise_for_status()
         inv = c.post("/invoices", json={"invoice_number": "INV-GLB", "vendor_id": vid,
                                         "po_id": po["id"], "amount_cents": 1000}).json()
         c.post(f"/invoices/{inv['id']}/match").raise_for_status()
@@ -70,11 +72,14 @@ def test_duplicate_leak_allows_dupe(request):
         po = c.post("/purchase-orders", json={"vendor_id": vid, "line_items": [
             {"sku": "S", "description": "d", "unit_price_cents": 1000, "quantity": 1}]}).json()
         c.post(f"/purchase-orders/{po['id']}/submit").raise_for_status()
-        c.post(f"/purchase-orders/{po['id']}/receive", json={"lines": [{"sku": "S", "quantity_received": 1}]}).raise_for_status()
+        c.post(f"/purchase-orders/{po['id']}/receive",
+               json={"lines": [{"sku": "S", "quantity_received": 1}]}).raise_for_status()
         assert c.post("/invoices", json={"invoice_number": "INV-DUP", "vendor_id": vid,
-                                         "po_id": po["id"], "amount_cents": 1000}).status_code == 201
-        assert c.post("/invoices", json={"invoice_number": "INV-DUP", "vendor_id": vid,
-                                         "po_id": po["id"], "amount_cents": 1000}).status_code == 201  # bug: dupe allowed
+                                         "po_id": po["id"],
+                                         "amount_cents": 1000}).status_code == 201
+        dup = c.post("/invoices", json={"invoice_number": "INV-DUP", "vendor_id": vid,
+                                        "po_id": po["id"], "amount_cents": 1000})
+        assert dup.status_code == 201  # bug: dupe allowed
 
 
 @pytest.mark.parametrize("p2p_api", ["phantom_write"], indirect=True)
@@ -110,4 +115,5 @@ def test_require_auth_blocks_unauthenticated(request):
     base = request.getfixturevalue("p2p_api")
     with httpx.Client(base_url=base) as c:
         assert c.get("/vendors").status_code == 401
-        assert c.get("/vendors", headers={"Authorization": "Bearer dev-token-1234"}).status_code == 200
+        authed = c.get("/vendors", headers={"Authorization": "Bearer dev-token-1234"})
+        assert authed.status_code == 200

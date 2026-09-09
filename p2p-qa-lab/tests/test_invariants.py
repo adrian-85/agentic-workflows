@@ -1,11 +1,10 @@
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position,unused-import,redefined-outer-name,consider-using-with,multiple-imports,too-many-locals,line-too-long
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
 # invalid-name: OOXML fixture names (pPr, numId, ...) mirror the schema.
 # import-outside-toplevel/wrong-import-position: live tests guard heavy imports at runtime;
 #   flat-namespace tests need the sys.path bootstrap before sibling imports.
-# line-too-long: expected-value strings and fixture literals exceed 100 chars.
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
@@ -48,7 +47,8 @@ def test_happy_path_end_to_end(request):
     with httpx.Client(base_url=base) as c:
         vid = c.post("/vendors", json={"name": "HappyCo", "status": "active"}).json()["id"]
         poj = c.post("/purchase-orders", json={"vendor_id": vid, "line_items": [
-            {"sku": "SKU-1", "description": "Widget", "unit_price_cents": 500, "quantity": 10}]}).json()
+            {"sku": "SKU-1", "description": "Widget",
+             "unit_price_cents": 500, "quantity": 10}]}).json()
         po_id = poj["id"]
         assert poj["status"] == "draft"
         c.post(f"/purchase-orders/{po_id}/submit").raise_for_status()
@@ -65,7 +65,9 @@ def test_happy_path_end_to_end(request):
         assert a.status_code == 200, a.text
         gl = a.json()["gl_post"]
         assert gl["balanced"] is True
-        assert sum(e["debit_cents"] for e in gl["entries"]) == sum(e["credit_cents"] for e in gl["entries"])
+        total_debits = sum(e["debit_cents"] for e in gl["entries"])
+        total_credits = sum(e["credit_cents"] for e in gl["entries"])
+        assert total_debits == total_credits
 
 
 def test_rule1_overpayment_rejected(request):

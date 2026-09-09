@@ -1,15 +1,16 @@
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position,unused-import,redefined-outer-name,consider-using-with,multiple-imports,too-many-locals
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
 # invalid-name: OOXML fixture names (pPr, numId, ...) mirror the schema.
 # import-outside-toplevel/wrong-import-position: live tests guard heavy imports at runtime;
 #   flat-namespace tests need the sys.path bootstrap before sibling imports.
-# unused-import: migrated shared fixtures leave stdlib imports unused per file.
-# redefined-outer-name/consider-using-with/multiple-imports/too-many-locals:
-#   test helpers alias fixture names; small one-off scaffolding is idiomatic.
 
-import os, socket, subprocess, sys, time
+import os
+import socket
+import subprocess
+import sys
+import time
 import pytest
 
 
@@ -35,22 +36,22 @@ def p2p_api(request):
     env = dict(os.environ, P2P_BUG_PROFILE=bug_profile)
     if request.keywords.get("require_auth"):
         env["P2P_REQUIRE_AUTH"] = "1"
-    proc = subprocess.Popen(
+    with subprocess.Popen(
         [sys.executable, "-m", "p2p_qa.mock_api", "--host", "127.0.0.1", "--port", str(port)],
         env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    base = f"http://127.0.0.1:{port}"
-    deadline = time.time() + 20
-    while time.time() < deadline:
-        try:
-            if httpx.get(base + "/vendors").status_code in (200, 401):
-                break
-        except httpx.HTTPError:
-            time.sleep(0.1)
-    else:
+    ) as proc:
+        base = f"http://127.0.0.1:{port}"
+        deadline = time.time() + 20
+        while time.time() < deadline:
+            try:
+                if httpx.get(base + "/vendors").status_code in (200, 401):
+                    break
+            except httpx.HTTPError:
+                time.sleep(0.1)
+        else:
+            proc.terminate()
+            proc.wait()
+            raise RuntimeError("mock API failed to start")
+        yield base
         proc.terminate()
-        proc.wait()
-        raise RuntimeError("mock API failed to start")
-    yield base
-    proc.terminate()
-    proc.wait(timeout=5)
+        proc.wait(timeout=5)

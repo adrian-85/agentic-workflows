@@ -363,7 +363,8 @@ def _opportunity_update_body(saved_body, opp_id, resume_id, job_id):
     return _sub(obj)
 
 
-# pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements  # ATS poll/match/report orchestration
+# pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements
+# ATS poll/match/report orchestration
 def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
          config=CURL_FILE, company=None):
     """Poll the ATS until the posting is indexed; return the match result."""
