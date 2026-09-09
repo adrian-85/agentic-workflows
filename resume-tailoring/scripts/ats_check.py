@@ -82,7 +82,35 @@ MIME_BY_EXT = {
 
 # ---------------------------------------------------------------- config
 
-def parse_curl_file(path=CURL_FILE):  # pylint: disable=too-many-branches
+def _parse_curl_request(joined):
+    """Parse one joined cURL command into a request dict (or None when no
+    URL was found)."""
+    req = {"url": None, "method": "GET", "headers": [],
+           "cookies": None, "body": None}
+    # URL: the first quoted token after curl (or --url's value).
+    m_url = (re.search(r"--url\s+'([^']+)'", joined)
+             or re.search(r"^curl\s+'([^']+)'", joined))
+    if not m_url:
+        return None
+    req["url"] = m_url.group(1)
+    m = re.search(r"\s(?:-b|--cookie)\s+'([^']*)'", joined)
+    if m:
+        req["cookies"] = m.group(1)
+    for h in re.finditer(r"(?:^|\s)-H\s+'([^']*)'", joined):
+        req["headers"].append(h.group(1))
+    m = re.search(r"--data-raw\s+\$?'(.*)'\s*(?:--|$)", joined, re.S)
+    if m:
+        req["body"] = m.group(1)
+        req["method"] = "POST"
+    # Explicit verb (-X PUT, --request PUT) overrides the data-raw POST
+    # default — the opportunity-update request is a PUT with a JSON body.
+    m = re.search(r"(?:-X|--request)\s+'([^']+)'", joined)
+    if m:
+        req["method"] = m.group(1).upper()
+    return req
+
+
+def parse_curl_file(path=CURL_FILE):
     """Parse the saved cURL exports into request dicts.
 
     Returns a list of {"url", "method", "headers", "cookies", "body"}
@@ -112,29 +140,9 @@ def parse_curl_file(path=CURL_FILE):  # pylint: disable=too-many-branches
     requests = []
     for lines in raw_requests:
         joined = " ".join(l.rstrip("\\").strip() for l in lines)
-        req = {"url": None, "method": "GET", "headers": [],
-               "cookies": None, "body": None}
-        # URL: the first quoted token after curl (or --url's value).
-        m_url = (re.search(r"--url\s+'([^']+)'", joined)
-                 or re.search(r"^curl\s+'([^']+)'", joined))
-        if not m_url:
-            continue
-        req["url"] = m_url.group(1)
-        m = re.search(r"\s(?:-b|--cookie)\s+'([^']*)'", joined)
-        if m:
-            req["cookies"] = m.group(1)
-        for h in re.finditer(r"(?:^|\s)-H\s+'([^']*)'", joined):
-            req["headers"].append(h.group(1))
-        m = re.search(r"--data-raw\s+\$?'(.*)'\s*(?:--|$)", joined, re.S)
-        if m:
-            req["body"] = m.group(1)
-            req["method"] = "POST"
-        # Explicit verb (-X PUT, --request PUT) overrides the data-raw POST
-        # default — the opportunity-update request is a PUT with a JSON body.
-        m = re.search(r"(?:-X|--request)\s+'([^']+)'", joined)
-        if m:
-            req["method"] = m.group(1).upper()
-        requests.append(req)
+        req = _parse_curl_request(joined)
+        if req is not None:
+            requests.append(req)
     return requests
 
 
@@ -254,8 +262,7 @@ def _browser_headers(saved_headers):
     return out
 
 
-def request(url, headers, *, method=None, json_body=None, multipart=None,
-            timeout=90):
+def request(url, headers, *, method=None, payload=None, timeout=90):
     """Issue one HTTP request with retries; returns (status, body, headers)."""
     cmd = ["curl", "-s", "-S", "--max-time", str(timeout),
            "-b", JAR_FILE, "-c", JAR_FILE, "-w", "\n%{http_code}"]
@@ -265,13 +272,15 @@ def request(url, headers, *, method=None, json_body=None, multipart=None,
     if csrf:
         cmd += ["-H", csrf]
     cmd += headers
-    if json_body is not None:
-        cmd += ["-H", "content-type: application/json",
-                "--data-raw", json.dumps(json_body)]
-    if multipart is not None:
-        path, mime = multipart
-        cmd += ["-F", f"name=auto:{os.path.basename(path)}",
-                "-F", f"original_file=@{path};type={mime}"]
+    if payload is not None:
+        kind, data = payload
+        if kind == "json":
+            cmd += ["-H", "content-type: application/json",
+                    "--data-raw", json.dumps(data)]
+        elif kind == "file":
+            path, mime = data
+            cmd += ["-F", f"name=auto:{os.path.basename(path)}",
+                    "-F", f"original_file=@{path};type={mime}"]
     r = subprocess.run(cmd + [url], capture_output=True, text=True, check=False)
     if r.returncode != 0:
         raise SystemExit(f"error: curl failed ({r.returncode}): "
@@ -388,7 +397,8 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
 
     resume_headers = _browser_headers(kinds["resume"]["headers"])
     code, data, body = request(kinds["resume"]["url"], resume_headers,
-                               method="POST", multipart=(resume_path, mime))
+                               method="POST", payload=("file",
+                                               (resume_path, mime)))
     resume_id = extract_id(data) if code in (200, 201) else None
     print(f"[1] resume upload -> {code}, resume_id={resume_id}")
     if not resume_id:
@@ -398,7 +408,8 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
         jd_text = f.read()
     code, data, body = request(kinds["job"]["url"],
                                _browser_headers(kinds["job"]["headers"]),
-                               method="POST", json_body={"content": jd_text})
+                               method="POST", payload=("json",
+                                               {"content": jd_text}))
     job_id = extract_id(data) if code in (200, 201) else None
     print(f"[2] job creation -> {code}, job_description_id={job_id}")
     if not job_id:
@@ -407,8 +418,8 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
     code, data, body = request(
         kinds["opportunity"]["url"],
         _browser_headers(kinds["opportunity"]["headers"]), method="POST",
-        json_body={"job_description_id": job_id, "resume_id": resume_id,
-                   "stage": "saved"})
+        payload=("json", {"job_description_id": job_id, "resume_id": resume_id,
+                          "stage": "saved"}))
     opp_id = extract_id(data) if code in (200, 201) else None
     if code == 409 and not opp_id:
         # The service dedupes identical resume + JD pairs and returns the
@@ -441,7 +452,7 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
         update_url = update["url"].replace("{id}", str(opp_id))
         code, data, body = request(
             update_url, _browser_headers(update["headers"]),
-            method="PUT", json_body=update_body)
+            method="PUT", payload=("json", update_body))
         print(f"[3b] opportunity update -> {code} "
               f"(resume_id={resume_id}, job_description_id={job_id})")
         if code not in (200, 201, 204):
@@ -458,7 +469,7 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
         code, data, body = request(
             f"{kinds['opportunity']['url']}/{opp_id}",
             _browser_headers(kinds["opportunity"]["headers"]),
-            method="PATCH", json_body=patch)
+            method="PATCH", payload=("json", patch))
         print(f"[3c] opportunity metadata -> {code} "
               f"(url={posting_url}{', company=' + company if company else ''})")
     else:
