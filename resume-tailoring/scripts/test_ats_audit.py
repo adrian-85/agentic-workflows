@@ -58,6 +58,21 @@ class HostedTests(unittest.TestCase):
                                    "regression testing"))
         self.assertTrue(aa._hosted("end-to-end pipelines", "end to end"))
 
+    def test_slash_normalized_fallback(self):
+        # Standard spellings split with a slash: the JD says "CI/CD
+        # pipelines" (mined as "ci cd"), the resume renders "CI/CD".
+        # The multi-token fallback must normalize the slash on BOTH sides
+        # or every legitimate CI/CD resume FAILs as a false no-host (a
+        # real deliverable failed 4x on this artifact).
+        self.assertTrue(aa._hosted("built ci/cd pipelines", "ci cd"))
+        self.assertTrue(aa._hosted("built ci/cd pipelines",
+                                   "ci cd pipelines"))
+        self.assertTrue(aa._hosted("agile/scrum environments",
+                                   "agile scrum environments"))
+        # Single words never get the fallback — "api" must not host
+        # inside "rest/api" of a different token boundary sense.
+        self.assertFalse(aa._hosted("rest/api endpoints", "rapid"))
+
 
 class WordCountTests(unittest.TestCase):
     def test_under_cap_ok(self):
@@ -145,6 +160,60 @@ class JdLiteralTermsTests(unittest.TestCase):
               "the product and collaborate effectively with "
               "customer-facing teams.\n")
         self.assertEqual(aa._jd_literal_terms(jd), [])
+
+    def test_trailing_punctuation_stripped(self):
+        # Sentence-final punctuation rides along in the token regexes:
+        # "...REST APIs." mined "apis.", "...C#." mined "c#." — no resume
+        # can literally host a token with a trailing period, so those
+        # terms only padded the FAIL list (a real audit listed apis.,
+        # c#., locust. as FAILs). Stripped at extraction.
+        jd = ("Requirements\n\nExperience with REST APIs.\n"
+              "Strong C#. Familiarity with Locust.\n")
+        terms = aa._jd_literal_terms(jd)
+        self.assertNotIn("apis.", terms, terms)
+        self.assertNotIn("c#.", terms, terms)
+        self.assertNotIn("locust.", terms, terms)
+
+
+class MatchRateTargetTests(unittest.TestCase):
+    """The ≥75 match-rate TARGET (SKILL Step 11): a stop signal for the
+    literal-hosting loop, never a hard gate."""
+
+    def _result(self):
+        return aa._AuditResult()
+
+    def test_score_below_target_warns(self):
+        r = self._result()
+        aa._audit_match_rate(69, 75, r)
+        self.assertEqual(len(r.warns), 1)
+        self.assertIn("below the 75 target", r.warns[0])
+        self.assertEqual(r.ok_lines, [])
+
+    def test_score_at_target_ok_and_stops_hosting(self):
+        r = self._result()
+        aa._audit_match_rate(88, 75, r)
+        self.assertEqual(r.warns, [])
+        self.assertEqual(len(r.ok_lines), 1)
+        self.assertIn("MET", r.ok_lines[0])
+
+    def test_zero_target_disables(self):
+        r = self._result()
+        aa._audit_match_rate(40, 0, r)
+        self.assertEqual(r.warns, [])
+        self.assertEqual(r.ok_lines, [])
+
+    def test_missing_score_is_silent(self):
+        r = self._result()
+        aa._audit_match_rate(None, 75, r)
+        self.assertEqual(r.warns, [])
+        self.assertEqual(r.ok_lines, [])
+
+    def test_report_match_rate_extracted(self):
+        self.assertEqual(aa._report_match_rate({"matchRate":
+                                                {"score": 88}}), 88)
+        self.assertIsNone(aa._report_match_rate({}))
+        self.assertIsNone(aa._report_match_rate({"matchRate":
+                                                 {"score": "69"}}))
 
 
 

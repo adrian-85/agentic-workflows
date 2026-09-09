@@ -32,6 +32,28 @@ LIST_STYLES = ("ListBullet",)   # paragraph styles whose bullets carry no numId
 
 # (constant) DUP_K
 DUP_K = 20                      # shared substring length that flags near-dups
+_DUP_OVERLAP_MIN = 3            # shared content words that flag a repeat
+_DUP_OVERLAP_RATIO = 0.4        # shared/min(|A|,|B|) content-word overlap
+_DUP_STOP = frozenset(
+    "the a an and or of in to on with for from by at as is are was were be "
+    "been that this these those it its their our your we they he she his "
+    "her via per across within without during over more most other some "
+    "such only well using used which while when where then also both into "
+    "from that this there their about would could should because through "
+    "between each have has had not but all any can will just".split())
+
+
+def _content_words(text):
+    """Lowercased, punctuation-stripped content words (len>=4, not
+    function words), singulars folded to plurals' stem — the overlap
+    vocabulary for the near-duplicate repeat check."""
+    out = set()
+    for w in text.split():
+        w = re.sub(r"[^a-z0-9#+]", "", w.lower())
+        if len(w) < 4 or w in _DUP_STOP:
+            continue
+        out.add(w[:-1] if len(w) > 4 and w.endswith("s") else w)
+    return out
 
 
 # (constant) YEARS_RE
@@ -205,12 +227,19 @@ def _structural_errors(region):
 
 
 def _near_duplicates(region):
-    """Yield (bullet_a[:60], bullet_b[:60], shared snippet) for bullets that
-    share a DUP_K-char substring — the signature of a merge that left the
-    source's old text beside the rewritten target (or a literal duplicate)."""
+    """Yield (bullet_a[:60], bullet_b[:60], description) for bullet pairs
+    that read as repeats — a merge that left the source's old text beside
+    the rewritten target, a literal duplicate, or two bullets doing the
+    same job in different words. Two detectors, deduped per pair:
+    (1) a shared DUP_K-char substring (the near-copy signature), and
+    (2) stemmed content-word overlap (>= _DUP_OVERLAP_MIN shared words at
+    >= _DUP_OVERLAP_RATIO of the shorter bullet) — catches paraphrased
+    repeats that share no 20-char run (a real deliverable shipped
+    'Performed contract testing to validate…' beside 'Performed contract
+    testing for API integrations…' and the user cut one by hand)."""
     bullets = [de.text_of(p) for p in region if _is_bullet(p)]
-    subs = {}
     warned = set()
+    subs = {}
     for i, t in enumerate(bullets):
         norm = re.sub(r"\s+", " ", t).strip()
         if len(norm) < DUP_K:
@@ -224,14 +253,95 @@ def _near_duplicates(region):
                 pair = tuple(sorted((i, k)))
                 if pair not in warned:
                     warned.add(pair)
-                    yield bullets[k][:60], t[:60], s[:40]
+                    yield bullets[k][:60], t[:60], (
+                        f"bullets share {DUP_K}+ chars ({s[:40]!r})")
             else:
                 subs.setdefault(s, i)
+    words = [_content_words(t) for t in bullets]
+    for i, wi in enumerate(words):
+        for j in range(i + 1, len(words)):
+            pair = (i, j)
+            if pair in warned or not wi or not words[j]:
+                continue
+            shared = wi & words[j]
+            if len(shared) < _DUP_OVERLAP_MIN:
+                continue
+            if len(shared) / min(len(wi), len(words[j])) \
+                    >= _DUP_OVERLAP_RATIO:
+                warned.add(pair)
+                yield bullets[i][:60], bullets[j][:60], (
+                    f"bullets share {len(shared)} content words "
+                    f"({', '.join(sorted(shared)[:5])}) — keep the stronger, "
+                    "merge or cut the other (SKILL Step 6: merge, don't append)")
 
 
 def _claim_years(text):
     m = YEARS_RE.search(text)
     return int(m.group(1)) if m else None
+
+
+# Spelled-out years asks: "Five or more years of experience", "seven+",
+# "ten years". The numeric YEARS_RE misses these, which made a real
+# --jd-years pass look invented ("the JD text states no 'N+ years' ask")
+# against a JD that stated the ask in words.
+_WORD_YEARS_RE = re.compile(
+    r"\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+    r"thirteen|fourteen|fifteen|twenty)\s*(?:\+|or more)?\s*years\b",
+    re.I)
+
+
+def _jd_states_years_ask(jd_text):
+    """True when the JD states a years ask — digits ("5+ years", YEARS_RE)
+    or spelled out ("Five or more years"). Guards the --jd-years flag
+    against a fabricated-ask warning on a legitimate ask."""
+    if YEARS_RE.search(jd_text):
+        return True
+    return bool(re.search(
+        r"\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|"
+        r"twelve|thirteen|fourteen|fifteen|twenty)\s*(?:\+|or more)?\s*"
+        r"years\b", jd_text, re.I))
+
+
+# A content word (>=5 chars, not in this stoplist) appearing twice within
+# _REPEAT_WINDOW tokens of the same paragraph reads as repetition to a
+# human reviewer — the validator's doubled-word check only catches
+# ADJACENT repeats, and a real deliverable shipped "...testing...testing"
+# twice in the Summary that the user cut by hand.
+_REPEAT_WINDOW = 12
+_REPEAT_STOP = frozenset(
+    "which there their about would could should because through between "
+    "things those these being every other others after under above "
+    "against without within across during".split())
+
+
+def _repeated_word_notes(region, summary):
+    """Advisory notes for a content word repeated within _REPEAT_WINDOW
+    tokens in the same prose paragraph (Summary first — it is what a
+    human reviewer reads). Non-blocking guidance."""
+    notes = []
+    for p, text in _prose_paragraphs(region, summary):
+        if _is_tools(p):
+            continue
+        # Filter to content words but keep ORIGINAL token positions, so
+        # "within N words" means what a reader counts.
+        words = [(i, re.sub(r"[^a-z0-9#+]", "", w.lower()))
+                 for i, w in enumerate(text.split())]
+        words = [(i, w) for i, w in words
+                 if len(w) >= 5 and w not in _REPEAT_STOP]
+        last = {}
+        seen_warned = set()
+        for i, w in words:
+            if w in seen_warned:
+                continue
+            if w in last and i - last[w] <= _REPEAT_WINDOW:
+                seen_warned.add(w)
+                notes.append(("warn",
+                    f"{w!r} repeats within {_REPEAT_WINDOW} words of "
+                    f"itself ({'Summary' if p is summary else 'bullet'}): "
+                    f"{text.strip()[:60]!r}... — reword one occurrence "
+                    "(Step 9 re-read)"))
+            last[w] = i
+    return notes
 
 
 def _punctuation_errors(region, summary):
@@ -327,6 +437,11 @@ def _readability_guidance(body, summary, *, region=None, master_input=False):
         notes.append(("ok",
             f"Summary has {len(summary_text.split())} words — within the "
             f"{PARA_WORD_CAP}-word cap"))
+
+    # Same word twice within a window of the same paragraph reads as
+    # repetition (Step 9's re-read catches this by eye; this makes it
+    # mechanical).
+    notes.extend(_repeated_word_notes(region or _region(body), summary))
 
     # Section between Summary and Technical Proficiencies: the SKILL
     # forbids inserting Core Strengths, Top Skills, or keyword-mirror

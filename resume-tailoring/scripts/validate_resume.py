@@ -118,6 +118,7 @@ from script_args import extract_flag as _extract_flag  # noqa: E402
 from script_args import extract_flag_all as _extract_flag_all  # noqa: E402
 from script_args import flag_value as _flag_value  # noqa: E402
 from script_args import MAX_WORDS  # noqa: E402  (single source of truth)
+from script_args import maybe_help as _maybe_help  # noqa: E402
 
 
 SENIORITY_GATE_YEARS = 2.0      # visible-span shrink (vs master) that requires approval
@@ -128,7 +129,6 @@ NUM_CLAIM = re.compile(r"\d+(?:\.\d+)?\s*(?:%|hours?|minutes?)", re.I)
 
 from validate_resume_checks import (
     DATE_RANGE,
-    DUP_K,
     LIST_STYLES,
     MAX_BULLETS_PER_ROLE,
     PARA_WORD_CAP,
@@ -145,6 +145,8 @@ from validate_resume_checks import (
     _prose_paragraphs,
     _punctuation_errors,
     _readability_guidance,
+    _jd_states_years_ask,
+    _repeated_word_notes,
     _region,
     _structural_errors,
     _summary_paragraph,
@@ -453,7 +455,7 @@ def _report_jd_section(ctx, lines):
             lines.append(f"  {tag[lvl]}: {c}")
     lines.append("== NEAR-DUPLICATES ==")
     for a, b, snip in ctx["dups"]:
-        lines.append(f"  WARNING: bullets share {DUP_K}+ chars ({snip!r}):")
+        lines.append(f"  WARNING: {snip}:")
         lines.append(f"      A: {a!r}")
         lines.append(f"      B: {b!r}")
     if not ctx["dups"]:
@@ -510,6 +512,7 @@ def _parse_validate_args(argv):
 def main(argv=None):
     """Validate-resume CLI entry point."""
     argv = list(sys.argv[1:] if argv is None else argv)
+    _maybe_help(argv, __doc__)
     if not argv:
         print(__doc__)
         return 2
@@ -568,7 +571,7 @@ def _jd_checks(jd_path, body, span, opts, ctx):
         # real session passed --jd-years 10 against a JD with no years
         # line and got false 'underqualified' output. Warn so the number
         # is only ever the JD's own.
-        if jd_years is not None and not YEARS_RE.search(jd_text):
+        if jd_years is not None and not _jd_states_years_ask(jd_text):
             claim_notes.append(("warn",
                 f"--jd-years {jd_years:g} passed, but the JD text states "
                 f"no 'N+ years' ask — the number looks invented; drop the "

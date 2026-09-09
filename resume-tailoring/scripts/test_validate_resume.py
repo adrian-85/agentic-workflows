@@ -33,6 +33,7 @@ W = de.W
 
 mk = test_helpers._para
 mkbody = test_helpers._body
+import script_args as sa  # noqa: E402
 
 
 def _write_docx(path, company_dates, education=True):
@@ -981,7 +982,7 @@ class GuidanceTests(unittest.TestCase):
 
     def test_brief_summary_ok(self):
         b, s = self._body_with(
-            "First sentence. Second sentence. Third sentence.")
+            "First sentence. Second paragraph. Third bullet.")
         notes = vr._readability_guidance(b, s)
         self.assertFalse(any(lvl == "warn" for lvl, _ in notes), notes)
 
@@ -1133,6 +1134,98 @@ class MainBlockPlacementTests(unittest.TestCase):
         self.assertTrue(hasattr(vr, "_jd_checks"))
         self.assertTrue(hasattr(vr, "_JdBlocking"))
         self.assertEqual(vr._JdBlocking.__name__, "_JdBlocking")
+
+
+class SessionLoopTests(unittest.TestCase):
+    """Regressions from a real tailoring session's friction points: the
+    paraphrased-bullet repeat, the word used twice too close together in
+    the Summary, and a spelled-out years ask that warned as fabricated."""
+
+    def _career(self, bullets):
+        ps = [mk("Career Experience", style="SectionHeading"),
+              mk("Acme, MA01/2024 – 12/2026", style=mr.COMPANY_STYLE),
+              mk("Engineer", style=vr.TITLE_STYLE)]
+        ps += [mk(t, numId=4) for t in bullets]
+        return ps
+
+    def test_near_duplicate_by_content_word_overlap(self):
+        # Two bullets doing the same job in different words share NO
+        # 20-char run — only the stemmed content-word overlap catches
+        # them (a real deliverable shipped both; the user cut one by
+        # hand).
+        ps = self._career([
+            "Performed contract testing to validate integration contracts "
+            "and improve assertion quality.",
+            "Led API test automation for a Medicare platform with Swagger.",
+            "Validated service contracts using contract testing, improving "
+            "assertion quality across teams.",
+        ])
+        dups = list(vr._near_duplicates(ps))
+        self.assertTrue(dups, "expected the contract-testing pair flagged")
+        self.assertTrue(any("content words" in d for _, _, d in dups), dups)
+
+    def test_distinct_bullets_not_flagged_by_overlap(self):
+        ps = self._career([
+            "Led adoption of Playwright as the company's UI testing tool.",
+            "Configured Snyk for team repositories to automate scanning.",
+            "Migrated test cases across projects via the Jira REST API.",
+        ])
+        self.assertEqual(list(vr._near_duplicates(ps)), [])
+
+    def test_repeated_word_within_window_warns(self):
+        # A real deliverable's Summary read "...test automation...test
+        # automation..." — same word twice inside 12 words. The
+        # doubled-word check only catches ADJACENT repeats.
+        summary = mk("Designed test automation frameworks and improved "
+                     "test automation coverage.", style=vr.SUMMARY_STYLE)
+        body = mkbody([summary])
+        notes = vr._repeated_word_notes(vr._region(body), summary)
+        self.assertTrue(any("automation" in c for _, c in notes), notes)
+
+    def test_distant_repeats_not_flagged(self):
+        summary = mk("Testing frameworks lead the practice. Data, tools, "
+                     "and reporting follow, as does documentation. "
+                     "Ultimately testing stays honest.",
+                     style=vr.SUMMARY_STYLE)
+        body = mkbody([summary])
+        notes = vr._repeated_word_notes(vr._region(body), summary)
+        self.assertEqual(notes, [])
+
+    def test_spelled_out_years_ask_recognized(self):
+        # The JD stated "Five or more years" — the digits-only YEARS_RE
+        # missed it and every validation warned the flag looked invented.
+        self.assertTrue(vr._jd_states_years_ask(
+            "Five or more years of experience as an SDET"))
+        self.assertTrue(vr._jd_states_years_ask(
+            "seven+ years in test automation"))
+        self.assertTrue(vr._jd_states_years_ask("10+ years required"))
+        self.assertFalse(vr._jd_states_years_ask(
+            "Experience with modern web architectures"))
+
+
+class HelpFlagTests(unittest.TestCase):
+    """Bare --help/-h must print usage and exit 0 — the hand-rolled argv
+    loops used to consume it as the positional .docx and die with a
+    FileNotFoundError (a real session lost several tool calls to
+    'measure_resume.py --help')."""
+
+    def test_maybe_help_exits_zero(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            with self.assertRaises(SystemExit) as ctx:
+                sa.maybe_help(["--help"], "usage text")
+        self.assertEqual(ctx.exception.code, 0)
+        self.assertIn("usage text", buf.getvalue())
+
+    def test_maybe_help_h_flag(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            with self.assertRaises(SystemExit) as ctx:
+                sa.maybe_help(["-h"], "usage text")
+        self.assertEqual(ctx.exception.code, 0)
+
+    def test_maybe_help_noop_without_flag(self):
+        self.assertIsNone(sa.maybe_help(["resume.docx", "3"]))
 
 
 if __name__ == "__main__":

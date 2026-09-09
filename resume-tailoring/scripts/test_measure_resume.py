@@ -2093,5 +2093,161 @@ class JdFitAuditTests(unittest.TestCase):
                              protect=("partner integrations",)), [])
 
 
+class MeasureHelpFlagTests(unittest.TestCase):
+    """Bare --help must print usage and exit 0 — the hand-rolled argv
+    loop used to consume it as the positional .docx path and die with a
+    FileNotFoundError."""
+
+    def test_help_exits_zero(self):
+        argv = sys.argv
+        sys.argv = ["measure_resume.py", "--help"]
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                with self.assertRaises(SystemExit) as ctx:
+                    mr._parse_measure_args()
+        finally:
+            sys.argv = argv
+        self.assertEqual(ctx.exception.code, 0)
+        self.assertIn("measure_resume.py", buf.getvalue())
+
+
+class CoverageTermsVisibilityTests(unittest.TestCase):
+    """Regression: an UNCOVERED line whose qual the resume demonstrably
+    hosts used to cost a matcher-debugging session ('Solid SQL skills'
+    mines the single artifact term 'solid sql' — a capitalized-sequence
+    artifact invisible in the report). The coverage printer now shows the
+    extracted terms on weak/uncovered lines."""
+
+    SQL_LINE = "Solid SQL skills and experience with database validation."
+
+    def test_line_terms_map_aligned_and_artifact_visible(self):
+        jd = "Required Qualifications:\n" + self.SQL_LINE + "\n"
+        terms = dict(mr._jd_line_terms_map(jd))
+        line = [k for k in terms if "Solid SQL" in k][0]
+        self.assertIn("solid sql", terms[line], terms)
+
+    def test_uncovered_line_prints_extracted_terms(self):
+        jd = ("Required Qualifications:\n"
+              "Experience with Kubernetes and Helm\n" + self.SQL_LINE + "\n")
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " – 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Built REST API test suites with Selenium WebDriver.",
+                  numId=2),
+            _para("Tools & Technologies: Kubernetes, Helm"),
+        ])
+
+        class _Ctx:  # duck-typed _ReportCtx subset (printer reads 4 attrs)
+            pass
+
+        _Ctx.jd_terms = {"sql", "kubernetes"}
+        _Ctx.jd_text = jd
+        _Ctx.roles = mr._roles(body)
+        _Ctx.body = body
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            mr._print_jd_coverage(_Ctx())
+        out = buf.getvalue()
+        self.assertIn("UNCOVERED", out)
+        self.assertIn("extracted terms:", out)
+        self.assertIn("solid sql", out)
+
+    def test_covered_line_has_no_term_noise(self):
+        jd = ("Required Qualifications:\n"
+              "Experience with Kubernetes and Helm\n")
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " – 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Deployed services on Kubernetes clusters with Helm "
+                  "charts.", numId=2),
+            _para("Tools & Technologies: Kubernetes, Helm"),
+        ])
+
+        class _Ctx:
+            pass
+
+        _Ctx.jd_terms = {"kubernetes"}
+        _Ctx.jd_text = jd
+        _Ctx.roles = mr._roles(body)
+        _Ctx.body = body
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            mr._print_jd_coverage(_Ctx())
+        self.assertNotIn("extracted terms:", buf.getvalue())
+
+
+class InferenceFamilyTests(unittest.TestCase):
+    """Families added after a real session: 'software engineering' and
+    'programming skills' carried strong master evidence (languages,
+    production test code) but no family mapped them, so the INFERENCE MAP
+    reported them as genuine gaps."""
+
+    def test_programming_family(self):
+        roots = mr._family_roots("programming skills")
+        self.assertIn("java", roots)
+        self.assertIn("python", roots)
+
+    def test_software_engineering_family(self):
+        roots = mr._family_roots("software engineering")
+        self.assertIn("software", roots)
+        self.assertIn("sdlc", roots)
+
+    def test_unrelated_term_has_no_family(self):
+        self.assertEqual(mr._family_roots("ontologies"), ())
+
+
+class WordBudgetTests(unittest.TestCase):
+    """The 1000-word cap is a blocking gate; the WORD BUDGET section
+    surfaces the arithmetic BEFORE the gate blocks, so cuts are planned
+    in one pass instead of hand-estimated across blocked re-runs (a real
+    session burned six gate-blocked cycles chasing the cap)."""
+
+    def _body_with_words(self, n):
+        filler = " ".join(f"word{i}" for i in range(n))
+        return _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " – 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para(filler, numId=2),
+        ])
+
+    def test_budget_printed_near_cap(self):
+        body = self._body_with_words(900)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            mr._print_word_budget(body)
+        out = buf.getvalue()
+        self.assertIn("WORD BUDGET", out)
+        self.assertIn(f"cap {mr.MAX_WORDS}", out)
+        self.assertIn("Acme", out)
+
+    def test_budget_silent_far_below_cap(self):
+        body = self._body_with_words(40)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            mr._print_word_budget(body)
+        self.assertEqual(buf.getvalue(), "")
+
+    def test_budget_names_wordiest_bullets(self):
+        filler = " ".join(f"f{i}" for i in range(880))
+        long_bullet = " ".join(f"w{i}" for i in range(50))
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " – 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para(filler, numId=2),
+            _para(long_bullet, numId=2),
+        ])
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            mr._print_word_budget(body)
+        self.assertIn("Wordiest bullets", buf.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

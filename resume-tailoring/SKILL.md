@@ -333,7 +333,13 @@ compression when the page budget forces it:
    reply itself names the complete revised drop set (e.g. "drop Acme
    and Globex, keep Initech"): naming every role to drop IS
    approval of that set, so re-present the measured numbers and proceed
-   without a second approval round-trip.
+   without a second approval round-trip. Also approved without a second
+   round-trip: a general approval ("approved, proceed", "go ahead") when
+   exactly ONE drop set was presented as the recommendation — the user
+   approved that recommendation (a real session's "Drop plan approved,
+   proceed" after a single recommended option). Only when two or more
+   options were left open does a general approval need the user to pick
+   one first.
    **Enforced, not a habit:** `validate_resume.py` detects whole-role elimination
    (visible span ≥2 years shorter than the master) and `render_pdf.sh` blocks the
    PDF until the approval is recorded with `--seniority-approved` (Step 11) — you
@@ -450,7 +456,13 @@ hits a wall of text skips bullets they needed to read.
 **Reconcile the arithmetic before running the tailor script.** Per role:
 intended keep + number of `drop()` entries must equal the role's master
 bullet count (measure's table shows it as `b/cap`; intros are not bullets
-and not cap fillers). A real failure: 23 master bullets, "keep the 8
+and not cap fillers). **Bullets are counted by numId, not by position or
+look:** a role's first paragraph reads like an intro but IS a bullet when
+the dump shows `num=<N>` on it — the validator counts every numbered
+paragraph. Check the `num` column of the `--prefixes` dump before
+classifying a paragraph as the intro (a real run lost two gate cycles to
+"keeps 9 bullets" because a numId'd leadership paragraph was treated as
+an exempt intro). A real failure: 23 master bullets, "keep the 8
 strongest", 16 drops — 7 kept, one bullet more cut than intended, and the
 post-build table that showed 7 got rationalized as "the intro" instead of
 flagged as a miss. When a built role's count differs from the intent,
@@ -699,11 +711,6 @@ remaining findings are the actionable ones.
 "<resume>.pdf" jd_<target>.txt` submits the deliverable to the user's ATS
 scan service and saves the match-report JSON next to the resume
 (`<...>.ats-check.json`); feed it back for the authoritative cross-check:
-`ats_audit.py ... --report-json <report>.json`. The service's credentials
-live in the skill root's `.ats-check/curl.txt` (the user's own saved
-cURL exports; gitignored like every other personal asset, and durable
-across session cleanup — never committed. When a scan returns 401/403,
-tell the user to re-export them from a logged-in session and delete
 `.ats-check/cookies.txt` to re-seed). The report's `wordCount` is a CROSS-CHECK only — the service's
 PDF parser inflates counts (it splits labeled values into fragments), so
 the cap is always `ats_audit.py`'s own count. The scan output names the
@@ -715,6 +722,27 @@ the service / URL missing). When the service cannot match the posting to
 a known ATS (e.g. postings hosted on job boards rather than an ATS),
 ATS-specific findings are simply unavailable — the keyword findings
 still apply.
+
+**The match-rate target is 75 (≥75 = the hosting loop is DONE).** A
+TARGET, not a gate: at or above it, stop weaving in hard/soft skills —
+the residual no-host list at that point is genuine never-fabricate gaps
+and parser artifacts, and chasing it adds no score (a real deliverable
+moved 69 → 88 across exactly the hosting round that closed the soft-skill
+and chaos/resilience literals). Below it, keep hosting literal phrases
+truthfully — hosting them is what moves the rate (59 → 86 in one
+session). `ats_audit.py` prints the target status when a report JSON is
+loaded (`--match-target` overrides; 0 disables), and `ats_check.py`
+prints the same verdict at scan time.
+
+**The word cap has TWO counters — keep headroom for the stricter one.**
+`validate_resume.py` counts the .docx paragraphs; `ats_audit.py` counts
+the RENDERED PDF text (its count is authoritative for the cap). The two
+drift ±1–2% on header/footer and hyphenation handling, so a .docx count
+of 999 can render at 1001 and FAIL the audit. Keep the validator count
+at ~990 or below so the render-time audit count stays under 1000; when
+planning cuts, use measure's **WORD BUDGET** section (validator-equivalent
+per-role totals + wordiest bullets) instead of hand-counting across
+blocked re-run cycles.
 
 **IGNORED by rule: three classes of external finding.**
 

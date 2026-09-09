@@ -483,7 +483,8 @@ hits, external score DROPPED). Two tools close the gap:
 
 ```bash
 python3 scripts/ats_audit.py "<output>.pdf" --jd <JD.txt> \
-    [--phrases-file <f>] [--report-json <report.json>] [--max-words N]
+    [--phrases-file <f>] [--report-json <report.json>] [--max-words N] \
+    [--match-target N]
 ```
 
 Checks, on the pdftotext output of the DELIVERABLE (what a screener parses,
@@ -502,7 +503,10 @@ scan report, below), literal checks of externally supplied phrases — a
 skill's `resumeCount` from the report is the authoritative host signal, the
 literal check is the fallback. Report soft-skill no-hosts warn as
 ACTIONABLE (SKILL Steps 2/11: soft skills are safe to infer — host each
-literal phrase where the action-verb evidence lives). Exit 0 clean,
+literal phrase where the action-verb evidence lives). With `--report-json`,
+also prints the **match-rate target** (default 75, `--match-target N` to
+change, `0` disables): score ≥ target ⇒ literal hosting is DONE — stop
+adding hard/soft skills; below ⇒ keep hosting (SKILL Step 11). Exit 0 clean,
 1 findings, 2 usage/IO error.
 
 IGNORED by rule: the report's contactEmail searchability finding — the
