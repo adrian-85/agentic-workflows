@@ -371,11 +371,11 @@ def _opportunity_update_body(saved_body, opp_id, resume_id, job_id):
     return _sub(obj)
 
 
-# pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements
 # ATS poll/match/report orchestration
-def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
-         config=CURL_FILE, company=None):
-    """Poll the ATS until the posting is indexed; return the match result."""
+def _scan_setup(resume_path, jd_path, config):
+    """Validate inputs and load the saved cURL requests. Returns ``kinds``
+    (the classified request dict). Raises SystemExit on missing files or
+    cookies."""
     if not os.path.exists(resume_path):
         raise SystemExit(f"error: resume file not found: {resume_path}")
     if not os.path.exists(jd_path):
@@ -386,7 +386,6 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
                          "formats the deliverable is submitted in")
     if os.path.exists(config):
         os.chmod(config, 0o600)  # curl.txt holds session cookies
-
     kinds = classify(parse_curl_file(config))
     for r in kinds.values():
         if r.get("cookies") and not os.path.exists(JAR_FILE):
@@ -394,6 +393,26 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
             seed_jar(r["cookies"], r["url"])
     if not os.path.exists(JAR_FILE):
         raise SystemExit("error: no cookies in the saved requests")
+    return kinds
+
+
+def _poll_report(url, headers, timeout, interval):
+    """GET the readiness/report endpoint until it returns a ready report
+    (or the deadline passes). Returns the report payload or None."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        code, data, body = request(url, headers)
+        if code == 200 and report_ready(data):
+            return data.get("data") if isinstance(data.get("data"),
+                                                  dict) else data
+        time.sleep(interval)
+    return None
+
+
+def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
+         config=CURL_FILE, company=None):
+    """Poll the ATS until the posting is indexed; return the match result."""
+    kinds = _scan_setup(resume_path, jd_path, config)
 
     resume_headers = _browser_headers(kinds["resume"]["headers"])
     code, data, body = request(kinds["resume"]["url"], resume_headers,
@@ -477,16 +496,9 @@ def scan(resume_path, jd_path, *, out=None, timeout=300, interval=6,
               "identified (SKILL Step 1)")
 
     report_url = kinds["report"]["url"].replace("{id}", str(opp_id))
-    report_headers = _browser_headers(kinds["report"]["headers"])
-    deadline = time.time() + timeout
-    report = None
-    while time.time() < deadline:
-        code, data, body = request(report_url, report_headers)
-        if code == 200 and report_ready(data):
-            report = data.get("data") if isinstance(data.get("data"),
-                                                    dict) else data
-            break
-        time.sleep(interval)
+    report = _poll_report(report_url,
+                          _browser_headers(kinds["report"]["headers"]),
+                          timeout, interval)
     if report is None:
         print(f"error: report not ready after {timeout}s — the scan may "
               "still be processing; retry the GET later or raise "
