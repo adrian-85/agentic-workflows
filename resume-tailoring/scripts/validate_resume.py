@@ -532,11 +532,11 @@ def main(argv=None):  # pylint: disable=too-many-locals
     path = argv[0]
 
     _root, body, _names, _data, _ = de.load(path)
-    result = validate_tree(
-        path, body, master_path=master, jd_path=jd_path, jd_years=jd_years,
+    result = validate_tree(path, body, TreeOptions(
+        master_path=master, jd_path=jd_path, jd_years=jd_years,
         seniority_approved=seniority_approved,
         education_approved=education_approved, protect=protect,
-        max_words=max_words)
+        max_words=max_words))
     for line in result["lines"]:
         print(line)
     if result["blocking"]:
