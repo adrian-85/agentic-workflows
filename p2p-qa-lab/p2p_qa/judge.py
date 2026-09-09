@@ -23,10 +23,25 @@ class Finding:
     note: str = ""
 
     def to_dict(self) -> dict:
-
         """Serialize the finding to the report JSON."""
         return {"rule": self.rule, "status": self.status,
                 "evidence": self.evidence, "note": self.note}
+
+
+@dataclass
+class ReportInputs:
+    """The report-assembler's inputs, bundled so callers pass one object.
+
+    api_url, steps, findings, integration_issues and summary are all
+    required report fields; happy_status defaults to "PASS" like the old
+    positional signature."""
+
+    api_url: str
+    steps: list[StepRecord]
+    findings: list[Finding]
+    integration_issues: list[dict]
+    summary: str
+    happy_status: str = "PASS"
 
 
 def _merge(log_status: str, base_status: str) -> str:
@@ -254,11 +269,14 @@ def run_prepass(steps: list[StepRecord], baseline: list[ProbeResult]) -> list[Fi
 # Report assembly (exact spec JSON) + LLM narrative summary
 # ---------------------------------------------------------------------------
 
-# pylint: disable=too-many-arguments,too-many-positional-arguments  # report assembler: 6 orthogonal fields, called once
-def build_report(api_url: str, steps: list[StepRecord], findings: list[Finding],
-                 integration_issues: list[dict], summary: str,
-                 happy_status: str = "PASS") -> dict:
+def build_report(inputs: ReportInputs) -> dict:
     """Assemble the exact report JSON from the spec."""
+    api_url = inputs.api_url
+    steps = inputs.steps
+    findings = inputs.findings
+    integration_issues = inputs.integration_issues
+    summary = inputs.summary
+    happy_status = inputs.happy_status
     happy_steps = []
     for s in steps:
         # verified/verify_note apply ONLY to create steps (the object being

@@ -80,8 +80,9 @@ def cmd_run(args) -> int:
     happy_status, findings, integration, _ = _run_phases(
         args, client, logger)
     summary_text = judge.llm_summary(findings, happy_status)
-    report = judge.build_report(args.api, logger.iter_steps(), findings,
-                                integration, summary_text, happy_status=happy_status)
+    report = judge.build_report(judge.ReportInputs(
+        args.api, logger.iter_steps(), findings, integration, summary_text,
+        happy_status=happy_status))
     report_path = Path(args.report) if args.report else (run_dir / "report.json")
     _write_atomic(report_path, report)
     print(narrate(report))
