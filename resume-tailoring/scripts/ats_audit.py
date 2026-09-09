@@ -57,7 +57,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import measure_resume as mr  # noqa: E402
-from script_args import MAX_WORDS, MATCH_RATE_TARGET, flag_value, maybe_help, match_target_met  # noqa: E402
+from script_args import (MAX_WORDS, MATCH_RATE_TARGET, flag_value,
+                         maybe_help, match_target_met)  # noqa: E402
 
 # Private-use glyphs (bullet dingbats) and page footers ("Page 1|3",
 # "P a g e 1 | 3") are tokens a text extractor emits that word-count

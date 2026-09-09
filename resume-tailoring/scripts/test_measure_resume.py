@@ -27,6 +27,7 @@ import os
 import re
 import sys
 import tempfile
+import types
 import unittest
 import zipfile
 
@@ -2139,8 +2140,7 @@ class CoverageTermsVisibilityTests(unittest.TestCase):
             _para("Tools & Technologies: Kubernetes, Helm"),
         ])
 
-        class _Ctx:  # duck-typed _ReportCtx subset (printer reads 4 attrs)
-            pass
+        _Ctx = types.SimpleNamespace()  # duck-typed _ReportCtx subset
 
         _Ctx.jd_terms = {"sql", "kubernetes"}
         _Ctx.jd_text = jd
@@ -2149,7 +2149,7 @@ class CoverageTermsVisibilityTests(unittest.TestCase):
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            mr._print_jd_coverage(_Ctx())
+            mr._print_jd_coverage(_Ctx)
         out = buf.getvalue()
         self.assertIn("UNCOVERED", out)
         self.assertIn("extracted terms:", out)
@@ -2167,8 +2167,7 @@ class CoverageTermsVisibilityTests(unittest.TestCase):
             _para("Tools & Technologies: Kubernetes, Helm"),
         ])
 
-        class _Ctx:
-            pass
+        _Ctx = types.SimpleNamespace()
 
         _Ctx.jd_terms = {"kubernetes"}
         _Ctx.jd_text = jd
@@ -2177,7 +2176,7 @@ class CoverageTermsVisibilityTests(unittest.TestCase):
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            mr._print_jd_coverage(_Ctx())
+            mr._print_jd_coverage(_Ctx)
         self.assertNotIn("extracted terms:", buf.getvalue())
 
 
