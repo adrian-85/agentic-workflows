@@ -50,6 +50,7 @@ gate already sanctioned; the scan's generic advice does not re-open it).
 """
 
 import json
+from dataclasses import dataclass, field
 import os
 import re
 import subprocess
@@ -424,6 +425,83 @@ def _parse_ats_args(argv):
     }
 
 
+@dataclass
+class _AuditResult:
+    """Holds the three audit result lists (errors, warns, ok_lines) so
+    the section helpers pass one object instead of three separate lists."""
+
+    errors: list = field(default_factory=list)
+    warns: list = field(default_factory=list)
+    ok_lines: list = field(default_factory=list)
+
+
+def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result):
+    """JD literal-term and external-phrase checks (sections 2-3)."""
+    if jd_path:
+        with open(jd_path, encoding="utf-8", errors="replace") as f:
+            jd_text = f.read()
+        ok_n, missing = _audit_jd(text_low, jd_text)
+        if missing:
+            result.errors.append(
+                "JD literal terms with NO host in the rendered text: "
+                + ", ".join(missing)
+                + " — host the exact phrase truthfully or raise the gap "
+                "(never fabricate)")
+        elif not ok_n:
+            result.warns.append(
+                "JD literal phrase mining found NO skill phrases (this "
+                "JD's qualification lines use no cue syntax) — the literal "
+                "check is vacuous; supply --phrases-file with the JD's "
+                "named skills/tools")
+        else:
+            result.ok_lines.append(
+                f"JD literal terms: {ok_n}/{ok_n + len(missing)} hosted")
+    if phrases_file:
+        with open(phrases_file, encoding="utf-8", errors="replace") as f:
+            phrases = [ln.strip() for ln in f if ln.strip()]
+        missing = _audit_phrases(text_low, phrases)
+        if missing:
+            result.errors.append("phrases with NO literal host: "
+                                 + ", ".join(missing))
+        else:
+            result.ok_lines.append(
+                f"phrases: {len(phrases)}/{len(phrases)} hosted")
+
+
+def _audit_report_skills(report_data, text_low, text, result):
+    """Report hard/soft skill hosting check (sections 4-5). Mutates the
+    three result lists in place."""
+    if report_data is None:
+        return
+    hard, soft = _report_skills(report_data)
+    errors = result.errors
+    warns = result.warns
+    ok_lines = result.ok_lines
+    hard_miss = [p for p, cnt in hard
+                 if not cnt and not _hosted(text_low, p.strip().lower())]
+    soft_miss = [p for p, cnt in soft
+                 if not cnt and not _hosted(text_low, p.strip().lower())]
+    if hard_miss:
+        errors.append(
+            "report hard skills with NO literal host: "
+            + ", ".join(hard_miss))
+    else:
+        ok_lines.append(f"report hard skills: {len(hard) - len(hard_miss)}"
+                        f"/{len(hard)} hosted")
+    if soft_miss:
+        warns.append(
+            "report soft skills with NO literal host (ACTIONABLE — "
+            "soft skills are safe to infer: host each literal phrase "
+            "where the action-verb evidence lives, SKILL Steps 2/11; "
+            "hosting these moved a real session's live match rate "
+            "59→86): " + ", ".join(soft_miss))
+    elif soft:
+        ok_lines.append(f"report soft skills: {len(soft)}/{len(soft)} "
+                        "hosted")
+    for line in _report_findings(report_data, text):
+        warns.append(line)
+
+
 def main(argv=None):
 
     """ATS-audit CLI entry point."""
@@ -431,105 +509,39 @@ def main(argv=None):
     if args is None:
         print(__doc__)
         return 2
-    path = args["path"]
-    max_words = args["max_words"]
-    jd_path = args["jd_path"]
-    phrases_file = args["phrases_file"]
-    report_json = args["report_json"]
-    text = _extract_text(path)
+    text = _extract_text(args["path"])
     text_low = text.lower().replace("\n", " ")
-    errors, warns, ok_lines = [], [], []
+    result = _AuditResult()
 
     report_data = None
-    if report_json:
-        with open(report_json, encoding="utf-8", errors="replace") as f:
+    if args["report_json"]:
+        with open(args["report_json"], encoding="utf-8", errors="replace") as f:
             report_data = json.load(f)
 
-    # 1. Word cap (hard rule) — OUR count; the report's wordCount, when
-    # available, is shown as a cross-check only.
-    count, wc_errors = _audit_word_count(text, max_words)
-    ok_lines.append(f"words: {count}")
-    errors.extend(wc_errors)
+    count, wc_errors = _audit_word_count(text, args["max_words"])
+    result.ok_lines.append(f"words: {count}")
+    result.errors.extend(wc_errors)
     if report_data is not None:
         report_wc = _report_word_count(report_data)
         if report_wc is not None:
             drift = count - report_wc
-            ok_lines.append(
+            result.ok_lines.append(
                 f"words (report cross-check): {report_wc} "
                 f"({drift:+d} vs our count)")
 
-    # 2. JD literal terms.
-    if jd_path:
-        with open(jd_path, encoding="utf-8", errors="replace") as f:
-            jd_text = f.read()
-        ok_n, missing = _audit_jd(text_low, jd_text)
-        if missing:
-            errors.append(
-                "JD literal terms with NO host in the rendered text: "
-                + ", ".join(missing)
-                + " — host the exact phrase truthfully or raise the gap "
-                "(never fabricate)")
-        elif not ok_n:
-            # 0/0 is NOT a pass: the miner found no cue-tails in this JD's
-            # qualification syntax, so the check is vacuous — a clean
-            # verdict here would read as verified alignment.
-            warns.append(
-                "JD literal phrase mining found NO skill phrases (this "
-                "JD's qualification lines use no cue syntax) — the literal "
-                "check is vacuous; supply --phrases-file with the JD's "
-                "named skills/tools")
-        else:
-            ok_lines.append(f"JD literal terms: {ok_n}/{ok_n + len(missing)} "
-                            "hosted")
-
-    # 3. External phrase lists.
-    if phrases_file:
-        with open(phrases_file, encoding="utf-8", errors="replace") as f:
-            phrases = [ln.strip() for ln in f if ln.strip()]
-        missing = _audit_phrases(text_low, phrases)
-        if missing:
-            errors.append("phrases with NO literal host: "
-                          + ", ".join(missing))
-        else:
-            ok_lines.append(f"phrases: {len(phrases)}/{len(phrases)} hosted")
-
-    if report_data is not None:
-        hard, soft = _report_skills(report_data)
-        # resumeCount, when the report carries it, is authoritative;
-        # otherwise the literal check decides.
-        hard_miss = [p for p, cnt in hard
-                     if not cnt and not _hosted(text_low, p.strip().lower())]
-        soft_miss = [p for p, cnt in soft
-                     if not cnt and not _hosted(text_low, p.strip().lower())]
-        if hard_miss:
-            errors.append(
-                "report hard skills with NO literal host: "
-                + ", ".join(hard_miss))
-        else:
-            ok_lines.append(f"report hard skills: {len(hard) - len(hard_miss)}"
-                            f"/{len(hard)} hosted")
-        if soft_miss:
-            warns.append(
-                "report soft skills with NO literal host (ACTIONABLE — "
-                "soft skills are safe to infer: host each literal phrase "
-                "where the action-verb evidence lives, SKILL Steps 2/11; "
-                "hosting these moved a real session's live match rate "
-                "59→86): " + ", ".join(soft_miss))
-        elif soft:
-            ok_lines.append(f"report soft skills: {len(soft)}/{len(soft)} "
-                            "hosted")
-        for line in _report_findings(report_data, text):
-            warns.append(line)
+    _audit_jd_and_phrases(args["jd_path"], args["phrases_file"], text_low,
+                          result)
+    _audit_report_skills(report_data, text_low, text, result)
 
     print("== ATS AUDIT ==")
-    for line in ok_lines:
+    for line in result.ok_lines:
         print(f"  ok: {line}")
-    for line in warns:
+    for line in result.warns:
         print(f"  WARNING: {line}")
-    for line in errors:
+    for line in result.errors:
         print(f"  FAIL: {line}")
-    if errors:
-        print(f"RESULT: {len(errors)} finding(s) — fix or raise to the user")
+    if result.errors:
+        print(f"RESULT: {len(result.errors)} finding(s) — fix or raise")
         return 1
     print("RESULT: clean")
     return 0
