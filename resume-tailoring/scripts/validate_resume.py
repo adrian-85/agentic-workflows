@@ -189,7 +189,7 @@ class _Notes:
     guidance: list = field(default_factory=list)   # (severity, message)
 
 
-def _run_structural(ctx, region, body, path, max_words):
+def _run_structural(ctx, region, body, max_words):
     """Run structural, punctuation, integrity, cap, and word-count checks.
     Fills ctx in place."""
     ctx["errors"] = _structural_errors(region)
@@ -371,7 +371,7 @@ def validate_tree(path, body, opts=None):
     ctx = {"is_master_input": path.endswith("Master Resume.docx")}
     region = _region(body)
     summary = _summary_paragraph(body)
-    _run_structural(ctx, region, body, path, opts.max_words)
+    _run_structural(ctx, region, body, opts.max_words)
     first, last = mr._visible_span(_company_headers(body))
     span = (last - first) if (first is not None and last is not None) else None
     ctx["span"] = span

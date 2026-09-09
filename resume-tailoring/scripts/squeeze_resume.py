@@ -154,7 +154,7 @@ def _squeeze_setup(argv):
     return cfg, root, body, names, data
 
 
-def _render_iter(cfg, root, names, data, body):
+def _render_iter(cfg, root, names, data):
     """Render the in-memory docx state to page text. In plan-only mode a
     throwaway probe copy is rendered so the input file stays untouched."""
     with tempfile.TemporaryDirectory() as td:
@@ -200,7 +200,7 @@ def main():
            "iterations": [], "drop_texts": [], "final_pages": None}
     foldback = []
     for it in range(1, cfg.max_iters + 1):
-        pages_text = _render_iter(cfg, root, names, data, body)
+        pages_text = _render_iter(cfg, root, names, data)
         total = len(pages_text)
         print(f"[iter {it}] pages: {total} (target {cfg.target})")
         if total <= cfg.target:
