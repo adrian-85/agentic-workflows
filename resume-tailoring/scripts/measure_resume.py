@@ -403,9 +403,10 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
         # short, size a TOP-ROLE TRIM BATCH here (see _top_role_batch) —
         # the author then pastes emitted find_p lines instead of inventing
         # levers (hand-shortening kept bullets) to close the gap.
+        budget = Budget(per=per, required=required,
+                        tools_savings=len(wrapped), top_block_count=len(top))
         batch, plan, feasible = _top_role_batch(
-            matched, plan, per, required, tools_savings=len(wrapped),
-            top_block_count=len(top), protect=protect, jd_terms=jd_terms)
+            matched, plan, budget, protect=protect, jd_terms=jd_terms)
         matched_roles = [m[0] for m in matched]
         print()
         print(f"MEASURED: ~{per:.1f} rendered lines per bullet (this render)")
