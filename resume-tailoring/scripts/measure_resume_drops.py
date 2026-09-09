@@ -250,7 +250,7 @@ def _apply_simulate(docx_path, drop_prefixes, out_path):
     # capture and relabel it.
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        de.save(out_path, root, names, data, drift_key="simulate-temp")
+        de.save(out_path, root, names, data, drift=de.DriftMeta(drift_key="simulate-temp"))
     m = re.search(r"applied (\d+) edits", buf.getvalue())
     if m:
         print(f"simulated {m.group(1)} drop edit(s) — applied to the temp "

@@ -73,8 +73,10 @@ CLI (inspect structure before editing)::
 
 import copy
 import hashlib
+from dataclasses import dataclass
 import json
 import os
+import pathlib
 import sys
 import zipfile
 from xml.etree import ElementTree as ET
@@ -144,6 +146,15 @@ def _warn_ambiguous(prefix, samples):
     )
 
 
+@dataclass
+class DriftMeta:
+    """Drift-tracking metadata for save(): the calling script's drift_key
+    and the optional master ``src`` path (arms the deliverable gate +
+    master-changed detection)."""
+    drift_key: str | None = None
+    src: str | None = None
+
+
 def load(path):
     """Open a .docx and return (root, body, names, data, W).
 
@@ -164,9 +175,78 @@ def load(path):
     return root, body, names, data, W
 
 
-# pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-branches,too-many-statements
-#   (core save: gate + zip + drift report in one coherent sequence)
-def save(path, root, names, data, drift_key=None, src=None):
+def _drift_sidecar(path, drift, applied, root):
+    """Load/update the ``<path>.drift.json`` sidecar: record the applied
+    edit count + master sha + paragraph count, warn on drift or a changed
+    master, and enforce the fold-additive rule. Returns ``master_changed``
+    (bool) so the caller can run the auto-strict gate."""
+    drift_key = drift.drift_key if drift else None
+    if drift_key is None:
+        drift_key = os.path.basename(sys.argv[0]).rsplit(".", 1)[0]
+    src = drift.src if drift else None
+    drift_path = path + ".drift.json"
+    baseline = {}
+    if os.path.exists(drift_path):
+        try:
+            baseline = json.loads(
+                pathlib.Path(drift_path).read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            baseline = {}
+    master_sha = None
+    if src:
+        master_sha = hashlib.sha256(
+            pathlib.Path(src).read_bytes()).hexdigest()
+    prev = baseline.get(drift_key)
+    prev_edits = prev.get("edits") if isinstance(prev, dict) else prev
+    prev_sha = prev.get("master_sha") if isinstance(prev, dict) else None
+    prev_paras = prev.get("paragraphs") if isinstance(prev, dict) else None
+    if prev is not None and prev_edits != applied:
+        print(
+            f"DRIFT: {drift_key} expected {prev_edits} edits (last "
+            f"recorded run) but applied {applied}. Two possible causes:\n"
+            f"  (a) this script's edit set changed intentionally mid-"
+            f"authoring — no action needed: the baseline updates "
+            f"automatically (warn-once);\n"
+            f"  (b) the master changed under a finished script — see the "
+            f"master-change notice below and run 'diff_resume.py "
+            f"--tailor' before reusing it.\n"
+            f"The blocking gate for a stopped-matching edit remains the "
+            f"skipped-edit check.",
+            file=sys.stderr,
+        )
+    master_changed = bool(prev_sha and master_sha and prev_sha != master_sha)
+    if master_changed:
+        print(
+            f"MASTER CHANGED: {src} differs from the master of the last "
+            f"run of {drift_key} — prefixes may have drifted or edits may "
+            f"now land on rewritten text. Re-dump `docx_edit.py {src!r} "
+            f"--prefixes` and run diff_resume.py --tailor before "
+            f"rendering. Expected if you folded content into the master "
+            f"this session; this run is auto-strict — any skipped edit "
+            f"now exits 2.",
+            file=sys.stderr,
+        )
+    para_count = len(list(root.iter(f"{W}p")))
+    if src is None and prev_paras is not None and para_count < prev_paras:
+        print(
+            f"FOLD CHECK: {drift_key} saved {prev_paras} paragraphs "
+            f"last time but now has {para_count} — content was removed. "
+            "Folds must be ADDITIVE only: new bullets (clone_after), "
+            "proficiency additions, and in-place appends — never "
+            "removals (SKILL Step 12).",
+            file=sys.stderr,
+        )
+    baseline[drift_key] = {"edits": applied, "master_sha": master_sha,
+                           "paragraphs": para_count}
+    try:
+        pathlib.Path(drift_path).write_text(
+            json.dumps(baseline, indent=1), encoding="utf-8")
+    except OSError:
+        pass  # sidecar is best-effort; never fails the save
+    return master_changed
+
+
+def save(path, root, names, data, *, drift=None):
     """Serialize mutated root back into the .docx zip at `path`.
 
     After writing, prints an applied-vs-skipped summary so a silently
@@ -208,6 +288,7 @@ def save(path, root, names, data, drift_key=None, src=None):
     convert by hand. See _deliverable_gate.
     """
     global _APPLIED, _ELEMENT_FORM_DROPS
+    src = drift.src if drift else None
     _deliverable_gate(path, root, src)  # BEFORE the write: no gated file on disk
     data["word/document.xml"] = ET.tostring(
         root, xml_declaration=True, encoding="UTF-8"
@@ -237,76 +318,7 @@ def save(path, root, names, data, drift_key=None, src=None):
         )
     else:
         print(f"applied {applied} edits, 0 skipped")
-    if drift_key is None:
-        drift_key = os.path.basename(sys.argv[0]).rsplit(".", 1)[0]
-    drift_path = path + ".drift.json"
-    baseline = {}
-    if os.path.exists(drift_path):
-        try:
-            with open(drift_path, encoding="utf-8") as f:
-                baseline = json.load(f)
-        except (ValueError, OSError):
-            baseline = {}
-    master_sha = None
-    if src:
-        with open(src, "rb") as f:
-            master_sha = hashlib.sha256(f.read()).hexdigest()
-    prev = baseline.get(drift_key)
-    prev_edits = prev.get("edits") if isinstance(prev, dict) else prev
-    prev_sha = prev.get("master_sha") if isinstance(prev, dict) else None
-    prev_paras = prev.get("paragraphs") if isinstance(prev, dict) else None
-    if prev is not None and prev_edits != applied:
-        print(
-            f"DRIFT: {drift_key} expected {prev_edits} edits (last "
-            f"recorded run) but applied {applied}. Two possible causes:\n"
-            f"  (a) this script's edit set changed intentionally mid-"
-            f"authoring — no action needed: the baseline updates "
-            f"automatically (warn-once);\n"
-            f"  (b) the master changed under a finished script — see the "
-            f"master-change notice below and run 'diff_resume.py "
-            f"--tailor' before reusing it.\n"
-            f"The blocking gate for a stopped-matching edit remains the "
-            f"skipped-edit check.",
-            file=sys.stderr,
-        )
-        # A count change is a review signal, not a gate: rebaseline so the
-        # warning fires ONCE per change (an intentional add/remove must not
-        # trap every later run). The blocking gate for "an edit stopped
-        # matching" is the skipped-edit check below.
-    master_changed = bool(prev_sha and master_sha and prev_sha != master_sha)
-    if master_changed:
-        print(
-            f"MASTER CHANGED: {src} differs from the master of the last "
-            f"run of {drift_key} — prefixes may have drifted or edits may "
-            f"now land on rewritten text. Re-dump `docx_edit.py {src!r} "
-            f"--prefixes` and run diff_resume.py --tailor before "
-            f"rendering. Expected if you folded content into the master "
-            f"this session; this run is auto-strict — any skipped edit "
-            f"now exits 2.",
-            file=sys.stderr,
-        )
-    # Fold-additive enforcement: paragraph count must not decrease.
-    # A fold adds bullets (clone_after), appends, proficiency lines —
-    # never removals.  Only fires on master saves (src=None, i.e. the
-    # fold script writing to the master directly) — tailor-script saves
-    # (src passed) legitimately remove content.
-    para_count = len(list(root.iter(f"{W}p")))
-    if src is None and prev_paras is not None and para_count < prev_paras:
-        print(
-            f"FOLD CHECK: {drift_key} saved {prev_paras} paragraphs "
-            f"last time but now has {para_count} — content was removed. "
-            "Folds must be ADDITIVE only: new bullets (clone_after), "
-            "proficiency additions, and in-place appends — never "
-            "removals (SKILL Step 12).",
-            file=sys.stderr,
-        )
-    baseline[drift_key] = {"edits": applied, "master_sha": master_sha,
-                           "paragraphs": para_count}
-    try:
-        with open(drift_path, "w", encoding="utf-8") as f:
-            json.dump(baseline, f, indent=1)
-    except OSError:
-        pass  # sidecar is best-effort; never fails the save
+    master_changed = _drift_sidecar(path, drift, applied, root)
     if strict and skipped:
         print(
             f"output written to {path}; strict check FAILED "
@@ -500,9 +512,7 @@ def set_labeled(p, label, value):
     bold_rPr = None
     val_rPr = None
     if rs:
-        first_rPr = rs[0].find(W + "rPr")
-        if first_rPr is not None:
-            bold_rPr = copy.deepcopy(first_rPr)
+        bold_rPr = copy.deepcopy(rs[0].find(W + "rPr"))
     for r in rs[1:]:
         rPr = r.find(W + "rPr")
         if rPr is None:

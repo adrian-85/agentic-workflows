@@ -89,7 +89,7 @@ the user. See SKILL.md → Accuracy section.
 import shutil
 
 from docx_edit import (
-    load, save, paras, find_p, set_text, set_labeled,
+    load, save, paras, find_p, set_text, set_labeled, DriftMeta,
     drop, remove_empty,
 )
 
@@ -252,7 +252,7 @@ def main():
     # hand. Approval tokens (seniority/education) go in RESUME_VALIDATE_ARGS,
     # the same env the render gate reads. render_pdf.sh still runs
     # validate_resume.py and refuses to render a broken docx.
-    save(DST, root, names, data, src=SRC)
+    save(DST, root, names, data, drift=DriftMeta(src=SRC))
     print("WROTE", DST)
 
 

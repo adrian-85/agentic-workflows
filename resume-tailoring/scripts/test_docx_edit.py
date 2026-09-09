@@ -1005,9 +1005,11 @@ class SaveDriftTests(unittest.TestCase):
                 cm = None
                 if strict and expect_exit:
                     with self.assertRaises(SystemExit) as cm:
-                        de.save(path, root, names, data, drift_key=key)
+                        de.save(path, root, names, data,
+                        drift=de.DriftMeta(drift_key=key))
                 else:
-                    de.save(path, root, names, data, drift_key=key)
+                    de.save(path, root, names, data,
+                        drift=de.DriftMeta(drift_key=key))
         finally:
             if old is None:
                 os.environ.pop("DOCX_EDIT_STRICT", None)
@@ -1225,7 +1227,9 @@ class MasterChangeGateTests(unittest.TestCase):
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
                 try:
                     de.save(self.dst, root, names, data,
-                            drift_key="tailor_gate.py", src=self.master)
+                            drift=de.DriftMeta(
+                                drift_key="tailor_gate.py",
+                                src=self.master))
                 except SystemExit as e:
                     cm = e
         finally:
@@ -1626,7 +1630,8 @@ class DeliverableGateTests(unittest.TestCase):
         try:
             with contextlib.redirect_stdout(out), \
                     contextlib.redirect_stderr(err):
-                de.save(path, root, names, data, src=src)
+                de.save(path, root, names, data,
+                        drift=de.DriftMeta(src=src))
         except SystemExit as e:
             cm = e
         return cm, out.getvalue(), err.getvalue()
