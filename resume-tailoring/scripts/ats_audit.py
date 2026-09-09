@@ -57,7 +57,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import measure_resume as mr  # noqa: E402
-from script_args import MAX_WORDS, flag_value  # noqa: E402
+from script_args import MAX_WORDS, MATCH_RATE_TARGET, flag_value, maybe_help  # noqa: E402
 
 # Private-use glyphs (bullet dingbats) and page footers ("Page 1|3",
 # "P a g e 1 | 3") are tokens a text extractor emits that word-count
@@ -94,6 +94,35 @@ def _count_words(text):
     return sum(1 for t in clean.split() if re.search(r"[A-Za-z0-9]", t))
 
 
+def _report_match_rate(data):
+    """The report's matchRate.score value, or None when absent."""
+    if not isinstance(data, dict):
+        return None
+    rate = data.get("matchRate")
+    if isinstance(rate, dict) and isinstance(rate.get("score"), (int, float)):
+        return int(rate["score"])
+    return None
+
+
+def _audit_match_rate(score, target, result):
+    """The ≥75 match-rate TARGET (advisory, not a gate): at/above it the
+    literal hosting work is DONE — the session can stop weaving hard and
+    soft skills without chasing the residual no-host list (most of which
+    is genuine never-fabricate gaps and parser artifacts anyway). Below
+    it, keep hosting. Configurable via --match-target; 0 disables."""
+    if not target or score is None:
+        return
+    if score >= target:
+        result.ok_lines.append(
+            f"match rate: {score} (target {target} MET — literal hosting "
+            "is done; stop adding hard/soft skills)")
+    else:
+        result.warns.append(
+            f"match rate: {score} (below the {target} target — keep "
+            "hosting literal phrases truthfully; see the no-host lists "
+            "below for what to host)")
+
+
 def _audit_word_count(text, max_words):
     """Whole-resume word cap. Returns (count, errors)."""
     count = _count_words(text)
@@ -106,19 +135,21 @@ def _audit_word_count(text, max_words):
 
 def _hosted(text_low, phrase_low):
     """Literal phrase host, ATS-style: word-boundary substring, with a
-    whitespace/hyphen-stripped fallback for MULTI-TOKEN phrases (a phrase
-    wrapped across a pdftotext line break still parses as one token in
-    most ATS) and an optional trailing plural on the last word — external
-    scorers match stemmed ("triage" hosts "triages"). The fallback never
-    applies to single words — "api" must not host inside "rapid"."""
+    whitespace/hyphen/slash-stripped fallback for MULTI-TOKEN phrases (a
+    phrase wrapped across a pdftotext line break still parses as one token
+    in most ATS, and standard spellings split with a slash — the JD says
+    "CI/CD pipelines", the resume legitimately renders "CI/CD") and an
+    optional trailing plural on the last word — external scorers match
+    stemmed ("triage" hosts "triages"). The fallback never applies to
+    single words — "api" must not host inside "rapid"."""
     suffix = "" if phrase_low.endswith("s") else "(?:e?s)?"
     if re.search(rf"(?<![a-z0-9]){re.escape(phrase_low)}{suffix}(?![a-z0-9])",
                  text_low):
         return True
     if not re.search(r"[\s\-]", phrase_low):
         return False
-    return re.sub(r"[\s\-]+", "", phrase_low) in re.sub(r"[\s\-]+", "",
-                                                       text_low)
+    return re.sub(r"[\s\-/]+", "", phrase_low) in re.sub(r"[\s\-/]+", "",
+                                                          text_low)
 
 
 # Function words: an n-gram containing one is not a phrase. Unlike
@@ -248,13 +279,18 @@ def _jd_literal_terms(jd_text):
     qualification nouns, minus sentence-initial capitals (a line-initial
     capital is prose, not a product name — "Assess whether…" must not
     mine "assess"), plus CORE_TECH_NOUNS/markers they might miss.
+
+    Mined tokens are stripped of trailing punctuation: the token regexes
+    keep sentence-final periods ("apis.", "c#.", "locust." from a real
+    JD) which no resume can literally host and which only padded the FAIL
+    list with parser artifacts.
     """
     stop_vague = _VAGUE_STOP | mr.JD_SELF_ASSESSMENT
     terms = set()
     for line in mr._jd_requirement_lines(jd_text):
         terms.update(_single_token_terms(line, stop_vague))
         terms.update(_phrase_terms(line, stop_vague))
-    return sorted(terms)
+    return sorted(t.rstrip(".,;:!?\"'") for t in terms)
 
 
 def _audit_jd(text_low, jd_text):
@@ -400,6 +436,7 @@ def _parse_ats_args(argv):
     """Parse ats_audit CLI arguments. Returns a dict, or None when argv is
     empty/only-flags (the caller should print usage and exit 2)."""
     argv = list(sys.argv[1:] if argv is None else argv)
+    maybe_help(argv, __doc__)
     if not argv or argv[0].startswith("-"):
         return None
     return {
@@ -409,6 +446,8 @@ def _parse_ats_args(argv):
         "jd_path": flag_value(argv, "--jd"),
         "phrases_file": flag_value(argv, "--phrases-file"),
         "report_json": flag_value(argv, "--report-json"),
+        "match_target": flag_value(argv, "--match-target", cast=int,
+                                   default=MATCH_RATE_TARGET),
     }
 
 
@@ -519,6 +558,8 @@ def main(argv=None):
     _audit_jd_and_phrases(args["jd_path"], args["phrases_file"], text_low,
                           result)
     _audit_report_skills(report_data, text_low, text, result)
+    _audit_match_rate(_report_match_rate(report_data), args["match_target"],
+                      result)
 
     print("== ATS AUDIT ==")
     for line in result.ok_lines:

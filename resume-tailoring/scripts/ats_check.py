@@ -62,7 +62,7 @@ import time
 import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from script_args import flag_value  # noqa: E402
+from script_args import MATCH_RATE_TARGET, flag_value, maybe_help  # noqa: E402
 
 # Config lives in the SKILL ROOT (this repo's resume-tailoring/), next
 # to the master resume and JD files it belongs to — gitignored, durable
@@ -522,6 +522,20 @@ def _poll_report(url, headers, timeout, interval):
     return None
 
 
+def _print_match_target(score):
+    """The scan print's match-rate target line (SKILL Step 11 stop signal)."""
+    print(f"    matchRate: {score}")
+    if not (isinstance(score, (int, float)) and MATCH_RATE_TARGET):
+        return
+    if score >= MATCH_RATE_TARGET:
+        print(f"    target: {MATCH_RATE_TARGET} MET — literal hosting "
+              "is done; stop adding hard/soft skills")
+    else:
+        print(f"    target: below {MATCH_RATE_TARGET} — keep hosting "
+              "literal phrases truthfully (ats_audit's no-host lists "
+              "name what to host)")
+
+
 def scan(resume_path, jd_path, opts=None):
     """Poll the ATS until the posting is indexed; return the match result."""
     opts = opts if opts is not None else _ScanOpts()
@@ -548,7 +562,7 @@ def scan(resume_path, jd_path, opts=None):
     wc = (fm.get("wordCount") or {}).get("variables", {}).get("wordCount")
     ats = (fm.get("atsTip") or {}).get("variables", {}).get("ats")
     print(f"[4] report ready -> saved {out}")
-    print(f"    matchRate: {mr.get('score')}")
+    _print_match_target(mr.get("score"))
     print(f"    wordCount: {wc} (cross-check only — the cap uses "
           "ats_audit's own count)")
     if ats:
@@ -592,6 +606,7 @@ def check(config=CURL_FILE):
 def main(argv=None):
     """ATS-check CLI entry point."""
     argv = list(sys.argv[1:] if argv is None else argv)
+    maybe_help(argv, __doc__)
     if not argv:
         print(__doc__)
         return 2
