@@ -572,8 +572,6 @@ def _jd_checks(jd_path, body, span, opts, notes):
     (education_errors, education_notes). Raises _JdBlocking with the
     blocking result dict when the JD file cannot be read."""
     jd_years = opts.jd_years
-    education_approved = opts.education_approved
-    protect = opts.protect
     claim_notes = notes.claim
     guidance_notes = notes.guidance
     education_errors, education_notes = [], []
@@ -594,7 +592,7 @@ def _jd_checks(jd_path, body, span, opts, notes):
                 f"error: cannot read --jd file {jd_path}: {e} "
                 f"— JD-dependent gates cannot run"]}) from e
         education_errors, education_notes = _education_gate(
-            jd_text, body, span, jd_years, education_approved)
+            jd_text, body, span, jd_years, opts.education_approved)
         # A fabricated ask poisons every span comparison downstream (the
         # underqualified warning, the education load-bearing check): a
         # real session passed --jd-years 10 against a JD with no years
@@ -615,7 +613,7 @@ def _jd_checks(jd_path, body, span, opts, notes):
         # not a JD-tight resume. Advisory: the human rule may keep one,
         # with a one-line reason tied to the JD.
         jd_fit = mr._jd_fit_audit(mr._roles(body), mr._jd_terms(jd_text, body),
-                                  protect=protect)
+                                  protect=opts.protect)
         if jd_fit:
             flagged = sum(1 for s in jd_fit for l in s.splitlines()
                           if l.lstrip().startswith(("OFF-JD", "weak-match")))

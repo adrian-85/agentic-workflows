@@ -318,12 +318,9 @@ def _readability_guidance(body, summary, *, region=None, master_input=False):
             n = len(text.split())
             if n <= PARA_WORD_CAP:
                 continue
-            kind = ("Summary" if p is summary
-                    else "Bullet" if _is_bullet(p) else "Paragraph")
-            snippet = " ".join(text.split())[:60]
             notes.append(("warn",
-                f"{kind} has {n} words (cap {PARA_WORD_CAP}, SKILL Step 4): "
-                f"{snippet!r}... — split or trim to {PARA_WORD_CAP} words"))
+                f"{'Summary' if p is summary else 'Bullet' if _is_bullet(p) else 'Paragraph'} has {n} words (cap {PARA_WORD_CAP}, SKILL Step 4): "
+                f"{' '.join(text.split())[:60]!r}... — split or trim to {PARA_WORD_CAP} words"))
     if summary_text and len(summary_text.split()) <= PARA_WORD_CAP:
         notes.append(("ok",
             f"Summary has {len(summary_text.split())} words — within the "
