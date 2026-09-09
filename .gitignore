@@ -25,3 +25,5 @@ resume-tailoring/*.ats-check.json
 
 # Worktrees (isolated dev workspaces)
 .worktrees/
+
+.idea/*

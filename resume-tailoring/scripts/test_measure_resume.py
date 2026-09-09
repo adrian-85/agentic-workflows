@@ -1951,6 +1951,50 @@ class SpacerBoundaryTests(unittest.TestCase):
         self.assertEqual(mr._boundaries_without_spacer(self._body(True)),
                          [])
 
+    def test_you_bring_heading_collects_qualifications(self):
+        # Modern JDs often label their qualification section "You Bring"
+        # (or "What You'll Bring") instead of "Required Qualifications"
+        # — e.g. OnePay's QE Platform Engineer posting. The collector
+        # must recognize it as a heading, or the requirement-coverage
+        # map (and its never-fabricate guard) silently stays silent for
+        # the whole posting. Bullets under it collect; the company-voice
+        # "Tools We Use" prose after it must not surface as qual lines.
+        jd = ("QE Platform Engineer\n"
+              "About OnePay\n"
+              "We're an all-in-one financial services platform.\n"
+              "The Role\n"
+              "Design and own shared test automation frameworks.\n"
+              "You Bring\n"
+              "Deep experience building test automation frameworks "
+              "such as Playwright, Selenium, Appium, or similar\n"
+              "Proficiency in TypeScript/Node.js\n"
+              "Experience with cloud-native infrastructure such as "
+              "Kubernetes and AWS\n"
+              "Tools We Use\n"
+              "We use Node and TypeScript on the server.\n")
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " \u2013 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Built test automation frameworks with Playwright and "
+                  "Selenium.", numId=2),
+            _para("Designed TypeScript test suites.", numId=2),
+            _para("Tools & Technologies: Kubernetes, Docker, AWS"),
+        ])
+        result = mr._jd_requirement_coverage(mr._roles(body), body, jd)
+        self.assertTrue(result, "You Bring heading must collect "
+                        "qualification lines")
+        self.assertTrue(any(s == "covered" and label.startswith("Deep experience")
+                            for label, s, _ in result), result)
+        self.assertTrue(any("Acme, City" in detail and "Playwright" in detail
+                            for _, s, detail in result if s == "covered"), result)
+        # Kubernetes/AWS live only on the Tools line: [weak], same rule.
+        self.assertTrue(any(s == "weak" and "Kubernetes" in label
+                            for label, s, _ in result), result)
+        # The company-voice Tools We Use prose must not be mined.
+        self.assertFalse(any("Tools We Use" in label
+                             for label, _, _ in result), result)
+
 
 class JdFitAuditTests(unittest.TestCase):
     """The JD-FIT AUDIT: per-role bullet classification printed for EVERY

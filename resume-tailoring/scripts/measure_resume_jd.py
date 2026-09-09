@@ -118,7 +118,12 @@ JD_QUAL_HEADING_RE = re.compile(
     # collector as a section TERMINATOR instead of a heading, killing the
     # requirement-coverage map (and its never-fabricate guard) for the
     # entire posting.
-    r"|^\s*#{0,6}\s*(?:required|preferred|minimum)\s*:?\s*$",
+    r"|^\s*#{0,6}\s*(?:required|preferred|minimum)\s*:?\s*$"
+    # "You Bring" / "What You'll Bring" headings — a common modern JD
+    # label for the qualification section (e.g. OnePay's QE Platform
+    # posting). Without it the requirement-coverage map (and its
+    # never-fabricate guard) silently stays silent for the whole posting.
+    r"|^\s*#{0,6}\s*(?:what\s+)?you(?:'ll)?\s+bring\s*:?\s*$",
     re.I,
 )
 
