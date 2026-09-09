@@ -2,24 +2,17 @@
 
 Lives outside validate_resume.py so docx_edit.py can import it without
 the docx_edit -> validate_resume -> measure_resume -> docx_edit import
-cycle. Mirrors the per-script parsing loops verbatim; each script's
-main() composes these.
+cycle. One parsing surface for every script: extract_common is the
+standard --protect/--jd/positional loop, extract_flag/extract_flag_all/
+parse_flag consume flags, flag_value reads without consuming.
 """
 
 import sys
-
-# pylint: disable=wrong-import-position,import-outside-toplevel
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
-
 
 # Whole-resume word cap for a tailored deliverable (SKILL Step 8).
 # Home here (not validate_resume) so docx_edit's deliverable gate can
 # apply the default without importing validate_resume (cycle break).
 MAX_WORDS = 1000
-
 
 def parse_flag(argv, flag):
     """Remove a boolean flag from ``argv`` (in-place) and return True if it was present."""
@@ -27,7 +20,6 @@ def parse_flag(argv, flag):
         argv.remove(flag)
         return True
     return False
-
 
 def extract_flag(argv, flag):
     """Extract a flag + value pair from ``argv`` (in-place), returning the value or None."""
@@ -38,7 +30,6 @@ def extract_flag(argv, flag):
         return value
     return None
 
-
 def extract_flag_all(argv, flag):
     """Extract EVERY flag + value pair for a repeatable flag (in-place),
     returning the list of values (empty when absent)."""
@@ -47,6 +38,19 @@ def extract_flag_all(argv, flag):
         values.append(extract_flag(argv, flag))
     return values
 
+def flag_value(argv, name, *, cast=str, default=None):
+    """The value of ``name`` in ``argv`` WITHOUT consuming it (positionals
+    and later argv scans stay untouched). Missing flag -> ``default``;
+    flag present with no value -> SystemExit with a readable message
+    (extract_flag's IndexError is not actionable). The single read-only
+    variant lets ats_audit/ats_check read flags after their positional
+    scan without disturbing it."""
+    if name not in argv:
+        return default
+    i = argv.index(name)
+    if i + 1 >= len(argv):
+        raise SystemExit(f"error: {name} needs a value")
+    return cast(argv[i + 1])
 
 def read_jd_text(jd_file):
     """Read a --jd job-description file, exiting 2 on unreadable paths
@@ -58,7 +62,6 @@ def read_jd_text(jd_file):
         print(f"error: cannot read --jd file {jd_file}: {e}",
               file=sys.stderr)
         sys.exit(2)
-
 
 def extract_common(argv, extra_flags=()):
     """Split argv into (protect, jd_file, kept) using the standard --protect/

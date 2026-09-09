@@ -41,11 +41,6 @@ Safety and reproducibility:
 Requires libreoffice + pdftotext (like measure_resume.py).
 """
 
-# pylint: disable=wrong-import-position,import-outside-toplevel
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
 
 
 import json

@@ -42,11 +42,6 @@ BEFORE the compression cuts, to plan them. Re-run render_pdf.sh after cutting
 to verify.
 """
 
-# pylint: disable=wrong-import-position,import-outside-toplevel
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
 
 # pylint: disable=unused-import
 # measure_resume/validate_resume is the legacy RE-EXPORT shim: it preserves

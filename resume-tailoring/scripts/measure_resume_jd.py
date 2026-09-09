@@ -1,11 +1,7 @@
 """measure_resume JD vocabulary / requirements / inference / title analysis. Split from measure_resume.py; imported one-way by measure_resume_drops + the shim."""  # pylint: disable=line-too-long  # (long string/help literal)
 
-# pylint: disable=wrong-import-position,import-outside-toplevel,invalid-name
+# pylint: disable=invalid-name
 # invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
 
 
 import re
@@ -14,6 +10,7 @@ import sys
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
+from docx_edit_gate import tmp_jd_note  # noqa: E402
 from measure_resume_format import BULLET_STYLES, COMPANY_STYLE, SECTION_PROFICIENCIES, _proficiency_block  # noqa: E402
 
 W = de.W
@@ -556,7 +553,7 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, evidence_text=None):
     evidence search; ``evidence_text``). "No literal host" is a flag to
     infer from, not a verdict.
     """
-    tmp_note = de.tmp_jd_note(jd_file)
+    tmp_note = tmp_jd_note(jd_file)
     words = len(jd_text.split())
     if not jd_terms:
         out = [

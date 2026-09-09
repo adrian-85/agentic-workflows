@@ -14,13 +14,11 @@ spanning occurrences left in place), set_text, set_labeled, find_p, remove,
 remove_empty, clone_after.
 """
 
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
 # invalid-name: OOXML fixture names (pPr, numId, ...) mirror the schema.
-# import-outside-toplevel/wrong-import-position: live tests guard heavy imports at runtime;
-#   flat-namespace tests need the sys.path bootstrap before sibling imports.
 
 import contextlib
 import io
@@ -36,6 +34,7 @@ sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 import test_helpers
 import docx_edit_cli as dcli  # noqa: E402  (CLI surface — moved out of core)
+from docx_edit_gate import tmp_jd_note  # noqa: E402
 
 W = de.W
 SPACE = de.SPACE
@@ -109,13 +108,13 @@ class TmpJdNoteTests(unittest.TestCase):
     so the two warnings cannot drift apart."""
 
     def test_note_for_tmp_path(self):
-        note = de.tmp_jd_note("/tmp/jd_acme.txt")
+        note = tmp_jd_note("/tmp/jd_acme.txt")
         self.assertIn("/tmp/jd_acme.txt", note)
         self.assertIn("jd_<target>.txt", note)
 
     def test_none_for_persistent_paths(self):
-        self.assertIsNone(de.tmp_jd_note("jd_acme.txt"))
-        self.assertIsNone(de.tmp_jd_note(None))
+        self.assertIsNone(tmp_jd_note("jd_acme.txt"))
+        self.assertIsNone(tmp_jd_note(None))
 
 
 class ReplaceTextTests(unittest.TestCase):

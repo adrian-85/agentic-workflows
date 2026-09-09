@@ -1,10 +1,3 @@
-# pylint: disable=wrong-import-position,import-outside-toplevel
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
-
-
 #!/usr/bin/env python3
 """ATS Check — run an external ATS scan on the rendered deliverable.
 
@@ -61,6 +54,9 @@ import subprocess
 import sys
 import time
 import urllib.parse
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from script_args import flag_value  # noqa: E402
 
 # Config lives in the SKILL ROOT (this repo's resume-tailoring/), next
 # to the master resume and JD files it belongs to — gitignored, durable
@@ -595,16 +591,8 @@ def main(argv=None):
         return 2
     cmd, rest = argv[0], argv[1:]
 
-    def _flag(name, cast=str, default=None):
-        if name not in rest:
-            return default
-        i = rest.index(name)
-        if i + 1 >= len(rest):
-            raise SystemExit(f"error: {name} needs a value")
-        return cast(rest[i + 1])
-
     if cmd == "check":
-        return check(_flag("--config") or CURL_FILE)
+        return check(flag_value(rest, "--config") or CURL_FILE)
     if cmd == "scan":
         # Flags may appear before or after the positionals.
         flag_names = ("--config", "--out", "--timeout", "--interval",
@@ -622,11 +610,11 @@ def main(argv=None):
             print(__doc__)
             return 2
         return scan(positional[0], positional[1], _ScanOpts(
-            out=_flag("--out"),
-            timeout=_flag("--timeout", cast=int, default=300),
-            interval=_flag("--interval", cast=int, default=6),
-            config=_flag("--config") or CURL_FILE,
-            company=_flag("--company")))
+            out=flag_value(rest, "--out"),
+            timeout=flag_value(rest, "--timeout", cast=int, default=300),
+            interval=flag_value(rest, "--interval", cast=int, default=6),
+            config=flag_value(rest, "--config") or CURL_FILE,
+            company=flag_value(rest, "--company")))
     print(__doc__)
     return 2
 

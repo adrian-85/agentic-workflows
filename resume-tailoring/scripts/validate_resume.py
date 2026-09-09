@@ -90,11 +90,6 @@ Usage:
     python3 scripts/validate_resume.py <resume.docx> --jd <JD.txt> [--jd-years 5] [--education-approved] [--master p]  # pylint: disable=line-too-long
 """
 
-# pylint: disable=wrong-import-position,import-outside-toplevel
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
 
 # pylint: disable=unused-import
 # measure_resume/validate_resume is the legacy RE-EXPORT shim: it preserves
@@ -108,7 +103,7 @@ import os
 import re
 import sys
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import docx_edit as de  # noqa: E402
@@ -116,6 +111,7 @@ import measure_resume as mr  # noqa: E402
 from script_args import parse_flag as _parse_flag  # noqa: E402
 from script_args import extract_flag as _extract_flag  # noqa: E402
 from script_args import extract_flag_all as _extract_flag_all  # noqa: E402
+from script_args import flag_value as _flag_value  # noqa: E402
 from script_args import MAX_WORDS  # noqa: E402  (single source of truth)
 
 
@@ -178,15 +174,6 @@ class TreeOptions:
     education_approved: bool = False
     protect: tuple = ()
     max_words: int = MAX_WORDS
-
-
-@dataclass
-class _Notes:
-    """Threads the advisory/guidance note lists through the check helpers
-    (claim_notes, guidance_notes) without multi-arg signatures."""
-
-    claim: list = field(default_factory=list)      # (severity, message)
-    guidance: list = field(default_factory=list)   # (severity, message)
 
 
 def _run_structural(ctx, region, body, max_words):
@@ -381,12 +368,9 @@ def validate_tree(path, body, opts=None):
     ctx["claim_notes"] = []
     ctx["guidance_notes"] = _readability_guidance(
         body, summary, region=region, master_input=ctx["is_master_input"])
-    notes = _Notes()
-    notes.claim = ctx["claim_notes"]
-    notes.guidance = ctx["guidance_notes"]
     try:
         ctx["education_errors"], ctx["education_notes"] = _jd_checks(
-            opts.jd_path, body, span, opts, notes)
+            opts.jd_path, body, span, opts, ctx)
     except _JdBlocking as exc:
         return exc.args[0]
     _run_master_seniority(ctx, path, body, opts, span)
@@ -507,8 +491,8 @@ def _parse_validate_args(argv):
     jd_years = float(_extract_flag(argv, "--jd-years")) if "--jd-years" in argv else None
     jd_path = _extract_flag(argv, "--jd")
     protect = _extract_flag_all(argv, "--protect")
-    max_words = (int(_extract_flag(argv, "--max-words"))
-                 if "--max-words" in argv else MAX_WORDS) or None
+    max_words = _flag_value(argv, "--max-words", cast=int,
+                            default=MAX_WORDS) or None
     seniority_approved = _parse_flag(argv, "--seniority-approved")
     education_approved = _parse_flag(argv, "--education-approved")
     opts = TreeOptions(master_path=master, jd_path=jd_path, jd_years=jd_years,
@@ -548,15 +532,16 @@ class _JdBlocking(Exception):
     and returns the dict (the documented dict contract)."""
 
 
-def _jd_checks(jd_path, body, span, opts, notes):
+def _jd_checks(jd_path, body, span, opts, ctx):
     """Run the JD-dependent gates (education, title alignment, JD-FIT).
 
-    Appends to ``notes.claim``/``notes.guidance`` in place; returns
-    (education_errors, education_notes). Raises _JdBlocking with the
-    blocking result dict when the JD file cannot be read."""
+    Appends to ``ctx["claim_notes"]``/``ctx["guidance_notes"]`` in
+    place; returns (education_errors, education_notes). Raises
+    _JdBlocking with the blocking result dict when the JD file cannot
+    be read."""
     jd_years = opts.jd_years
-    claim_notes = notes.claim
-    guidance_notes = notes.guidance
+    claim_notes = ctx["claim_notes"]
+    guidance_notes = ctx["guidance_notes"]
     education_errors, education_notes = [], []
     if jd_path:
         try:

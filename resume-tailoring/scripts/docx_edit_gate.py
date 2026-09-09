@@ -12,11 +12,6 @@ state (broken structure, punctuation prose, 8-bullet-cap violation,
 unapproved whole-role elimination) never becomes a file.
 """
 
-# pylint: disable=wrong-import-position,import-outside-toplevel
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
 
 
 import importlib
@@ -24,7 +19,7 @@ import os
 import shlex
 import sys
 
-from script_args import MAX_WORDS, extract_flag, extract_flag_all, parse_flag
+from script_args import MAX_WORDS, extract_flag, extract_flag_all, flag_value, parse_flag
 
 
 def tmp_jd_note(jd_path):
@@ -82,8 +77,8 @@ def _approval_env():
     seniority_approved = parse_flag(argv, "--seniority-approved")
     education_approved = parse_flag(argv, "--education-approved")
     protect = extract_flag_all(argv, "--protect")
-    max_words = (int(extract_flag(argv, "--max-words"))
-                 if "--max-words" in argv else MAX_WORDS) or None
+    max_words = flag_value(argv, "--max-words", cast=int,
+                           default=MAX_WORDS) or None
     return (jd_path, jd_years, seniority_approved, education_approved,
             protect, max_words)
 

@@ -32,7 +32,7 @@ from openai import OpenAI
 # Import the parser from the sibling module. sys.path bootstrap must
 # precede the sibling import (flat namespace); pylint flags the position.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from parse_transcript import parse_transcript, flatten  # noqa: E402  # pylint: disable=wrong-import-position
+from parse_transcript import parse_transcript, flatten  # noqa: E402
 
 
 # --------------------------------------------------------------------------- #

@@ -1,10 +1,3 @@
-# pylint: disable=wrong-import-position,import-outside-toplevel
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
-
-
 #!/usr/bin/env python3
 """ATS audit — literal-phrase verification of the RENDERED deliverable.
 
@@ -58,8 +51,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import measure_resume as mr  # noqa: E402
-
-DEFAULT_MAX_WORDS = 1000
+from script_args import MAX_WORDS, flag_value  # noqa: E402
 
 # Private-use glyphs (bullet dingbats) and page footers ("Page 1|3",
 # "P a g e 1 | 3") are tokens a text extractor emits that word-count
@@ -404,24 +396,13 @@ def _parse_ats_args(argv):
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv[0].startswith("-"):
         return None
-
-    def _flag(name, cast=str):
-        if name not in argv:
-            return None
-        i = argv.index(name)
-        if i + 1 >= len(argv):
-            raise SystemExit(f"error: {name} needs a value")
-        return cast(argv[i + 1])
-
-    max_words = _flag("--max-words", int)
-    if max_words is None:
-        max_words = DEFAULT_MAX_WORDS
     return {
         "path": argv[0],
-        "max_words": max_words,
-        "jd_path": _flag("--jd"),
-        "phrases_file": _flag("--phrases-file"),
-        "report_json": _flag("--report-json"),
+        "max_words": flag_value(argv, "--max-words", cast=int,
+                                 default=MAX_WORDS),
+        "jd_path": flag_value(argv, "--jd"),
+        "phrases_file": flag_value(argv, "--phrases-file"),
+        "report_json": flag_value(argv, "--report-json"),
     }
 
 

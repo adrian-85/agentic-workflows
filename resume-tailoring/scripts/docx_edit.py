@@ -58,11 +58,6 @@ CLI (inspect structure before editing)::
         # prints paragraphs 26-38 with FULL text (no truncation)
 """
 
-# pylint: disable=wrong-import-position,import-outside-toplevel
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
 
 # pylint: disable=invalid-name,global-statement
 # invalid-name: rPr/pPr/numId/… mirror OOXML w:rPr/pPr/numId schema tags
@@ -82,7 +77,7 @@ import zipfile
 from xml.etree import ElementTree as ET
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])  # flat-namespace siblings
-from docx_edit_gate import _deliverable_gate, tmp_jd_note  # noqa: E402  # pylint: disable=unused-import
+from docx_edit_gate import _deliverable_gate  # noqa: E402
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 XMLNS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
