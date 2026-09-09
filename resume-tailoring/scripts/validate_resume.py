@@ -189,99 +189,45 @@ class _Notes:
     guidance: list = field(default_factory=list)   # (severity, message)
 
 
-def validate_tree(path, body, opts=None):
-    """Run every check against an ALREADY-LOADED document tree.
+def _run_structural(ctx, region, body, path, max_words):
+    """Run structural, punctuation, integrity, cap, and word-count checks.
+    Fills ctx in place."""
+    ctx["errors"] = _structural_errors(region)
+    ctx["punct_errors"] = _punctuation_errors(region, _summary_paragraph(body))
+    ctx["integrity_errors"] = _text_integrity_errors(
+        region, _summary_paragraph(body))
+    ctx["dups"] = list(_near_duplicates(region))
+    if ctx["is_master_input"]:
+        ctx["cap_errors"] = []
+    else:
+        ctx["cap_errors"] = _bullet_cap_errors(region)
+    ctx["word_count"] = _word_count(body)
+    ctx["word_errors"] = []
+    if max_words and not ctx["is_master_input"] and ctx["word_count"] > max_words:
+        ctx["word_errors"].append(
+            f"{ctx['word_count']} words exceeds the {max_words}-word cap by "
+            f"{ctx['word_count'] - max_words} — cut content (JD-driven, "
+            "Step 8), do not shrink fonts")
+    ctx["max_words"] = max_words
 
-    Returns ``{"blocking": int, "warnings": int, "lines": [str]}`` — the
-    blocking-error count, the advisory-warning count, and the full report
-    lines. The CLI (main) prints the lines and maps the counts to exit
-    codes; ``docx_edit.save``'s deliverable gate calls this in memory
-    BEFORE writing the .docx, so a gated state never becomes a file on
-    disk (the render gate alone is bypassable — the user can convert the
-    .docx themselves).
 
-    ``path`` locates the master for the claims/role-integrity/seniority
-    checks when ``master_path`` is None (pass ``src`` from save()). The
-    education gate runs only when ``jd_path`` is given; ``*_approved``
-    record user-granted overrides (never self-granted).
-    """
-    opts = opts if opts is not None else TreeOptions()
-    master_path = opts.master_path
-    jd_path = opts.jd_path
-    jd_years = opts.jd_years
-    seniority_approved = opts.seniority_approved
-    max_words = opts.max_words
-    region = _region(body)
-    summary = _summary_paragraph(body)
-
-    errors = _structural_errors(region)
-    punct_errors = _punctuation_errors(region, summary)
-    integrity_errors = _text_integrity_errors(region, summary)
-    dups = list(_near_duplicates(region))
-
-    # Bullet cap (SKILL Step 8): every role within MAX_BULLETS_PER_ROLE.
-    # The cap applies to TAILORED resumes; when the input IS the master it
-    # is advisory only — the master intentionally keeps everything.
-    is_master_input = path.endswith("Master Resume.docx")
-    cap_errors = [] if is_master_input else _bullet_cap_errors(region)
-
-    # Whole-resume word cap (SKILL Steps 3/8): blocking for tailored
-    # resumes, exempt for the master, same as the bullet cap above.
-    word_count = _word_count(body)
-    word_errors = []
-    if max_words and not is_master_input and word_count > max_words:
-        word_errors.append(
-            f"{word_count} words exceeds the {max_words}-word cap by "
-            f"{word_count - max_words} — cut content (JD-driven, Step 8), "
-            "do not shrink fonts")
-
-    # Visible timeline span (shared with measure_resume.py): the number a
-    # recruiter compares against the JD's "N+ years" ask. Everything below
-    # that checks claims against this span.
-    first, last = mr._visible_span(_company_headers(body))
-    span = (last - first) if (first is not None and last is not None) else None
-
-    claim_notes = []  # (severity, message); severity in warn|ok|note
-    guidance_notes = _readability_guidance(body, summary, region=region,
-                                           master_input=is_master_input)
-
-    # Education gate (Step 3.4, needs --jd): a degree-requiring JD blocks
-    # the render when the section was dropped (--education-approved
-    # records the override); under an 'or equivalent' clause the clause is
-    # load-bearing only when the visible span does not exceed the ask.
-    notes = _Notes()
-    notes.claim = claim_notes
-    notes.guidance = guidance_notes
-    try:
-        education_errors, education_notes = _jd_checks(
-            jd_path, body, span, opts, notes)
-    except _JdBlocking as exc:
-        return exc.args[0]
-    # Claims: numbers vs master.
-    master_path = master_path or _find_master(path)
+def _run_master_seniority(ctx, path, body, opts, span):
+    """Master claims/integrity + seniority gate. Extends ctx['errors'],
+    sets ctx['seniority_errors'] and ctx['master_blob']."""
+    master_path = opts.master_path or _find_master(path)
     master_texts = _master_texts(master_path)
-    master_blob = " ".join(master_texts) if master_texts is not None else None
-
-    # Whole-role integrity (needs the master): kept roles keep title+bullets,
-    # removed roles leave no surviving bullets (the orphaned-content failure).
-    errors.extend(_role_integrity_errors(master_path, body))
-
-    # Seniority gate (Step 3 enforcement): if whole roles were eliminated
-    # (visible span shrank >= SENIORITY_GATE_YEARS vs the master), the run
-    # is a blocking error unless --seniority-approved records the user's
-    # approval. This turns "ask the user first" into a gate — the PDF cannot
-    # be produced from a shortened timeline without the approval token.
+    ctx["master_blob"] = (" ".join(master_texts)
+                          if master_texts is not None else None)
+    ctx["errors"].extend(_role_integrity_errors(master_path, body))
     seniority_errors = []
     master_first, master_last = _master_span(master_path)
-    master_span = (
-        (master_last - master_first)
-        if (master_first is not None and master_last is not None)
-        else None
-    )
+    master_span = ((master_last - master_first)
+                   if (master_first is not None and master_last is not None)
+                   else None)
     if master_span is not None and span is not None:
         shrink = master_span - span
         if shrink >= SENIORITY_GATE_YEARS:
-            if not seniority_approved:
+            if not opts.seniority_approved:
                 seniority_errors.append(
                     f"whole-role elimination detected: visible span "
                     f"~{span:.1f}y is ~{shrink:.1f}y shorter than the master "
@@ -292,42 +238,48 @@ def validate_tree(path, body, opts=None):
                     f"on your own authority. Finish the .docx, present the "
                     f"proposed span with the numbers, and hand the user the "
                     f"render command; the PDF stays blocked until they "
-                    f"approve."
-                )
+                    f"approve.")
             else:
-                claim_notes.append((
+                ctx["claim_notes"].append((
                     "ok",
                     f"seniority alignment approved: ~{shrink:.1f}y of oldest "
                     f"roles removed (visible ~{span:.1f}y vs master "
                     f"~{master_span:.1f}y)",
                 ))
+    ctx["seniority_errors"] = seniority_errors
 
-    if master_blob is not None:
-        for p in region:
-            if not _is_bullet(p):
-                continue
-            for m in NUM_CLAIM.finditer(de.text_of(p)):
-                tok = m.group(0).strip()
-                if tok not in master_blob:
-                    claim_notes.append((
-                        "warn",
-                        f"quantified claim {tok!r} on a kept bullet is absent "
-                        f"from the master — possible fabrication: "
-                        f"{de.text_of(p)[:70]!r}",
-                    ))
-    else:
+
+def _run_quantified_claims(region, master_blob, claim_notes):
+    """Check quantified claims against the master text. Appends warnings
+    for any number on a kept bullet absent from the master."""
+    if master_blob is None:
         claim_notes.append((
             "note",
             "no master found next to the input (looking for '* Master "
             "Resume.docx'); skipping the quantified-claims check and the "
-            "seniority gate — pass "
-            "--master <path> to enable it",
+            "seniority gate — pass --master <path> to enable it",
         ))
+        return
+    for p in region:
+        if not _is_bullet(p):
+            continue
+        for m in NUM_CLAIM.finditer(de.text_of(p)):
+            tok = m.group(0).strip()
+            if tok not in master_blob:
+                claim_notes.append((
+                    "warn",
+                    f"quantified claim {tok!r} on a kept bullet is absent "
+                    f"from the master — possible fabrication: "
+                    f"{de.text_of(p)[:70]!r}",
+                ))
 
-    # Claims: every "N years" statement must not outrun the visible
-    # timeline. Step 3's seniority alignment reduces years claims when work
-    # is eliminated; this makes that mechanical for the Summary AND any
-    # other paragraph.
+
+def _run_years_claims(ctx, body, summary):
+    """Years-claims checks: summary claim vs visible span, body claims
+    vs span. Appends to ctx['claim_notes']."""
+    span = ctx["span"]
+    first, last = ctx["first"], ctx["last"]
+    claim_notes = ctx["claim_notes"]
     if summary is not None:
         claim = _claim_years(de.text_of(summary))
         if claim is not None and span is not None:
@@ -347,7 +299,7 @@ def validate_tree(path, body, opts=None):
     if span is not None:
         for p in de.paras(body):
             if p is summary:
-                continue  # handled above with a specific message
+                continue
             t = de.text_of(p)
             for m in YEARS_RE.finditer(t):
                 if int(m.group(1)) > span + 1.0:
@@ -358,156 +310,187 @@ def validate_tree(path, body, opts=None):
                         f"years): {t[:70]!r}",
                     ))
 
-    # Claims: optional JD feedback. --jd-years N compares the visible span
-    # against the JD's years ask. Under -> warn (underqualified); far over
-    # -> advisory note (for a mid-level title, consider trimming the oldest
-    # roles; a degree-substitution clause can complement the shorter span).
-    if jd_years is not None and span is not None:
-        if span < jd_years - 1.0:
-            claim_notes.append((
-                "warn",
-                f"resume shows ~{span:.1f} years, below the JD's "
-                f"{jd_years:g}+ years — underqualified; restore roles or "
-                f"reconsider the resume's framing",
-            ))
-        elif span > jd_years + 3.0:
-            claim_notes.append((
-                "note",
-                f"resume shows ~{span:.1f} years vs the JD's {jd_years:g}+ — "
-                f"well above the ask; for a mid-level title consider "
-                f"trimming the oldest roles to align (see SKILL Step 3; a "
-                f"degree/education-substitution clause in the JD can "
-                f"complement the shorter span)",
-            ))
-        else:
-            claim_notes.append((
-                "ok",
-                f"resume shows ~{span:.1f} years vs the JD's {jd_years:g}+ "
-                f"— aligned",
-            ))
 
-    # Build the report lines (returned; the CLI prints them, the save-time
-    # deliverable gate surfaces only the blocking ones).
-    ctx = {
-        "errors": errors, "punct_errors": punct_errors,
-        "integrity_errors": integrity_errors, "dups": dups,
-        "cap_errors": cap_errors, "word_errors": word_errors,
-        "word_count": word_count, "max_words": max_words,
-        "is_master_input": is_master_input,
-        "seniority_errors": seniority_errors, "jd_path": jd_path,
-        "education_errors": education_errors,
-        "education_notes": education_notes,
-        "guidance_notes": guidance_notes, "claim_notes": claim_notes,
-    }
+def _run_jd_years_check(ctx, opts):
+    """JD-years alignment check: visible span vs the JD's years ask.
+    Appends to ctx['claim_notes']."""
+    span = ctx["span"]
+    jd_years = opts.jd_years
+    if jd_years is None or span is None:
+        return
+    claim_notes = ctx["claim_notes"]
+    if span < jd_years - 1.0:
+        claim_notes.append((
+            "warn",
+            f"resume shows ~{span:.1f} years, below the JD's "
+            f"{jd_years:g}+ years — underqualified; restore roles or "
+            f"reconsider the resume's framing",
+        ))
+    elif span > jd_years + 3.0:
+        claim_notes.append((
+            "note",
+            f"resume shows ~{span:.1f} years vs the JD's {jd_years:g}+ — "
+            f"well above the ask; for a mid-level title consider "
+            f"trimming the oldest roles to align (see SKILL Step 3; a "
+            f"degree/education-substitution clause in the JD can "
+            f"complement the shorter span)",
+        ))
+    else:
+        claim_notes.append((
+            "ok",
+            f"resume shows ~{span:.1f} years vs the JD's {jd_years:g}+ "
+            f"— aligned",
+        ))
+
+
+def _run_claim_checks(ctx, region, body, summary, opts):
+    """Quantified-claims, years-claims, and JD-years checks. Delegates to
+    per-section helpers; appends to ctx['claim_notes'] in place."""
+    _run_quantified_claims(region, ctx.get("master_blob"), ctx["claim_notes"])
+    _run_years_claims(ctx, body, summary)
+    _run_jd_years_check(ctx, opts)
+
+
+def validate_tree(path, body, opts=None):
+    """Run every check against an ALREADY-LOADED document tree.
+
+    Returns ``{"blocking": int, "warnings": int, "lines": [str]}`` — the
+    blocking-error count, the advisory-warning count, and the full report
+    lines. The CLI (main) prints the lines and maps the counts to exit
+    codes; ``docx_edit.save``'s deliverable gate calls this in memory
+    BEFORE writing the .docx, so a gated state never becomes a file on
+    disk (the render gate alone is bypassable — the user can convert the
+    .docx themselves).
+
+    ``path`` locates the master for the claims/role-integrity/seniority
+    checks when ``master_path`` is None (pass ``src`` from save()). The
+    education gate runs only when ``jd_path`` is given; ``*_approved``
+    record user-granted overrides (never self-granted).
+    """
+    opts = opts if opts is not None else TreeOptions()
+    ctx = {"is_master_input": path.endswith("Master Resume.docx")}
+    region = _region(body)
+    summary = _summary_paragraph(body)
+    _run_structural(ctx, region, body, path, opts.max_words)
+    first, last = mr._visible_span(_company_headers(body))
+    span = (last - first) if (first is not None and last is not None) else None
+    ctx["span"] = span
+    ctx["first"] = first
+    ctx["last"] = last
+    ctx["jd_path"] = opts.jd_path
+    ctx["claim_notes"] = []
+    ctx["guidance_notes"] = _readability_guidance(
+        body, summary, region=region, master_input=ctx["is_master_input"])
+    notes = _Notes()
+    notes.claim = ctx["claim_notes"]
+    notes.guidance = ctx["guidance_notes"]
+    try:
+        ctx["education_errors"], ctx["education_notes"] = _jd_checks(
+            opts.jd_path, body, span, opts, notes)
+    except _JdBlocking as exc:
+        return exc.args[0]
+    _run_master_seniority(ctx, path, body, opts, span)
+    _run_claim_checks(ctx, region, body, summary, opts)
     return _assemble_report(ctx)
+
+
+def _report_tagged(lines, header, notes):
+    """Append a section header + tagged (WARNING/ok/note) lines."""
+    lines.append(header)
+    tag = {"warn": "WARNING", "ok": "ok", "note": "note"}
+    for lvl, c in notes:
+        lines.append(f"  {tag[lvl]}: {c}")
+    if not notes:
+        lines.append("  ok")
+
+
+def _report_errors_section(ctx, lines):
+    """STRUCTURE + PUNCTUATION + TEXT INTEGRITY + SENIORITY sections."""
+    sections = [
+        ("== STRUCTURE ==", "errors",
+         "  ok (all roles have a company + job title; no orphan content)"),
+        ("== PUNCTUATION ==", "punct_errors",
+         "  ok (periods and commas only — no em dashes, double hyphens, "
+         "semicolons, colons, or ellipses in Summary/job-history prose)"),
+        ("== TEXT INTEGRITY ==", "integrity_errors",
+         "  ok (no mangling artifacts — clean ASCII/Latin prose, no "
+         "doubled punctuation or words)"),
+        ("== SENIORITY ==", "seniority_errors", "  ok"),
+    ]
+    for header, key, ok_msg in sections:
+        lines.append(header)
+        for e in ctx[key]:
+            lines.append(f"  ERROR: {e}")
+        if not ctx[key]:
+            lines.append(ok_msg)
+
+
+def _report_caps_section(ctx, lines):
+    """BULLET CAP + WORD COUNT sections (master-exempt vs tailored)."""
+    lines.append("== BULLET CAP ==")
+    if ctx["is_master_input"]:
+        lines.append("  note: input is a master — the per-role cap applies to "
+                     "tailored resumes only (the master keeps everything)")
+    else:
+        for e in ctx["cap_errors"]:
+            lines.append(f"  ERROR: {e}")
+        if not ctx["cap_errors"]:
+            lines.append(f"  ok (every role within the hard cap of "
+                         f"{MAX_BULLETS_PER_ROLE} kept bullets)")
+    lines.append("== WORD COUNT ==")
+    wc = ctx["word_count"]
+    mw = ctx["max_words"]
+    if ctx["is_master_input"]:
+        lines.append(f"  note: input is a master ({wc} words) — the "
+                     f"{mw}-word deliverable cap applies to tailored "
+                     "resumes only")
+    elif not mw:
+        lines.append("  note: word cap disabled (--max-words 0)")
+    else:
+        for e in ctx["word_errors"]:
+            lines.append(f"  ERROR: {e}")
+        if not ctx["word_errors"]:
+            lines.append(f"  ok ({wc} words, within the {mw}-word cap)")
+
+
+def _report_jd_section(ctx, lines):
+    """EDUCATION + NEAR-DUPLICATES sections."""
+    if ctx["jd_path"]:
+        lines.append("== EDUCATION ==")
+        for e in ctx["education_errors"]:
+            lines.append(f"  ERROR: {e}")
+        tag = {"warn": "WARNING", "ok": "ok", "note": "note"}
+        for lvl, c in ctx["education_notes"]:
+            lines.append(f"  {tag[lvl]}: {c}")
+    lines.append("== NEAR-DUPLICATES ==")
+    for a, b, snip in ctx["dups"]:
+        lines.append(f"  WARNING: bullets share {DUP_K}+ chars ({snip!r}):")
+        lines.append(f"      A: {a!r}")
+        lines.append(f"      B: {b!r}")
+    if not ctx["dups"]:
+        lines.append("  ok")
 
 
 def _assemble_report(ctx):
     """Assemble the validator's sectioned report from the computed checks.
 
-    ``ctx`` mirrors validate_tree's computation locals (errors, punct_errors,
-    integrity_errors, dups, cap_errors, word_errors, word_count, max_words,
-    is_master_input, seniority_errors, jd_path, education_errors,
-    education_notes, guidance_notes, claim_notes). Returns the full
+    ``ctx`` mirrors validate_tree's computation locals. Returns the full
     result dict (blocking/warnings/lines)."""
-    errors = ctx["errors"]
-    punct_errors = ctx["punct_errors"]
-    integrity_errors = ctx["integrity_errors"]
-    dups = ctx["dups"]
-    cap_errors = ctx["cap_errors"]
-    word_errors = ctx["word_errors"]
-    word_count = ctx["word_count"]
-    max_words = ctx["max_words"]
-    is_master_input = ctx["is_master_input"]
-    seniority_errors = ctx["seniority_errors"]
-    jd_path = ctx["jd_path"]
-    education_errors = ctx["education_errors"]
-    education_notes = ctx["education_notes"]
-    guidance_notes = ctx["guidance_notes"]
-    claim_notes = ctx["claim_notes"]
-    # Build the report lines (returned; the CLI prints them, the save-time
-    # deliverable gate surfaces only the blocking ones).
     lines = []
-    lines.append("== STRUCTURE ==")
-    for e in errors:
-        lines.append(f"  ERROR: {e}")
-    if not errors:
-        lines.append("  ok (all roles have a company + job title; no orphan content)")
-    lines.append("== PUNCTUATION ==")
-    for e in punct_errors:
-        lines.append(f"  ERROR: {e}")
-    if not punct_errors:
-        lines.append("  ok (periods and commas only — no em dashes, double hyphens, "
-              "semicolons, colons, or ellipses in Summary/job-history prose)")
-    lines.append("== TEXT INTEGRITY ==")
-    for e in integrity_errors:
-        lines.append(f"  ERROR: {e}")
-    if not integrity_errors:
-        lines.append("  ok (no mangling artifacts — clean ASCII/Latin prose, no "
-              "doubled punctuation or words)")
-    lines.append("== SENIORITY ==")
-    for e in seniority_errors:
-        lines.append(f"  ERROR: {e}")
-    if not seniority_errors:
-        lines.append("  ok")
-    lines.append("== BULLET CAP ==")
-    if is_master_input:
-        lines.append("  note: input is a master — the per-role cap applies to "
-              "tailored resumes only (the master keeps everything)")
-    else:
-        for e in cap_errors:
-            lines.append(f"  ERROR: {e}")
-        if not cap_errors:
-            lines.append(f"  ok (every role within the hard cap of "
-                  f"{MAX_BULLETS_PER_ROLE} kept bullets)")
-    lines.append("== WORD COUNT ==")
-    if is_master_input:
-        lines.append(f"  note: input is a master ({word_count} words) — the "
-              f"{max_words}-word deliverable cap applies to tailored "
-              "resumes only")
-    elif not max_words:
-        lines.append("  note: word cap disabled (--max-words 0)")
-    else:
-        for e in word_errors:
-            lines.append(f"  ERROR: {e}")
-        if not word_errors:
-            lines.append(f"  ok ({word_count} words, within the "
-                         f"{max_words}-word cap)")
-    if jd_path:
-        lines.append("== EDUCATION ==")
-        for e in education_errors:
-            lines.append(f"  ERROR: {e}")
-        for lvl, c in education_notes:
-            tag = {"warn": "WARNING", "ok": "ok", "note": "note"}[lvl]
-            lines.append(f"  {tag}: {c}")
-    lines.append("== NEAR-DUPLICATES ==")
-    for a, b, snip in dups:
-        lines.append(f"  WARNING: bullets share {DUP_K}+ chars ({snip!r}):")
-        lines.append(f"      A: {a!r}")
-        lines.append(f"      B: {b!r}")
-    if not dups:
-        lines.append("  ok")
-    lines.append("== GUIDANCE ==")
-    for lvl, c in guidance_notes:
-        tag = {"warn": "WARNING", "ok": "ok", "note": "note"}[lvl]
-        lines.append(f"  {tag}: {c}")
-    if not guidance_notes:
-        lines.append("  ok")
-    lines.append("== CLAIMS ==")
-    for lvl, c in claim_notes:
-        tag = {"warn": "WARNING", "ok": "ok", "note": "note"}[lvl]
-        lines.append(f"  {tag}: {c}")
-    if not claim_notes:
-        lines.append("  ok")
-
+    _report_errors_section(ctx, lines)
+    _report_caps_section(ctx, lines)
+    _report_jd_section(ctx, lines)
+    _report_tagged(lines, "== GUIDANCE ==", ctx["guidance_notes"])
+    _report_tagged(lines, "== CLAIMS ==", ctx["claim_notes"])
     warn_count = (
-        len(dups)
-        + sum(1 for lvl, _ in claim_notes if lvl == "warn")
-        + sum(1 for lvl, _ in guidance_notes if lvl == "warn")
+        len(ctx["dups"])
+        + sum(1 for lvl, _ in ctx["claim_notes"] if lvl == "warn")
+        + sum(1 for lvl, _ in ctx["guidance_notes"] if lvl == "warn")
     )
-    blocking = (len(errors) + len(punct_errors) + len(integrity_errors)
-                + len(seniority_errors) + len(education_errors)
-                + len(cap_errors) + len(word_errors))
+    blocking = (len(ctx["errors"]) + len(ctx["punct_errors"])
+                + len(ctx["integrity_errors"]) + len(ctx["seniority_errors"])
+                + len(ctx["education_errors"]) + len(ctx["cap_errors"])
+                + len(ctx["word_errors"]))
     if blocking:
         lines.append(
             f"RESULT: {blocking} blocking error(s) — fix before rendering (exit 2)")
