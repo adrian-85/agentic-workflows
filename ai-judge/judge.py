@@ -156,7 +156,6 @@ def _find_agent_turn(flat: List[Dict[str, Any]],
     return "", ""
 
 
-# pylint: disable=too-many-locals,too-many-branches,too-many-statements,line-too-long  # 8-rule pre-pass: each rule is a branch pair; splitting fragments the audit trail
 def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Run cheap, high-precision rule checks. Returns a list of findings:
@@ -167,10 +166,20 @@ def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
     agent_text = _all_agent_text(flat)
     sys_text = _all_sys_text(parsed)
     actions = _extract_actions(sys_text)
+    findings.extend(_check_action_error_false_success(flat, agent_text, actions))
+    findings.extend(_check_claimed_action_missing(flat, agent_text, actions))
+    findings.extend(_check_internal_disclosure(parsed, flat, agent_text))
+    findings.extend(_check_loyalty_hallucination(sys_text, agent_text, flat))
+    findings.extend(_check_confirmation_loop(flat))
+    findings.extend(_check_redundant_identity_request(sys_text, flat))
+    findings.extend(_check_verification_skipped(flat))
+    findings.extend(_check_product_variant_unconfirmed(sys_text, flat))
+    return findings
 
-    # --- Check 1: action errored but agent claimed success ----------------- #
-    # Fires when an action returned ERROR and the agent used success language.
-    # Owns the "errored action" case; Check 2 owns the "no action at all" case.
+
+def _check_action_error_false_success(flat, agent_text, actions):
+    """Check 1: action errored but agent claimed success."""
+    findings: List[Dict[str, Any]] = []
     for act in actions:
         if act["status"] != "error":
             continue
@@ -192,10 +201,13 @@ def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
             "system_evidence": act["snippet"],
         })
 
-    # --- Check 2: agent claims an action that has no call at all ---------- #
-    # Only fires when NO matching action exists (not even an errored one).
-    # The errored-but-claimed case is handled by Check 1, so we skip any claim
-    # whose action_re matches an action present in the log.
+        return findings
+
+
+
+def _check_claimed_action_missing(flat, agent_text, actions):
+    """Check 2: agent claims an action that has no call at all."""
+    findings: List[Dict[str, Any]] = []
     for claim in CLAIMED_ACTION:
         if not re.search(claim["claim_re"], agent_text):
             continue
@@ -217,7 +229,13 @@ def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
             "evidence": ev,
         })
 
-    # --- Check 3: internal / do-not-disclose note leaked to caller --------- #
+        return findings
+
+
+
+def _check_internal_disclosure(parsed, flat, agent_text):
+    """Check 3: internal / do-not-disclose note leaked to caller."""
+    findings: List[Dict[str, Any]] = []
     for n in parsed["system_init"] + [{"raw": e["text"]} for e in flat if e["role"] == "sys"]:
         raw = n["raw"]
         if "internal" not in raw.lower() and "do-not-disclose" not in raw.lower():
@@ -242,7 +260,13 @@ def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
             "system_evidence": raw[:200],
         })
 
-    # --- Check 4: loyalty/rewards hallucination --------------------------- #
+        return findings
+
+
+
+def _check_loyalty_hallucination(sys_text, agent_text, flat):
+    """Check 4: loyalty/rewards hallucination."""
+    findings: List[Dict[str, Any]] = []
     for m in re.finditer(r"loyalty_points\s*[:=]\s*(\d+)", sys_text):
         if int(m.group(1)) != 0:
             continue
@@ -264,7 +288,13 @@ def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
             "system_evidence": m.group(0),
         })
 
-    # --- Check 5: confirmation loop (5+ "is that correct" from agent) ------ #
+        return findings
+
+
+
+def _check_confirmation_loop(flat):
+    """Check 5: confirmation loop (5+ 'is that correct' from agent)."""
+    findings: List[Dict[str, Any]] = []
     confirms = [e for e in flat if e["role"] == "agent"
                 and re.search(r"is that correct|correct\?|right\?", e["text"].lower())]
     if len(confirms) >= 5:
@@ -279,7 +309,13 @@ def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
             "evidence": " | ".join(c["text"][:60] for c in confirms[:3]) + " ...",
         })
 
-    # --- Check 6: agent asks for name it already has ---------------------- #
+        return findings
+
+
+
+def _check_redundant_identity_request(sys_text, flat):
+    """Check 6: agent asks for name it already has."""
+    findings: List[Dict[str, Any]] = []
     first_name = ""
     m_name = re.search(r'caller first name on file\s*[:=]\s*"([^"]+)"',
                       sys_text)
@@ -313,7 +349,13 @@ def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "evidence": ev,
             })
 
-    # --- Check 7: identity verification skipped before sensitive disclosure - #
+        return findings
+
+
+
+def _check_verification_skipped(flat):
+    """Check 7: identity verification skipped before sensitive disclosure."""
+    findings: List[Dict[str, Any]] = []
     def _skipped_and_disclosed(t):
         return (re.search(r"skip (that|verification)|i'll skip|skip identity", t)
                 and re.search(r"card ending|billing zip|order shipped|chargeback", t))
@@ -334,7 +376,13 @@ def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
             "evidence": ev,
         })
 
-    # --- Check 8: caller-specified product variant not confirmed ---------- #
+        return findings
+
+
+
+def _check_product_variant_unconfirmed(sys_text, flat):
+    """Check 8: caller-specified product variant not confirmed."""
+    findings: List[Dict[str, Any]] = []
     prod_name = ""
     m_prod = re.search(r'product_lookup\s*->\s*success\s*name\s*[:=]\s*"([^"]+)"',
                         sys_text)
@@ -367,6 +415,9 @@ def deterministic_prepass(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
                     "system_evidence": m_prod.group(0),
                 })
                 break
+
+    return findings
+
 
     return findings
 
