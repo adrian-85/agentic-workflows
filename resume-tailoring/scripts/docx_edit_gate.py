@@ -88,7 +88,7 @@ def _approval_env():
             protect, max_words)
 
 
-def _deliverable_gate(path, root, src):  # pylint: disable=too-many-locals  # validate-before-write gate orchestration
+def _deliverable_gate(path, root, src):
     """Refuse to WRITE a deliverable that validate_resume would block.
 
     The render gate alone is not much of a gate: by render time the .docx
@@ -140,33 +140,39 @@ def _deliverable_gate(path, root, src):  # pylint: disable=too-many-locals  # va
         )
         raise SystemExit(2) from e
     if result["blocking"]:
-        blocking_lines = [l for l in result["lines"] if "ERROR" in l]
-        # A tailor run copies the master to DST before editing, so a stale
-        # (ungated) copy may sit at path from this run's own shutil.copy.
-        # Remove it: the point of the gate is that NO deliverable — docx or
-        # pdf — can be produced from a gated state by any path.
-        stale = False
-        if os.path.exists(path):
-            try:
-                os.remove(path)
-                stale = True
-            except OSError:
-                pass
+        _report_blocking(path, result)
+
+def _report_blocking(path, result):
+    """Print the gate-blocked report and exit 2 (nothing is written).
+
+    A tailor run copies the master to DST before editing, so a stale
+    (ungated) copy may sit at path from this run's own shutil.copy. It is
+    removed here so NO deliverable — docx or pdf — can be produced from a
+    gated state by any path.
+    """
+    blocking_lines = [l for l in result["lines"] if "ERROR" in l]
+    stale = False
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+            stale = True
+        except OSError:
+            pass
+    print(
+        f"DELIVERABLE GATE: {path} NOT written — validate_resume "
+        f"blocks this state ({result['blocking']} blocking error(s)). "
+        "No .docx exists to convert by hand; fix the errors and "
+        "re-run. Approval-requiring decisions (seniority alignment, "
+        "education override) need the USER's reply or pre-authorization, "
+        "then re-run with RESUME_VALIDATE_ARGS carrying the token:",
+        file=sys.stderr,
+    )
+    if stale:
         print(
-            f"DELIVERABLE GATE: {path} NOT written — validate_resume "
-            f"blocks this state ({result['blocking']} blocking error(s)). "
-            "No .docx exists to convert by hand; fix the errors and "
-            "re-run. Approval-requiring decisions (seniority alignment, "
-            "education override) need the USER's reply or pre-authorization, "
-            "then re-run with RESUME_VALIDATE_ARGS carrying the token:",
+            f"  removed the stale copy at {path} (this run's "
+            f"master copy — the master itself is untouched)",
             file=sys.stderr,
         )
-        if stale:
-            print(
-                f"  removed the stale copy at {path} (this run's "
-                f"master copy — the master itself is untouched)",
-                file=sys.stderr,
-            )
-        for line in blocking_lines:
-            print(f"  {line}", file=sys.stderr)
-        raise SystemExit(2)
+    for line in blocking_lines:
+        print(f"  {line}", file=sys.stderr)
+    raise SystemExit(2)
