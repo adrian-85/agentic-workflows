@@ -1,13 +1,9 @@
 """measure_resume JD vocabulary / requirements / inference / title analysis. Split from measure_resume.py; imported one-way by measure_resume_drops + the shim."""  # pylint: disable=line-too-long  # (long string/help literal)
-# pylint: disable=wrong-import-position,import-outside-toplevel,invalid-name
-# invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
-
 # pylint: disable=invalid-name
 # invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
+# flat-namespace sibling imports require the sys.path bootstrap; the
+# sibling import must precede use. Lazy imports are deliberate (cycle
+# avoidance / heavy deps) — see the rationale at each site.
 
 
 import re
@@ -80,11 +76,9 @@ JD_STOP = frozenset({
     "sound", "proficiency", "proficient", "comfortable", "comfort",
     "depth", "hands", "treat", "background", "familiarity",
     "rigorous", "rigor", "commitment", "passion", "excitement",
-    # Real-session artifacts: sentence-initial soft nouns/adjectives of
-    # qual lines ("Sound judgment on...", "Proficiency in Python...",
-    # "Hands-on with...", "Treat test infrastructure as...") mined as
-    # no-host 'gaps' and buried the real asks in the never-fabricate
-    # list. Tech words are still deliberately NOT here.
+    # Real-session artifacts: sentence-initial soft nouns of qual lines
+    # ("Sound judgment on...", "Hands-on with...") mined as no-host
+    # 'gaps'; buried the real asks. Tech words are deliberately NOT here.
     "bachelor", "degree", "education", "university", "college",
     "business", "businesses", "progress", "flexible", "flexibility",
     "learning", "collaborative", "environment", "environments",
@@ -177,11 +171,9 @@ INFERENCE_FAMILIES = (
     (("software engineering",),
      ("software", "engineering", "engineer", "sdlc", "developed",
       "development")),
-    # Real-session misses: an Endpoint JD asked for performance/stress
-    # testing, OS-platform depth, endpoint security, VM-farm tooling and
-    # GUI automation; every family below had real evidence in the master
-    # or the user's answers but NO family, so the map reported a bare
-    # 'genuine gap' instead of surfacing the candidate (or the ask).
+    # Real-session misses: an Endpoint JD's performance/stress testing,
+    # OS-platform, endpoint-security, VM-tooling and GUI-automation asks
+    # had master evidence but NO family — the map reported bare gaps.
     (("performance testing", "load testing", "stress testing",
       "stress-harness", "soak testing", "performance"),
      ("performance", "load", "stress", "soak", "gatling", "jmeter",
@@ -193,8 +185,8 @@ INFERENCE_FAMILIES = (
       "os behavior", "cross-platform"),
      ("linux", "wsl", "powershell", "windows", "macos", "image",
       "install", "upgrade", "lamp", "desktop", "server")),
-    (("endpoint security", "edr", "dlp", "epp", "mdm",
-      "endpoint agent", "security"),
+    (("endpoint security", "edr", "dlp", "epp", "mdm", "endpoint agent",
+      "security"),
      ("security", "snyk", "guardrails", "compliance", "hipaa", "phi",
       "monitoring", "grafana", "agent", "mitigation")),
     (("virtualization", "provisioning", "vm", "virtual machine",
@@ -203,12 +195,11 @@ INFERENCE_FAMILIES = (
       "codespaces", "container", "instance")),
     (("desktop gui", "gui automation", "pyautogui", "pywinauto",
       "uiautomation"),
-     ("ui testing", "coded ui", "desktop", "browser", "cross-browser",
-      "ui")),
-    (("secure software development", "secure development",
-      "secure sdlc", "secure coding"),
-     ("security", "compliance", "fda", "hipaa", "mitigation",
-      "snyk", "guardrails")),
+     ("ui testing", "coded ui", "desktop", "browser", "cross-browser", "ui")),
+    (("secure software development", "secure development", "secure sdlc",
+      "secure coding"),
+     ("security", "compliance", "fda", "hipaa", "mitigation", "snyk",
+      "guardrails")),
 )
 
 
@@ -279,11 +270,9 @@ def _line_terms(line):
     "api"/"web"/"services" as claimed vocabulary.
 
     ALL-CAPS tokens of length>=2 are kept as acronyms regardless of
-    length — a "CI/CD: Jenkins, ..." line must yield "ci" (and "cd"), or
-    the JD's "CI" ask never intersects the resume's claimed vocabulary
-    and bullets like "Re-architected CI from a degraded state" mine as
-    OFF-JD with no term to protect them (a real Endpoint JD session cut
-    CI evidence from every role this way).
+    length — a "CI/CD: Jenkins, ..." line must yield "ci", or the JD's
+    "CI" ask never intersects the claimed vocabulary; a real
+    Endpoint session cut CI evidence from every role this way.
     """
     terms = set()
     if ":" in line:
@@ -311,10 +300,9 @@ def _line_terms(line):
 
 
 def _acronym_terms(text):
-    """ALL-CAPS tokens (len>=2 after a trailing period is stripped) of
-    ``text`` in original case, lowercased — CI, CD, AWS, SQL, K6. These
-    are unambiguous acronyms a JD can name in the same form; see
-    :func:`_line_terms` for why "CI" must survive the vocabulary scan."""
+    """ALL-CAPS tokens (len>=2, trailing period stripped) of ``text``,
+    lowercased — CI, CD, AWS. Unambiguous acronyms the length>=3 word
+    scan drops; see :func:`_line_terms` for why "CI" must survive."""
     return {m.group(0).rstrip(".").lower()
             for m in re.finditer(r"[A-Z][A-Z0-9#+]*(?:\.[A-Z0-9#+]+)*\.?",
                                  text)
@@ -497,11 +485,9 @@ def _jd_line_terms(line):
     for m in JD_WORD_TERM_RE.finditer(line):
         if _admit(m.group(1).lower(), m.start(1)):
             terms.add(m.group(1).lower().rstrip("."))
-    # camelCase/mixed-case tokens (macOS, iOS, PyAutoGUI, GitHub) start
-    # lowercase, so the Capitalized-token regex above never sees them —
-    # a real Endpoint session's no-host list missed 'macOS' entirely for
-    # exactly this reason. In a qualification line, a mixed-case token is
-    # essentially always a tech name.
+    # camelCase/mixed-case tokens (macOS, iOS, PyAutoGUI) start lowercase
+    # — invisible to the Capitalized-token regex (a real session's
+    # no-host list missed 'macOS' for exactly this reason).
     for m in re.finditer(
             r"(?<![A-Za-z0-9+#])([A-Za-z][a-z0-9+#]*[A-Z][A-Za-z0-9+#]*)",
             line):
@@ -780,10 +766,10 @@ def _inference_map(missing_terms, body, evidence_text=None):
             out.append(
                 f"  - {term}: NO deterministic evidence — do NOT treat as "
                 "a closed gap: ASK the user (real experience is often "
-                "lexically invisible in the master/LinkedIn — a real "
-                "session's 'macOS/stress testing' gap was, and 'Linux "
-                "home lab' evidence surfaced only when asked); host only "
-                "what the user confirms")
+                "lexically invisible in the master/LinkedIn — macOS, "
+                "stress testing, and a user's 'Linux home lab' evidence "
+                "were, in a real session); host only what the user "
+                "confirms")
     out.append(textwrap.fill(
         "CANDIDATE = evidence exists; host the JD's literal phrase in the "
         "truthful bullet and present the whole map — candidates AND gaps — "

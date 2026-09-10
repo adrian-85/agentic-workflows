@@ -6,14 +6,12 @@ Run from the scripts directory:
     cd ~/.pi/agent/skills/resume-tailoring/scripts && python3 -m unittest test_ats_check
 """
 
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
 # invalid-name: OOXML fixture names (pPr, numId, ...) mirror the schema.
-# import-outside-toplevel/wrong-import-position: live tests guard heavy imports at runtime;
-#   flat-namespace tests need the sys.path bootstrap before sibling imports.
-
+#
 import json
 import os
 import sys
@@ -269,16 +267,10 @@ class PostingUrlTests(unittest.TestCase):
 
 
 class KnownAtsTests(unittest.TestCase):
-    """Company→ATS knowledge reuse: two postings at one company, the
-    second JD without a Posting URL line. URL is OPTIONAL — the scan
-    always runs — but ATS identification is company-scoped knowledge a
-    prior scan already has (a real session scanned Ent twice; the
-    URL-less second scan ran with NO ATS identified and no
-    keyword-matching mode at all, scoring 66 where the URL'd first scan
-    scored 84 against the same Ashby system)."""
-
+    """Company→ATS knowledge reuse (ats_check module docstring has the
+    full Ent two-scan evidence: 66 URL-less vs 84 URL'd, same Ashby)."""
     def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
+        self._tmp = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.path = os.path.join(self._tmp.name, "known-ats.json")
 
     def tearDown(self):

@@ -1,4 +1,4 @@
-# pylint: disable=wrong-import-position,import-outside-toplevel
+
 # flat-namespace sibling imports require the sys.path bootstrap; the
 # sibling import must precede use, which pylint flags as wrong position.
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
@@ -496,8 +496,7 @@ def _attach_posting(kinds, opp_id, posting_url, company):
           f"(url={posting_url}{', company=' + company if company else ''})")
 
 
-def _scan_submit(kinds, resume_path, jd_path, company, mime,
-                 posting_url=None):
+def _scan_submit(kinds, resume_path, jd_path, company, posting_url=None):
     """Execute the create flow: upload resume, create JD + opportunity,
     re-point at the fresh resume, attach posting metadata.
 
@@ -506,6 +505,7 @@ def _scan_submit(kinds, resume_path, jd_path, company, mime,
     None here, the JD file is re-read for the line (the historical
     behavior). Returns (opp_id, posting_url_used). Raises SystemExit
     via _fail on a blocking API error."""
+    mime = MIME_BY_EXT[os.path.splitext(resume_path)[1].lower()]
     code, data, body = request(kinds["resume"]["url"],
                                _browser_headers(kinds["resume"]["headers"]),
                                method="POST", payload=("file",
@@ -607,19 +607,16 @@ def _print_match_target(score):
               "name what to host)")
 
 
-def scan(resume_path, jd_path, opts=None):
-    """Poll the ATS until the posting is indexed; return the match result."""
-    opts = opts if opts is not None else _ScanOpts()
-    kinds, mime = _scan_setup(resume_path, jd_path, opts.config)
-
-    # URL stays OPTIONAL (SKILL Step 1) — the scan always runs. ATS
-    # identification is what benefits from a URL, and that knowledge is
-    # company-scoped: when this JD has no Posting URL but a prior scan
-    # identified the ATS for the same company, reuse that URL for the
-    # metadata PATCH instead of scanning with no ATS identified.
+def _resolve_posting(jd_path, company_flag=None):
+    """(jd_text, company, posting_url) with the URL-optional reuse rule:
+    the JD's own Posting URL line wins; when it is absent, a prior
+    scan's known company→ATS mapping supplies the URL (printed, never
+    silent). URL stays OPTIONAL — the scan always runs; ATS
+    identification is what benefits from a URL, and that knowledge is
+    company-scoped."""
     with open(jd_path, encoding="utf-8", errors="replace") as f:
         jd_text = f.read()
-    company = opts.company or _company_from_jd(jd_text)
+    company = company_flag or _company_from_jd(jd_text)
     posting_url = _posting_url(jd_text)
     if posting_url is None:
         known = known_ats_lookup(company)
@@ -628,24 +625,14 @@ def scan(resume_path, jd_path, opts=None):
             print(f"[3c] no Posting URL in the JD file — reusing the "
                   f"known {company!r} posting URL from a prior scan "
                   f"(ATS: {known['ats']})")
+    return jd_text, company, posting_url
 
-    opp_id, posting_url = _scan_submit(kinds, resume_path, jd_path,
-                                       opts.company or company, mime,
-                                       posting_url=posting_url)
-    report_url = kinds["report"]["url"].replace("{id}", str(opp_id))
-    report = _poll_report(report_url,
-                          _browser_headers(kinds["report"]["headers"]),
-                          opts.timeout, opts.interval)
-    if report is None:
-        print(f"error: report not ready after {opts.timeout}s — the scan "
-              "may still be processing; retry the GET later or raise "
-              "--timeout")
-        return 1
 
-    out = opts.out or os.path.splitext(resume_path)[0] + ".ats-check.json"
+def _save_report(report, company, posting_url, out):
+    """Persist the report JSON, record the company→ATS knowledge, and
+    print the human summary (match target, word cross-check, target ATS)."""
     with open(out, "w", encoding="utf-8") as f:
         json.dump(report, f)
-    mr = report.get("matchRate") or {}
     fm = {f["key"]: f for f in report.get("findings", [])
           if isinstance(f, dict)}
     wc = (fm.get("wordCount") or {}).get("variables", {}).get("wordCount")
@@ -653,7 +640,7 @@ def scan(resume_path, jd_path, opts=None):
     if ats and company and posting_url:
         known_ats_record(company, posting_url, ats)
     print(f"[4] report ready -> saved {out}")
-    _print_match_target(mr.get("score"))
+    _print_match_target((report.get("matchRate") or {}).get("score"))
     print(f"    wordCount: {wc} (cross-check only — the cap uses "
           "ats_audit's own count)")
     if ats:
@@ -665,6 +652,28 @@ def scan(resume_path, jd_path, opts=None):
     else:
         print("    target ATS: NOT identified — the JD file has no "
               "'Posting URL:' line (SKILL Step 1); add it and re-scan")
+
+
+def scan(resume_path, jd_path, opts=None):
+    """Poll the ATS until the posting is indexed; return the match result."""
+    opts = opts if opts is not None else _ScanOpts()
+    kinds, _ = _scan_setup(resume_path, jd_path, opts.config)
+
+    _jd_text, company, posting_url = _resolve_posting(jd_path, opts.company)
+    opp_id, posting_url = _scan_submit(kinds, resume_path, jd_path,
+                                       company, posting_url=posting_url)
+    report_url = kinds["report"]["url"].replace("{id}", str(opp_id))
+    report = _poll_report(report_url,
+                          _browser_headers(kinds["report"]["headers"]),
+                          opts.timeout, opts.interval)
+    if report is None:
+        print(f"error: report not ready after {opts.timeout}s — the scan "
+              "may still be processing; retry the GET later or raise "
+              "--timeout")
+        return 1
+
+    out = opts.out or os.path.splitext(resume_path)[0] + ".ats-check.json"
+    _save_report(report, company, posting_url, out)
     print(f"    next: ats_audit.py {resume_path} --jd {jd_path} "
           f"--report-json {out}")
     return 0

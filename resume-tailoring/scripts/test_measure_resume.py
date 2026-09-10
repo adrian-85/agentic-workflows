@@ -13,14 +13,12 @@ Run from the scripts directory (so `docx_edit`/`measure_resume` import):
     python3 -m unittest test_measure_resume
 """
 
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,import-outside-toplevel,wrong-import-position
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
 # invalid-name: OOXML fixture names (pPr, numId, ...) mirror the schema.
-# import-outside-toplevel/wrong-import-position: live tests guard heavy imports at runtime;
-#   flat-namespace tests need the sys.path bootstrap before sibling imports.
-
+#
 import contextlib
 import io
 import os
@@ -1170,7 +1168,7 @@ class SoftSkillDetectionTests(unittest.TestCase):
         self.assertTrue(mr.JD_SOFT_SKILL_RE.search(line))
 
 
-class InferenceFamilyTests(unittest.TestCase):
+class SessionGapFamilyTests(unittest.TestCase):
     """INFERENCE_FAMILIES additions: a real Endpoint JD's asks
     (performance/stress testing, OS platforms, endpoint security, VM
     tooling, GUI automation, secure SDLC) had real master evidence but
