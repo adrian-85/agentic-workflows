@@ -35,13 +35,11 @@ ensure_pylint() {
         PY_BIN=/tmp/lintvenv/bin/python
         export PATH="/tmp/lintvenv/bin:$PATH"
     elif command -v pylint >/dev/null 2>&1 && pylint --version >/dev/null 2>&1; then
-        PY_BIN=python3
         echo "using system pylint: $(pylint --version | head -1)"
     else
         python3 -m pip install --quiet --break-system-packages \
             -r p2p-qa-lab/requirements.txt pylint==4.0.8 2>/dev/null \
           || python3 -m pip install --quiet -r p2p-qa-lab/requirements.txt pylint==4.0.8
-        PY_BIN=python3
     fi
 }
 
@@ -69,15 +67,17 @@ run_suite() {
 record_pass() {
     # Record the passing run for the checkpoint gate: gate 4 requires a
     # verify pass on the current HEAD (see checkpoint.sh).
-    if command -v jq >/dev/null 2>&1; then
-        STATE_FILE="${IMPROVE_CHECKPOINT_FILE:-/tmp/improve-workflow-checkpoint.json}"
-        [ -f "$STATE_FILE" ] || echo '{"gates":{}}' > "$STATE_FILE"
-        tmp=$(mktemp)
-        jq --arg sha "$(git rev-parse HEAD)" --arg ts "$(date -Iseconds)" \
-            '.verify = {sha: $sha, passed: $ts}' "$STATE_FILE" > "$tmp"
-        mv "$tmp" "$STATE_FILE"
-        echo "✓ verify pass recorded for $(git rev-parse --short HEAD)"
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "warning: jq not installed — verify pass not recorded (gate 4 will not authorize)" >&2
+        return 1
     fi
+    STATE_FILE="${IMPROVE_CHECKPOINT_FILE:-/tmp/improve-workflow-checkpoint.json}"
+    [ -f "$STATE_FILE" ] || echo '{"gates":{}}' > "$STATE_FILE"
+    tmp=$(mktemp)
+    jq --arg sha "$(git rev-parse HEAD)" --arg ts "$(date -Iseconds)" \
+        '.verify = {sha: $sha, passed: $ts}' "$STATE_FILE" > "$tmp"
+    mv "$tmp" "$STATE_FILE"
+    echo "✓ verify pass recorded for $(git rev-parse --short HEAD)"
 }
 
 case "${1:-verify}" in
@@ -118,7 +118,6 @@ baseline)
     rc=$?
     set -e
     if [ "$rc" -eq 2 ]; then
-        echo "no test suite registered for '$WF' — nothing to baseline"
         exit 0
     elif [ "$rc" -ne 0 ]; then
         echo "✗ baseline [$WF]: failures above are PRE-EXISTING on the carried-in tree" >&2
