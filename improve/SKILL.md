@@ -65,6 +65,10 @@ The chat is the approval mechanism — there is no approval script.
 
 - `jq` installed for JSON parsing (required — checkpoint.sh has no fallback)
 - Git 2.5+ for worktree support
+- Scripts are invoked by **absolute path** from the skill directory
+  (`~/.pi/agent/skills/improve/scripts/<script>.sh`), and only after
+  `cd`-ing into the target repo root — the config and worktree scripts
+  resolve the repo from the current working directory
 
 ## Workflow Phases
 
@@ -72,7 +76,8 @@ The chat is the approval mechanism — there is no approval script.
 
 1. **Load configuration:**
    ```bash
-   source scripts/load-config.sh
+   cd <target-repo-root>    # e.g. ~/workspace/agentic-workflows
+   source ~/.pi/agent/skills/improve/scripts/load-config.sh
    ```
 
 2. **Verify the model:** Check `$PI_MODEL` against `analysisModel`.
@@ -89,6 +94,10 @@ The chat is the approval mechanism — there is no approval script.
      - Repetitive or roundabout tool/command patterns (streamlining)
      - Deviations from or workarounds around the skill file
      - Ambiguous or missing guidance in the skill document itself
+   - If session artifacts (deliverables, per-target scripts, JD files) no
+     longer exist on disk, tell the user at the FIRST discovery and ask
+     whether to defer that analysis thread — do not keep probing missing
+     files
 
 4. **Generate prioritized improvement suggestions** from what you observed.
    Quote specific moments from the session as evidence for each suggestion.
@@ -100,25 +109,35 @@ The chat is the approval mechanism — there is no approval script.
    - If the user declines, reset the checkpoint and exit.
    - If they approve, record the gate and continue:
      ```bash
-     scripts/checkpoint.sh gate 1
+     ~/.pi/agent/skills/improve/scripts/checkpoint.sh gate 1
      ```
 
 6. **Verify the gate:**
    ```bash
-   scripts/checkpoint.sh require 1
+   ~/.pi/agent/skills/improve/scripts/checkpoint.sh require 1
    ```
    If this fails, **stop** — do not proceed until gate 1 is passed.
 
 7. **Implement approved improvements:**
+   - Pre-worktree check: run `git status --porcelain` in the main repo. If
+     the tree is dirty, present the uncommitted changes and let the user
+     choose: carry them into the worktree (commit them onto the worktree
+     branch as the first commit(s), leaving main clean), stash them for
+     later, or abort
    - Create the worktree:
      ```bash
-     scripts/setup-worktree.sh <workflow-name>
+     ~/.pi/agent/skills/improve/scripts/setup-worktree.sh <workflow-name>
      ```
    - Work entirely inside the worktree (use the returned path; do not
      modify files in the main working tree)
    - Apply each approved change; follow existing patterns in the workflow
    - Commit after each logical change with descriptive messages
    - Run the workflow's own tests/verification if it has any
+   - After the FINAL commit of the phase, run
+     `~/.pi/agent/skills/improve/scripts/verify-worktree.sh` inside the
+     worktree — it must pass before hard stop #2. It lints every changed
+     Python file **including test files**; ad-hoc checks that skip tests
+     are not a substitute
 
 8. **Report completion and stop (hard stop #2 — model switch):**
    - Confirm what was implemented (one line: e.g. "6 improvements
@@ -130,7 +149,7 @@ The chat is the approval mechanism — there is no approval script.
 
 9. **Record gate 2:** Once the user confirms the model switch:
    ```bash
-   scripts/checkpoint.sh gate 2
+   ~/.pi/agent/skills/improve/scripts/checkpoint.sh gate 2
    ```
 
 ### Phase 2: Quality Review & Implementation  (model: `reviewModel`)
@@ -140,43 +159,48 @@ The chat is the approval mechanism — there is no approval script.
 
 2. **Verify the gate:**
    ```bash
-   scripts/checkpoint.sh require 2
+   ~/.pi/agent/skills/improve/scripts/checkpoint.sh require 2
    ```
    If this fails, **stop** — do not begin Phase 2.
 
-2. **Run code simplicity review:**
+3. **Run code simplicity review:**
    - Invoke the code-simplicity-reviewer skill on the Phase 1 changes
    - Generate simplification suggestions — **do not apply them yet;
      record only**. All implementation happens AFTER hard stop #3.
 
-3. **Run writing-skills review:**
+4. **Run writing-skills review:**
    - Invoke the writing-skills skill on the Phase 1 changes
    - Generate skill-structure improvements — **do not apply them yet;
      record only**. All implementation happens AFTER hard stop #3.
 
-4. **Combine findings and stop (hard stop #3):**
+5. **Combine findings and stop (hard stop #3):**
    - Merge suggestions from both reviews, prioritized by impact,
      presented directly in chat
    - **STOP.** Do nothing further until the user replies.
-   - If they decline, record gate 3 (no quality changes) and proceed to
-     Phase 3 (final review).
-   - If they approve, record gate 3 then implement:
+   - On ANY reply — full approve, partial approve, or decline — record
+     gate 3 first, before implementing anything:
      ```bash
-     scripts/checkpoint.sh gate 3
+     ~/.pi/agent/skills/improve/scripts/checkpoint.sh gate 3
      ```
+   - Full decline: no quality changes; proceed to Phase 3 (final review)
+   - Full approve: implement all suggestions
+   - Partial approve (e.g. "do 1-2 only"): implement only the named items
 
-5. **Verify the gate:** Do not implement quality improvements until
+6. **Verify the gate:** Do not implement quality improvements until
    hard stop #3 has been passed.
    ```bash
-   scripts/checkpoint.sh require 3
+   ~/.pi/agent/skills/improve/scripts/checkpoint.sh require 3
    ```
    If this fails, **stop** — present findings first.
 
-6. **Implement approved quality improvements:**
+7. **Implement approved quality improvements:**
    - Apply each approved change in the worktree
    - Commit with descriptive messages
+   - After the FINAL quality-change commit, run
+     `~/.pi/agent/skills/improve/scripts/verify-worktree.sh` inside the
+     worktree — it must pass before the Phase 3 final review
 
-7. **Optional re-review of the quality changes (user-elected):**
+8. **Optional re-review of the quality changes (user-elected):**
    - Offer the user a re-run of the code-simplicity-reviewer and
      writing-skills skills against the Phase 2 changes (the diff
      committed since gate 3's implementation).
@@ -187,14 +211,19 @@ The chat is the approval mechanism — there is no approval script.
 
 ### Phase 3: Final Review & Merge
 
-1. **Verify (hard gate):** run `scripts/verify-worktree.sh` inside the
+1. **Verify (hard gate):** run
+   `~/.pi/agent/skills/improve/scripts/verify-worktree.sh` inside the
    worktree. If it exits non-zero, **STOP** — report the failing check
    and do not present the final diff until the worktree is fixed and
-   verify passes.
+   verify passes. This passing run is what authorizes gate 4: it records
+   the worktree HEAD in the checkpoint state, and `checkpoint.sh gate 4`
+   refuses to record unless that HEAD is still current (run verify again
+   after any new commit). Record gate 4 **from inside the worktree**.
 
 2. **Generate the final diff:**
    ```bash
-   source scripts/git-operations.sh
+   cd <worktree-path>
+   source ~/.pi/agent/skills/improve/scripts/git-operations.sh
    get_diff main        # functions, not a CLI — source the library first
    ```
 
@@ -209,7 +238,7 @@ The chat is the approval mechanism — there is no approval script.
 
 3. **Merge to main:**
    ```bash
-   scripts/merge-worktree.sh <worktree-path>
+   ~/.pi/agent/skills/improve/scripts/merge-worktree.sh <worktree-path>
    ```
 
 4. **Inform the user:**
@@ -285,6 +314,7 @@ Default values are in `improve/config.json`.
 │       ├── load-config.sh        # Config loading
 │       ├── setup-worktree.sh     # Worktree creation
 │       ├── merge-worktree.sh     # Merge and cleanup
+│       ├── verify-worktree.sh    # Change-set quality gates
 │       ├── git-operations.sh     # Git helpers
 │       └── checkpoint.sh        # Gate enforcement
 └── .improvement-workflow.json    # User configuration (created on first run)
@@ -307,6 +337,13 @@ Creates git worktree and branch for isolated work.
 scripts/setup-worktree.sh <workflow-name> [base-path]
 # Output: worktree path
 ```
+
+### verify-worktree.sh
+Runs the change set's quality gates inside the worktree: pylint on changed
+Python files (including test files) plus the full test suite of each touched
+workflow. On success it records the worktree HEAD in the checkpoint state —
+this record is what authorizes gate 4. Run it inside the worktree after the
+last commit of a phase.
 
 ### merge-worktree.sh
 Merges worktree branch to main and cleans up.
@@ -335,13 +372,19 @@ as a command — it only defines functions when executed.
 Gate checkpoint enforcement — the only way past a hard stop.
 
 ```bash
-scripts/checkpoint.sh gate 1      # record that gate 1 has been passed
-scripts/checkpoint.sh require 1   # fail (exit 1) unless gate 1 is passed
-scripts/checkpoint.sh status      # print state of all four gates
-scripts/checkpoint.sh reset       # clear all state (new run)
+~/.pi/agent/skills/improve/scripts/checkpoint.sh gate 1      # record that gate 1 has been passed
+~/.pi/agent/skills/improve/scripts/checkpoint.sh require 1   # fail (exit 1) unless gate 1 is passed
+~/.pi/agent/skills/improve/scripts/checkpoint.sh status      # print state of all four gates
+~/.pi/agent/skills/improve/scripts/checkpoint.sh reset       # clear all state (new run)
 ```
 
-State file: `/tmp/improve-workflow-checkpoint.json`.
+State file: `/tmp/improve-workflow-checkpoint.json` (override with
+`$IMPROVE_CHECKPOINT_FILE` for testing).
+
+Gate 4 additionally requires a verify-worktree.sh PASS recorded for the
+current HEAD — run verify inside the worktree after the last commit, then
+record gate 4 from the worktree. Recording a gate while an earlier gate is
+unrecorded prints a warning (gate order should follow the hard stops).
 
 The checkpoint script makes the hard stops enforceable: a phase cannot
 begin until its prerequisite gate has been passed.
