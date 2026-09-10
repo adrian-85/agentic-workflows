@@ -64,11 +64,13 @@ CLI (inspect structure before editing)::
 # the specific rationale at each site where one is retained.
 
 
-# pylint: disable=invalid-name,global-statement
+# pylint: disable=invalid-name,global-statement,wrong-import-position
 # invalid-name: rPr/pPr/numId/… mirror OOXML w:rPr/pPr/numId schema tags
 #   verbatim so template/spec greps stay obvious.
 # global-statement: _APPLIED/_SKIPS/_ELEMENT_FORM_DROPS are module drift
 #   counters read by tests; DriftBook refactor deferred (spec 2026-09-07).
+# wrong-import-position: flat-namespace sibling imports must follow the
+#   sys.path bootstrap (spec 2026-09-07-pylint-clean-refactor).
 
 
 import copy

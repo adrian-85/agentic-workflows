@@ -17,6 +17,9 @@ so `python3 scripts/docx_edit.py` keeps working unchanged.
 # invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
 
 
+import ast
+import contextlib
+import io
 import os
 import sys
 
@@ -110,7 +113,6 @@ def _script_find_p_prefixes(script_path):
     Returns (prefix, lineno) pairs, in source order; None entries for
     calls whose search string is not a literal (dynamic prefix — can't
     be linted statically)."""
-    import ast
     with open(script_path, encoding="utf-8") as f:
         tree = ast.parse(f.read(), script_path)
     out = []
@@ -150,8 +152,6 @@ def lint_script(docx_path, script_path):
     (clone_after then find_p) — those are expected; the lint output names
     the prefix so the author can judge.
     """
-    import contextlib
-    import io
     if not os.path.exists(script_path):
         print(f"error: script not found: {script_path}", file=sys.stderr)
         return 2

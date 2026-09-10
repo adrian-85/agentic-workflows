@@ -5,13 +5,16 @@ Run from the scripts directory:
     cd ~/.pi/agent/skills/resume-tailoring/scripts && python3 -m unittest test_validate_resume
 """
 
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,wrong-import-position
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
 # invalid-name: OOXML fixture names (pPr, numId, ...) mirror the schema.
+# wrong-import-position: sibling imports follow the sys.path bootstrap
+#   (flat namespace; spec 2026-09-07-pylint-clean-refactor).
 #
 import contextlib
+import inspect
 import io
 import os
 import sys
@@ -1109,8 +1112,6 @@ class MainBlockPlacementTests(unittest.TestCase):
     as ``__main__`` sees the complete module namespace.
     """
     def test_main_guard_is_last_non_blank(self):
-        import inspect
-        import re as _re
         path = inspect.getsourcefile(vr)
         with open(path, encoding="utf-8") as fh:
             lines = fh.read().splitlines()

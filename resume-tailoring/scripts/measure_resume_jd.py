@@ -1,5 +1,8 @@
 """measure_resume JD vocabulary / requirements / inference / title analysis. Split from measure_resume.py; imported one-way by measure_resume_drops + the shim."""  # pylint: disable=line-too-long  # (long string/help literal)
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,wrong-import-position
+# invalid-name: JD vocabulary constants use the file's domain naming.
+# wrong-import-position: flat-namespace sibling imports must follow the
+#   sys.path bootstrap (spec 2026-09-07-pylint-clean-refactor).
 # invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
 # flat-namespace sibling imports require the sys.path bootstrap; the
 # sibling import must precede use. Lazy imports are deliberate (cycle

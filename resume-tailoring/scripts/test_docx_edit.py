@@ -14,11 +14,13 @@ spanning occurrences left in place), set_text, set_labeled, find_p, remove,
 remove_empty, clone_after.
 """
 
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,wrong-import-position
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.
 # invalid-name: OOXML fixture names (pPr, numId, ...) mirror the schema.
+# wrong-import-position: sibling imports follow the sys.path bootstrap
+#   (flat namespace; spec 2026-09-07-pylint-clean-refactor).
 #
 import contextlib
 import io
@@ -35,6 +37,8 @@ import docx_edit as de  # noqa: E402
 import test_helpers
 import docx_edit_cli as dcli  # noqa: E402  (CLI surface — moved out of core)
 from docx_edit_gate import tmp_jd_note  # noqa: E402
+import measure_resume as mr  # noqa: E402
+import validate_resume as vr  # noqa: E402
 
 W = de.W
 SPACE = de.SPACE
@@ -1728,8 +1732,6 @@ class DeliverableGateTests(unittest.TestCase):
 
     @staticmethod
     def _career_paragraphs(bullet_count, company="Acme, MA (Remote)06/2021 – 05/2026"):
-        import measure_resume as mr
-        import validate_resume as vr
         ps = [
             mkstyled(mr.SECTION_CAREER, "SectionHeading"),
             mkstyled(company, mr.COMPANY_STYLE),

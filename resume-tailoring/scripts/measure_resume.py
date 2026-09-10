@@ -48,7 +48,7 @@ to verify.
 # the specific rationale at each site where one is retained.
 
 
-# pylint: disable=unused-import
+# pylint: disable=unused-import,wrong-import-position
 # measure_resume/validate_resume is the legacy RE-EXPORT shim: it preserves
 # the full mr.*/vr.* surface (imports that appear unused are the re-export
 # contract). Keep this header ONLY while the flat-namespace consumers
