@@ -58,6 +58,18 @@ class HostedTests(unittest.TestCase):
                                    "regression testing"))
         self.assertTrue(aa._hosted("end-to-end pipelines", "end to end"))
 
+    def test_parenthetical_in_resume_text(self):
+        # Parentheticals inside the JD's own phrasing: "test automation
+        # frameworks (Java)" renders as "frameworks (Java" in the PDF;
+        # the mined "frameworks java" n-gram must still host (a real
+        # deliverable failed on this parser artifact).
+        self.assertTrue(aa._hosted(
+            "oversaw migration of test automation frameworks (java selenium",
+            "frameworks java"))
+        self.assertTrue(aa._hosted(
+            "expertise with test automation frameworks (java)",
+            "automation frameworks java"))
+
     def test_slash_normalized_fallback(self):
         # Standard spellings split with a slash: the JD says "CI/CD
         # pipelines" (mined as "ci cd"), the resume renders "CI/CD".

@@ -137,21 +137,24 @@ def _audit_word_count(text, max_words):
 
 def _hosted(text_low, phrase_low):
     """Literal phrase host, ATS-style: word-boundary substring, with a
-    whitespace/hyphen/slash-stripped fallback for MULTI-TOKEN phrases (a
-    phrase wrapped across a pdftotext line break still parses as one token
-    in most ATS, and standard spellings split with a slash — the JD says
-    "CI/CD pipelines", the resume legitimately renders "CI/CD") and an
-    optional trailing plural on the last word — external scorers match
-    stemmed ("triage" hosts "triages"). The fallback never applies to
-    single words — "api" must not host inside "rapid"."""
+    punctuation-stripped fallback for MULTI-TOKEN phrases (a phrase
+    wrapped across a pdftotext line break still parses as one token in
+    most ATS, standard spellings split with a slash — the JD says
+    "CI/CD pipelines", the resume legitimately renders "CI/CD" — and
+    parentheticals inside the JD's own phrasing: "test automation
+    frameworks (Java)" renders as "frameworks (Java" in the resume and
+    must still host the mined "frameworks java" n-gram) and an optional
+    trailing plural on the last word — external scorers match stemmed
+    ("triage" hosts "triages"). The fallback never applies to single
+    words — "api" must not host inside "rapid"."""
     suffix = "" if phrase_low.endswith("s") else "(?:e?s)?"
     if re.search(rf"(?<![a-z0-9]){re.escape(phrase_low)}{suffix}(?![a-z0-9])",
                  text_low):
         return True
     if not re.search(r"[\s\-]", phrase_low):
         return False
-    return re.sub(r"[\s\-/]+", "", phrase_low) in re.sub(r"[\s\-/]+", "",
-                                                          text_low)
+    return re.sub(r"[^a-z0-9]+", "", phrase_low) in re.sub(r"[^a-z0-9]+", "",
+                                                           text_low)
 
 
 # Function words: an n-gram containing one is not a phrase. Unlike

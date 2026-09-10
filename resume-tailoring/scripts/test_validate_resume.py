@@ -828,7 +828,8 @@ class EducationGateTests(unittest.TestCase):
         # — the old EQUIV_CLAUSE_RE matched only 'or equivalent' variants, so a
         # legitimate Education drop was falsely blocked.
         jd = self._jd("Bachelor's degree and 5 years of relevant experience; "
-                      "additional experience may substitute for the degree.")
+                      "Bachelor's degree and 7 years of relevant experience; "
+                      "additional experience may substitute for a degree.")
         fd, path = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         try:
