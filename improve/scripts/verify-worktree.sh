@@ -62,3 +62,15 @@ else
     echo "p2p-qa-lab not touched — skipping its suite"
 fi
 echo "== verify-worktree: PASS =="
+
+# Record the passing run for the checkpoint gate: gate 4 requires a verify
+# pass on the current HEAD (see checkpoint.sh).
+if command -v jq >/dev/null 2>&1; then
+    STATE_FILE="${IMPROVE_CHECKPOINT_FILE:-/tmp/improve-workflow-checkpoint.json}"
+    [ -f "$STATE_FILE" ] || echo '{"gates":{}}' > "$STATE_FILE"
+    tmp=$(mktemp)
+    jq --arg sha "$(git rev-parse HEAD)" --arg ts "$(date -Iseconds)" \
+        '.verify = {sha: $sha, passed: $ts}' "$STATE_FILE" > "$tmp"
+    mv "$tmp" "$STATE_FILE"
+    echo "✓ verify pass recorded for $(git rev-parse --short HEAD)"
+fi
