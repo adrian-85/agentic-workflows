@@ -127,7 +127,10 @@ The chat is the approval mechanism — there is no approval script.
      the tree is dirty, present the uncommitted changes and let the user
      choose: carry them into the worktree (commit them onto the worktree
      branch as the first commit(s), leaving main clean), stash them for
-     later, or abort
+     later, or abort. If carrying in: immediately run the touched
+     workflow's test suite and record the baseline — failures there are
+     pre-existing in main's WIP, not caused by your improvements. Report
+     them to the user before implementing; fix only if asked
    - Create the worktree:
      ```bash
      ~/.pi/agent/skills/improve/scripts/setup-worktree.sh <workflow-name>
