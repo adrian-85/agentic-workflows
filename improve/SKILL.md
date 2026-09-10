@@ -148,7 +148,8 @@ The chat is the approval mechanism — there is no approval script.
      `~/.pi/agent/skills/improve/scripts/verify-worktree.sh` inside the
      worktree — it must pass before hard stop #2. It lints every changed
      Python file **including test files**; ad-hoc checks that skip tests
-     are not a substitute
+     are not a substitute. Fix ALL lint findings first, then run verify
+     once on the final HEAD — do not re-run it after each individual fix
 
 8. **Report completion and stop (hard stop #2 — model switch):**
    - Confirm what was implemented (one line: e.g. "6 improvements
