@@ -17,7 +17,7 @@ import sys
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
-from measure_resume_jd import (_concept_hits, _is_protected,  # noqa: E402
+from measure_resume_jd_terms import (_concept_hits, _is_protected,  # noqa: E402
     _jd_hits_classified, _jd_kept, _weakness_key)
 from measure_resume_format import (_norm, _page_fill, _page_lines,  # noqa: E402
     _preceding_role_key, _role_header_flat)
