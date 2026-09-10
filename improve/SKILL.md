@@ -74,11 +74,15 @@ The chat is the approval mechanism — there is no approval script.
 
 ### Phase 1: Analysis & Implementation  (model: `analysisModel`)
 
-1. **Load configuration:**
+1. **Load configuration and reset state:**
    ```bash
    cd <target-repo-root>    # e.g. ~/workspace/agentic-workflows
    source ~/.pi/agent/skills/improve/scripts/load-config.sh
+   ~/.pi/agent/skills/improve/scripts/checkpoint.sh reset
    ```
+   Start fresh — checkpoint state in `/tmp` persists from previous runs.
+   If resuming an interrupted run, skip the reset and note the existing
+   gate status before continuing.
 
 2. **Verify the model:** Check `$PI_MODEL` against `analysisModel`.
    If it does not match, tell the user which model is active and which
@@ -388,6 +392,10 @@ unrecorded prints a warning (gate order should follow the hard stops).
 
 The checkpoint script makes the hard stops enforceable: a phase cannot
 begin until its prerequisite gate has been passed.
+
+On invocation, always call `checkpoint.sh reset` before starting a new run
+(unless explicitly resuming an interrupted run) — the state file in `/tmp`
+persists across sessions.
 
 ## Tips
 
