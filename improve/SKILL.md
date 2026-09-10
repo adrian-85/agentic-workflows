@@ -127,8 +127,8 @@ The chat is the approval mechanism — there is no approval script.
      the tree is dirty, present the uncommitted changes and let the user
      choose: carry them into the worktree (commit them onto the worktree
      branch as the first commit(s), leaving main clean), stash them for
-     later, or abort. If carrying in: immediately run the touched
-     workflow's test suite and record the baseline — failures there are
+     later, or abort. If carrying in: immediately run
+     `verify-worktree.sh baseline <workflow>` — failures it reports are
      pre-existing in main's WIP, not caused by your improvements. Report
      them to the user before implementing; fix only if asked
    - Create the worktree:
@@ -137,10 +137,10 @@ The chat is the approval mechanism — there is no approval script.
      ```
    - Work entirely inside the worktree (use the returned path; do not
      modify files in the main working tree)
-   - Front-load cheap checks before writing code: `wc -l` the target
-     Python files against any line caps verify-worktree.sh enforces, and
-     confirm pylint is invokable — discover these constraints at setup,
-     not at the final verify
+   - Run `verify-worktree.sh preflight <workflow>` once before writing
+     code — it confirms pylint is invokable and flags source files over
+     the 1000-line cap, so constraints surface at setup, not at the
+     final verify
    - Apply each approved change; follow existing patterns in the workflow
    - Commit after each logical change with descriptive messages
    - Per commit, run only the touched test files; the FULL suite belongs
@@ -362,6 +362,18 @@ Python files (including test files) plus the full test suite of each touched
 workflow. On success it records the worktree HEAD in the checkpoint state —
 this record is what authorizes gate 4. Run it inside the worktree after the
 last commit of a phase.
+
+Two subcommands enforce setup-time checks so the agent does not have to
+remember them:
+
+```bash
+scripts/verify-worktree.sh preflight <workflow>   # setup: pylint invokable +
+                                                  # source files vs 1000-line cap
+scripts/verify-worktree.sh baseline <workflow>    # full suite on current tree —
+                                                  # surfaces pre-existing failures
+                                                  # in carried-in WIP
+scripts/verify-worktree.sh                        # no args: the full gate
+```
 
 ### merge-worktree.sh
 Merges worktree branch to main and cleans up.
