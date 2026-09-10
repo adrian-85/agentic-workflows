@@ -823,6 +823,23 @@ class EducationGateTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("satisfied", out)
 
+    def test_substitute_for_degree_clause_span_above_ask_ok(self):
+        # JD phrased the clause as additional experience may substitute for the degree"
+        # — the old EQUIV_CLAUSE_RE matched only 'or equivalent' variants, so a
+        # legitimate Education drop was falsely blocked.
+        jd = self._jd("Bachelor's degree and 5 years of relevant experience; "
+                      "additional experience may substitute for the degree.")
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            _write_docx(path, ["04/2021 – 09/2026"], education=False)
+            rc, out = self._run(path, "--jd", jd, "--jd-years", "5")
+        finally:
+            os.unlink(path)
+            os.unlink(jd)
+        self.assertEqual(rc, 0)
+        self.assertIn("satisfied", out)
+
     def test_equivalent_clause_span_at_ask_warns(self):
         # At/below the ask the clause is load-bearing: dropping Education
         # leaves nothing substituting for the degree.

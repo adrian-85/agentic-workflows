@@ -30,7 +30,9 @@ DEGREE_RE = re.compile(
 EQUIV_CLAUSE_RE = re.compile(
     r"equivalent (?:professional |work )?(?:experience|education)"
     r"|(?:degree|experience|education)[^.;]{0,40}or (?:an )?equivalent"
-    r"|or (?:an )?equivalent[^.;]{0,40}(?:degree|experience|education)",
+    r"|or (?:an )?equivalent[^.;]{0,40}(?:degree|experience|education)"
+    # "additional experience may substitute for the degree" phrasing
+    r"|substitut\w+[^.;]{0,20}for the (?:degree|education)",
     re.I,
 )
 
