@@ -74,6 +74,13 @@ SKILL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_DIR = os.path.join(SKILL_ROOT, ".ats-check")
 CURL_FILE = os.path.join(CONFIG_DIR, "curl.txt")
 JAR_FILE = os.path.join(CONFIG_DIR, "cookies.txt")
+# Company → {url, ats} knowledge from prior scans: when a later JD for
+# the same company omits the Posting URL line, the mapping lets the scan
+# identify the ATS anyway (a real session scanned two postings at the
+# same company; the second — URL-less — ran with NO ATS identified and a
+# degraded keyword-matching mode even though the first scan had just
+# identified Ashby for that company).
+KNOWN_ATS_FILE = os.path.join(CONFIG_DIR, "known-ats.json")
 CSRF_COOKIE = "XSRF-TOKEN"
 CSRF_HEADER = "x-xsrf-token"
 
@@ -344,6 +351,64 @@ def _posting_url(jd_text):
     return None
 
 
+def _company_from_jd(jd_text):
+    """The company name from the JD's 'Company: <name>' line, or None.
+
+    Real JD files write 'Company: Ent. Founded by ...' — the company is
+    the first sentence chunk, not the whole line. Feeds the known-ATS
+    reuse (see :func:`known_ats_lookup`)."""
+    for line in jd_text.splitlines():
+        m = re.match(r"\s*company:\s*(\S.*)", line, re.I)
+        if m:
+            first = re.split(r"\.\s+", m.group(1).strip(), 1)[0]
+            first = first.rstrip(".").strip()
+            return first or None
+    return None
+
+
+def _load_known(path):
+    """The company→ATS knowledge file, or {} when absent/corrupt."""
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (ValueError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def known_ats_lookup(company, path=None):
+    """The prior scan's {url, ats} record for ``company``, or None.
+
+    Session-knowledge reuse for the URL-optional flow: a JD file without
+    a Posting URL line still gets ATS identification when an earlier
+    scan (this session or a previous one) identified the ATS for the
+    same company. URL stays optional — the lookup never invents one."""
+    if not company:
+        return None
+    rec = _load_known(path or KNOWN_ATS_FILE).get(company.strip().lower())
+    if isinstance(rec, dict) and isinstance(rec.get("url"), str) \
+            and rec.get("ats"):
+        return rec
+    return None
+
+
+def known_ats_record(company, url, ats, path=None):
+    """Persist a scan's company→(posting URL, ATS) identification."""
+    if not company or not url or not ats:
+        return
+    path = path or KNOWN_ATS_FILE
+    data = _load_known(path)
+    data[company.strip().lower()] = {"url": url, "ats": ats}
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=1)
+    except OSError:
+        pass  # knowledge persistence is best-effort; never fails the scan
+
+
 def _opportunity_update_body(saved_body, opp_id, resume_id, job_id):
     """Rebuild the saved opportunity-update body with the fresh ids.
 
@@ -431,12 +496,16 @@ def _attach_posting(kinds, opp_id, posting_url, company):
           f"(url={posting_url}{', company=' + company if company else ''})")
 
 
-def _scan_submit(kinds, resume_path, jd_path, company, mime):
+def _scan_submit(kinds, resume_path, jd_path, company, mime,
+                 posting_url=None):
     """Execute the create flow: upload resume, create JD + opportunity,
     re-point at the fresh resume, attach posting metadata.
 
-    Returns (opp_id, posting_url). Raises SystemExit via _fail on a
-    blocking API error."""
+    ``posting_url`` (optional) is a pre-resolved URL — the JD's own
+    Posting URL line, or the known-ATS reuse from :func:`scan`. When
+    None here, the JD file is re-read for the line (the historical
+    behavior). Returns (opp_id, posting_url_used). Raises SystemExit
+    via _fail on a blocking API error."""
     code, data, body = request(kinds["resume"]["url"],
                                _browser_headers(kinds["resume"]["headers"]),
                                method="POST", payload=("file",
@@ -459,7 +528,8 @@ def _scan_submit(kinds, resume_path, jd_path, company, mime):
 
     opp_id = _create_opportunity(kinds, resume_id, job_id)
     _update_opportunity(kinds, opp_id, resume_id, job_id)
-    posting_url = _posting_url(jd_text)
+    if posting_url is None:
+        posting_url = _posting_url(jd_text)
     _attach_posting(kinds, opp_id, posting_url, company)
     return opp_id, posting_url
 
@@ -542,8 +612,26 @@ def scan(resume_path, jd_path, opts=None):
     opts = opts if opts is not None else _ScanOpts()
     kinds, mime = _scan_setup(resume_path, jd_path, opts.config)
 
+    # URL stays OPTIONAL (SKILL Step 1) — the scan always runs. ATS
+    # identification is what benefits from a URL, and that knowledge is
+    # company-scoped: when this JD has no Posting URL but a prior scan
+    # identified the ATS for the same company, reuse that URL for the
+    # metadata PATCH instead of scanning with no ATS identified.
+    with open(jd_path, encoding="utf-8", errors="replace") as f:
+        jd_text = f.read()
+    company = opts.company or _company_from_jd(jd_text)
+    posting_url = _posting_url(jd_text)
+    if posting_url is None:
+        known = known_ats_lookup(company)
+        if known:
+            posting_url = known["url"]
+            print(f"[3c] no Posting URL in the JD file — reusing the "
+                  f"known {company!r} posting URL from a prior scan "
+                  f"(ATS: {known['ats']})")
+
     opp_id, posting_url = _scan_submit(kinds, resume_path, jd_path,
-                                       opts.company, mime)
+                                       opts.company or company, mime,
+                                       posting_url=posting_url)
     report_url = kinds["report"]["url"].replace("{id}", str(opp_id))
     report = _poll_report(report_url,
                           _browser_headers(kinds["report"]["headers"]),
@@ -562,6 +650,8 @@ def scan(resume_path, jd_path, opts=None):
           if isinstance(f, dict)}
     wc = (fm.get("wordCount") or {}).get("variables", {}).get("wordCount")
     ats = (fm.get("atsTip") or {}).get("variables", {}).get("ats")
+    if ats and company and posting_url:
+        known_ats_record(company, posting_url, ats)
     print(f"[4] report ready -> saved {out}")
     _print_match_target(mr.get("score"))
     print(f"    wordCount: {wc} (cross-check only — the cap uses "

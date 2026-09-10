@@ -14,6 +14,7 @@ Run from the scripts directory:
 # import-outside-toplevel/wrong-import-position: live tests guard heavy imports at runtime;
 #   flat-namespace tests need the sys.path bootstrap before sibling imports.
 
+import json
 import os
 import sys
 import tempfile
@@ -265,6 +266,62 @@ class PostingUrlTests(unittest.TestCase):
                 result = ac._posting_url(
                     f"Posting URL: {placeholder}\nEngineer")
                 self.assertEqual(result, expected)
+
+
+class KnownAtsTests(unittest.TestCase):
+    """Company→ATS knowledge reuse: two postings at one company, the
+    second JD without a Posting URL line. URL is OPTIONAL — the scan
+    always runs — but ATS identification is company-scoped knowledge a
+    prior scan already has (a real session scanned Ent twice; the
+    URL-less second scan ran with NO ATS identified and no
+    keyword-matching mode at all, scoring 66 where the URL'd first scan
+    scored 84 against the same Ashby system)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.path = os.path.join(self._tmp.name, "known-ats.json")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_company_from_jd_first_sentence_chunk(self):
+        self.assertEqual(
+            ac._company_from_jd(
+                "Company: Ent. Founded by Lou Manousos and Brandon Dixon\n"
+                "Test Engineer\n"),
+            "Ent")
+
+    def test_company_from_jd_absent(self):
+        self.assertIsNone(ac._company_from_jd("Test Engineer\nbody"))
+
+    def test_record_then_lookup_roundtrip(self):
+        self.assertIsNone(ac.known_ats_lookup("ent", path=self.path))
+        ac.known_ats_record("Ent", "https://jobs.example/ent/123", "Ashby",
+                            path=self.path)
+        rec = ac.known_ats_lookup("ent", path=self.path)
+        self.assertEqual(rec, {"url": "https://jobs.example/ent/123",
+                               "ats": "Ashby"})
+
+    def test_lookup_company_key_case_insensitive(self):
+        ac.known_ats_record("ENT", "https://jobs.example/ent/123", "Ashby",
+                            path=self.path)
+        self.assertIsNotNone(ac.known_ats_lookup("ent", path=self.path))
+
+    def test_lookup_requires_both_url_and_ats(self):
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump({"acme": {"url": "https://x.example/j"}}, f)
+        self.assertIsNone(ac.known_ats_lookup("acme", path=self.path))
+
+    def test_record_without_company_or_ats_is_noop(self):
+        ac.known_ats_record(None, "https://x", "Ashby", path=self.path)
+        ac.known_ats_record("Ent", None, "Ashby", path=self.path)
+        ac.known_ats_record("Ent", "https://x", None, path=self.path)
+        self.assertFalse(os.path.exists(self.path))
+
+    def test_corrupt_file_reads_empty(self):
+        with open(self.path, "w", encoding="utf-8") as f:
+            f.write("{not json")
+        self.assertIsNone(ac.known_ats_lookup("ent", path=self.path))
 
 
 class ResponseTests(unittest.TestCase):
