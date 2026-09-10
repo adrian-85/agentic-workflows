@@ -17,6 +17,7 @@ so `python3 scripts/docx_edit.py` keeps working unchanged.
 # invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
 
 
+import os
 import sys
 
 from docx_edit import (TITLE_STYLE, clone_after, find_p, load, paras, save,
@@ -100,12 +101,105 @@ def prefixes(body, min_len=30, max_len=70):
     return out
 
 
+def _script_find_p_prefixes(script_path):
+    """Every find_p search-string in a tailor script, via AST.
+
+    Python's implicit string-literal concatenation collapses multi-line
+    arguments into one Constant at parse time, so this handles both
+    ``find_p(ps, "prefix")`` and multi-line set_labeled-style calls.
+    Returns (prefix, lineno) pairs, in source order; None entries for
+    calls whose search string is not a literal (dynamic prefix — can't
+    be linted statically)."""
+    import ast
+    with open(script_path, encoding="utf-8") as f:
+        tree = ast.parse(f.read(), script_path)
+    out = []
+    for node in ast.walk(tree):
+        func = getattr(node, "func", None) if isinstance(node, ast.Call) \
+            else None
+        # flat import (find_p(ps, ...)) -> ast.Name; module-qualified
+        # (de.find_p(ps, ...)) -> ast.Attribute. Recognize both.
+        is_find_p = (isinstance(func, ast.Attribute)
+                     and func.attr == "find_p") or (
+            isinstance(func, ast.Name) and func.id == "find_p")
+        if not is_find_p:
+            continue
+        if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant) \
+                and isinstance(node.args[1].value, str):
+            out.append((node.args[1].value, node.lineno))
+        else:
+            out.append((None, node.lineno))
+    return out
+
+
+def lint_script(docx_path, script_path):
+    """Validate a tailor script's find_p targets against a .docx BEFORE
+    running it.
+
+    A real session hand-typed two prefixes that missed the master
+    ('Monitoring & Logging: Datadog' vs the master's '...Prometheus,
+    Grafana, New Relic, Datadog'; 'Performed contract testing usi' vs
+    'Performed contract testing to ') — each a run-crash-and-fix cycle
+    that DOCX_EDIT_STRICT only catches AFTER execution. This lint runs
+    the same resolution (find_p, smart punctuation included) against the
+    master and reports every miss/ambiguity with line numbers, so the
+    whole edit set is verified in one pre-run. Returns exit code 0 clean,
+    1 findings, 2 usage error.
+
+    A reported miss can also be a paragraph the script CREATES itself
+    (clone_after then find_p) — those are expected; the lint output names
+    the prefix so the author can judge.
+    """
+    import contextlib
+    import io
+    if not os.path.exists(script_path):
+        print(f"error: script not found: {script_path}", file=sys.stderr)
+        return 2
+    try:
+        targets = _script_find_p_prefixes(script_path)
+    except SyntaxError as e:
+        print(f"error: {script_path} does not parse: {e}", file=sys.stderr)
+        return 1
+    if not targets:
+        print(f"lint: no find_p calls found in {script_path} — nothing "
+              "to verify")
+        return 0
+    _, body, _, _, _ = load(docx_path)
+    ps = paras(body)
+    bad = []
+    with contextlib.redirect_stderr(io.StringIO()) as err_io:
+        for prefix, lineno in targets:
+            if prefix is None:
+                bad.append((lineno, "<dynamic>",
+                            "search string is not a literal — verify by "
+                            "hand"))
+                continue
+            if find_p(ps, prefix) is None:
+                warning = err_io.getvalue().strip().splitlines()
+                reason = warning[-1] if warning else "not found"
+                bad.append((lineno, prefix, reason))
+                err_io.truncate(0)
+                err_io.seek(0)
+    for lineno, prefix, reason in bad:
+        print(f"  MISS  line {lineno}: find_p({prefix!r}) — {reason}",
+              file=sys.stderr)
+    if bad:
+        print(f"lint: {len(bad)} of {len(targets)} find_p target(s) "
+              "do NOT resolve against this docx — fix the prefixes "
+              "(see docx_edit.py <path> --prefixes) or confirm the "
+              "target is script-created before running", file=sys.stderr)
+        return 1
+    print(f"lint: all {len(targets)} find_p target(s) resolve")
+    return 0
+
+
 def _cli_usage():
     """Print the docx_edit CLI usage message. Returns exit code 2."""
     print("usage: docx_edit.py <path.docx> [range] [--full] [--prefixes] [--style NAME]",
           file=sys.stderr)
     print("       docx_edit.py <path.docx> --append-after \"<ref prefix>\" --with \"<text>\"",
           file=sys.stderr)
+    print("       docx_edit.py <path.docx> --lint-script <tailor_script.py>", file=sys.stderr)
     print("  Inspect paragraphs (default = full map: index | style | numId | text),",
           file=sys.stderr)
     print("  print find_p prefixes, clone a bullet, or rewrite a paragraph.",
@@ -118,6 +212,10 @@ def _cli_usage():
     print("  --prefixes: print uniqueness-checked find_p(ps, \"…\") prefixes",
           file=sys.stderr)
     print("  --style N:  map filtered to one paragraph style (e.g. CompanyBlock)",
+          file=sys.stderr)
+    print("  --lint-script S: verify every find_p target in tailor script S",
+          file=sys.stderr)
+    print("              resolves against this docx BEFORE running it (exit 1 on miss)",
           file=sys.stderr)
     return 2
 
@@ -271,6 +369,10 @@ def cli(argv):
           prefix with find_p — smart punctuation is tolerated, and a
           missing/ambiguous prefix exits 2 so a one-shot edit cannot
           silently no-op.
+      docx_edit.py <path.docx> --lint-script <tailor_script.py>
+          verify every find_p target in a tailor script resolves against
+          this docx BEFORE running the script (exit 1 on a miss) — the
+          pre-run gate scripts/run_tailor.sh drives automatically.
     """
     if len(argv) < 2 or argv[1] in ("--help", "-h"):
         return _cli_usage()
@@ -280,6 +382,11 @@ def cli(argv):
         return _cli_append_after(path, args)
     if "--set-text" in args:
         return _cli_set_text(path, args)
+    if "--lint-script" in args:
+        i = args.index("--lint-script")
+        if i + 1 >= len(args):
+            return _cli_usage()
+        return lint_script(path, args[i + 1])
     return _cli_inspect(path, args)
 
 

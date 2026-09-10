@@ -1289,6 +1289,118 @@ class MasterChangeGateTests(unittest.TestCase):
         self.assertEqual(cm.code, 2)
 
 
+class LintScriptTests(unittest.TestCase):
+    """--lint-script: every find_p target in a tailor script must resolve
+    against a docx BEFORE the script runs. A real session hand-typed two
+    prefixes that missed the master ('Monitoring & Logging: Datadog' vs
+    the master's '...Prometheus, Grafana, New Relic, Datadog'; 'Performed
+    contract testing usi' vs '...contract testing to ') — each a
+    run-crash-fix cycle that DOCX_EDIT_STRICT only catches AFTER
+    execution. The lint verifies the whole edit set pre-run."""
+
+    def _docx_with(self, *texts):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        doc = (
+            '<?xml version="1.0"?>'
+            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
+        )
+        for t in texts:
+            escaped = (t.replace("&", "&amp;").replace("<", "&lt;")
+                       .replace(">", "&gt;"))
+            doc += (
+                f'<w:p><w:r><w:t xml:space="preserve">{escaped}</w:t>'
+                f'</w:r></w:p>'
+            )
+        doc += '</w:body></w:document>'
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr("word/document.xml", doc)
+            z.writestr("[Content_Types].xml", "<Types/>")
+        return path
+
+    def _script(self, *lines):
+        fd, path = tempfile.mkstemp(suffix=".py")
+        os.close(fd)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        return path
+
+    def test_all_targets_resolve_passes(self):
+        docx = self._docx_with(
+            "Monitoring & Logging: Prometheus, Grafana, New Relic, Datadog")
+        # Adjacent string literals (implicit concat across lines) are one
+        # Constant after parsing — multi-line find_p calls lint whole.
+        script = self._script(
+            'from docx_edit import find_p\n',
+            'ps = None\n',
+            'find_p(ps, "Monitoring & Logging: Promethe")\n',
+            'find_p(ps,\n    "Monitoring & Logging: Prom")\n',
+        )
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = dcli.lint_script(docx, script)
+            self.assertEqual(rc, 0)
+            self.assertIn("all 2", out.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_miss_fails_with_line_number(self):
+        docx = self._docx_with(
+            "Monitoring & Logging: Prometheus, Grafana, New Relic, Datadog")
+        # The real session's bug: a hand-typed prefix that skipped ahead
+        # to a value the master's line does not START with.
+        script = self._script(
+            'from docx_edit import find_p\n',
+            'ps = None\n',
+            'find_p(ps, "Monitoring & Logging: Datadog")\n',
+        )
+        try:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = dcli.lint_script(docx, script)
+            self.assertEqual(rc, 1)
+            self.assertIn("line 5", err.getvalue())
+            self.assertIn("MISS", err.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_dynamic_target_reported_for_manual_review(self):
+        docx = self._docx_with("Ref paragraph")
+        # A non-literal search string cannot be linted statically — it is
+        # reported (exit 1) so the author verifies it by hand, matching
+        # the clone_after-then-find_p pattern some scripts use.
+        script = self._script(
+            'from docx_edit import find_p, clone_after\n',
+            'ps = None\n',
+            'find_p(ps, clone_after(ps, find_p(ps, "Ref paragraph"), "x"))\n',
+        )
+        try:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = dcli.lint_script(docx, script)
+            self.assertEqual(rc, 1)
+            self.assertIn("not a literal", err.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_syntax_error_is_reported(self):
+        docx = self._docx_with("x")
+        script = self._script("def broken(:\n")
+        try:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = dcli.lint_script(docx, script)
+            self.assertEqual(rc, 1)
+            self.assertIn("does not parse", err.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+
 class SetTextCLITests(unittest.TestCase):
     """docx_edit.py --set-text — one-shot bullet rewrite from the CLI, the
     replacement for bespoke fold scripts whose only edit is set_text."""
