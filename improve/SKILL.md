@@ -143,7 +143,8 @@ The chat is the approval mechanism — there is no approval script.
      not at the final verify
    - Apply each approved change; follow existing patterns in the workflow
    - Commit after each logical change with descriptive messages
-   - Run the workflow's own tests/verification if it has any
+   - Per commit, run only the touched test files; the FULL suite belongs
+     to verify-worktree.sh — do not re-run it after every commit
    - After the FINAL commit of the phase, run
      `~/.pi/agent/skills/improve/scripts/verify-worktree.sh` inside the
      worktree — it must pass before hard stop #2. It lints every changed
