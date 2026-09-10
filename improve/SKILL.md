@@ -137,6 +137,10 @@ The chat is the approval mechanism — there is no approval script.
      ```
    - Work entirely inside the worktree (use the returned path; do not
      modify files in the main working tree)
+   - Front-load cheap checks before writing code: `wc -l` the target
+     Python files against any line caps verify-worktree.sh enforces, and
+     confirm pylint is invokable — discover these constraints at setup,
+     not at the final verify
    - Apply each approved change; follow existing patterns in the workflow
    - Commit after each logical change with descriptive messages
    - Run the workflow's own tests/verification if it has any
