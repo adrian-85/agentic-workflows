@@ -514,7 +514,19 @@ ACTIONABLE (SKILL Steps 2/11: soft skills are safe to infer — host each
 literal phrase where the action-verb evidence lives). With `--report-json`,
 also prints the **match-rate target** (default 75, `--match-target N` to
 change, `0` disables): score ≥ target ⇒ literal hosting is DONE — stop
-adding hard/soft skills; below ⇒ keep hosting (SKILL Step 11). Exit 0 clean,
+adding hard/soft skills; below ⇒ keep hosting (SKILL Step 11).
+
+**Match-rate state and the ceiling signal.** Each run persists the match
+rate in a sidecar, `<resume>.ceiling.json` (written best-effort, never
+blocks the audit; any score change resets it). When two consecutive
+audits report the SAME score below target, the audit prints
+**CEILING DETECTED** — the remaining hard/soft skill checklist must be
+presented to the user before declaring the honest ceiling (SKILL Step
+11); delete the sidecar to clear the state. Its counterpart on the
+measure side is the **REQUIREMENTS SUMMARY** one-liner
+(`measure_resume.py`): the unconfirmed-hard-skills call-to-action prints
+ONLY when that count is above 0 — a fully-covered run prints the counts
+alone. Exit 0 clean,
 1 findings, 2 usage/IO error.
 
 IGNORED by rule: the report's contactEmail searchability finding — the

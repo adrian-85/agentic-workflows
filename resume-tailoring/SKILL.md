@@ -152,7 +152,9 @@ with copy-pasteable `find_p` cut lines, the per-role **JD-FIT AUDIT** (off-JD/we
 role, even on target), **JD REQUIREMENT COVERAGE** (each qualification line → its kept hosts;
 [weak] = proficiencies/Tools-line host only, [UNCOVERED] = demonstrate it or raise the gap), **JD
 terms with NO host in the resume** (the never-fabricate flags), and flags page widows /
-underfilled pages + **SPACER OPPORTUNITIES** (Step 8); `validate_resume.py` re-reports the
+underfilled pages + **SPACER OPPORTUNITIES** (Step 8); its **REQUIREMENTS SUMMARY** one-liner
+flags the count of unconfirmed hard skills — any count above 0 means present the three-state
+checklist (Step 2) before claiming done; `validate_resume.py` re-reports the
 JD-FIT count at render/save time (the render gate is not skippable); `squeeze_resume.py` closes
 the residual page gap automatically.
 
@@ -779,7 +781,10 @@ each marked hosted / confirmed-absent / unanswered) and get their
 explicit confirmation that nothing else can be hosted truthfully. Only
 that confirmation closes the loop: report the final rate as "the honest
 ceiling for this target", name the confirmed gaps, and let the user
-weigh applying.  
+weigh applying. `ats_audit.py` enforces the gate mechanically: when two
+consecutive audits report the same below-target score it prints
+**CEILING DETECTED** — at that signal the checklist presentation is
+mandatory, not judgment.
 
 **The word cap has TWO counters — keep headroom for the stricter one.**
 `validate_resume.py` counts the .docx paragraphs; `ats_audit.py` counts

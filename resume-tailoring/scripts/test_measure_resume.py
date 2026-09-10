@@ -2416,3 +2416,24 @@ class RequirementsSummaryTests(unittest.TestCase):
         buf = out.getvalue()
         self.assertIn("REQUIREMENTS SUMMARY", buf)
         self.assertIn("unconfirmed hard skill", buf)
+
+    def test_no_unconfirmed_no_call_to_action(self):
+        # A fully-covered run must NOT tell the agent to present a
+        # checklist that is empty — the call-to-action is conditional.
+        jd = ("Required Qualifications:\n"
+              "Selenium and Java experience\n")
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " \u2013 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Built test suites with Selenium WebDriver and Java.",
+                  numId=2),
+        ])
+        ctx = self._ctx_with(jd, body)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            mr._print_jd_coverage(ctx)
+        buf = out.getvalue()
+        self.assertIn("REQUIREMENTS SUMMARY", buf)
+        self.assertNotIn("unconfirmed hard skill", buf)
+        self.assertIn("1/1 quals covered", buf)

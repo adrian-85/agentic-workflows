@@ -604,14 +604,17 @@ def _print_jd_coverage(ctx):
     # to act on — when unconfirmed_hard > 0, the three-state checklist
     # (SKILL Step 2) MUST be presented to the user before claiming done.
     by_hand = sum(1 for _, s, _ in coverage if s == "by_hand")
+    covered = sum(1 for _, s, _ in coverage if s == "covered")
     hard_uncovered = sum(
         1 for label, s, _ in coverage
         if s == "uncovered" and not JD_SOFT_SKILL_RE.search(label))
-    print(f"REQUIREMENTS SUMMARY: {len(coverage) - uncov - weak - by_hand}"
-          f"/{len(coverage)} quals covered, {weak} weak, "
-          f"{uncov} uncovered, {by_hand} by-hand"
-          f" ({hard_uncovered} unconfirmed hard skill(s) — "
-          "present three-state checklist to user, SKILL Step 2)")
+    summary = (f"REQUIREMENTS SUMMARY: {covered}/{len(coverage)} quals "
+               f"covered, {weak} weak, {uncov} uncovered, "
+               f"{by_hand} by-hand")
+    if hard_uncovered:
+        summary += (f" ({hard_uncovered} unconfirmed hard skill(s) — "
+                    "present three-state checklist to user, SKILL Step 2)")
+    print(summary)
     print()
 
 

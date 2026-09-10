@@ -137,12 +137,11 @@ def _ceiling_check(score, target, resume_path, result):
         return
     sidecar = pathlib.Path(resume_path + ".ceiling.json")
     prev = None
-    if sidecar.exists():
-        try:
-            prev = json.loads(sidecar.read_text(encoding="utf-8"))
-            prev = prev.get("score") if isinstance(prev, dict) else None
-        except (ValueError, OSError):
-            prev = None
+    try:
+        prev = json.loads(sidecar.read_text(encoding="utf-8"))
+        prev = prev.get("score") if isinstance(prev, dict) else None
+    except (ValueError, OSError):
+        prev = None  # no prior run (FileNotFoundError) or corrupt sidecar
     if prev == score and score < target:
         result.warns.append(
             f"CEILING DETECTED: match rate {score} unchanged from the "
@@ -599,10 +598,9 @@ def main(argv=None):
     _audit_jd_and_phrases(args["jd_path"], args["phrases_file"], text_low,
                           result)
     _audit_report_skills(report_data, text_low, text, result)
-    _audit_match_rate(_report_match_rate(report_data), args["match_target"],
-                      result)
-    _ceiling_check(_report_match_rate(report_data), args["match_target"],
-                   args["path"], result)
+    score = _report_match_rate(report_data)
+    _audit_match_rate(score, args["match_target"], result)
+    _ceiling_check(score, args["match_target"], args["path"], result)
 
     print("== ATS AUDIT ==")
     for line in result.ok_lines:
