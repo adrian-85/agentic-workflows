@@ -1,11 +1,13 @@
 ---
 name: resume-tailoring
-description: Use when the user wants to customize their resume to match a specific job posting or recruiter screening message, or needs an ATS-friendly tailored copy from a master .docx. Also use when producing a submission-ready PDF from an existing .docx resume.
+description: Use when the user wants to customize their resume to match a specific job posting or recruiter screening
+ message, or needs an ATS-friendly tailored copy from a master .docx. Also use when producing a submission-ready PDF 
+ from an existing .docx resume.
 ---
 
 # Resume Tailoring
 
-Tailor a master `.docx` resume for a specific job posting without destroying its
+Tailor a master `.docx` resume for a specific job posting while preserving its
 formatting. The workflow edits the Word XML in place so fonts, sizes, paragraph
 styles, list/bullet numbering, and hyperlinks all survive.
 
@@ -71,8 +73,8 @@ auto-tightens to the page budget) · `validate_resume.py` (Steps 3, 11; `--maste
 `* Master Resume.docx` next to the input) · `diff_resume.py` (Token-spend) · `read_profile.sh` (Step 1) ·
 `ats_audit.py` (Step 11; literal-phrase ATS audit of the rendered PDF + word cap) · `ats_check.py`
 (Step 11; runs the external ATS scan via the user's saved credentials, saves the report JSON) ·
-`test_*.py` unit tests (`python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test_squeeze_resume test_ats_audit test_ats_check`,
-from `scripts/`).
+`test_*.py` unit tests (`python3 -m unittest test_docx_edit test_measure_resume test_validate_resume 
+test_squeeze_resume test_ats_audit test_ats_check`, from `scripts/`).
 
 Run scripts from the skill root so the relative `SRC` path resolves:
 
@@ -82,7 +84,9 @@ cd ~/.pi/agent/skills/resume-tailoring && python3 scripts/tailor_resume.py
 
 ## Helper library & reference template
 
-`docx_edit.py` helpers (`set_text`, `set_labeled`, `find_p`, `drop`, `drop_role`, `drop_section`, `save`, `clone_after`, `merge_into`), the CLI reference, and the `tailor_resume.py` template are documented in [docs/api.md](docs/api.md). Read the api reference before authoring a tailor script; import only the helpers the planned edits use.
+`docx_edit.py` helpers (`set_text`, `set_labeled`, `find_p`, `drop`, `drop_role`, `drop_section`, `save`, `clone_after`, 
+`merge_into`), the CLI reference, and the `tailor_resume.py` template are documented in [docs/api.md](docs/api.md). Read the api 
+reference before authoring a tailor script; import only the helpers the planned edits use.
 
 ## Token-spend practices
 
@@ -183,12 +187,7 @@ the residual page gap automatically.
   knowledge: when this JD has no Posting URL line but a prior scan (this
   session or an earlier one) identified the ATS for the same company,
   `ats_check.py` reuses that known posting URL for the metadata PATCH
-  and prints the reuse. A real session scanned two postings at one
-  company; the URL-less second ran with NO ATS identified and NO
-  keyword-matching mode at all — `matchRate: 66` where the URL'd first
-  scored 84 against the same Ashby system. Don't let a second target at
-  the same company lose the first target's ATS knowledge: supply the
-  URL when you have it, and rely on the reuse when you don't.
+  and prints the reuse.
 - Read the **master resume**. If it is a `.docx`, use `docx_edit.py` to edit. If
   only a PDF is available, ask for the `.docx` source — PDFs can be read but
   not edited precisely.
@@ -238,11 +237,8 @@ evidence stays a never-fabricate flag: raise it instead of inventing evidence,
 and note where 'similar' tooling truthfully answers the ask (Postman/Karate
 for "SoapUI or REST API testing tools"). **A no-host term with NO
 deterministic evidence is an ASK, not a verdict** — the master and the
-LinkedIn dump understate real experience (a real session's "macOS" and
-"stress testing" asks had no literal host anywhere, and the user's
-"Linux home-lab image installs" evidence surfaced only when asked; the
-resume never says everything the user has done). Ask about it plainly —
-"any macOS/Windows internals exposure I can host truthfully?" — and
+LinkedIn dump understate real experience (the
+resume never says everything the user has done). Ask about it plainly and
 host only what is confirmed.
 
 **Every JD hard and soft skill ends in exactly one of three states, and
@@ -783,13 +779,7 @@ each marked hosted / confirmed-absent / unanswered) and get their
 explicit confirmation that nothing else can be hosted truthfully. Only
 that confirmation closes the loop: report the final rate as "the honest
 ceiling for this target", name the confirmed gaps, and let the user
-weigh applying. A real session hit 66 on a JD asking for C++, Rust,
-Windows internals, VM-farm tooling, endpoint agents and GUI automation
-— every one confirmed absent — and correctly stopped hosting; what it
-lacked was the user-gated close, so "the honest ceiling" read as the
-agent's own verdict rather than a shared one. (The same session's
-scan also ran without ATS identification — see Step 1's URL-optional
-reuse rule — which the ceiling framing must note.)
+weigh applying.  
 
 **The word cap has TWO counters — keep headroom for the stricter one.**
 `validate_resume.py` counts the .docx paragraphs; `ats_audit.py` counts

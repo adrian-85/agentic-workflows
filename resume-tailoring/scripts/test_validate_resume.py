@@ -99,7 +99,7 @@ class PunctuationTests(unittest.TestCase):
     def _run(cls, path):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            rc = vr.main([path])
+            rc = vr.main([path, "--seniority-approved"])
         return rc, out.getvalue()
 
     # --- function-level: _punctuation_errors(region, summary) ---
@@ -461,7 +461,8 @@ class JdYearsTests(unittest.TestCase):
     def _run(self, path, jd_years):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            rc = vr.main([path, "--jd-years", str(jd_years)])
+            rc = vr.main([path, "--jd-years", str(jd_years),
+                         "--seniority-approved"])
         return rc, out.getvalue()
 
     def test_jd_years_underqualified_warns(self):
@@ -511,7 +512,8 @@ class JdYearsTests(unittest.TestCase):
             self._docx(path, ["09/2019 – 08/2026"])
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
-                rc = vr.main([path, "--jd", jd, "--jd-years", "10"])
+                rc = vr.main([path, "--jd", jd, "--jd-years", "10",
+                             "--seniority-approved"])
         finally:
             os.unlink(path)
             os.unlink(jd)
@@ -557,7 +559,7 @@ class TitleAlignmentValidateTests(unittest.TestCase):
         out = io.StringIO()
         try:
             with contextlib.redirect_stdout(out):
-                rc = vr.main([path, "--jd", jd])
+                rc = vr.main([path, "--jd", jd, "--seniority-approved"])
         finally:
             os.unlink(jd)
         return rc, out.getvalue()
@@ -763,7 +765,7 @@ class EducationGateTests(unittest.TestCase):
     def _run(self, path, *args):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            rc = vr.main([path, *args])
+            rc = vr.main([path, *args, "--seniority-approved"])
         return rc, out.getvalue()
 
     def test_degree_required_education_dropped_blocks(self):

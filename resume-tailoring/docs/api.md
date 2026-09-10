@@ -550,6 +550,19 @@ line is present and truthy. A placeholder PATCHed to the service is
 garbage in the report (`url=(not)` in a real session); SKILL Step 1:
 own the line entirely when the URL is unknown.
 
+**URL-optional: ATS knowledge reuse across scans.** The URL is optional —
+the scan always runs without it. Its job is ATS identification, and that
+is company-scoped knowledge: when this JD has no Posting URL line but a
+prior scan (this session or an earlier one) identified the ATS for the
+same company, `ats_check.py` reuses the known posting URL for the
+metadata PATCH and prints the reuse. A real session scanned two postings
+at one company; the URL-less second ran with NO ATS identified and NO
+keyword-matching mode at all — `matchRate: 66` where the URL'd first
+scored 84 against the same Ashby system. The known-ATS mapping is
+persisted in `.ats-check/known-ats.json` (gitignored, durable across
+sessions). `--company` overrides the company detection from the JD's
+`Company:` line.
+
 **Fix tool bugs in the session that finds them.** If a script in this
 skill misbehaves or contradicts its documented behavior, do not route
 around it: fix the script and add a regression test in the same session

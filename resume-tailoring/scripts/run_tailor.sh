@@ -21,7 +21,7 @@
 set -euo pipefail
 
 if [ "$#" -lt 2 ]; then
-    echo "usage: run_tailor.sh <master.docx> <tailor_script.py> [--no-strict]" >&2
+    echo "usage: run_tailor.sh <master.docx> <tailor_script.py>" >&2
     echo "  env: RESUME_VALIDATE_ARGS passes through to the script" >&2
     exit 2
 fi
@@ -29,12 +29,6 @@ fi
 SCRIPT_PATH="$2"
 SKILL_ROOT="$(cd "$(dirname "$SCRIPT_PATH")/.." && pwd)"
 DOCX="$1"
-STRICT="${3:-}"
-if [ "$STRICT" != "--no-strict" ]; then
-    STRICT=1
-else
-    STRICT=0
-fi
 
 cd "$SKILL_ROOT"
 [ -f "$DOCX" ] || { echo "error: docx not found: $DOCX" >&2; exit 2; }
@@ -45,7 +39,4 @@ python3 -c "import ast; ast.parse(open('$SCRIPT_PATH').read())" \
 
 python3 scripts/docx_edit.py "$DOCX" --lint-script "$SCRIPT_PATH"
 
-if [ "$STRICT" = "--no-strict" ]; then
-    exec python3 "$SCRIPT_PATH"
-fi
 DOCX_EDIT_STRICT=1 exec python3 "$SCRIPT_PATH"
