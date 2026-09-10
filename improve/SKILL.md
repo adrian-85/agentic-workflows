@@ -198,6 +198,8 @@ The chat is the approval mechanism — there is no approval script.
    - Full decline: no quality changes; proceed to Phase 3 (final review)
    - Full approve: implement all suggestions
    - Partial approve (e.g. "do 1-2 only"): implement only the named items
+   - If the user's reply flags changes still needed, implement them in
+     this phase — do NOT skip ahead to the final review
 
 6. **Verify the gate:** Do not implement quality improvements until
    hard stop #3 has been passed.
@@ -244,6 +246,9 @@ The chat is the approval mechanism — there is no approval script.
    - Full diff summary: what was improved, quality changes applied,
      files changed, commits
    - **STOP.** If the user declines, stop — the worktree persists for later.
+   - If the user's reply flags changes still needed, do NOT merge or skip
+     ahead: reopen the applicable phase, implement them, re-run verify on
+     the new HEAD, re-record gate 4, and re-present
    - If they approve, record gate 4 then merge:
      ```bash
      scripts/checkpoint.sh gate 4
