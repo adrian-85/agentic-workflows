@@ -393,6 +393,15 @@ class FindPTests(unittest.TestCase):
         ps = [mkp(("Title", True)), mkp(("Title", True))]
         self.assertIsNone(de.find_p(ps, "Title", nth=5))
 
+    def test_nth_zero_raises(self):
+        # nth is 1-based; nth=0 is always a bug. A real session's nth=0
+        # silently matched cur[-1] (a history-block job title) instead of
+        # the headline, crossing the two — caught only by a lucky re-read.
+        ps = [mkp(("Staff Engineer", True)), mkp(("Staff Engineer", True))]
+        with self.assertRaises(ValueError) as ctx:
+            de.find_p(ps, "Staff Engineer", nth=0)
+        self.assertIn("1-BASED", str(ctx.exception))
+
 
 class ShortestUniquePrefixTests(unittest.TestCase):
     """shortest_unique_prefix returns the shortest prefix that uniquely
@@ -1052,8 +1061,10 @@ class SaveDriftTests(unittest.TestCase):
             self._run(path, self._one_edit)
             _out, err, _ = self._run(path, self._two_edits)
             self.assertIn("DRIFT", err)
-            self.assertIn("expected 1", err)
-            self.assertIn("applied 2", err)
+            # Master unchanged -> cause (b) is impossible: the one-line
+            # edit-set-changed notice, not the two-cause block.
+            self.assertIn("edit set changed (1 -> 2 applied)", err)
+            self.assertNotIn("Two possible causes", err)
         finally:
             os.unlink(path)
             if os.path.exists(path + ".drift.json"):

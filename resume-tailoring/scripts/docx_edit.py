@@ -201,19 +201,29 @@ def _drift_sidecar(path, drift, applied, root):
     prev_sha = prev.get("master_sha") if isinstance(prev, dict) else None
     prev_paras = prev.get("paragraphs") if isinstance(prev, dict) else None
     if prev is not None and prev_edits != applied:
-        print(
-            f"DRIFT: {drift_key} expected {prev_edits} edits (last "
-            f"recorded run) but applied {applied}. Two possible causes:\n"
-            f"  (a) this script's edit set changed intentionally mid-"
-            f"authoring — no action needed: the baseline updates "
-            f"automatically (warn-once);\n"
-            f"  (b) the master changed under a finished script — see the "
-            f"master-change notice below and run 'diff_resume.py "
-            f"--tailor' before reusing it.\n"
-            f"The blocking gate for a stopped-matching edit remains the "
-            f"skipped-edit check.",
-            file=sys.stderr,
-        )
+        if prev_sha and master_sha and prev_sha != master_sha:
+            print(
+                f"DRIFT: {drift_key} expected {prev_edits} edits (last "
+                f"recorded run) but applied {applied}. Two possible causes:\n"
+                f"  (a) this script's edit set changed intentionally mid-"
+                f"authoring — no action needed: the baseline updates "
+                f"automatically (warn-once);\n"
+                f"  (b) the master changed under a finished script — see "
+                f"the master-change notice below and run 'diff_resume.py "
+                f"--tailor' before reusing it.\n"
+                f"The blocking gate for a stopped-matching edit remains "
+                f"the skipped-edit check.",
+                file=sys.stderr,
+            )
+        else:
+            # The master is unchanged, so cause (b) is impossible: the
+            # edit set itself changed. One line, not the two-cause block
+            # a real session printed on EVERY mid-authoring run.
+            print(
+                f"DRIFT: {drift_key} edit set changed ({prev_edits} -> "
+                f"{applied} applied); baseline rebaselined (warn-once)",
+                file=sys.stderr,
+            )
     master_changed = bool(prev_sha and master_sha and prev_sha != master_sha)
     if master_changed:
         print(
@@ -430,6 +440,13 @@ def find_p(paragraphs, startswith, *, after=None, nth=None):
         and _matchkey(text_of(p)).startswith(pref)
     ]
     if nth is not None:
+        if nth < 1:
+            raise ValueError(
+                f"find_p nth is 1-BASED (got nth={nth!r}). nth=0 is always "
+                "a bug: a real session's nth=0 silently matched the LAST "
+                "paragraph (a history-block job title) instead of the "
+                "headline and crossed the two. Use nth=1 for the first "
+                "match, or drop nth for the unique-paragraph behavior.")
         if len(cur) < nth:
             _warn_missing(f"{startswith} (nth={nth})", record=False)
             return None
