@@ -186,6 +186,36 @@ class JdLiteralTermsTests(unittest.TestCase):
         self.assertNotIn("c#.", terms, terms)
         self.assertNotIn("locust.", terms, terms)
 
+    def test_period_form_and_gram_form_collapse(self):
+        # "...Jenkins or GitLab CI." mined BOTH 'gitlab ci.' (seq token,
+        # sentence-final period) and 'gitlab ci' (cue-tail n-gram) — the
+        # FAIL list printed the term twice (a real audit did). The
+        # punctuation strip happens BEFORE the set is built.
+        jd = "Requirements\n\nCI experience with Jenkins or GitLab CI.\n"
+        terms = aa._jd_literal_terms(jd)
+        self.assertEqual(
+            [t for t in terms if t.startswith("gitlab")], ["gitlab ci"])
+
+    def test_structure_word_as_never_in_a_gram(self):
+        # 'as' is a structure word: a cue tail '...such as Jenkins, ...'
+        # mined 'as jenkins' — no resume hosts that, and it only padded
+        # the FAIL list (a real audit listed 'as jenkins').
+        jd = "Requirements\n\nCI experience with a comparable system " \
+             "such as Jenkins or GitLab CI.\n"
+        terms = aa._jd_literal_terms(jd)
+        self.assertNotIn("as jenkins", terms, terms)
+
+    def test_word_prefix_term_subsumed_by_longer(self):
+        # Overlapping cue windows mined 'selenium driving' beside
+        # 'selenium driving parallelized' — both padded the FAIL list.
+        # A term that is a word-prefix of a longer term is subsumed: the
+        # longest literal phrase is what to host.
+        jd = ("Requirements\n\nProficiency in Python with Playwright or "
+              "Selenium driving parallelized suites in CI.\n")
+        terms = aa._jd_literal_terms(jd)
+        self.assertNotIn("selenium driving", terms, terms)
+        self.assertIn("selenium driving parallelized", terms, terms)
+
 
 class MatchRateTargetTests(unittest.TestCase):
     """The ≥75 match-rate TARGET (SKILL Step 11): a stop signal for the

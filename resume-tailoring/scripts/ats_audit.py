@@ -169,7 +169,7 @@ _STRUCTURE_STOP = frozenset({
     "such", "only", "well", "using", "used", "uses", "across",
     "against", "within", "without", "via", "per", "plus", "near",
     "among", "along", "since", "until", "upon", "about", "after",
-    "before", "during", "another", "related", "any", "all",
+    "before", "during", "another", "related", "any", "all", "as",
 })
 # Vague qualification nouns: never evidence alone, but fine inside a
 # phrase ("quality assurance", "test automation").
@@ -285,17 +285,23 @@ def _jd_literal_terms(jd_text):
     capital is prose, not a product name — "Assess whether…" must not
     mine "assess"), plus CORE_TECH_NOUNS/markers they might miss.
 
-    Mined tokens are stripped of trailing punctuation: the token regexes
-    keep sentence-final periods ("apis.", "c#.", "locust." from a real
-    JD) which no resume can literally host and which only padded the FAIL
-    list with parser artifacts.
+    Tokens are stripped of trailing punctuation BEFORE the set is built
+    ("gitlab ci." from a sentence-final period and "gitlab ci" from an
+    n-gram then collapse to one term instead of printing twice), and a
+    term that is a word-prefix of a longer term is subsumed by it (the
+    overlapping cue windows mined "selenium driving" beside "selenium
+    driving parallelized"; the longest literal phrase subsumes its
+    prefix — hosting it hosts the shorter too).
     """
     stop_vague = _VAGUE_STOP | mr.JD_SELF_ASSESSMENT
     terms = set()
     for line in mr._jd_requirement_lines(jd_text):
         terms.update(_single_token_terms(line, stop_vague))
         terms.update(_phrase_terms(line, stop_vague))
-    return sorted(t.rstrip(".,;:!?\"'") for t in terms)
+    stripped = {t.rstrip(".,;:!?\"'") for t in terms}
+    out = {t for t in stripped
+           if not any(o != t and o.startswith(t + " ") for o in stripped)}
+    return sorted(out)
 
 
 def _audit_jd(text_low, jd_text):
