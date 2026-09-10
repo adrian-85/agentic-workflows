@@ -51,6 +51,7 @@ gate already sanctioned; the scan's generic advice does not re-open it).
 import json
 from dataclasses import dataclass, field
 import os
+import pathlib
 import re
 import subprocess
 import sys
@@ -123,6 +124,35 @@ def _audit_match_rate(score, target, result):
             f"match rate: {score} (below the {target} target — keep "
             "hosting literal phrases truthfully; see the no-host lists "
             "below for what to host)")
+
+
+def _ceiling_check(score, target, resume_path, result):
+    """Detect a stalled match rate: when two consecutive scans report the
+    same score below target, the hosting loop has hit a ceiling and the
+    agent MUST present the remaining skill checklist to the user before
+    declaring the honest ceiling (SKILL Step 11). Score is persisted in
+    a sidecar next to the resume PDF; on the first run there is no prior
+    score, so no warning fires."""
+    if score is None or target is None or not resume_path:
+        return
+    sidecar = pathlib.Path(resume_path + ".ceiling.json")
+    prev = None
+    if sidecar.exists():
+        try:
+            prev = json.loads(sidecar.read_text(encoding="utf-8"))
+            prev = prev.get("score") if isinstance(prev, dict) else None
+        except (ValueError, OSError):
+            prev = None
+    if prev == score and score < target:
+        result.warns.append(
+            f"CEILING DETECTED: match rate {score} unchanged from the "
+            f"last scan — present the remaining hard/soft skill checklist "
+            f"to the user before declaring the honest ceiling "
+            f"(SKILL Step 11)")
+    try:
+        sidecar.write_text(json.dumps({"score": score}), encoding="utf-8")
+    except OSError:
+        pass  # best-effort; never blocks the audit
 
 
 def _audit_word_count(text, max_words):
@@ -571,6 +601,8 @@ def main(argv=None):
     _audit_report_skills(report_data, text_low, text, result)
     _audit_match_rate(_report_match_rate(report_data), args["match_target"],
                       result)
+    _ceiling_check(_report_match_rate(report_data), args["match_target"],
+                   args["path"], result)
 
     print("== ATS AUDIT ==")
     for line in result.ok_lines:

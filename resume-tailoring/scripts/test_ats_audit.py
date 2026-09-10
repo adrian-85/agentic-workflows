@@ -435,3 +435,44 @@ class MainTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CeilingCheckTests(unittest.TestCase):
+    """_ceiling_check: when two consecutive audits report the same score
+    below target, the agent MUST present the skill checklist before
+    declaring the honest ceiling (SKILL Step 11)."""
+
+    def setUp(self):
+        self._fd, self._path = tempfile.mkstemp(suffix=".pdf")
+        os.close(self._fd)
+        self._result = aa._AuditResult()
+
+    def tearDown(self):
+        os.unlink(self._path)
+        sidecar = self._path + ".ceiling.json"
+        if os.path.exists(sidecar):
+            os.unlink(sidecar)
+
+    def test_first_run_no_warning(self):
+        aa._ceiling_check(66, 75, self._path, self._result)
+        self.assertEqual(self._result.warns, [])
+
+    def test_same_score_twice_warns(self):
+        aa._ceiling_check(66, 75, self._path, self._result)
+        self._result = aa._AuditResult()  # fresh result
+        aa._ceiling_check(66, 75, self._path, self._result)
+        self.assertEqual(len(self._result.warns), 1)
+        self.assertIn("CEILING DETECTED", self._result.warns[0])
+        self.assertIn("66", self._result.warns[0])
+
+    def test_different_score_no_warning(self):
+        aa._ceiling_check(66, 75, self._path, self._result)
+        self._result = aa._AuditResult()
+        aa._ceiling_check(72, 75, self._path, self._result)
+        self.assertEqual(self._result.warns, [])
+
+    def test_above_target_no_warning(self):
+        aa._ceiling_check(80, 75, self._path, self._result)
+        self._result = aa._AuditResult()
+        aa._ceiling_check(80, 75, self._path, self._result)
+        self.assertEqual(self._result.warns, [])

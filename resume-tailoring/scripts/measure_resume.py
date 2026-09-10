@@ -600,6 +600,18 @@ def _print_jd_coverage(ctx):
         print(f"  {weak} requirement(s) [weak] — hosted only on "
               "proficiencies/Tools lines; weave into a bullet "
               "where used (SKILL Step 5).")
+    # Compact one-line summary: gives the agent a machine-readable signal
+    # to act on — when unconfirmed_hard > 0, the three-state checklist
+    # (SKILL Step 2) MUST be presented to the user before claiming done.
+    by_hand = sum(1 for _, s, _ in coverage if s == "by_hand")
+    hard_uncovered = sum(
+        1 for label, s, _ in coverage
+        if s == "uncovered" and not JD_SOFT_SKILL_RE.search(label))
+    print(f"REQUIREMENTS SUMMARY: {len(coverage) - uncov - weak - by_hand}"
+          f"/{len(coverage)} quals covered, {weak} weak, "
+          f"{uncov} uncovered, {by_hand} by-hand"
+          f" ({hard_uncovered} unconfirmed hard skill(s) — "
+          "present three-state checklist to user, SKILL Step 2)")
     print()
 
 

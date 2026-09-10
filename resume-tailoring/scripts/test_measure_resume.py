@@ -2380,3 +2380,39 @@ class WordBudgetTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RequirementsSummaryTests(unittest.TestCase):
+    """REQUIREMENTS SUMMARY: a compact one-line signal after the per-qual
+    coverage list. Gives the agent a machine-readable hook for the
+    three-state rule (SKILL Step 2) — when unconfirmed_hard > 0 the
+    checklist MUST be presented before claiming the honest ceiling."""
+
+    def _ctx_with(self, jd, body):
+        roles = mr._roles(body)
+        jd_terms = mr._jd_terms(jd, body)
+        return mr._ReportCtx(
+            target=2, default_target=True, jd_text=jd, jd_terms=jd_terms,
+            protect=[], body=body, roles=roles,
+            matched=[], pages_text=[], total_pages=2, over=0,
+            overflow_lines=0, capacity=44, fixed_top=20,
+            role_lines=30, edu=3, wrapped=[])
+
+    def test_summary_line_printed(self):
+        jd = ("Required Qualifications:\n"
+              "Selenium and Java experience\n"
+              "Terraform and Ansible\n")
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " \u2013 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Built test suites with Selenium WebDriver and Java.",
+                  numId=2),
+        ])
+        ctx = self._ctx_with(jd, body)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            mr._print_jd_coverage(ctx)
+        buf = out.getvalue()
+        self.assertIn("REQUIREMENTS SUMMARY", buf)
+        self.assertIn("unconfirmed hard skill", buf)
