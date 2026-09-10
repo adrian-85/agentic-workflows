@@ -1080,6 +1080,127 @@ class LineTermsTests(unittest.TestCase):
         self.assertIn("sdet", terms)
 
 
+class AcronymVocabTests(unittest.TestCase):
+    """_line_terms/_acronym_terms: ALL-CAPS tokens of a labeled line are
+    claimed vocabulary regardless of length. A 'CI/CD: Jenkins, ...' line
+    must yield 'ci'/'cd', or a JD asking for 'CI' never intersects and
+    tool-less CI bullets ('Re-architected CI from a degraded state...')
+    mine as OFF-JD with nothing to protect them (a real Endpoint session
+    cut CI evidence from every role this way)."""
+
+    def test_label_acronyms_len2(self):
+        terms = mr._line_terms("CI/CD: Jenkins, CircleCI, GitHub Actions")
+        self.assertIn("ci", terms)
+        self.assertIn("cd", terms)
+
+    def test_chunk_acronyms_in_multword_lines(self):
+        terms = mr._line_terms("Cloud & Containers: AWS, GCP, Azure, Docker")
+        self.assertIn("aws", terms)
+        self.assertIn("gcp", terms)
+
+    def test_trailing_period_stripped_from_acronym(self):
+        terms = mr._line_terms("Platform: KVM.")
+        self.assertIn("kvm", terms)
+
+
+class JdLineTermPeriodTests(unittest.TestCase):
+    """_jd_line_terms: sentence-final periods must not survive inside a
+    mined term. 'GitLab CI.' mined as 'gitlab ci.' — a form no resume can
+    host — so the audit's no-host list carried it forever and the REAL
+    ask ('CI') never matched (a real Endpoint session's no-host list
+    showed 'ci.', 'vmware.', 'gcp.', 'parallels.')."""
+
+    def test_trailing_period_stripped_from_seq(self):
+        terms = mr._jd_line_terms(
+            "CI experience with GitHub Actions, or a comparable system "
+            "such as Jenkins or GitLab CI.")
+        self.assertIn("gitlab ci", terms)
+        self.assertNotIn("gitlab ci.", terms)
+
+    def test_trailing_period_stripped_from_word(self):
+        terms = mr._jd_line_terms(
+            "Hands-on with a virtualization and provisioning stack — "
+            "Packer image builds with QEMU/KVM, VMware, or Parallels.")
+        self.assertIn("vmware", terms)
+        self.assertNotIn("vmware.", terms)
+
+
+class JunkQualTokenTests(unittest.TestCase):
+    """Sentence-initial soft nouns of qual lines ('Sound judgment...",
+    'Proficiency in Python...', 'Hands-on with...', 'Treat test...')
+    must never mine as no-host 'gaps' — a real Endpoint session's list
+    was half junk tokens, burying the real asks."""
+
+    JD_LINES = [
+        "Required Qualifications:",
+        "Sound judgment on the test pyramid — where end-to-end coverage "
+        "pays for itself.",
+        "Proficiency in Python and/or TypeScript, with Playwright.",
+        "Hands-on with a virtualization and provisioning stack — Packer "
+        "image builds with QEMU/KVM.",
+        "Treat test infrastructure as production software.",
+        "Background in secure software development.",
+        "Comfort incorporating AI-assisted tooling.",
+    ]
+
+    def test_junk_words_never_mine(self):
+        terms = set()
+        for line in self.JD_LINES:
+            terms |= mr._jd_line_terms(line)
+        for junk in ("sound", "proficiency", "hands", "treat",
+                     "background", "comfort"):
+            self.assertNotIn(junk, terms, f"{junk!r} is prose, not a skill")
+
+    def test_real_tokens_on_same_lines_survive(self):
+        terms = set()
+        for line in self.JD_LINES:
+            terms |= mr._jd_line_terms(line)
+        self.assertIn("python", terms)
+        self.assertIn("playwright", terms)
+        self.assertIn("packer", terms)
+
+
+class SoftSkillDetectionTests(unittest.TestCase):
+    """JD_SOFT_SKILL_RE routes soft-skill asks to the action-verb rule;
+    'reliability' (and friends) were missing, so a 'reliability' ask
+    mined as a hard-skill term and reported a bare gap."""
+
+    def test_reliability_detected_as_soft_skill(self):
+        line = "Own the integration, performance, and reliability testing."
+        self.assertTrue(mr.JD_SOFT_SKILL_RE.search(line))
+
+
+class InferenceFamilyTests(unittest.TestCase):
+    """INFERENCE_FAMILIES additions: a real Endpoint JD's asks
+    (performance/stress testing, OS platforms, endpoint security, VM
+    tooling, GUI automation, secure SDLC) had real master evidence but
+    no family, so the map reported bare gaps instead of candidates."""
+
+    def _body(self):
+        return _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " – 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Created performance and load testing suites using "
+                  "Gatling.", numId=2),
+            _para("Maintained Linux WSL and PowerShell tooling on the "
+                  "team's desktop fleet.", numId=2),
+        ])
+
+    def test_performance_family(self):
+        out = mr._inference_map(["stress testing"], self._body())
+        self.assertIn("stress testing: CANDIDATE", "\n".join(out))
+
+    def test_os_platform_family(self):
+        out = mr._inference_map(["macos"], self._body())
+        self.assertIn("macos: CANDIDATE", "\n".join(out))
+
+    def test_gap_message_asks_the_user(self):
+        out = mr._inference_map(["ontology"], self._body())
+        joined = "\n".join(out)
+        self.assertIn("ASK the user", joined)
+
+
 class TopBlockCandidatesTests(unittest.TestCase):
     """_top_block_candidates: off-JD proficiencies/cert lines are
     first-class cut candidates."""
@@ -1813,6 +1934,17 @@ class JdMissingTermsTests(unittest.TestCase):
         self.assertIn("testng", terms)
         self.assertIn("selenium web driver", terms)
         self.assertNotIn("ide", terms)
+
+    def test_camelcase_tokens_mine(self):
+        # 'macOS' starts lowercase, so the Capitalized-token regex never
+        # saw it — a real Endpoint session's no-host list missed the
+        # JD's macOS ask entirely. Mixed-case qual tokens are tech names.
+        terms = mr._jd_line_terms(
+            "Depth in operating-system behavior on at least two of "
+            "Windows, macOS, and Linux.")
+        self.assertIn("macos", terms)
+        self.assertIn("windows", terms)
+        self.assertIn("linux", terms)
 
     def test_line_terms_filters_self_assessment_adjectives(self):
         # A soft-skill qual line's only capitalized token is the

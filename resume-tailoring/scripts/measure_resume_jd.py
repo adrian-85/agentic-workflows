@@ -77,6 +77,14 @@ JD_STOP = frozenset({
     "key", "core", "strong", "strongly", "solid", "proven",
     "ability", "abilities", "skill", "skills", "skilled",
     "knowledge", "understanding", "complex", "concepts", "concept",
+    "sound", "proficiency", "proficient", "comfortable", "comfort",
+    "depth", "hands", "treat", "background", "familiarity",
+    "rigorous", "rigor", "commitment", "passion", "excitement",
+    # Real-session artifacts: sentence-initial soft nouns/adjectives of
+    # qual lines ("Sound judgment on...", "Proficiency in Python...",
+    # "Hands-on with...", "Treat test infrastructure as...") mined as
+    # no-host 'gaps' and buried the real asks in the never-fabricate
+    # list. Tech words are still deliberately NOT here.
     "bachelor", "degree", "education", "university", "college",
     "business", "businesses", "progress", "flexible", "flexibility",
     "learning", "collaborative", "environment", "environments",
@@ -142,7 +150,9 @@ JD_SELF_ASSESSMENT = frozenset({
 
 JD_SOFT_SKILL_RE = re.compile(
     r"\b(communication|stakeholder|leadership|mentorship|"
-    r"collaboration|teamwork|interpersonal|presentation)\b", re.I)
+    r"collaboration|teamwork|interpersonal|presentation|reliability|"
+    r"dependability|ownership|accountability|adaptability|autonomy)\b",
+    re.I)
 
 
 INFERENCE_FAMILIES = (
@@ -167,6 +177,38 @@ INFERENCE_FAMILIES = (
     (("software engineering",),
      ("software", "engineering", "engineer", "sdlc", "developed",
       "development")),
+    # Real-session misses: an Endpoint JD asked for performance/stress
+    # testing, OS-platform depth, endpoint security, VM-farm tooling and
+    # GUI automation; every family below had real evidence in the master
+    # or the user's answers but NO family, so the map reported a bare
+    # 'genuine gap' instead of surfacing the candidate (or the ask).
+    (("performance testing", "load testing", "stress testing",
+      "stress-harness", "soak testing", "performance"),
+     ("performance", "load", "stress", "soak", "gatling", "jmeter",
+      "k6", "benchmark", "capacity")),
+    (("reliability", "soak"),
+     ("stability", "chaos", "fault", "resilien", "soak", "monitoring",
+      "production", "uptime", "regression")),
+    (("windows", "macos", "linux", "operating system", "os internals",
+      "os behavior", "cross-platform"),
+     ("linux", "wsl", "powershell", "windows", "macos", "image",
+      "install", "upgrade", "lamp", "desktop", "server")),
+    (("endpoint security", "edr", "dlp", "epp", "mdm",
+      "endpoint agent", "security"),
+     ("security", "snyk", "guardrails", "compliance", "hipaa", "phi",
+      "monitoring", "grafana", "agent", "mitigation")),
+    (("virtualization", "provisioning", "vm", "virtual machine",
+      "image build", "test farm", "test fleet"),
+     ("virtualization", "vm", "docker", "kubernetes", "provisioning",
+      "codespaces", "container", "instance")),
+    (("desktop gui", "gui automation", "pyautogui", "pywinauto",
+      "uiautomation"),
+     ("ui testing", "coded ui", "desktop", "browser", "cross-browser",
+      "ui")),
+    (("secure software development", "secure development",
+      "secure sdlc", "secure coding"),
+     ("security", "compliance", "fda", "hipaa", "mitigation",
+      "snyk", "guardrails")),
 )
 
 
@@ -234,26 +276,49 @@ def _line_terms(line):
     chunk verbatim (so multi-word "GitHub Actions" stays a phrase) plus
     len>=3 words inside multi-word chunks. Label text (the "Label" side)
     also contributes len>=3 words — so an "API & Web Services" line yields
-    "api"/"web"/"services" as claimed vocabulary."""
+    "api"/"web"/"services" as claimed vocabulary.
+
+    ALL-CAPS tokens of length>=2 are kept as acronyms regardless of
+    length — a "CI/CD: Jenkins, ..." line must yield "ci" (and "cd"), or
+    the JD's "CI" ask never intersects the resume's claimed vocabulary
+    and bullets like "Re-architected CI from a degraded state" mine as
+    OFF-JD with no term to protect them (a real Endpoint JD session cut
+    CI evidence from every role this way).
+    """
     terms = set()
     if ":" in line:
         label, value = line.split(":", 1)
     else:
         label, value = None, line
     if label:
+        terms |= _acronym_terms(label)
         for word in re.findall(r"[a-z0-9][a-z0-9#.+]*", label.lower()):
             if len(word) >= 3 and not re.fullmatch(r"[0-9.]+\w*", word):
                 terms.add(word)
     for chunk in re.split(r"[,;]", value):
-        chunk = chunk.strip().lower()
+        chunk = chunk.strip()
         if not chunk:
             continue
-        terms.add(chunk)
+        # Sentence-final punctuation must not ride inside a term: a
+        # chunk 'KVM.' mined as 'kvm.' — a form no resume hosts.
+        terms.add(chunk.rstrip(".,;:!?'").lower())
         if " " in chunk:
-            for word in re.findall(r"[a-z0-9][a-z0-9#.+]*", chunk):
+            terms |= _acronym_terms(chunk)
+            for word in re.findall(r"[a-z0-9][a-z0-9#.+]*", chunk.lower()):
                 if len(word) >= 3 and not re.fullmatch(r"[0-9.]+\w*", word):
                     terms.add(word)
     return terms
+
+
+def _acronym_terms(text):
+    """ALL-CAPS tokens (len>=2 after a trailing period is stripped) of
+    ``text`` in original case, lowercased — CI, CD, AWS, SQL, K6. These
+    are unambiguous acronyms a JD can name in the same form; see
+    :func:`_line_terms` for why "CI" must survive the vocabulary scan."""
+    return {m.group(0).rstrip(".").lower()
+            for m in re.finditer(r"[A-Z][A-Z0-9#+]*(?:\.[A-Z0-9#+]+)*\.?",
+                                 text)
+            if len(m.group(0).rstrip(".")) >= 2}
 
 
 def _vocab_terms(body):
@@ -412,22 +477,37 @@ def _jd_line_terms(line):
     (prose) or the JD's own 'or similar' hedge does (a stand-in for a
     CLASS of tools — reporting it invites fabrication).
     """
-    seqs = [m.group(0) for m in JD_SEQ_TERM_RE.finditer(line)]
-    terms = {s.lower() for s in seqs}
+    seqs = [m.group(0).rstrip(".") for m in JD_SEQ_TERM_RE.finditer(line)]
+    terms = {s.lower() for s in seqs if len(s.rstrip(".")) >= 2
+             and re.search(r"[A-Za-z]", s)}
     seq_words = {w for s in seqs
                  for w in re.split(r"[\s-]+", s.lower())}
-    for m in JD_WORD_TERM_RE.finditer(line):
-        raw = m.group(1)
-        low = raw.lower()
-        if (len(low) < 3 and not re.fullmatch(r"[A-Z]{2,}", raw)) \
+
+    def _admit(low, raw_pos):
+        if (len(low) < 3 and not re.fullmatch(r"[A-Z]{2,}", low)) \
                 or low in JD_STOP or low in JD_SELF_ASSESSMENT \
                 or low in seq_words:
-            continue
-        prev = line[:m.start()]
+            return False
+        prev = line[:raw_pos]
         if re.search(r"[.!?]\s*$", prev.strip()) \
                 or re.search(r"\bsimilar\s+$", prev, re.I):
-            continue
-        terms.add(low)
+            return False
+        return True
+
+    for m in JD_WORD_TERM_RE.finditer(line):
+        if _admit(m.group(1).lower(), m.start(1)):
+            terms.add(m.group(1).lower().rstrip("."))
+    # camelCase/mixed-case tokens (macOS, iOS, PyAutoGUI, GitHub) start
+    # lowercase, so the Capitalized-token regex above never sees them —
+    # a real Endpoint session's no-host list missed 'macOS' entirely for
+    # exactly this reason. In a qualification line, a mixed-case token is
+    # essentially always a tech name.
+    for m in re.finditer(
+            r"(?<![A-Za-z0-9+#])([A-Za-z][a-z0-9+#]*[A-Z][A-Za-z0-9+#]*)",
+            line):
+        low = m.group(1).lower().rstrip(".")
+        if _admit(low, m.start(1)):
+            terms.add(low)
     return terms
 
 
@@ -614,9 +694,9 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, evidence_text=None):
         missing = _jd_missing_terms(jd_text, body, jd_terms)
         if missing:
             lines.append(
-                "JD terms with NO host in the resume (never fabricate — "
-                "flag each to the user; the resume answers via 'similar' "
-                "tooling only when that is truthful):")
+                "JD terms with NO host in the resume (for each: infer "
+                "from the evidence below, or ASK the user — the master/"
+                "LinkedIn understate real experience; NEVER fabricate):")
             lines.append(textwrap.fill(
                 ", ".join(missing),
                 width=76,
@@ -698,8 +778,12 @@ def _inference_map(missing_terms, body, evidence_text=None):
             out.extend(f"      {e}" for e in ev)
         else:
             out.append(
-                f"  - {term}: NO deterministic evidence — a genuine gap: "
-                "raise to the user, do not fabricate")
+                f"  - {term}: NO deterministic evidence — do NOT treat as "
+                "a closed gap: ASK the user (real experience is often "
+                "lexically invisible in the master/LinkedIn — a real "
+                "session's 'macOS/stress testing' gap was, and 'Linux "
+                "home lab' evidence surfaced only when asked); host only "
+                "what the user confirms")
     out.append(textwrap.fill(
         "CANDIDATE = evidence exists; host the JD's literal phrase in the "
         "truthful bullet and present the whole map — candidates AND gaps — "
