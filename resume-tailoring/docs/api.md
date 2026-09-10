@@ -340,7 +340,7 @@ dump) via two mechanisms:
 2. **Skill-family roots** — an in-code table (`INFERENCE_FAMILIES`) mapping
    term families to related evidence roots. A no-host term matching a family
    key (whole-word) is searched for its family's roots as substrings in the
-   corpus. The 7 families cover the session's actual failure modes:
+   corpus. The families cover the sessions' actual failure modes:
 
 | Family keys | Evidence roots |
 |---|---|
@@ -351,6 +351,14 @@ dump) via two mechanisms:
 | `customer facing` | customer, client, production, incident, stakeholder |
 | `problem solving`, `solving problems`, `troubleshooting` | problem, troubleshoot, root cause, resolved, issue |
 | `llm`, `genai`, `generative` | llm, prompt, copilot, gpt, claude, openai |
+| `software engineering` | software, engineering, engineer, sdlc, developed, development |
+| `performance testing`, `load testing`, `stress testing`, `soak testing`, `performance` | performance, load, stress, soak, gatling, jmeter, k6, benchmark, capacity |
+| `reliability`, `soak` | stability, chaos, fault, resilien, soak, monitoring, production, uptime, regression |
+| `windows`, `macos`, `linux`, `operating system`, `os internals`, `os behavior`, `cross-platform` | linux, wsl, powershell, windows, macos, image, install, upgrade, lamp, desktop, server |
+| `endpoint security`, `edr`, `dlp`, `epp`, `mdm`, `endpoint agent`, `security` | security, snyk, guardrails, compliance, hipaa, phi, monitoring, grafana, agent, mitigation |
+| `virtualization`, `provisioning`, `vm`, `virtual machine`, `image build`, `test farm`, `test fleet` | virtualization, vm, docker, kubernetes, provisioning, codespaces, container, instance |
+| `desktop gui`, `gui automation`, `pyautogui`, `pywinauto`, `uiautomation` | ui testing, coded ui, desktop, browser, cross-browser, ui |
+| `secure software development`, `secure development`, `secure sdlc`, `secure coding` | security, compliance, fda, hipaa, mitigation, snyk, guardrails |
 
 Roots are substring-matched (loose) — `sql` matches `SQL Server`, `index`
 matches `indexed` — because these are evidence LEADS, not proof. The agent

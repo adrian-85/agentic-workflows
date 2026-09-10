@@ -40,7 +40,7 @@ tiebreakers, never a cut signal and never an exemption.
 | 5 | No sections between Summary & Proficiencies | — |
 | 6 | Re-anchor senior role (merge, don't append) | `set_text`, `merge_into` |
 | 7 | Expand role adjacent to JD industry/stage | `set_text` |
-| 8 | Compress: cut ALL off-JD/weak content from every role and section in the FIRST pass (no page-math condition), under the per-role cap | `measure_resume.py` `--jd` (DROP PLAN + weak-match listing + TOP-BLOCK CANDIDATES); `squeeze_resume.py --protect` for the residual gap |
+| 8 | Compress: cut ALL off-JD/weak content from every role and section in the FIRST pass (no page-math condition), under the per-role cap | `measure_resume.py` `--jd` (DROP PLAN + weak-match listing + TOP-BLOCK CANDIDATES); `squeeze_resume.py --protect` for the residual gap; author/run via `scripts/run_tailor.sh` (ast + find_p lint + strict exec) |
 | 9 | Fix grammar, typos, punctuation | grep + `validate_resume.py` |
 | 10 | Save tailored copy (never overwrite master) | `save()` |
 | 11 | Render + verify PDF | `render_pdf.sh` |
@@ -119,9 +119,15 @@ manual habits are:
    /tmp/measure.txt 2>&1`), then read the file with grep/sed. Never pipe a dump you will
    author from through `head`: the tail is silently lost and the missing paragraphs resurface
    as skipped edits.
-6. **Syntax-check a tailor script the moment it is written.** Run
-   `python3 -c "import ast; ast.parse(open('scripts/tailor_<target>.py').read())"`
-   immediately after authoring. On corruption, do not repair incrementally
+6. **Syntax-check and lint a tailor script the moment it is written.** Run
+   `scripts/run_tailor.sh "<master>.docx" scripts/tailor_<target>.py` — it
+   ast.parses the script, verifies EVERY `find_p` target resolves against
+   the master (`--lint-script`: a real session hand-typed two prefixes
+   that missed and burned a run-fix cycle on each), then executes it under
+   `DOCX_EDIT_STRICT=1` in one command (`RESUME_VALIDATE_ARGS` passes
+   through). Syntax-check alone (without the lint) is the fallback:
+   `python3 -c "import ast; ast.parse(open('scripts/tailor_<target>.py').read())"`.
+   On corruption, do not repair incrementally
    with `edit` — rewrite the whole file in one bash heredoc and re-check.
 7. **Before each `edit` of a script, view only the target region**
    (`sed -n 'A,Bp'`, or `grep -n` to find it) — not a full re-read. A
@@ -172,6 +178,17 @@ the residual page gap automatically.
   caller skips the PATCH when the line is absent, but a placeholder on
   the line passes through. The doc rule is the guard, not a parser:
   line present means a real URL; omit the line when unknown.
+  **The URL is optional, not required — the scan always runs without
+  it.** Its job is ATS identification, and that is company-scoped
+  knowledge: when this JD has no Posting URL line but a prior scan (this
+  session or an earlier one) identified the ATS for the same company,
+  `ats_check.py` reuses that known posting URL for the metadata PATCH
+  and prints the reuse. A real session scanned two postings at one
+  company; the URL-less second ran with NO ATS identified and NO
+  keyword-matching mode at all — `matchRate: 66` where the URL'd first
+  scored 84 against the same Ashby system. Don't let a second target at
+  the same company lose the first target's ATS knowledge: supply the
+  URL when you have it, and rely on the reuse when you don't.
 - Read the **master resume**. If it is a `.docx`, use `docx_edit.py` to edit. If
   only a PDF is available, ask for the `.docx` source — PDFs can be read but
   not edited precisely.
@@ -219,7 +236,30 @@ truthful literal-phrase host for it, and present the whole map — candidates
 AND genuine gaps — to the user in ONE message. A term with NO deterministic
 evidence stays a never-fabricate flag: raise it instead of inventing evidence,
 and note where 'similar' tooling truthfully answers the ask (Postman/Karate
-for "SoapUI or REST API testing tools").
+for "SoapUI or REST API testing tools"). **A no-host term with NO
+deterministic evidence is an ASK, not a verdict** — the master and the
+LinkedIn dump understate real experience (a real session's "macOS" and
+"stress testing" asks had no literal host anywhere, and the user's
+"Linux home-lab image installs" evidence surfaced only when asked; the
+resume never says everything the user has done). Ask about it plainly —
+"any macOS/Windows internals exposure I can host truthfully?" — and
+host only what is confirmed.
+
+**Every JD hard and soft skill ends in exactly one of three states, and
+the full list is presented to the user in ONE message:**
+1. **Hosted** — the literal phrase lives in a truthful bullet/Summary
+   line (hard skill: user-confirmed experience; soft skill: action-verb
+   evidence, safe to infer).
+2. **Confirmed absent** — the user stated they don't have it (record the
+   confirmation in the tailor script's docstring; the validator and the
+   honest-ceiling check below key on it).
+3. **Raised and unanswered** — put to the user, awaiting their answer.
+
+Never mark a skill "gap, closed" on tool output alone — extraction is
+heuristic (a real session's extractor missed macOS, stress testing,
+endpoint security, and reliability entirely; all four were real asks the
+user could speak to). The never-fabricate flag means "stop and ask", not
+"stop and declare".
 
 **Soft-skill asks are inferred from action-verb evidence, not keyword-matched.**
 A qual line like "Excellent communication, stakeholder management, and
@@ -721,7 +761,10 @@ and reports which of three states applies (identified / URL unmatched by
 the service / URL missing). When the service cannot match the posting to
 a known ATS (e.g. postings hosted on job boards rather than an ATS),
 ATS-specific findings are simply unavailable — the keyword findings
-still apply.
+still apply. And when the JD file carries no URL at all, the scan
+reuses the company's prior-scan identification (Step 1's URL-optional
+rule) — never re-run a URL-less scan for a company whose ATS an earlier
+scan already identified without checking that reuse.
 
 **The match-rate target is 75 (≥75 = the hosting loop is DONE).** A
 TARGET, not a gate: at or above it, stop weaving in hard/soft skills —
@@ -730,6 +773,23 @@ and parser artifacts, and chasing it adds no score. Below it, keep hosting liter
 truthfully — hosting them is what moves the rate. `ats_audit.py` prints the target status when a report JSON is
 loaded (`--match-target` overrides; 0 disables), and `ats_check.py`
 prints the same verdict at scan time.
+
+**The honest ceiling — declared only WITH the user, never alone.** When
+the match rate stays below target and every remaining no-host is (per
+Step 2's three-state rule) user-confirmed absent or unanswered, STOP
+hosting — do not loop, and do not self-declare the score final. Present
+the remaining hard AND soft skill checklist to the user (every JD ask,
+each marked hosted / confirmed-absent / unanswered) and get their
+explicit confirmation that nothing else can be hosted truthfully. Only
+that confirmation closes the loop: report the final rate as "the honest
+ceiling for this target", name the confirmed gaps, and let the user
+weigh applying. A real session hit 66 on a JD asking for C++, Rust,
+Windows internals, VM-farm tooling, endpoint agents and GUI automation
+— every one confirmed absent — and correctly stopped hosting; what it
+lacked was the user-gated close, so "the honest ceiling" read as the
+agent's own verdict rather than a shared one. (The same session's
+scan also ran without ATS identification — see Step 1's URL-optional
+reuse rule — which the ceiling framing must note.)
 
 **The word cap has TWO counters — keep headroom for the stricter one.**
 `validate_resume.py` counts the .docx paragraphs; `ats_audit.py` counts
