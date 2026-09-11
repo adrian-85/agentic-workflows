@@ -1995,7 +1995,8 @@ class KeepTrimCandidatesTests(unittest.TestCase):
 
     def test_flags_nonjd_tool_and_dead_sentence(self):
         # The JD asks Selenium/Java only: TestNG/Playwright ride along in
-        # the kept bullet and the second sentence carries no JD evidence.
+        # the kept bullet, the second sentence carries no JD evidence,
+        # and the Tools line's non-JD chunks flag at list level.
         jd = "Required Qualifications:\nExperience with Selenium and Java\n"
         body = self._body_with_bullet(
             "Built Selenium suites with Java, TestNG and Playwright. "
@@ -2007,6 +2008,53 @@ class KeepTrimCandidatesTests(unittest.TestCase):
         self.assertIn("sentence with no JD evidence", section)
         self.assertIn("Ran weekly standups", section)
         self.assertIn("find_p(ps, ", section)
+        self.assertIn("list lines (Technical Proficiencies / "
+                      "Tools & Technologies):", section)
+        self.assertIn("- JD does not name: testng, playwright, kafka",
+                      section)
+
+    def test_proficiencies_line_chunks_trimmed(self):
+        # Technical Proficiencies is where non-JD tools pile up: a kept
+        # line's non-JD chunks are trim candidates, its JD-named tools
+        # stay, and the label survives either way.
+        jd = "Required Qualifications:\nExperience with Selenium\n"
+        body = _body([
+            _para("Technical Proficiencies", style="SectionHeading"),
+            _para("Automated QA: TestNG, Selenium, Playwright"),
+        ])
+        section = mr._keep_trim_section(mr._roles(body),
+                                        mr._jd_terms(jd, body), body)
+        self.assertIn("find_p(ps, ", section)
+        self.assertIn("- JD does not name: testng, playwright", section)
+        self.assertNotIn("no JD term on this line", section)
+
+    def test_fully_nonjd_list_line_points_to_whole_line_cut(self):
+        # A list line with NO JD term is a whole-line cut (TOP-BLOCK
+        # rule) — token-trimming it would leave an orphaned label.
+        jd = "Required Qualifications:\nExperience with Selenium\n"
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " \u2013 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Built Selenium suites with Java.", numId=2),
+            _para("Tools & Technologies: TestNG, JUnit"),
+        ])
+        section = mr._keep_trim_section(mr._roles(body),
+                                        mr._jd_terms(jd, body), body)
+        self.assertIn("no JD term on this line — whole-line "
+                      "cut (TOP-BLOCK rule), not token trimming", section)
+
+    def test_concept_carrying_list_line_skipped(self):
+        # A list line carrying a JD practice phrase is skipped entirely —
+        # its chunks may host the concept.
+        jd = "Required Qualifications:\nExperience with Selenium\n"
+        body = _body([
+            _para("Technical Proficiencies", style="SectionHeading"),
+            _para("Code Review Standards: Gerrit, GitHub"),
+        ])
+        section = mr._keep_trim_section(mr._roles(body),
+                                        mr._jd_terms(jd, body), body)
+        self.assertNotIn("Gerrit", section or "")
 
     def test_spares_concept_sentence_tokens_and_dead_flag(self):
         # A sentence carrying a JD practice phrase is skipped entirely —
@@ -2020,7 +2068,6 @@ class KeepTrimCandidatesTests(unittest.TestCase):
             "Attended optional office socials.")
         section = mr._keep_trim_section(mr._roles(body),
                                         mr._jd_terms(jd, body), body)
-        self.assertNotIn("kafka", section)
         self.assertNotIn("sentence with no JD evidence: \"Ran root-cause",
                          section)
         self.assertIn("Attended optional office socials", section)
@@ -2028,10 +2075,16 @@ class KeepTrimCandidatesTests(unittest.TestCase):
     def test_offjd_bullet_not_a_trim_candidate(self):
         # OFF-JD/weak bullets are whole-cut candidates (JD-FIT AUDIT) —
         # trimming them word-by-word would be the wrong granularity. A
-        # bullet with zero JD evidence never enters the trim scan.
+        # bullet with zero JD evidence never enters the trim scan (the
+        # list-line group may still report; that is a separate finding).
         jd = "Required Qualifications:\nExperience with Selenium\n"
-        body = self._body_with_bullet(
-            "Organized team meetings and maintained status trackers.")
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " \u2013 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Organized team meetings and maintained trackers.",
+                  numId=2),
+        ])
         section = mr._keep_trim_section(mr._roles(body),
                                         mr._jd_terms(jd, body), body)
         self.assertNotIn("Organized team meetings", section or "")

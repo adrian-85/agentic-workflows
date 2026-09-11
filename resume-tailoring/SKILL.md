@@ -592,15 +592,20 @@ back to the user (whole-role drops / JD-matched tradeoffs). Kept
 bullets' text is final FOR PAGE MATH: hand-shortening a kept bullet from
 two rendered lines to one is not a cut and never closes a measured gap.
 
-**Prune kept bullets to the word, not just the bullet.** Bullet-granular
+**Prune kept content to the word, not just the bullet — proficiencies
+included.** Bullet-granular
 cutting leaves a kept bullet carrying everything the master said — tools
 the JD never names (TestNG when the JD is silent on it) and sentences
-with no JD evidence riding along. measure's **WORD-LEVEL TRIM
-CANDIDATES** section (`--jd`, authoring time) lists both deterministically
-per kept bullet, with copy-pasteable `find_p` anchors: strip the flagged
-non-JD tool from its clause, cut the flagged sentence whole. Never strip
+with no JD evidence riding along — and leaves Technical Proficiencies /
+Tools lines carrying non-JD tools list entries. measure's **WORD-LEVEL
+TRIM CANDIDATES** section (`--jd`, authoring time) lists all of it
+deterministically, with copy-pasteable `find_p` anchors: strip the
+flagged non-JD tool from its clause, cut the flagged sentence whole,
+remove the flagged chunk from a list line (a list line with NO JD term
+is a whole-line cut — the TOP-BLOCK rule — not token trimming). Never
+strip
 a term the JD names, one that hosts a `[weak]`/covered ask, or a
-sentence carrying a practice-phrase concept (measure already spares
+sentence/line carrying a practice-phrase concept (measure already spares
 those). Word-level trims are JD-alignment edits — they never substitute
 for a measured removal.
 

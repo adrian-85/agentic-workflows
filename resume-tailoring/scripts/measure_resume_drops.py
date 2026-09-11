@@ -20,7 +20,7 @@ from measure_resume_jd_terms import (CORE_TECH_NOUNS, JD_STOP,  # noqa: E402
     _concept_hits, _is_protected, _jd_capitalized, _jd_hits,
     _jd_hits_classified, _jd_kept, _vocab_terms, _weakness_key)
 from measure_resume_format import (_norm, _page_fill, _page_lines,  # noqa: E402
-    _preceding_role_key, _role_header_flat)
+    _preceding_role_key, _proficiency_block, _role_header_flat)
 
 W = de.W
 
@@ -342,17 +342,113 @@ def _keep_trim_candidates(role, jd_terms, vocab):
     return out
 
 
+def _list_nonjd_chunks(text, jd_terms):
+    """Comma/semicolon chunks of a labeled list line that no JD term or
+    practice phrase names — the word-level trim form for list lines:
+    remove the flagged chunks from the value, keep the label and the
+    JD-named tools ("Automated QA: TestNG, Playwright" against a JD that
+    never mentions TestNG → drop the TestNG chunk, keep Playwright)."""
+    if ":" not in text:
+        return []
+    _, value = text.split(":", 1)
+    out = []
+    for chunk in re.split(r"[,;]", value):
+        c = chunk.strip().rstrip(".,;:!?'\"").lower()
+        if not c or _jd_hits(c, jd_terms) or _concept_hits(c):
+            continue
+        out.append(c)
+    return out
+
+
+def _list_trim_candidates(body, jd_terms, all_texts):
+    """[(prefix, text, nonjd_chunks, line_has_jd)] for Technical
+    Proficiencies lines and role Tools lines. These keyword lines were
+    bullet-blind in the trim scan — yet they are where non-JD tools pile
+    up. A line carrying a JD practice phrase is skipped entirely (its
+    chunks may host the concept). ``line_has_jd`` lets the printer send a
+    fully non-JD line to the whole-line TOP-BLOCK cut instead of token
+    trimming."""
+    prof = set(_proficiency_block(body))
+    out = []
+    seen = set()
+    for p in de.paras(body):
+        t = de.text_of(p)
+        ts = t.strip()
+        if not ts or ts in seen:
+            continue
+        is_prof = ts in prof
+        is_tools = (t.lower().startswith("tools")
+                    and "technolog" in t.lower())
+        if not (is_prof or is_tools) or _concept_hits(ts):
+            continue
+        seen.add(ts)
+        chunks = _list_nonjd_chunks(t, jd_terms)
+        if not chunks:
+            continue
+        try:
+            idx = all_texts.index(t)
+            prefix = de.shortest_unique_prefix(all_texts, idx, min_len=6)
+        except ValueError:
+            prefix = None
+        out.append((prefix, ts, chunks,
+                    bool(_jd_hits(ts, jd_terms))))
+    return out
+
+
+def _role_trim_lines(role, jd_terms, vocab, all_texts, protect):
+    """Section lines for one role's kept-bullet trim candidates."""
+    cand = []
+    for b, nonjd, dead in _keep_trim_candidates(role, jd_terms, vocab):
+        if _is_protected(b, protect):
+            continue
+        try:
+            idx = all_texts.index(b)
+            prefix = de.shortest_unique_prefix(all_texts, idx, min_len=6)
+        except ValueError:
+            prefix = None
+        cand.append(f'    find_p(ps, "{prefix}")  # {b[:80]}'
+                    if prefix else f"    - {b[:80]}")
+        if nonjd:
+            cand.append("      - JD does not name: "
+                        f"{', '.join(nonjd)}")
+        for s in dead:
+            cand.append('      - sentence with no JD evidence: '
+                        f'"{s[:80]}"')
+    if not cand:
+        return []
+    return [f"  {role['key']}:", *cand]
+
+
+def _list_trim_lines(lists):
+    """Section lines for the list-line (proficiencies / Tools) group."""
+    lines = ["  list lines (Technical Proficiencies / "
+             "Tools & Technologies):"]
+    for prefix, text, chunks, has_jd in lists:
+        lines.append(f'    find_p(ps, "{prefix}")  # {text[:80]}'
+                     if prefix else f"    - {text[:80]}")
+        if not has_jd:
+            lines.append("      - no JD term on this line — whole-line "
+                         "cut (TOP-BLOCK rule), not token trimming")
+        else:
+            lines.append("      - JD does not name: "
+                         f"{', '.join(chunks)}")
+    return lines
+
+
 def _keep_trim_section(roles, jd_terms, body, protect=()):
     """WORD-LEVEL TRIM CANDIDATES — word-level pruning, deterministic.
 
     Compression was bullet-granular: a kept bullet carried its non-JD
     tools and dead sentences to the deliverable untouched (the user's
-    TestNG/Playwright examples). This section names them per kept bullet:
-    the non-JD tech the JD never asks for (strip from its clause) and the
-    sentences with no JD evidence at all (cut whole). Copy-pasteable
-    ``find_p`` anchors match the DROP PLAN's form. Skipped entirely:
-    protected bullets (--protect) and sentences carrying a JD practice
-    phrase (their tokens may host the concept).
+    TestNG/Playwright examples), and proficiencies/Tools lists carried
+    their non-JD chunks. This section names them per kept bullet AND per
+    list line (Technical Proficiencies, role Tools lines): the non-JD
+    tech the JD never asks for (strip from its clause, remove the chunk
+    from the list) and the sentences with no JD evidence at all (cut
+    whole). Copy-pasteable ``find_p`` anchors match the DROP PLAN's form.
+    Skipped entirely: protected bullets (--protect), sentences and list
+    lines carrying a JD practice phrase (their tokens may host the
+    concept).
     """
     if not jd_terms:
         return None
@@ -360,33 +456,19 @@ def _keep_trim_section(roles, jd_terms, body, protect=()):
     all_texts = [de.text_of(p) for p in de.paras(body)]
     lines = []
     for role in roles:
-        cand = []
-        for b, nonjd, dead in _keep_trim_candidates(role, jd_terms, vocab):
-            if _is_protected(b, protect):
-                continue
-            try:
-                idx = all_texts.index(b)
-                prefix = de.shortest_unique_prefix(all_texts, idx, min_len=6)
-            except ValueError:
-                prefix = None
-            cand.append(f'    find_p(ps, "{prefix}")  # {b[:80]}'
-                        if prefix else f"    - {b[:80]}")
-            if nonjd:
-                cand.append(f"      - JD does not name: "
-                            f"{', '.join(nonjd)}")
-            for s in dead:
-                cand.append(f'      - sentence with no JD evidence: '
-                            f'"{s[:80]}"')
-        if cand:
-            lines.append(f"  {role['key']}:")
-            lines.extend(cand)
+        lines.extend(_role_trim_lines(role, jd_terms, vocab, all_texts,
+                                      protect))
+    lists = _list_trim_candidates(body, jd_terms, all_texts)
+    if lists:
+        lines.extend(_list_trim_lines(lists))
     if not lines:
         return None
-    return ("WORD-LEVEL TRIM CANDIDATES (kept bullets still carrying "
-            "non-JD content — prune to the word: cut the flagged "
-            "sentence, strip the flagged tool from its clause; never "
-            "strip a term the JD names or one that hosts a [weak]/"
-            "covered ask; SKILL Step 8):\n" + "\n".join(lines))
+    return ("WORD-LEVEL TRIM CANDIDATES (kept bullets and list lines "
+            "still carrying non-JD content — prune to the word: cut the "
+            "flagged sentence, strip the flagged tool from its clause, "
+            "remove the flagged chunk from the list; never strip a term "
+            "the JD names or one that hosts a [weak]/covered ask; SKILL "
+            "Step 8):\n" + "\n".join(lines))
 
 
 def _jd_fit_audit(roles, jd_terms, protect=()):
