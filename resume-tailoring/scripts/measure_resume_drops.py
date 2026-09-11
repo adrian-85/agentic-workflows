@@ -274,7 +274,7 @@ def _role_jd_evidence_lines(roles, header_text, jd_terms):
     lines = [
         f"JD EVIDENCE LOST: this role carries {len(kept)} JD-matched "
         f"bullet(s) — trimming it to those bullets may beat dropping it "
-        f"whole (SKILL Step 3):",
+        f"whole (SKILL Step 4):",
     ]
     for b in kept:
         lines.append(f"    - {b[:90]}")
@@ -469,10 +469,10 @@ def _keep_trim_section(roles, jd_terms, body, protect=()):
             "flagged sentence, strip the flagged tool from its clause, "
             "remove the flagged chunk from the list; never strip a term "
             "the JD names or one that hosts a [weak]/covered ask; SKILL "
-            "Step 8):\n" + "\n".join(lines))
+            "Step 3):\n" + "\n".join(lines))
 
 
-def _jd_fit_audit(roles, jd_terms, protect=()):
+def _jd_fit_audit(roles, jd_terms, protect=(), all_texts=None):
     """Per-role JD-fit audit — printed for EVERY role when --jd is passed.
 
     Classifies every bullet by JD alignment strength: strong/practice-
@@ -481,19 +481,35 @@ def _jd_fit_audit(roles, jd_terms, protect=()):
     cut candidate, or 1-bullet-stub material when dropping the role would
     open an employment gap. ``protect`` phrases (--protect) count as
     evidence: the user confirmed those facts, so they are never cut
-    candidates.
+    candidates. ``all_texts`` (all paragraph texts, document order) adds
+    copy-pasteable ``find_p`` anchors to each cut candidate — the prune
+    script is authorable from the audit alone.
     """
     if not jd_terms:
         return []
     sections = []
     for role in roles:
-        section = _jd_fit_section(role, jd_terms, protect)
+        section = _jd_fit_section(role, jd_terms, protect,
+                                  all_texts=all_texts)
         if section:
             sections.append(section)
     return sections
 
 
-def _jd_fit_section(role, jd_terms, protect):
+def _audit_anchor_line(b, all_texts):
+    """Copy-pasteable anchor line for one cut candidate, or a plain
+    bullet fallback when no unique prefix resolves."""
+    if all_texts is not None:
+        try:
+            idx = all_texts.index(b)
+            prefix = de.shortest_unique_prefix(all_texts, idx, min_len=6)
+            return f'    find_p(ps, "{prefix}")  # {b[:80]}'
+        except ValueError:
+            pass
+    return f"    - {b[:80]}"
+
+
+def _jd_fit_section(role, jd_terms, protect, all_texts=None):
     """The JD-FIT AUDIT block for one role, or empty when every bullet
     carries JD evidence (nothing to report)."""
     bullets = role.get("bullet_texts") or []
@@ -516,22 +532,24 @@ def _jd_fit_section(role, jd_terms, protect):
     lines = [f"JD-FIT AUDIT ({role['key']}): {kept} of {len(bullets)} "
              f"bullet(s) carry JD evidence"]
     for b in off:
-        lines.append(f"  OFF-JD (no JD term, no practice phrase): "
-                     f"{b[:68]}")
+        lines.append("  OFF-JD (no JD term, no practice phrase) — cut "
+                     "in the first pass:")
+        lines.append(_audit_anchor_line(b, all_texts))
     for b, hits in weak:
-        lines.append(f"  weak-match (cuttable): {b[:68]}  "
-                     f"[weak: {' , '.join(hits)}]")
+        lines.append("  weak-match (cuttable) — cut in the first pass "
+                     f"[weak: {' , '.join(hits)}]:")
+        lines.append(_audit_anchor_line(b, all_texts))
     if len(off) * 2 >= len(bullets):
         lines.append(
             "  STUB CANDIDATE: most of this role is off-JD — cut the "
             "OFF-JD bullets; if the role then carries no JD evidence "
             "at all, keep a 1-bullet stub ONLY to prevent an "
-            "employment gap (SKILL Step 8).")
+            "employment gap (SKILL Step 3).")
     else:
         lines.append(
-            "  Cut or shorten these even when on target — JD alignment "
-            "outranks the page math; 40 words is a ceiling, never a "
-            "target (SKILL Step 8).")
+            "  Cut these even when on target — JD alignment outranks the "
+            "page math (SKILL Step 3); 40 words is a ceiling, never a "
+            "target.")
     return "\n".join(lines)
 
 
@@ -769,7 +787,7 @@ def _sparse_last_page_note(total_pages, target, fills, capacity,
     SKILL Step 3's "target 2; accept 3 for senior/Staff" gave no rule for
     WHEN to accept 3, so the agent waffled through ~8 extra measure/render
     cycles re-deciding the target mid-flight. The tool CAN see the one
-    signal that settles it: a sparse final page. SKILL Step 3's rule (added
+    signal that settles it: a sparse final page. SKILL Step 4's rule (added
     alongside this note): re-target one page lower and re-measure BEFORE
     cutting any JD-matched bullet — cutting JD-matched content to fill a
     sparse page is the trap.
@@ -799,7 +817,7 @@ def _sparse_last_page_note(total_pages, target, fills, capacity,
                 f"further cuts would lose — fewer pages aid readability, "
                 f"but showing qualification outranks page count, and a "
                 f"sparse tail is a judgment call, never a mandate to cut "
-                f"JD-matched bullets (SKILL Step 3).")
+                f"JD-matched bullets (SKILL Step 4).")
     lower = (f" Consider re-targeting one page lower ({target - 1}) — a "
              f"judgment call: only if the cuts cost no JD-matched "
              f"evidence"
@@ -811,7 +829,7 @@ def _sparse_last_page_note(total_pages, target, fills, capacity,
             f"unpolished, and fewer pages aid readability, but never at "
             f"the expense of showing how the applicant meets the JD."
             f"{lower}; never cut JD-matched bullets to fill or shrink a "
-            f"page (SKILL Step 3).")
+            f"page (SKILL Step 4).")
 
 
 def _measured_lines_per_bullet(matched):

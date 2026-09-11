@@ -316,7 +316,7 @@ def _jd_requirement_coverage(roles, body, jd_text):
     Status values:
       covered  – a kept bullet hosts the ask (detail: up to 2 hosts)
       weak     – only a non-bullet line hosts it (detail: weave-in
-                 guidance, SKILL Step 5)
+                 guidance, SKILL Step 6)
       uncovered – no host at all (detail: restore/raise, never fabricate)
       by_hand  – no extractable terms on the line (judge manually); a
                  soft-skill ask (communication, leadership, ...) gets a
@@ -366,7 +366,7 @@ def _jd_requirement_coverage(roles, body, jd_text):
         if any(_jd_hits(t, terms) for t in non_bullet_texts):
             out.append((label, "weak",
                         "proficiency/Tools line only — weave into a "
-                        "bullet where used (SKILL Step 5)"))
+                        "bullet where used (SKILL Step 6)"))
             continue
         out.append((label, "uncovered",
                     "no host — restore from the master or raise to "
@@ -602,7 +602,7 @@ def _headline_text(body):
 
 
 def title_alignment_notes(body, jd_text):
-    """SKILL Step 4 signal: (severity, message) comparing the resume
+    """SKILL Step 5 signal: (severity, message) comparing the resume
     headline against the JD's named title. Severity in warn|ok|note; never
     blocks: extraction and the ladder are heuristics, and a posting may use
     a generic title for a senior role (the message says when to keep the
@@ -617,7 +617,7 @@ def title_alignment_notes(body, jd_text):
         return ("note", f"JD title not extractable (first line or a "
                          f"'Job Title:'-style label, <= {TITLE_MAX_WORDS} "
                          f"words); resume headline {headline!r} left "
-                         "unchanged — apply SKILL Step 4 by hand if the "
+                         "unchanged — apply SKILL Step 5 by hand if the "
                          "posting names a less-senior title")
     if headline.strip().lower() == jd_title.lower():
         return ("ok", f"resume headline {headline!r} matches the JD title "
@@ -625,7 +625,7 @@ def title_alignment_notes(body, jd_text):
     j_rank, h_rank = _title_rank(jd_title), _title_rank(headline)
     if j_rank < h_rank:
         return ("warn", f"resume headline {headline!r} is MORE SENIOR than "
-                         f"the JD title {jd_title!r} — apply SKILL Step 4: "
+                         f"the JD title {jd_title!r} — apply SKILL Step 5: "
                          "set the top title to the JD's exact title and "
                          "level the Summary's first-sentence echo. Never "
                          "adopt a MORE senior JD title. A generic posting "
@@ -635,7 +635,7 @@ def title_alignment_notes(body, jd_text):
     if j_rank > h_rank:
         return ("ok", f"JD title {jd_title!r} is MORE SENIOR than the "
                        f"headline {headline!r} — keep the headline (never "
-                       "adopt a more senior title; SKILL Step 4)")
+                       "adopt a more senior title; SKILL Step 5)")
     return ("ok", f"JD title {jd_title!r} is at the SAME level as the "
                    f"headline {headline!r} — same-level retitle to the "
-                   "JD's exact name is optional per SKILL Step 4")
+                   "JD's exact name is optional per SKILL Step 5")

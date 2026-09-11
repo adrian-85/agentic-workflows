@@ -48,6 +48,7 @@ W = de.W
 
 _para = test_helpers._para
 _body = test_helpers._body
+_write_docx = test_helpers._write_docx
 
 
 def _sample_date():
@@ -2420,7 +2421,8 @@ class CoverageTermsVisibilityTests(unittest.TestCase):
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            mr._print_jd_coverage(_Ctx)
+            mr._print_jd_coverage(_Ctx.roles, _Ctx.body, _Ctx.jd_text,
+                                  _Ctx.jd_terms)
         out = buf.getvalue()
         self.assertIn("UNCOVERED", out)
         self.assertIn("extracted terms:", out)
@@ -2447,7 +2449,8 @@ class CoverageTermsVisibilityTests(unittest.TestCase):
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            mr._print_jd_coverage(_Ctx)
+            mr._print_jd_coverage(_Ctx.roles, _Ctx.body, _Ctx.jd_text,
+                                  _Ctx.jd_terms)
         self.assertNotIn("extracted terms:", buf.getvalue())
 
 
@@ -2572,10 +2575,11 @@ class RequirementsSummaryTests(unittest.TestCase):
             _para("Built test suites with Selenium WebDriver and Java.",
                   numId=2),
         ])
-        ctx = self._ctx_with(jd, body)
+        roles = mr._roles(body)
+        jd_terms = mr._jd_terms(jd, body)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            mr._print_jd_coverage(ctx)
+            mr._print_jd_coverage(roles, body, jd, jd_terms)
         buf = out.getvalue()
         self.assertIn("REQUIREMENTS SUMMARY", buf)
         self.assertIn("unconfirmed hard skill", buf)
@@ -2592,10 +2596,11 @@ class RequirementsSummaryTests(unittest.TestCase):
             _para("Built test suites with Selenium WebDriver and Java.",
                   numId=2),
         ])
-        ctx = self._ctx_with(jd, body)
+        roles = mr._roles(body)
+        jd_terms = mr._jd_terms(jd, body)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            mr._print_jd_coverage(ctx)
+            mr._print_jd_coverage(roles, body, jd, jd_terms)
         buf = out.getvalue()
         self.assertIn("REQUIREMENTS SUMMARY", buf)
         self.assertNotIn("unconfirmed hard skill", buf)
@@ -2617,11 +2622,163 @@ class RequirementsSummaryTests(unittest.TestCase):
             _para("Built test suites with Selenium WebDriver and Java.",
                   numId=2),
         ])
-        ctx = self._ctx_with(jd, body)
+        roles = mr._roles(body)
+        jd_terms = mr._jd_terms(jd, body)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            mr._print_jd_coverage(ctx)
+            mr._print_jd_coverage(roles, body, jd, jd_terms)
         buf = out.getvalue()
         self.assertIn("1 soft-skill line(s) [by hand]", buf)
         self.assertIn("host the literal phrases in THIS pass", buf)
         self.assertIn("safe to infer", buf)
+
+
+
+class PrunePlanModeTests(unittest.TestCase):
+    """The master is measured ONLY in prune-plan mode (SKILL Step 3):
+    relevance assessment first, page/word math never. The Gravie session
+    planned its cuts from full-master page math and still shipped four
+    non-JD sentences the user hand-cut afterward — because master page
+    math answers 'what fits', not 'what matters'. The master without
+    --jd, or with --simulate, is refused; with --jd the output is the
+    JD assessment alone (audit + trim + top-block candidates), with
+    copy-pasteable anchors, and no PAGES/RECLAIM/WORD BUDGET sections.
+    """
+
+    JD = ("Required Qualifications:\n"
+          "Playwright experience\n")
+
+    def _master_paras(self):
+        return [
+            _para("Adrian Sample"),
+            _para("Staff Engineer", style="Title"),
+            _para("Staff engineer with deep test automation experience.",
+                  style="Summary"),
+            _para("Technical Proficiencies", style="SectionHeading"),
+            _para("Testing: Selenium, Kubernetes"),
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " – 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Senior QA Engineer", style="JobTitleBlock"),
+            _para("Advised engineer working on the Playwright test "
+                  "framework on best practices.", numId=2),
+            _para("Coordinated across teams to establish meeting "
+                  "cadences.", numId=2),
+            _para("Tools & Technologies: Kubernetes, Helm"),
+        ]
+
+    def _write_master(self, td):
+        docx = os.path.join(td, "Adrian Sample Master Resume.docx")
+        _write_docx(docx, self._master_paras())
+        return docx
+
+    def _jd_file(self, td, text=JD):
+        path = os.path.join(td, "jd.txt")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        return path
+
+    def _args(self, docx, jd_file=None, simulate=(), target=None):
+        jd_text = None
+        if jd_file:
+            with open(jd_file, encoding="utf-8") as fh:
+                jd_text = fh.read()
+        return mr._Args(
+            docx=docx, target=target or 2,
+            default_target=target is None, jd_text=jd_text,
+            jd_file=jd_file, evidence_text=None, protect=[],
+            simulate=list(simulate))
+
+    def test_is_master_input(self):
+        self.assertTrue(mr._is_master_input("/x/A Master Resume.docx"))
+        self.assertFalse(mr._is_master_input("/x/A Resume - Target.docx"))
+        self.assertFalse(mr._is_master_input("/x/master-resume.docx"))
+
+    def test_master_without_jd_is_refused(self):
+        with tempfile.TemporaryDirectory() as td:
+            docx = self._write_master(td)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                with self.assertRaises(SystemExit) as ctx:
+                    mr._main_prune_plan(self._args(docx))
+            self.assertEqual(ctx.exception.code, 2)
+            self.assertIn("ONLY with --jd", err.getvalue())
+
+    def test_master_simulate_is_refused(self):
+        # Whole-role what-ifs are a Step-4 seniority question, answered on
+        # the PRUNED copy — never on the master.
+        with tempfile.TemporaryDirectory() as td:
+            docx = self._write_master(td)
+            jd_file = self._jd_file(td)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                with self.assertRaises(SystemExit) as ctx:
+                    mr._main_prune_plan(
+                        self._args(docx, jd_file=jd_file,
+                                   simulate=("Acme",)))
+            self.assertEqual(ctx.exception.code, 2)
+            self.assertIn("seniority", err.getvalue())
+
+    def test_master_with_jd_prints_prune_plan_only(self):
+        with tempfile.TemporaryDirectory() as td:
+            docx = self._write_master(td)
+            args = self._args(docx, jd_file=self._jd_file(td))
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                mr._main_prune_plan(args)
+            out = buf.getvalue()
+            # the prune plan's sections are present, with anchors
+            self.assertIn("PRUNE PLAN", out)
+            self.assertIn("JD-FIT AUDIT (Acme", out)
+            self.assertIn("OFF-JD", out)
+            self.assertIn("WORD-LEVEL TRIM CANDIDATES", out)
+            self.assertIn("TOP-BLOCK PRUNE CANDIDATES", out)
+            self.assertIn('find_p(ps, "Coordi"', out)
+            self.assertIn("REQUIREMENTS SUMMARY", out)
+            # page/word math is suppressed — never measured on the master
+            self.assertNotIn("PAGES:", out)
+            self.assertNotIn("RECLAIM PLAN", out)
+            self.assertNotIn("WORD BUDGET", out)
+            self.assertNotIn("TIMELINE:", out)
+            self.assertNotIn("Per-role rendered cost", out)
+
+    def test_prune_plan_ignores_explicit_target_with_note(self):
+        with tempfile.TemporaryDirectory() as td:
+            docx = self._write_master(td)
+            args = self._args(docx, jd_file=self._jd_file(td), target=3)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                mr._main_prune_plan(args)
+            self.assertIn("page target 3 ignored", buf.getvalue())
+
+
+class AuditAnchorTests(unittest.TestCase):
+    """JD-FIT AUDIT cut candidates carry copy-pasteable find_p anchors
+    when all_texts is supplied — the prune script is authorable from the
+    audit alone (was: previews only, and the agent re-derived prefixes by
+    hand)."""
+
+    def _roles(self):
+        return [{"key": "Acme, City",
+                 "raw": "Acme, City 01/2020 – 02/2021",
+                 "bullets": 2,
+                 "bullet_texts": [
+                     "Advised engineer working on the Playwright test "
+                     "framework on best practices.",
+                     "Coordinated across teams to establish meeting "
+                     "cadences."],
+                 "has_tools": False}]
+
+    def test_off_jd_line_carries_find_p_anchor(self):
+        texts = ["Advised engineer working on the Playwright test "
+                 "framework on best practices.",
+                 "Coordinated across teams to establish meeting "
+                 "cadences."]
+        sections = mr._jd_fit_audit(self._roles(), {"playwright"},
+                                    all_texts=texts)
+        self.assertIn('find_p(ps, "Coordi"', sections[0])
+
+    def test_fallback_without_all_texts(self):
+        sections = mr._jd_fit_audit(self._roles(), {"playwright"})
+        self.assertIn("Coordinated across teams", sections[0])
+        self.assertNotIn("find_p(", sections[0])

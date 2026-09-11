@@ -6,7 +6,24 @@ PDF once, attributes rendered lines to each role, and reports how many lines
 must be reclaimed to hit a target page count — so cuts can be planned as a
 batch instead of discovered through a cut-render-cut-render loop.
 
-Usage::
+Two modes, split by input:
+
+**Master input** (`X Master Resume.docx`) runs PRUNE-PLAN mode — the ONLY
+sanctioned measure run on the master::
+
+    python3 scripts/measure_resume.py "X Master Resume.docx" \
+        --jd <raw-JD.txt> [--protect "<phrase>"] [--linkedin <dump>]
+
+It prints ONLY the JD assessment — requirement coverage, the per-role
+JD-FIT AUDIT (with copy-pasteable ``find_p`` anchors), WORD-LEVEL TRIM
+CANDIDATES, and TOP-BLOCK PRUNE CANDIDATES — and suppresses every
+page/word/role-drop metric. Relevance assessment and page math are
+different decisions: all the irrelevant content is cut FIRST (SKILL
+Step 3), before pages, seniority, or word counts are decided, and a
+master's page math describes content that is about to be deleted. The
+master without ``--jd`` (or with ``--simulate``) is refused with exit 2.
+
+A tailored copy (non-master input) measures the full page math::
 
     python3 scripts/measure_resume.py <resume.docx> [TARGET_PAGES]
     python3 scripts/measure_resume.py <resume.docx> [TARGET_PAGES] \
@@ -18,7 +35,7 @@ candidate-tech terms that the raw JD also asks for — and JD practice
 phrases like mentorship — are excluded from the cut suggestions and listed
 as "JD-matched (kept)", so the plan never fights the JD. It also compares
 the JD's title against the resume headline and flags a headline that is
-MORE SENIOR (SKILL Step 4 title alignment) — advisory only. And it prints
+MORE SENIOR (SKILL Step 5 title alignment) — advisory only. And it prints
 a per-role JD-FIT AUDIT for EVERY role — OFF-JD and weak-match bullets —
 because the DROP PLAN only fires under page pressure and JD alignment is
 the first priority: weak bullets get cut even when the resume is already
@@ -36,10 +53,10 @@ Output:
   - A concrete reclaim suggestion (which oldest roles to trim and by how
     much) sized to the gap.
 
-This is a MEASUREMENT tool: it does not edit the .docx. Run it after the
-content edits (Summary rewrite, proficiency retrim, role re-anchoring) and
-BEFORE the compression cuts, to plan them. Re-run render_pdf.sh after cutting
-to verify.
+This is a MEASUREMENT tool: it does not edit the .docx. On a tailored copy,
+run it after the prune pass (SKILL Step 3) and the content edits (title,
+Summary, re-anchoring) and BEFORE the residual compression cuts, to plan
+them. Re-run render_pdf.sh after cutting to verify.
 """
 
 # flat-namespace sibling imports require the sys.path bootstrap; the
@@ -182,6 +199,16 @@ from measure_resume_drops import (
     _suggest_drops,
     _top_role_batch)
 
+def _is_master_input(docx):
+    """True when <docx> is the master resume — the same convention
+    validate_resume.py auto-detects ("X Master Resume.docx"). The master
+    is only ever prune-planned: page/word math over content that is about
+    to be pruned measures nothing real (the Gravie session planned its
+    cuts from master page math, and the user then hand-cut four more
+    non-JD sentences the delivered copy kept)."""
+    return os.path.basename(docx).endswith(" Master Resume.docx")
+
+
 def _target_from_args(kept):
     """(target, is_default) from the positional args or TARGET_PAGES env."""
     if len(kept) > 1:
@@ -194,7 +221,7 @@ def _target_from_args(kept):
 def _default_target_note(total_pages, target, is_default):
     """Reminder when the reclaim gap is measured against the default target.
 
-    The failure mode (a real session): the agreed Step-3 target was 3 for a
+    The failure mode (a real session): the agreed Step-4 target was 3 for a
     senior/Staff resume, but measure ran without an explicit target and
     reported "OVER by 2 pages / drop ~117 lines" against the 2-page default
     — an irrelevant reading that invites over-cutting. The tool cannot know
@@ -206,7 +233,7 @@ def _default_target_note(total_pages, target, is_default):
     if not is_default or total_pages <= target:
         return None
     return ("NOTE: no page target given — the gap above is measured against "
-            "the 2-page default. Pass the agreed Step-3 target (senior/Staff "
+            "the 2-page default. Pass the agreed Step-4 target (senior/Staff "
             "= 3) so the reclaim plan measures the goal actually agreed on.")
 
 
@@ -253,7 +280,12 @@ def _print_usage():
           "modified; compare the printed TIMELINE against the JD's ask. "
           "With --jd it also reports JD-matched bullets each drop would "
           "lose — trim those roles to their JD bullets instead of "
-          "dropping whole.",
+          "dropping whole. Refused on the master: seniority what-ifs run "
+          "on the PRUNED copy (SKILL Step 4), never on the master.",
+          file=sys.stderr)
+    print("  Master input (X Master Resume.docx) runs in PRUNE-PLAN mode: "
+          "--jd required, page/word math suppressed — the JD assessment "
+          "(audit + trim + top-block candidates) is the only output.",
           file=sys.stderr)
 
 
@@ -307,7 +339,7 @@ def _print_simulate(docx, simulate, jd_file, jd_text, td):
               "cannot be assessed; pass --jd <JD.txt> to see it)")
     print("  Compare the TIMELINE below against the JD's ask; apply "
           "the drops for real via drop_role() in the per-target "
-          "tailor script (SKILL Step 3).")
+          "tailor script (SKILL Step 4).")
     print()
     return docx, sim_jd_terms
 
@@ -532,7 +564,9 @@ def _print_word_budget(body):
     blocks over MAX_WORDS (SKILL Step 8); this section surfaces the
     arithmetic BEFORE the gate does, so cuts are planned in one pass
     instead of hand-estimated across blocked re-run cycles. Prints only
-    near the cap (85%+) — under it the section is noise."""
+    near the cap (85%+) — under it the section is noise. On the master
+    (prune-plan mode) it never prints: word counts are decided AFTER the
+    prune pass, on the tailored copy."""
     ps = de.paras(body)
     total = sum(len(_word_tokens(de.text_of(p))) for p in ps)
     if total <= MAX_WORDS * 0.85:
@@ -569,21 +603,22 @@ def _print_word_budget(body):
     print()
 
 
-def _print_jd_coverage(ctx):
-    """JD REQUIREMENT COVERAGE — per qualification line, its kept hosts."""
-    if not ctx.jd_terms:
-        return
-    coverage = _jd_requirement_coverage(ctx.roles, ctx.body, ctx.jd_text)
-    if not coverage:
-        return
-    uncov = sum(1 for _, s, _ in coverage if s == "uncovered")
-    weak = sum(1 for _, s, _ in coverage if s == "weak")
-    print()
+def _coverage_status_counts(coverage):
+    """Status histogram + the hard-skill subset of the UNCOVERED lines
+    (the three-state call-to-action count for REQUIREMENTS SUMMARY)."""
+    counts = {s: sum(1 for _, st, _ in coverage if st == s)
+              for s in ("covered", "weak", "uncovered", "by_hand")}
+    hard_uncovered = sum(
+        1 for label, s, _ in coverage
+        if s == "uncovered" and not JD_SOFT_SKILL_RE.search(label))
+    return counts, hard_uncovered
+
+
+def _print_coverage_lines(coverage, term_map):
+    """The per-qualification status lines (with matcher-term noise on
+    weak/uncovered rows)."""
     tag = {"covered": "covered", "weak": "weak",
            "uncovered": "UNCOVERED", "by_hand": "by hand"}
-    print("JD REQUIREMENT COVERAGE (each qualification line → "
-          f"status; {len(coverage)} line(s)):")
-    term_map = _jd_line_terms_map(ctx.jd_text)
     for (label, status, detail), (_, terms) in zip(coverage, term_map):
         # Show the matcher's extracted terms on weak/uncovered lines: the
         # fix for a demonstrated-but-UNCOVERED qual is hosting the JD's
@@ -595,58 +630,135 @@ def _print_jd_coverage(ctx):
         print(f"  [{tag[status]}] {label}{shown}")
         if detail:
             print(f"      {detail}")
-    if uncov:
-        print(f"  {uncov} requirement(s) UNCOVERED — a resume that "
-              "does not demonstrate a required qual reads as "
-              "unqualified for it.")
-    if weak:
-        print(f"  {weak} requirement(s) [weak] — hosted only on "
-              "proficiencies/Tools lines; weave into a bullet "
-              "where used (SKILL Step 5).")
-    # Compact one-line summary: gives the agent a machine-readable signal
-    # to act on — when unconfirmed_hard > 0, the three-state checklist
-    # (SKILL Step 2) MUST be presented to the user before claiming done.
-    by_hand = sum(1 for _, s, _ in coverage if s == "by_hand")
-    covered = sum(1 for _, s, _ in coverage if s == "covered")
-    hard_uncovered = sum(
-        1 for label, s, _ in coverage
-        if s == "uncovered" and not JD_SOFT_SKILL_RE.search(label))
-    summary = (f"REQUIREMENTS SUMMARY: {covered}/{len(coverage)} quals "
-               f"covered, {weak} weak, {uncov} uncovered, "
-               f"{by_hand} by-hand")
+
+
+def _requirements_summary_line(coverage):
+    """The compact one-line REQUIREMENTS SUMMARY signal for the agent —
+    when unconfirmed_hard > 0, the three-state checklist (SKILL Step 2)
+    MUST be presented to the user before claiming done."""
+    counts, hard_uncovered = _coverage_status_counts(coverage)
+    summary = (f"REQUIREMENTS SUMMARY: {counts['covered']}/{len(coverage)} "
+               f"quals covered, {counts['weak']} weak, "
+               f"{counts['uncovered']} uncovered, "
+               f"{counts['by_hand']} by-hand")
     if hard_uncovered:
         summary += (f" ({hard_uncovered} unconfirmed hard skill(s) — "
                     "present three-state checklist to user, SKILL Step 2)")
-    if by_hand:
+    if counts["by_hand"]:
         # Soft-skill asks extract no terms ([by hand]) — without a
         # directive they sat unhosted until the Step-11 scan flagged the
         # absence and the score paid for it. Host them in the authoring
         # pass, where the action-verb evidence and the literal-phrase
         # bullet are both in hand (SKILL Step 2's default-inference rule).
-        summary += (f" ({by_hand} soft-skill line(s) [by hand] — host the "
-                    "literal phrases in THIS pass; soft skills are safe to "
-                    "infer from action-verb evidence, SKILL Step 2)")
-    print(summary)
+        summary += (f" ({counts['by_hand']} soft-skill line(s) [by hand] — "
+                    "host the literal phrases in THIS pass; soft skills are "
+                    "safe to infer from action-verb evidence, SKILL Step 2)")
+    return summary
+
+
+def _print_jd_coverage(roles, body, jd_text, jd_terms):
+    """JD REQUIREMENT COVERAGE — per qualification line, its kept hosts."""
+    if not jd_terms:
+        return
+    coverage = _jd_requirement_coverage(roles, body, jd_text)
+    if not coverage:
+        return
+    counts, _ = _coverage_status_counts(coverage)
+    print()
+    print("JD REQUIREMENT COVERAGE (each qualification line → "
+          f"status; {len(coverage)} line(s)):")
+    _print_coverage_lines(coverage, _jd_line_terms_map(jd_text))
+    if counts["uncovered"]:
+        print(f"  {counts['uncovered']} requirement(s) UNCOVERED — a resume "
+              "that does not demonstrate a required qual reads as "
+              "unqualified for it.")
+    if counts["weak"]:
+        print(f"  {counts['weak']} requirement(s) [weak] — hosted only on "
+              "proficiencies/Tools lines; weave into a bullet "
+              "where used (SKILL Step 6).")
+    print(_requirements_summary_line(coverage))
     print()
 
 
-def _print_jd_audit(ctx):
+def _print_jd_audit(roles, body, jd_terms, protect):
     """JD-FIT AUDIT — every role, independent of the page math."""
-    if not ctx.jd_terms:
+    if not jd_terms:
         return
-    audit = _jd_fit_audit(ctx.roles, ctx.jd_terms, protect=ctx.protect)
+    all_texts = [de.text_of(p) for p in de.paras(body)]
+    audit = _jd_fit_audit(roles, jd_terms, protect=protect,
+                          all_texts=all_texts)
     if audit:
         print("JD-FIT AUDIT (every role — cut every OFF-JD/weak bullet "
               "listed here in the FIRST pass, no page-math condition; "
-              "the DROP PLAN above is only the page-budget subset):")
+              "on the master this IS the whole plan):")
         for section in audit:
             print(section)
             print()
-    trim = _keep_trim_section(ctx.roles, ctx.jd_terms, ctx.body,
-                              protect=ctx.protect)
+    trim = _keep_trim_section(roles, jd_terms, body, protect=protect)
     if trim:
         print(trim)
         print()
+
+
+def _print_top_block_prune(body, jd_terms):
+    """TOP-BLOCK PRUNE CANDIDATES — off-JD proficiencies/cert lines.
+
+    The prune-plan (master) form of the reclaim-plan's TOP-BLOCK section:
+    here it is unconditional — an off-JD top-block line is irrelevant
+    content regardless of any page math."""
+    top = _top_block_candidates(body, jd_terms)
+    if not top:
+        return
+    print()
+    print("TOP-BLOCK PRUNE CANDIDATES (Technical Proficiencies / "
+          "Certifications lines with no JD evidence; cut whole):")
+    for prefix, text in top:
+        print(f'    find_p(ps, "{prefix}")  # {text[:70]}')
+    print()
+
+
+def _main_prune_plan(args):
+    """PRUNE-PLAN mode — the only sanctioned measure run on the master.
+
+    Assess every paragraph of the master against the JD and cut everything
+    irrelevant FIRST (SKILL Step 3); no page, word, or role-drop math is
+    printed, because it would describe content that is about to be pruned
+    (and measuring the full master invites keeping it). The PDF is not
+    even rendered — relevance needs no layout. After the prune pass,
+    measure the tailored copy for the length/seniority decision
+    (SKILL Step 4)."""
+    if args.simulate:
+        print("error: --simulate answers a seniority question (which whole "
+              "roles to drop) — decided on the PRUNED copy in SKILL Step 4, "
+              "after the prune pass. The master only answers 'what is "
+              "irrelevant'.", file=sys.stderr)
+        sys.exit(2)
+    if not args.jd_text:
+        print("error: the master is measured ONLY with --jd (prune-plan "
+              "mode). Without a JD there is no relevance signal — and "
+              "page/word math on the unpruned master is never measured "
+              "(SKILL Step 3). Pass --jd <JD.txt>.", file=sys.stderr)
+        sys.exit(2)
+    if not args.default_target:
+        print(f"(page target {args.target} ignored — the master is only "
+              "prune-planned; measure the tailored copy for page math)")
+        print()
+    _, body, _, _, _ = de.load(args.docx)
+    roles = _roles(body)
+    jd_terms = _jd_terms(args.jd_text, body)
+    print("PRUNE PLAN — master input: cut everything irrelevant FIRST "
+          "(SKILL Step 3) — every OFF-JD/weak bullet, dead sentence, "
+          "non-JD clause, and non-JD list chunk below goes in the first "
+          "pass, before any page target, role drop, seniority, or word "
+          "count is decided. Page/word math on the unpruned master is "
+          "never measured; prune, then measure the tailored copy "
+          "(SKILL Step 4).")
+    print()
+    _print_jd_report(args.jd_file, args.jd_text, jd_terms, body,
+                     args.evidence_text)
+    _print_jd_coverage(roles, body, args.jd_text, jd_terms)
+    _print_jd_audit(roles, body, jd_terms, args.protect)
+    _print_top_block_prune(body, jd_terms)
 
 
 def _print_layout_summary(ctx):
@@ -750,10 +862,13 @@ def _build_ctx(args, body, roles, jd_terms, pages_text):
         edu=edu, wrapped=wrapped)
 
 
-def main():  # CLI entry: prints the full DROP PLAN / JD-FIT / table report
+def main():  # CLI entry: prune-plan on the master, full page math otherwise
 
     """Measure-resume CLI entry point."""
     args = _parse_measure_args()
+    if _is_master_input(args.docx):
+        _main_prune_plan(args)
+        return
     body, roles, jd_terms, pages_text, _ = _load_and_render(
         args.docx, args.simulate, args.jd_file, args.jd_text,
         args.evidence_text)
@@ -763,8 +878,8 @@ def main():  # CLI entry: prints the full DROP PLAN / JD-FIT / table report
     _print_tools_wrap(ctx)
     _print_reclaim_plan(ctx)
     _print_word_budget(body)
-    _print_jd_coverage(ctx)
-    _print_jd_audit(ctx)
+    _print_jd_coverage(ctx.roles, ctx.body, ctx.jd_text, ctx.jd_terms)
+    _print_jd_audit(ctx.roles, ctx.body, ctx.jd_terms, ctx.protect)
     _print_layout_summary(ctx)
 
 

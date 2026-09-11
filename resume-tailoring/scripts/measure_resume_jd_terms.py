@@ -332,7 +332,7 @@ def _weak_jd_terms(bullets, jd_terms):
 
     Inside that corpus the term cannot arbitrate between bullets — every
     "test engineer" bullet matches a testing JD's ``test`` — so a hit on a
-    weak term is weak protection evidence (SKILL Step 8): it is displayed
+    weak term is weak protection evidence (SKILL Step 3): it is displayed
     as ``[weak: term]`` and does NOT make a bullet immune to the DROP
     PLAN. Per-role, not global: ``test`` stays strong evidence in a role
     where it discriminates and is weak in a role where every bullet
