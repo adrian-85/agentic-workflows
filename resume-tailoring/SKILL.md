@@ -292,9 +292,12 @@ demonstrated history.
   Senior/Staff/Principal, OR the candidate's visible background is
   Staff-level — EITHER condition targets 3. A JD asking "7-10 years" (a
   range starting at 7) is itself a seniority signal favoring 3. When in
-  doubt, default to 3 and let the measure's page-fill table decide (an
-  underfilled last page below 50% full means re-target one page lower
-  BEFORE cutting JD-matched bullets).
+  doubt, default to 3 and let the measure's page-fill table decide. A
+  last page under 50% full (measure prints `TARGET NOTE`) is **soft
+  guidance, never a hard gate**: fewer pages aid readability, but never
+  at the expense of showing how the applicant meets the JD — re-target
+  one page lower only as a judgment call, when it costs no JD-matched
+  evidence, and never cut JD-matched bullets to fill or shrink a page.
 - **Present only a feasibility-measured target.** Before recommending a
   page count to the user, run the what-if (`measure --simulate` with the
   candidate whole-role drops at the candidate target) and check the
@@ -910,7 +913,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Mistake | Fix |
 |---|---|
 | Rebuilding the .docx from scratch | Edit XML in place — `python-docx` drops styles, numbering, hyperlinks |
-| Waffling between the 2-page and 3-page target mid-compression | Settle it with the page-fill table: a last page under 50% full means re-target one page lower and re-measure BEFORE cutting JD-matched bullets (measure prints `TARGET NOTE`; Step 3) — don't revisit the target again unless the note fires |
+| Waffling between the 2-page and 3-page target mid-compression | Settle it with the page-fill table: a last page under 50% full (measure prints `TARGET NOTE`) is SOFT guidance — re-target one page lower only as a judgment call that costs no JD-matched evidence, and never cut JD-matched bullets to fill or shrink a page (Step 3) — don't revisit the target again unless the note fires |
 | Using `set_text` on a `"Label: values"` line | Collapses to all-bold — use `set_labeled` (Helper library) |
 | Hand-counting an edit budget (`expect_edits=N`) | Never count — `save()`'s drift sidecar records the baseline and warns on change |
 | Hand-rolling whole-role removal in the tailor script | Use `drop_role(body, "<company prefix>")` / `drop_section(body, "Education")` — the library owns the block grammar. A hand-rolled helper that appends before checking the boundary (or only treats Heading1/2 as boundaries) swallows the next `SectionHeading` (Education) and strands later edits as "not found" skips |

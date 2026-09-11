@@ -1786,13 +1786,13 @@ class TargetNoteTests(unittest.TestCase):
 
 
 class SparseLastPageTests(unittest.TestCase):
-    """TARGET NOTE when the last page fills <50% of capacity: the one
-    settle-it signal for the 2-vs-3 page target. Session failure: a
-    senior resume hit "ON target" at 3 pages with a 43% last page, and
-    ~8 measure/render cycles went into re-deciding the target mid-flight
-    (43% → 20% → 13% → 2 pages). The rule this note encodes (SKILL Step
-    3): re-target one page lower and re-measure BEFORE cutting any
-    JD-matched bullet."""
+    """TARGET NOTE when the last page fills <50% of capacity: a settle-it
+    signal for the 2-vs-3 page target. Session failure: a senior resume
+    hit "ON target" at 3 pages with a 43% last page, and ~8 measure/render
+    cycles went into re-deciding the target mid-flight (43% → 20% → 13% →
+    2 pages). SOFT guidance (2026-09-11 user rule): re-targeting lower is
+    a judgment call gated on costing no JD-matched evidence — never a
+    mandate, and never a reason to cut JD-matched bullets."""
 
     CAP = 44
 
@@ -1801,18 +1801,20 @@ class SparseLastPageTests(unittest.TestCase):
         note = mr._sparse_last_page_note(3, 3, fills, self.CAP, 0)
         self.assertIsNotNone(note)
         self.assertIn("43% full (19 of ~44 lines)", note)
-        self.assertIn("Re-target one page lower (2)", note)
-        self.assertIn("BEFORE cutting any JD-matched bullet", note)
+        self.assertIn("Consider re-targeting one page lower (2)", note)
+        self.assertIn("judgment call", note)
+        self.assertIn("never cut JD-matched bullets", note)
 
     def test_note_when_over_target_and_last_page_sparse(self):
         # 3 pages vs target 2 with a 3-line tail: the reclaim gap IS the
-        # sparse tail — name both facts, point at the target, not bullets.
+        # sparse tail — name both facts, frame the tradeoff as judgment.
         fills = [41, 43, 3]
         note = mr._sparse_last_page_note(3, 2, fills, self.CAP, 3)
         self.assertIsNotNone(note)
         self.assertIn("6% full (3 of ~44 lines)", note)
         self.assertIn("~3-line gap to 2 page(s)", note)
-        self.assertIn("revisit the page target", note)
+        self.assertIn("judgment call", note)
+        self.assertIn("never a mandate", note)
 
     def test_no_note_when_last_page_full(self):
         self.assertIsNone(

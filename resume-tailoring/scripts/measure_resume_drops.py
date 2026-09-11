@@ -693,10 +693,14 @@ def _sparse_last_page_note(total_pages, target, fills, capacity,
     sparse page is the trap.
 
     Fires whenever the last page fills <50% of capacity on a multi-page
-    document; at/under target the message points one page lower, over
-    target it points out that the reclaim gap is roughly the sparse tail
-    itself and a dead-ending DROP PLAN means the target — not the bullets —
-    is what to revisit.
+    document. SOFT guidance, never a hard gate (2026-09-11 user rule):
+    fewer pages aid readability, but never at the expense of showing how
+    the applicant meets the JD — re-targeting one page lower is a
+    judgment call gated on costing no JD-matched evidence. Cutting
+    JD-matched bullets to fill or shrink a page stays the trap either
+    way; over target the message points out that the reclaim gap is
+    roughly the sparse tail itself and a dead-ending DROP PLAN means the
+    target-vs-JD tradeoff is a user decision.
     """
     if not capacity or len(fills) < 2:
         return None
@@ -708,15 +712,24 @@ def _sparse_last_page_note(total_pages, target, fills, capacity,
         return (f"TARGET NOTE: last page is only {pct}% full ({last} of "
                 f"~{capacity} lines). The ~{overflow_lines}-line gap to "
                 f"{target} page(s) is roughly this sparse tail itself; if "
-                f"the DROP PLAN dead-ends on JD-matched content, revisit "
-                f"the page target (one page lower) and re-measure BEFORE "
-                f"cutting JD-matched bullets (SKILL Step 3).")
-    lower = f" Re-target one page lower ({target - 1}) and re-measure" \
-            if target > 1 else " Re-measure against a lower target"
+                f"the DROP PLAN dead-ends on JD-matched content, weigh "
+                f"re-targeting one page lower against the JD evidence "
+                f"further cuts would lose — fewer pages aid readability, "
+                f"but showing qualification outranks page count, and a "
+                f"sparse tail is a judgment call, never a mandate to cut "
+                f"JD-matched bullets (SKILL Step 3).")
+    lower = (f" Consider re-targeting one page lower ({target - 1}) — a "
+             f"judgment call: only if the cuts cost no JD-matched "
+             f"evidence"
+             if target > 1 else
+             " Consider re-measuring against a lower target — a judgment "
+             "call: only if the cuts cost no JD-matched evidence")
     return (f"TARGET NOTE: last page is only {pct}% full ({last} of "
             f"~{capacity} lines) — a sparse final page reads as "
-            f"unpolished.{lower} BEFORE cutting any JD-matched bullet to "
-            f"fill it (SKILL Step 3).")
+            f"unpolished, and fewer pages aid readability, but never at "
+            f"the expense of showing how the applicant meets the JD."
+            f"{lower}; never cut JD-matched bullets to fill or shrink a "
+            f"page (SKILL Step 3).")
 
 
 def _measured_lines_per_bullet(matched):
