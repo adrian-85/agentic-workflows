@@ -41,7 +41,7 @@ reference. The non-obvious rules while authoring:
   grammar wrong under real use (a boundary check placed after the append
   swallowed the following `SectionHeading`, silently eating Education).
   Handles duplicate job titles with no `after=`/`nth=` anchor (the block is
-  contiguous from the role's OWN header). Seniority alignment (Step 3) is
+  contiguous from the role's OWN header). Seniority alignment (Step 4) is
   a sequence of these.
 - **`drop_section(body, "<heading prefix>")`**: removes a whole SECTION
   (e.g. Education) from its `SectionHeading` to just before the next one.
@@ -108,7 +108,7 @@ re-runs from the untouched master and is a diff-able record of every edit.
 rewritten, `find_p` prefixes may drift (review warnings, or run with
 `DOCX_EDIT_STRICT=1` to fail on any skip).
 
-## Step 3 procedures — Seniority alignment
+## Step 4 procedures — Seniority alignment (run on the PRUNED copy)
 
 ### Simulation (what-if whole-role drops)
 
@@ -118,7 +118,7 @@ THAT, and prints the resulting TIMELINE, so the year math is the tool's,
 not hand-derived in chat (the file on disk is never modified):
 
 ```bash
-python3 scripts/measure_resume.py "<Master>.docx" 3 --jd "<JD>.txt" \
+python3 scripts/measure_resume.py "<Tailored>.docx" 3 --jd "<JD>.txt" \
     --jd-years <N> \
     --simulate "Acme Corp, Austin, TX" --simulate "Globex, Chicago, IL"
 ```
@@ -201,14 +201,14 @@ with the numbers and STOP — the deliverable gate (Step 10) refuses to write th
 convert by hand. After the user approves, re-run the tailor script with the
 token in `RESUME_VALIDATE_ARGS` (it writes then), then render.
 
-## Step 8 procedures — Compression tools
+## Step 8 procedures — Residual compression (measure the TAILORED copy, never the master)
 
 ### Reading measure output
 
-After the content edits (Steps 4–7), run `scripts/measure_resume.py <target.docx> [TARGET_PAGES]`
+After the content edits (Steps 5–7), run `scripts/measure_resume.py <target.docx> [TARGET_PAGES]`
 — it renders once and reports the per-role line cost and the **exact reclaim gap** to the target
 page count, so you plan the oldest-role cuts as a batch instead of discovering them
-through a cut-render loop. Pass the agreed Step-3 target positionally
+through a cut-render loop. Pass the agreed Step-4 target positionally
 (`measure_resume.py <target.docx> 3`) — measuring against the 2-page default
 while over it prints a NOTE and over-reports the gap. Use its **BATCH RECLAIM PLAN** (measured
 lines-per-bullet from the actual render, oldest roles first) rather than
@@ -306,6 +306,24 @@ to the residual gap) and, when even that cannot close it, a NOTE saying so —
 paste its `find_p` lines into the script's first pass and take the NOTE
 back to the user (whole-role drops / JD-matched tradeoffs).
 
+### PRUNE PLAN (master input — the only sanctioned measure run on the master)
+
+Relevance and page math are different decisions, and mixing them is how a
+build ships non-JD sentences the user then hand-cuts. The master is measured
+ONLY with `--jd`, in PRUNE-PLAN mode: the JD assessment alone (requirement
+coverage, JD-FIT AUDIT with `find_p` anchors on every cut candidate,
+WORD-LEVEL TRIM CANDIDATES, TOP-BLOCK PRUNE CANDIDATES) — no PAGES, no
+reclaim plan, no word budget, no PDF render:
+
+```bash
+python3 scripts/measure_resume.py "<userName> Master Resume.docx" --jd jd_<target>.txt
+```
+
+The master without `--jd` exits 2; `--simulate` on the master exits 2
+(seniority what-ifs run on the pruned copy, Step 4). An explicit page target
+is ignored with a note. Prune everything the plan lists (SKILL Step 3), THEN
+measure the tailored copy for length/seniority (Step 4).
+
 ### WORD-LEVEL TRIM CANDIDATES
 
 `measure_resume.py --jd` emits this section after the JD-FIT AUDIT.
@@ -320,7 +338,7 @@ WORD-LEVEL TRIM CANDIDATES (kept bullets and list lines still
 carrying non-JD content — prune to the word: cut the flagged
 sentence, strip the flagged tool from its clause, remove the
 flagged chunk from the list; never strip a term the JD names or
-one that hosts a [weak]/covered ask; SKILL Step 8):
+one that hosts a [weak]/covered ask; SKILL Step 3):
   Acme, City:
     find_p(ps, "Built ")  # Built Selenium suites with Java, TestNG.
       - JD does not name: testng
@@ -362,7 +380,7 @@ tool. So when a qual you know is demonstrated still prints `[UNCOVERED]`,
 the fix is to host the JD's literal phrase in a truthful bullet — at
 AUTHORING time, from the master-measure's list — not to debug the matcher. Self-assessment-adjective qual lines ("Excellent communication, ...")
 extract no skill terms and print `[by hand]` with the soft-skill inference
-rule — judge them on kept action-verb evidence (SKILL Step 8), never by
+rule — judge them on kept action-verb evidence (SKILL Step 2), never by
 chasing the adjective.
 
 ### INFERENCE MAP — evidence for no-host JD terms
@@ -473,7 +491,7 @@ verification render: validation report, page map, spilled content, last-page tai
 ```
 
 The render's default page target is 2; pass `--target-pages N` matching the
-target agreed in Step 3, so the overflow report measures against the goal you
+target agreed in Step 4, so the overflow report measures against the goal you
 actually agreed on (3 for senior/Staff, not the 2-page default).
 
 `render_pdf.sh` **validates first** (runs `validate_resume.py`): it refuses to
@@ -487,7 +505,7 @@ unconditionally; the education gate runs ONLY when `--jd` is passed (via
 `RESUME_VALIDATE_ARGS`) — `render_pdf.sh` prints a NOTE whenever the
 education gate did not run.
 
-**When the JD specifies years of experience** (Step 3), confirm alignment and
+**When the JD specifies years of experience** (Step 4), confirm alignment and
 record approval in one command:
 
 ```bash
@@ -497,11 +515,11 @@ RESUME_VALIDATE_ARGS="--jd <JD.txt> --jd-years <N> --seniority-approved" \
 
 `--jd-years <N>` reports the visible span vs the JD's ask ("~7.4 years vs the
 JD's 5+ — aligned"), warns if under (underqualified), and notes a large
-overshoot — the signal to offer Step 3's gapless oldest-role elimination.
+overshoot — the signal to offer Step 4's gapless oldest-role elimination.
 `--seniority-approved` is the gate token: REQUIRED only when whole roles were
 eliminated — without it the render is blocked, so the user-approved decision is
 recorded, not assumed. **Pass it only with the user's authority** (their chat
-reply, or pre-authorization in the original request — Step 3.5). Without that
+reply, or pre-authorization in the original request — Step 4.5). Without that
 authority, the deliverable gate has already refused to write the .docx (Step
 10) — present the plan, and after the user's reply re-run the tailor script
 with the token in `RESUME_VALIDATE_ARGS`, then render.
@@ -513,7 +531,7 @@ measured against a fabricated ask, producing false *underqualified* verdicts
 and a false load-bearing education warning. `validate_resume.py` warns when
 `--jd-years` is passed but the JD text states no "N+ years" ask.
 
-**Whole-resume word cap** (SKILL Steps 3/8): the validator counts every
+**Whole-resume word cap** (SKILL Step 8): the validator counts every
 paragraph's alphanumeric tokens and blocks over `MAX_WORDS` (1000) for
 tailored resumes — the master input is exempt, like the bullet cap. Override
 or disable the threshold with `--max-words <N>` (`--max-words 0` disables);
@@ -547,7 +565,7 @@ JD qualification lines' skill phrases (cue-tail mining: phrases are
 extracted only from the text following skill-introducing cues like
 "experience in" and "proficiency in", avoiding surrounding prose —
 see `_jd_literal_terms` for the full precision rules); zero-host terms mean a
-cut killed the last host (Step 8 cut-protection) or the phrase was never
+cut killed the last host (Step 3 cut-protection) or the phrase was never
 mirrored — host the exact phrase truthfully or raise the gap, never fabricate;
 and before raising a no-host term as a genuine gap, grep the MASTER for it
 (including bullets the first pass cut — see SKILL Step 11 for the

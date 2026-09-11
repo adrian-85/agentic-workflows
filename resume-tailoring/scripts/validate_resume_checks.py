@@ -272,7 +272,7 @@ def _near_duplicates(region):
                 yield bullets[i][:60], bullets[j][:60], (
                     f"bullets share {len(shared)} content words "
                     f"({', '.join(sorted(shared)[:5])}) — keep the stronger, "
-                    "merge or cut the other (SKILL Step 6: merge, don't append)")
+                    "merge or cut the other (SKILL Step 7: merge, don't append)")
 
 
 def _claim_years(text):
@@ -408,7 +408,7 @@ def _text_integrity_errors(region, summary):
 
 
 def _readability_guidance(body, summary, *, region=None, master_input=False):
-    """Advisory readability checks (SKILL Step 4 word cap + Step 5).
+    """Advisory readability checks (SKILL Step 5 word cap + Step 6).
 
     Word count, not sentence count — the master input is exempt (it
     intentionally keeps everything); see PARA_WORD_CAP above.
@@ -428,7 +428,7 @@ def _readability_guidance(body, summary, *, region=None, master_input=False):
             if n <= PARA_WORD_CAP:
                 continue
             notes.append(("warn",
-                f"{'Summary' if p is summary else 'Bullet' if _is_bullet(p) else 'Paragraph'} has {n} words (cap {PARA_WORD_CAP}, SKILL Step 4): "
+                f"{'Summary' if p is summary else 'Bullet' if _is_bullet(p) else 'Paragraph'} has {n} words (cap {PARA_WORD_CAP}, SKILL Step 5): "
                 f"{' '.join(text.split())[:60]!r}... — split or trim to {PARA_WORD_CAP} words"))
     if summary_text and len(summary_text.split()) <= PARA_WORD_CAP:
         notes.append(("ok",
@@ -442,7 +442,7 @@ def _readability_guidance(body, summary, *, region=None, master_input=False):
 
     # Section between Summary and Technical Proficiencies: the SKILL
     # forbids inserting Core Strengths, Top Skills, or keyword-mirror
-    # sections here (Step 5).
+    # sections here (Step 6).
     ps = de.paras(body)
     summary_idx = None
     prof_idx = None
@@ -462,7 +462,7 @@ def _readability_guidance(body, summary, *, region=None, master_input=False):
         if inserted:
             notes.append(("warn",
                 f"section(s) between Summary and Technical Proficiencies "
-                f"({', '.join(repr(s) for s in inserted)}) — SKILL Step 5 "
+                f"({', '.join(repr(s) for s in inserted)}) — SKILL Step 6 "
                 f"forbids inserting Core Strengths, Top Skills, or "
                 f"keyword-mirror sections here; weave skills into role "
                 f"bullets instead"))

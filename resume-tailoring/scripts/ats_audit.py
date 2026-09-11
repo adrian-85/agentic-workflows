@@ -46,7 +46,7 @@ screener parses. Three classes of external finding are IGNORED by rule
 deliberate design), specialCharacters (the typographic characters are
 deliberate formatting the user chose — never reformat to satisfy a text
 parser), and the education findings when the rendered resume has no
-Education section (the drop was a Step 3.4 predicate decision the render
+Education section (the drop was a Step 4.4 predicate decision the render
 gate already sanctioned; the scan's generic advice does not re-open it).
 """
 
@@ -431,7 +431,7 @@ def _report_findings(data, resume_text=""):
       better with the current formatting"); NEVER reformat the resume
       to satisfy a text parser's character check.
     - the education findings (headingEducation, educationMatch) when the
-      rendered resume has no Education section — the drop was a Step 3.4
+      rendered resume has no Education section — the drop was a Step 4.4
       predicate decision, and validate_resume's education gate already
       blocks any UNSANCTIONED drop at render time; a PDF without
       Education therefore reached the audit only through an approved
@@ -469,7 +469,7 @@ def _report_findings(data, resume_text=""):
                 and not education_present:
             lines.append(
                 f"  IGNORED {name} ({status}): Education was dropped "
-                "deliberately (Step 3.4 predicate; the render gate "
+                "deliberately (Step 4.4 predicate; the render gate "
                 "sanctioned it) — the scan's generic advice does not "
                 "re-open that decision")
             continue

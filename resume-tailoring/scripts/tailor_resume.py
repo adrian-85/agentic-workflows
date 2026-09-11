@@ -67,7 +67,7 @@ Verification is mechanical, not a habit:
      re-measure once to confirm, render once to verify. No cut-render-cut.
 - validate_resume.py also cross-checks quantified claims against the master
   and the Summary's "N+ years" claim against the visible role-date span.
-- When the JD specifies fewer years than the candidate has, apply Step 3
+- When the JD specifies fewer years than the candidate has, apply Step 4
   seniority alignment (SKILL.md): eliminate entire oldest roles in contiguous
   gapless blocks, reduce "N years" statements, confirm with the user, and
   record approval with RESUME_VALIDATE_ARGS="--jd-years <N> --seniority-approved"
@@ -108,7 +108,7 @@ def main():
     # 1. SUMMARY — lead with the JD's core ask. Mirror the employer's
     #    language and the user's selling points for THIS role. Cap it at
     #    40 WORDS — the same cap every prose paragraph and bullet carries
-    #    (word count, not sentence count; SKILL Step 4) — an overlong
+    #    (word count, not sentence count; SKILL Step 5) — an overlong
     #    intro risks the reviewer never reaching the bullets. Use
     #    set_text (preserves the first run's formatting).
     # ------------------------------------------------------------------ #
@@ -137,7 +137,7 @@ def main():
     # ------------------------------------------------------------------ #
     # 1b. SENIORITY ALIGNMENT — ONLY when the JD years are BELOW the
     #     candidate's (else skip this block entirely). Full rules:
-    #     SKILL.md Step 3. Shorthand: drop ENTIRE oldest roles in contiguous
+    #     SKILL.md Step 4. Shorthand: drop ENTIRE oldest roles in contiguous
     #     gapless blocks; reduce "N years" statements to the visible span;
     #     keep Education when the JD has an "OR degree" clause; confirm with
     #     the user first. What-if the resulting span with measure's

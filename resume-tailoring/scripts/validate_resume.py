@@ -25,11 +25,11 @@ Catches the error classes tailoring sessions actually hit:
    - `--jd-years N`: compare the visible span against the JD's "N+ years"
      ask — warns if the resume shows fewer years than the JD requires
      (underqualified), and notes a large overage so the agent can offer the
-     Step 3 seniority-alignment option (eliminate oldest roles in
+     Step 4 seniority-alignment option (eliminate oldest roles in
      contiguous blocks + reduce years statements) when it is relevant
    - JD-TITLE ALIGNMENT (`--jd <JD.txt>`): when the resume headline (the
      title line under the name) is MORE SENIOR than the JD's named title,
-     warns to apply SKILL Step 4 (set the top title to the JD's exact
+     warns to apply SKILL Step 5 (set the top title to the JD's exact
      title and level the Summary's echo). Advisory, never blocking: the
      JD-title extraction and the seniority ladder are heuristics, and a
      posting may use a generic title for a senior role
@@ -38,10 +38,10 @@ Catches the error classes tailoring sessions actually hit:
      `--seniority-approved` records the user's approval — and the token's
      authority must come from OUTSIDE the agent: the user's chat reply or
      pre-authorization in the original request. An agent passing the token
-     itself is not an approval, it is a bypass. This makes the Step 3 "ask
+     itself is not an approval, it is a bypass. This makes the Step 4 "ask
      the user first" rule a gate: render_pdf.sh will not produce a PDF
      from a shortened timeline without the approval token.
-   - EDUCATION GATE (`--jd <JD.txt>`): Step 3.4's predicates, mechanical.
+   - EDUCATION GATE (`--jd <JD.txt>`): Step 4.4's predicates, mechanical.
      A JD that requires a degree blocks the render when Education was
      dropped (`--education-approved` records a USER-GRANTED override, same
      origin rule as the seniority token). Under an
@@ -72,8 +72,8 @@ Catches the error classes tailoring sessions actually hit:
 
 6. GUIDANCE — readability signals the agent should act on (advisory).
    Word-count cap — no prose paragraph or individual bullet over 40 words
-   (<=40 acceptable; SKILL Step 4) — and sections inserted between the
-   Summary and Technical Proficiencies (SKILL Step 5 forbids this). These
+   (<=40 acceptable; SKILL Step 5) — and sections inserted between the
+   Summary and Technical Proficiencies (SKILL Step 6 forbids this). These
    are warnings, not blocking errors — the agent may have a reason to
    deviate, but the validator flags the deviation so it cannot go unnoticed.
 
@@ -226,7 +226,7 @@ def _run_master_seniority(ctx, path, body, opts, span):
                     f"whole-role elimination detected: visible span "
                     f"~{span:.1f}y is ~{shrink:.1f}y shorter than the master "
                     f"(~{master_span:.1f}y). The seniority-alignment decision "
-                    f"belongs to the USER (SKILL Step 3): approval may come "
+                    f"belongs to the USER (SKILL Step 4): approval may come "
                     f"only from their chat reply or from pre-authorization in "
                     f"the original request — do NOT pass --seniority-approved "
                     f"on your own authority. Finish the .docx, present the "
@@ -325,7 +325,7 @@ def _run_jd_years_check(ctx, opts):
             "note",
             f"resume shows ~{span:.1f} years vs the JD's {jd_years:g}+ — "
             f"well above the ask; for a mid-level title consider "
-            f"trimming the oldest roles to align (see SKILL Step 3; a "
+            f"trimming the oldest roles to align (see SKILL Step 4; a "
             f"degree/education-substitution clause in the JD can "
             f"complement the shorter span)",
         ))

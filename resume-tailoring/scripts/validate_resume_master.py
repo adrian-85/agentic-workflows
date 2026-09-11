@@ -188,7 +188,7 @@ def _has_education(body):
 
 
 def _education_gate(jd_text, body, span, jd_years, approved):
-    """Step 3.4's education predicates as (errors, notes).
+    """Step 4.4's education predicates as (errors, notes).
 
     Notes are (severity, message) pairs printed under the EDUCATION
     section (severity in warn|ok). The predicates, enforced mechanically
