@@ -64,7 +64,7 @@ CLI (inspect structure before editing)::
 # the specific rationale at each site where one is retained.
 
 
-# pylint: disable=invalid-name,global-statement,wrong-import-position
+# pylint: disable=invalid-name,global-statement
 # invalid-name: rPr/pPr/numId/… mirror OOXML w:rPr/pPr/numId schema tags
 #   verbatim so template/spec greps stay obvious.
 # global-statement: _APPLIED/_SKIPS/_ELEMENT_FORM_DROPS are module drift

@@ -89,7 +89,6 @@ Usage:
     python3 scripts/validate_resume.py <resume.docx> --jd-years 5 [--master p]
     python3 scripts/validate_resume.py <resume.docx> --jd <JD.txt> [--jd-years 5] [--education-approved] [--master p]  # pylint: disable=line-too-long
 """
-# pylint: disable=wrong-import-position,import-outside-toplevel
 # flat-namespace sibling imports require the sys.path bootstrap; the
 # sibling import must precede use, which pylint flags as wrong position.
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
