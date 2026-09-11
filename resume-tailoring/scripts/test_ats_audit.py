@@ -237,6 +237,12 @@ class MatchRateTargetTests(unittest.TestCase):
         self.assertEqual(r.warns, [])
         self.assertEqual(len(r.ok_lines), 1)
         self.assertIn("MET", r.ok_lines[0])
+        # Hard stop (2026-09-11): the MET line must terminate the loop,
+        # not describe it as optional — and the old "advisory" framing
+        # must stay gone.
+        self.assertIn("CLOSED", r.ok_lines[0])
+        self.assertIn("stop score-driven edits", r.ok_lines[0])
+        self.assertNotIn("advisory", r.ok_lines[0])
 
     def test_zero_target_disables(self):
         r = self._result()

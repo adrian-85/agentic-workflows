@@ -780,11 +780,14 @@ reuses the company's prior-scan identification (Step 1's URL-optional
 rule) — never re-run a URL-less scan for a company whose ATS an earlier
 scan already identified without checking that reuse.
 
-**The match-rate target is 75 (≥75 = the hosting loop is DONE).** A
-TARGET, not a gate: at or above it, stop weaving in hard/soft skills —
+**The match-rate target is 75 (≥75 = the hosting loop is DONE — a hard
+stop).** At or above it, the loop TERMINATES: stop weaving in hard/soft
+skills, stop keyword-driven rewording, and stop re-scanning for score —
 the residual no-host list at that point is genuine never-fabricate gaps
-and parser artifacts, and chasing it adds no score. Below it, keep hosting literal phrases
-truthfully — hosting them is what moves the rate. `ats_audit.py` prints the target status when a report JSON is
+and parser artifacts, and chasing it adds no score. Score-driven edits
+resume only when the user explicitly asks. Below 75, keep hosting literal
+phrases truthfully — hosting them is what moves the rate. `ats_audit.py`
+prints the target status when a report JSON is
 loaded (`--match-target` overrides; 0 disables), and `ats_check.py`
 prints the same verdict at scan time.
 

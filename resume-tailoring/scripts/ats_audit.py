@@ -110,18 +110,21 @@ def _report_match_rate(data):
 
 
 def _audit_match_rate(score, target, result):
-    """The ≥75 match-rate TARGET (advisory, not a gate): at/above it the
-    literal hosting work is DONE — the session can stop weaving hard and
-    soft skills without chasing the residual no-host list (most of which
-    is genuine never-fabricate gaps and parser artifacts anyway). Below
-    it, keep hosting. Configurable via --match-target; 0 disables."""
+    """The ≥75 match-rate target as a HARD STOP (2026-09-11): at or above
+    it the hosting loop TERMINATES — no further hosting, keyword-driven
+    rewording, or re-scans for score unless the user explicitly asks.
+    Sessions kept editing past a met target because the old wording
+    called the target "advisory, not a gate"; that framing is gone. Below
+    the target, keep hosting. Configurable via --match-target; 0
+    disables."""
     verdict = match_target_met(score, target)
     if verdict is None:
         return
     if verdict:
         result.ok_lines.append(
-            f"match rate: {score} (target {target} MET — literal hosting "
-            "is done; stop adding hard/soft skills)")
+            f"match rate: {score} (target {target} MET — hosting loop "
+            "CLOSED: stop score-driven edits now; no further hosting, "
+            "rewording, or scans for score unless the user asks)")
     else:
         result.warns.append(
             f"match rate: {score} (below the {target} target — keep "

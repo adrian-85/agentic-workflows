@@ -596,14 +596,16 @@ def _poll_report(url, headers, timeout, interval):
 
 
 def _print_match_target(score):
-    """The scan print's match-rate target line (SKILL Step 11 stop signal)."""
+    """The scan print's match-rate target line (SKILL Step 11 stop signal).
+    At/above target the hosting loop is CLOSED — a hard stop, not advice."""
     print(f"    matchRate: {score}")
     verdict = match_target_met(score, MATCH_RATE_TARGET)
     if verdict is None:
         return
     if verdict:
-        print(f"    target: {MATCH_RATE_TARGET} MET — literal hosting "
-              "is done; stop adding hard/soft skills")
+        print(f"    target: {MATCH_RATE_TARGET} MET — hosting loop CLOSED: "
+              "stop score-driven edits now (no further hosting, rewording, "
+              "or scans for score unless the user asks)")
     else:
         print(f"    target: below {MATCH_RATE_TARGET} — keep hosting "
               "literal phrases truthfully (ats_audit's no-host lists "
