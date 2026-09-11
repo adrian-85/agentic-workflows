@@ -871,6 +871,23 @@ class JdHitsTests(unittest.TestCase):
         self.assertEqual(mr._jd_hits("Validated the REST APIs", {"api"}),
                          ["api"])
 
+    def test_sentence_final_period_still_matches(self):
+        # A term at sentence END was unmatchable: '.' sat in the token
+        # class, so a bullet ending '...with Playwright.' read as off-JD.
+        # A sentence-final period is a boundary, not a token char.
+        self.assertEqual(mr._jd_hits("Built suites with Selenium.",
+                                     {"selenium"}), ["selenium"])
+        self.assertEqual(mr._jd_hits("rest api for c#. use it", {"c#"}),
+                         ["c#"])
+
+    def test_versioned_dot_stays_one_token(self):
+        # The fix must not split versioned forms: 'node.js' stays one
+        # token, so neither 'node' nor the trailing 'js' matches inside it.
+        self.assertEqual(mr._jd_hits("the node.js runtime", {"node"}), [])
+        self.assertEqual(mr._jd_hits("the node.js runtime", {"js"}), [])
+        self.assertEqual(mr._jd_hits("built with Playwright.js", {"playwright"}),
+                         [])
+
 
 class JdCapitalizedTests(unittest.TestCase):
     """Bullet-only terms must be named as proper nouns in the JD."""
@@ -1955,6 +1972,72 @@ class JdMissingTermsTests(unittest.TestCase):
             "Excellent communication, stakeholder management, and "
             "technical leadership skills")
         self.assertEqual(terms, set())
+
+
+class KeepTrimCandidatesTests(unittest.TestCase):
+    """Word-level trim candidates: kept bullets that still carry non-JD
+    content. Compression was bullet-granular — a kept bullet dragged its
+    non-JD tools and dead sentences to the deliverable untouched. The
+    section names them deterministically: non-JD tech nouns (strip from
+    the clause) and sentences with no JD evidence (cut whole)."""
+
+    def _body_with_bullet(self, bullet_text):
+        return _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " \u2013 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para(bullet_text, numId=2),
+            _para("Tools & Technologies: Selenium, Java, TestNG, "
+                  "Playwright, Kafka"),
+        ])
+
+    def test_flags_nonjd_tool_and_dead_sentence(self):
+        # The JD asks Selenium/Java only: TestNG/Playwright ride along in
+        # the kept bullet and the second sentence carries no JD evidence.
+        jd = "Required Qualifications:\nExperience with Selenium and Java\n"
+        body = self._body_with_bullet(
+            "Built Selenium suites with Java, TestNG and Playwright. "
+            "Ran weekly standups and sprint retrospectives.")
+        section = mr._keep_trim_section(mr._roles(body),
+                                        mr._jd_terms(jd, body), body)
+        self.assertIn("WORD-LEVEL TRIM CANDIDATES", section)
+        self.assertIn("JD does not name: playwright, testng", section)
+        self.assertIn("sentence with no JD evidence", section)
+        self.assertIn("Ran weekly standups", section)
+        self.assertIn("find_p(ps, ", section)
+
+    def test_spares_concept_sentence_tokens_and_dead_flag(self):
+        # A sentence carrying a JD practice phrase is skipped entirely —
+        # its tokens may be the concept's only host (Kafka hosting
+        # "root-cause" analysis tooling), so neither the token nor the
+        # sentence flags while a sibling dead sentence still does.
+        jd = "Required Qualifications:\nExperience with Selenium\n"
+        body = self._body_with_bullet(
+            "Built Selenium suites for regression coverage. "
+            "Ran root-cause triage on flaky builds with Kafka. "
+            "Attended optional office socials.")
+        section = mr._keep_trim_section(mr._roles(body),
+                                        mr._jd_terms(jd, body), body)
+        self.assertNotIn("kafka", section)
+        self.assertNotIn("sentence with no JD evidence: \"Ran root-cause",
+                         section)
+        self.assertIn("Attended optional office socials", section)
+
+    def test_offjd_bullet_not_a_trim_candidate(self):
+        # OFF-JD/weak bullets are whole-cut candidates (JD-FIT AUDIT) —
+        # trimming them word-by-word would be the wrong granularity. A
+        # bullet with zero JD evidence never enters the trim scan.
+        jd = "Required Qualifications:\nExperience with Selenium\n"
+        body = self._body_with_bullet(
+            "Organized team meetings and maintained status trackers.")
+        section = mr._keep_trim_section(mr._roles(body),
+                                        mr._jd_terms(jd, body), body)
+        self.assertNotIn("Organized team meetings", section or "")
+
+    def test_silent_without_jd(self):
+        body = self._body_with_bullet("Built Selenium suites with Java.")
+        self.assertIsNone(
+            mr._keep_trim_section(mr._roles(body), set(), body))
 
 
 class JdRequirementCoverageTests(unittest.TestCase):

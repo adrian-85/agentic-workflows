@@ -17,8 +17,9 @@ import sys
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
-from measure_resume_jd_terms import (_concept_hits, _is_protected,  # noqa: E402
-    _jd_hits_classified, _jd_kept, _weakness_key)
+from measure_resume_jd_terms import (CORE_TECH_NOUNS, JD_STOP,  # noqa: E402
+    _concept_hits, _is_protected, _jd_capitalized, _jd_hits,
+    _jd_hits_classified, _jd_kept, _vocab_terms, _weakness_key)
 from measure_resume_format import (_norm, _page_fill, _page_lines,  # noqa: E402
     _preceding_role_key, _role_header_flat)
 
@@ -279,6 +280,114 @@ def _role_jd_evidence_lines(roles, header_text, jd_terms):
     for b in kept:
         lines.append(f"    - {b[:90]}")
     return lines
+
+
+def _sentence_clauses(text):
+    """Sentences of a bullet (split after . / ! / ? boundaries)."""
+    return [p for p in re.split(r"(?<=[.!?])\s+", text.strip()) if p]
+
+
+def _nonjd_terms_in(sentence, vocab, jd_terms):
+    """Non-JD tech terms the sentence hosts, deterministically.
+
+    A vocab term (proficiencies/Tools/job-title claimed tech) counts when
+    the sentence hosts it (whole-word, plural-tolerant via _jd_hits), the
+    JD does not name it, and it reads as a TECH NOUN: a core tech noun,
+    a #/+ token (c#, c++), or a mid-sentence Capitalized token (tool
+    names are proper nouns — the same heuristic _jd_capitalized applies
+    to JD text). Generic lowercase prose (services, testing, automation)
+    never flags, so the section stays signal, not noise.
+    """
+    low = sentence.lower()
+    out = []
+    for t in sorted(vocab - jd_terms):
+        if len(t) < 2 or t in JD_STOP:
+            continue
+        if " " in t:
+            hosted = t in low
+        else:
+            hosted = bool(_jd_hits(sentence, {t}))
+        if not hosted:
+            continue
+        if (t in CORE_TECH_NOUNS or re.search(r"[#+]", t)
+                or _jd_capitalized(sentence, t)):
+            out.append(t)
+    return out
+
+
+def _keep_trim_candidates(role, jd_terms, vocab):
+    """[(bullet, nonjd_terms, dead_sentences)] for one role.
+
+    Only KEPT bullets (strong JD term or practice-phrase evidence) are
+    scanned — OFF-JD/weak bullets are whole-cut candidates (JD-FIT AUDIT),
+    not trim candidates. Within a kept bullet, sentences carrying a JD
+    practice phrase are skipped entirely: their tokens may be the concept's
+    only host (Kafka hosting "event-driven"), so they are never trim
+    candidates.
+    """
+    bullets = role.get("bullet_texts") or []
+    out = []
+    for b in bullets:
+        strong, _ = _jd_hits_classified(b, jd_terms, bullets)
+        if not strong and not _concept_hits(b):
+            continue
+        nonjd, dead = [], []
+        for s in _sentence_clauses(b):
+            if _concept_hits(s):
+                continue
+            nonjd.extend(_nonjd_terms_in(s, vocab, jd_terms))
+            if not _jd_hits(s, jd_terms):
+                dead.append(s)
+        if nonjd or dead:
+            out.append((b, sorted(set(nonjd)), dead))
+    return out
+
+
+def _keep_trim_section(roles, jd_terms, body, protect=()):
+    """WORD-LEVEL TRIM CANDIDATES — word-level pruning, deterministic.
+
+    Compression was bullet-granular: a kept bullet carried its non-JD
+    tools and dead sentences to the deliverable untouched (the user's
+    TestNG/Playwright examples). This section names them per kept bullet:
+    the non-JD tech the JD never asks for (strip from its clause) and the
+    sentences with no JD evidence at all (cut whole). Copy-pasteable
+    ``find_p`` anchors match the DROP PLAN's form. Skipped entirely:
+    protected bullets (--protect) and sentences carrying a JD practice
+    phrase (their tokens may host the concept).
+    """
+    if not jd_terms:
+        return None
+    vocab = _vocab_terms(body)
+    all_texts = [de.text_of(p) for p in de.paras(body)]
+    lines = []
+    for role in roles:
+        cand = []
+        for b, nonjd, dead in _keep_trim_candidates(role, jd_terms, vocab):
+            if _is_protected(b, protect):
+                continue
+            try:
+                idx = all_texts.index(b)
+                prefix = de.shortest_unique_prefix(all_texts, idx, min_len=6)
+            except ValueError:
+                prefix = None
+            cand.append(f'    find_p(ps, "{prefix}")  # {b[:80]}'
+                        if prefix else f"    - {b[:80]}")
+            if nonjd:
+                cand.append(f"      - JD does not name: "
+                            f"{', '.join(nonjd)}")
+            for s in dead:
+                cand.append(f'      - sentence with no JD evidence: '
+                            f'"{s[:80]}"')
+        if cand:
+            lines.append(f"  {role['key']}:")
+            lines.extend(cand)
+    if not lines:
+        return None
+    return ("WORD-LEVEL TRIM CANDIDATES (kept bullets still carrying "
+            "non-JD content — prune to the word: cut the flagged "
+            "sentence, strip the flagged tool from its clause; never "
+            "strip a term the JD names or one that hosts a [weak]/"
+            "covered ask; SKILL Step 8):\n" + "\n".join(lines))
 
 
 def _jd_fit_audit(roles, jd_terms, protect=()):

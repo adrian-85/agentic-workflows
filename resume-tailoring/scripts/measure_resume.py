@@ -171,6 +171,7 @@ from measure_resume_drops import (
     _iter_plan_roles,
     _jd_fit_audit,
     _jd_listing_lines,
+    _keep_trim_section,
     _layout_hints,
     _measured_lines_per_bullet,
     _protected_count,
@@ -625,13 +626,17 @@ def _print_jd_audit(ctx):
     if not ctx.jd_terms:
         return
     audit = _jd_fit_audit(ctx.roles, ctx.jd_terms, protect=ctx.protect)
-    if not audit:
-        return
-    print("JD-FIT AUDIT (every role — cut every OFF-JD/weak bullet "
-          "listed here in the FIRST pass, no page-math condition; "
-          "the DROP PLAN above is only the page-budget subset):")
-    for section in audit:
-        print(section)
+    if audit:
+        print("JD-FIT AUDIT (every role — cut every OFF-JD/weak bullet "
+              "listed here in the FIRST pass, no page-math condition; "
+              "the DROP PLAN above is only the page-budget subset):")
+        for section in audit:
+            print(section)
+            print()
+    trim = _keep_trim_section(ctx.roles, ctx.jd_terms, ctx.body,
+                              protect=ctx.protect)
+    if trim:
+        print(trim)
         print()
 
 

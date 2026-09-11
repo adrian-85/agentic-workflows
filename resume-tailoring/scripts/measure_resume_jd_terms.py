@@ -269,6 +269,14 @@ def _jd_hits(text, jd_terms):
     resume line: "REST APIs"). Keeps genuinely-technical lines (an API
     proficiencies line vs the JD's "APIs") from being misread as off-JD
     cut candidates.
+
+    A sentence-final period is a boundary, not a token char: ``.`` sits in
+    the token class for versioned forms (``node.js``), which made
+    "...built with Playwright." — the term at sentence END — unmatchable,
+    and the bullet read as off-JD (a real matcher bug found 2026-09-11).
+    The lookahead now rejects only a token char or a dot FOLLOWED by a
+    token char (``node.js`` stays one token); a sentence-final period
+    passes.
     """
     low = text.lower()
     out = []
@@ -284,7 +292,8 @@ def _jd_hits(text, jd_terms):
             cands.add(t + "s")
         for c in cands:
             if re.search(
-                    r"(?<![a-z0-9#.+-])" + re.escape(c) + r"(?![a-z0-9#.+-])",
+                    r"(?<![a-z0-9#.+-])" + re.escape(c)
+                    + r"(?![a-z0-9#+-]|\.[a-z0-9#+-])",
                     low):
                 out.append(t)
                 break

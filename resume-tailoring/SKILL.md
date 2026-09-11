@@ -584,9 +584,18 @@ paste its `find_p` lines into the script's first pass and take the NOTE
 back to the user (whole-role drops / JD-matched tradeoffs). Kept
 bullets' text is final FOR PAGE MATH: hand-shortening a kept bullet from
 two rendered lines to one is not a cut and never closes a measured gap.
-Shortening IS a legitimate JD-fit edit — trimming a kept bullet's
-irrelevant clauses (40 words is a ceiling, never a target; less is always
-fine) — it just never substitutes for a measured removal.
+
+**Prune kept bullets to the word, not just the bullet.** Bullet-granular
+cutting leaves a kept bullet carrying everything the master said — tools
+the JD never names (TestNG when the JD is silent on it) and sentences
+with no JD evidence riding along. measure's **WORD-LEVEL TRIM
+CANDIDATES** section (`--jd`, authoring time) lists both deterministically
+per kept bullet, with copy-pasteable `find_p` anchors: strip the flagged
+non-JD tool from its clause, cut the flagged sentence whole. Never strip
+a term the JD names, one that hosts a `[weak]`/covered ask, or a
+sentence carrying a practice-phrase concept (measure already spares
+those). Word-level trims are JD-alignment edits — they never substitute
+for a measured removal.
 
 **Measure before cutting.** After the content edits (steps 4–7), run
 `measure_resume.py` with the agreed Step-3 target — it renders once and
