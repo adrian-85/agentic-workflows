@@ -13,7 +13,7 @@ Run from the scripts directory (so `docx_edit`/`measure_resume` import):
     python3 -m unittest test_measure_resume
 """
 
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,wrong-import-position
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name
 # wrong-import-position: sibling imports follow the sys.path bootstrap
 #   (flat namespace; spec 2026-09-07-pylint-clean-refactor).
 # unittest/pytest method names are self-documenting (no docstrings needed).

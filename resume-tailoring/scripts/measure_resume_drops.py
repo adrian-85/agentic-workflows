@@ -1,5 +1,4 @@
 """measure_resume drop planning / fit audit / reclaim batching. Split from measure_resume.py; imported one-way by the measure_resume shim."""  # pylint: disable=line-too-long
-# pylint: disable=wrong-import-position,import-outside-toplevel
 # flat-namespace sibling imports require the sys.path bootstrap; the
 # sibling import must precede use, which pylint flags as wrong position.
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see

@@ -14,7 +14,7 @@ spanning occurrences left in place), set_text, set_labeled, find_p, remove,
 remove_empty, clone_after.
 """
 
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,wrong-import-position
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.

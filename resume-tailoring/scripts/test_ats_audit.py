@@ -5,7 +5,7 @@ Run from the scripts directory:
     cd ~/.pi/agent/skills/resume-tailoring/scripts && python3 -m unittest test_ats_audit
 """
 
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name,wrong-import-position
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name
 # wrong-import-position: sibling imports follow the sys.path bootstrap
 #   (flat namespace; spec 2026-09-07-pylint-clean-refactor).
 # unittest/pytest method names are self-documenting (no docstrings needed).
