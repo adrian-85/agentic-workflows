@@ -36,6 +36,7 @@ sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 import test_helpers
 import measure_resume as mr  # noqa: E402
+import measure_resume_jd  # noqa: E402
 import measure_resume_format as mrf  # noqa: E402  (constants live here post-split)
 
 # Format-assumption constants are READ through the owning module's globals
@@ -2378,6 +2379,28 @@ class WordBudgetTests(unittest.TestCase):
         with contextlib.redirect_stdout(buf):
             mr._print_word_budget(body)
         self.assertIn("Wordiest bullets", buf.getvalue())
+
+
+
+    def test_jd_requirement_lines_conversational_headings(self):
+        """'Who you are' / 'What you'll do' headings are qual sections."""
+        jd = (
+            "Software Test Architect\n\n"
+            "What you'll do:\n\n"
+            "Define test automation architecture across products.\n"
+            "Lead proofs of concept for UI and API testing.\n\n"
+            "Who you are:\n\n"
+            "5+ years of experience in test automation engineering.\n"
+            "Proficiency in TypeScript, C#, Java, or Python.\n\n"
+            "Benefits:\n\n"
+            "Great pay and a 401k.\n"
+        )
+        lines = measure_resume_jd._jd_requirement_lines(jd)
+        self.assertEqual(len(lines), 4)
+        self.assertIn("5+ years", lines[2])
+        # benefits prose stays excluded
+        self.assertFalse(any("401k" in ln for ln in lines))
+
 
 
 if __name__ == "__main__":

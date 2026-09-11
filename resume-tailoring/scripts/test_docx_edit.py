@@ -1369,6 +1369,30 @@ class LintScriptTests(unittest.TestCase):
             os.unlink(docx)
             os.unlink(script)
 
+    def test_nth_disambiguated_duplicate_passes(self):
+        # A headline and a role title can share one prefix; nth=1 selects
+        # the first match. The lint must honor a literal nth= keyword —
+        # a real session's legit disambiguated target read as an
+        # ambiguity MISS because the lint resolved the prefix bare.
+        docx = self._docx_with("Jane Doe", "Software Engineer",
+                               "Software Engineer – Platform Team")
+        script = self._script(
+            'from docx_edit import find_p\n',
+            'ps = None\n',
+            'find_p(ps, "Software Engineer", nth=1)\n',
+        )
+        try:
+            err = io.StringIO()
+            out = io.StringIO()
+            with contextlib.redirect_stderr(err), \
+                    contextlib.redirect_stdout(out):
+                rc = dcli.lint_script(docx, script)
+            self.assertEqual(rc, 0)
+            self.assertIn("all 1", err.getvalue() + out.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
     def test_dynamic_target_reported_for_manual_review(self):
         docx = self._docx_with("Ref paragraph")
         # A non-literal search string cannot be linted statically — it is

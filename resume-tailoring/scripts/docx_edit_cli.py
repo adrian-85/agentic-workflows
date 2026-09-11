@@ -126,11 +126,16 @@ def _script_find_p_prefixes(script_path):
             isinstance(func, ast.Name) and func.id == "find_p")
         if not is_find_p:
             continue
+        nth = None
+        for kw in node.keywords:
+            if kw.arg == "nth" and isinstance(kw.value, ast.Constant) \
+                    and isinstance(kw.value.value, int):
+                nth = kw.value.value
         if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant) \
                 and isinstance(node.args[1].value, str):
-            out.append((node.args[1].value, node.lineno))
+            out.append((node.args[1].value, node.lineno, nth))
         else:
-            out.append((None, node.lineno))
+            out.append((None, node.lineno, None))
     return out
 
 
@@ -168,13 +173,17 @@ def lint_script(docx_path, script_path):
     ps = paras(body)
     bad = []
     with contextlib.redirect_stderr(io.StringIO()) as err_io:
-        for prefix, lineno in targets:
+        for prefix, lineno, nth in targets:
             if prefix is None:
                 bad.append((lineno, "<dynamic>",
                             "search string is not a literal — verify by "
                             "hand"))
                 continue
-            if find_p(ps, prefix) is None:
+            if nth is not None:
+                resolved = find_p(ps, prefix, nth=nth)
+            else:
+                resolved = find_p(ps, prefix)
+            if resolved is None:
                 warning = err_io.getvalue().strip().splitlines()
                 reason = warning[-1] if warning else "not found"
                 bad.append((lineno, prefix, reason))
