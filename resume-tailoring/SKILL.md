@@ -268,13 +268,17 @@ kept bullets carry that action evidence; one user confirmation ("my
 communication was excellent at every position") covers every role at once —
 do not re-ask per company.
 
-**Soft skills are safe to infer — host the literal phrase by DEFAULT.**
+**Soft skills are safe to infer — host the literal phrase by DEFAULT, in
+the authoring pass.**
 Unlike hard skills (never-fabricate), a soft-skill ask is almost always a
 re-wording of experience the kept bullets already demonstrate. When the
 action-verb evidence exists, host the JD's literal phrase ("Excellent
 written communication", "willingness to learn") in the bullet or Summary
-where that evidence lives — without waiting for the external scan to
-flag the absence or for the user to ask. External ATS tools score the
+where that evidence lives — during the SAME authoring pass that prunes
+and rewrites (Step 8), not later: measure's REQUIREMENTS SUMMARY now
+carries a directive naming the `[by hand]` soft-skill line(s) for exactly
+this reason. Do not wait for the external scan to flag the absence or
+for the user to ask. External ATS tools score the
 literal phrase, not the concept: a real session left "excellent written
 communication", "willingness to learn", and "reliability" unhosted as
 "advisory" no-hosts, the scan scored the absences, and hosting them

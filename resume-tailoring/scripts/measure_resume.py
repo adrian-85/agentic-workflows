@@ -617,6 +617,15 @@ def _print_jd_coverage(ctx):
     if hard_uncovered:
         summary += (f" ({hard_uncovered} unconfirmed hard skill(s) — "
                     "present three-state checklist to user, SKILL Step 2)")
+    if by_hand:
+        # Soft-skill asks extract no terms ([by hand]) — without a
+        # directive they sat unhosted until the Step-11 scan flagged the
+        # absence and the score paid for it. Host them in the authoring
+        # pass, where the action-verb evidence and the literal-phrase
+        # bullet are both in hand (SKILL Step 2's default-inference rule).
+        summary += (f" ({by_hand} soft-skill line(s) [by hand] — host the "
+                    "literal phrases in THIS pass; soft skills are safe to "
+                    "infer from action-verb evidence, SKILL Step 2)")
     print(summary)
     print()
 

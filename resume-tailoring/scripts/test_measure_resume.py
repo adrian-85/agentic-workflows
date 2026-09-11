@@ -2547,3 +2547,28 @@ class RequirementsSummaryTests(unittest.TestCase):
         self.assertIn("REQUIREMENTS SUMMARY", buf)
         self.assertNotIn("unconfirmed hard skill", buf)
         self.assertIn("1/1 quals covered", buf)
+
+    def test_by_hand_soft_lines_get_hosting_directive(self):
+        # A soft-skill qual line extracts no terms ([by hand]). Without a
+        # directive the summary counted it and moved on — hosting waited
+        # for the Step-11 scan to flag the absence. The directive names
+        # THIS pass (authoring time), not the scan (2026-09-11).
+        jd = ("Required Qualifications:\n"
+              "Selenium and Java experience\n"
+              "Excellent communication, stakeholder management, and "
+              "technical leadership skills\n")
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " \u2013 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Built test suites with Selenium WebDriver and Java.",
+                  numId=2),
+        ])
+        ctx = self._ctx_with(jd, body)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            mr._print_jd_coverage(ctx)
+        buf = out.getvalue()
+        self.assertIn("1 soft-skill line(s) [by hand]", buf)
+        self.assertIn("host the literal phrases in THIS pass", buf)
+        self.assertIn("safe to infer", buf)
