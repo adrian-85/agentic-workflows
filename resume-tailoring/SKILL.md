@@ -268,23 +268,20 @@ kept bullets carry that action evidence; one user confirmation ("my
 communication was excellent at every position") covers every role at once —
 do not re-ask per company.
 
-**Soft skills are safe to infer — host the literal phrase by DEFAULT, in
-the authoring pass.**
-Unlike hard skills (never-fabricate), a soft-skill ask is almost always a
-re-wording of experience the kept bullets already demonstrate. When the
-action-verb evidence exists, host the JD's literal phrase ("Excellent
-written communication", "willingness to learn") in the bullet or Summary
-where that evidence lives — during the SAME authoring pass that prunes
-and rewrites (Step 8), not later: measure's REQUIREMENTS SUMMARY now
-carries a directive naming the `[by hand]` soft-skill line(s) for exactly
-this reason. Do not wait for the external scan to flag the absence or
-for the user to ask. External ATS tools score the
-literal phrase, not the concept: a real session left "excellent written
-communication", "willingness to learn", and "reliability" unhosted as
-"advisory" no-hosts, the scan scored the absences, and hosting them
-moved the live match rate 59 → 86. The literal adjective is the user's
-word to stand behind, and the action-verb evidence IS the user's record
-of it. The never-fabricate rule is for tools and employers (Appium,
+**Always infer soft skills — host the literal phrase by DEFAULT,
+in the authoring pass.** Unlike hard skills (never-fabricate), a
+soft-skill ask is almost always a re-wording of experience the kept
+bullets already demonstrate. When the action-verb evidence exists,
+host the JD's literal phrase ("Excellent written communication",
+"willingness to learn") in the bullet or Summary where that evidence
+lives — during the SAME authoring pass that prunes and rewrites
+(Step 8), not later: measure's REQUIREMENTS SUMMARY now carries a
+directive naming the `[by hand]` soft-skill line(s) for exactly this
+reason. Do not wait for the external scan to flag the absence or
+for the user to ask. External ATS tools score the literal phrase,
+not the concept. The literal adjective is the user's word to stand
+behind, and the action-verb evidence IS the user's record of it.
+The never-fabricate rule is for tools and employers (Appium,
 LoadRunner) — not for soft skills backed by the candidate's own
 demonstrated history.
 
@@ -301,7 +298,7 @@ demonstrated history.
   guidance, never a hard gate**: fewer pages aid readability, but never
   at the expense of showing how the applicant meets the JD — re-target
   one page lower only as a judgment call, when it costs no JD-matched
-  evidence, and never cut JD-matched bullets to fill or shrink a page.
+  evidence, and never cut JD-matched bullets to shrink a page.
 - **Present only a feasibility-measured target.** Before recommending a
   page count to the user, run the what-if (`measure --simulate` with the
   candidate whole-role drops at the candidate target) and check the
@@ -592,22 +589,14 @@ back to the user (whole-role drops / JD-matched tradeoffs). Kept
 bullets' text is final FOR PAGE MATH: hand-shortening a kept bullet from
 two rendered lines to one is not a cut and never closes a measured gap.
 
-**Prune kept content to the word, not just the bullet — proficiencies
-included.** Bullet-granular cutting leaves a kept bullet carrying
-everything the master said — tools
-the JD never names (TestNG when the JD is silent on it) and sentences
-with no JD evidence riding along — and leaves Technical Proficiencies /
-Tools lines carrying non-JD tools list entries. measure's **WORD-LEVEL
-TRIM CANDIDATES** section (`--jd`, authoring time) lists all of it
-deterministically, with copy-pasteable `find_p` anchors: strip the
-flagged non-JD tool from its clause, cut the flagged sentence whole,
-remove the flagged chunk from a list line (a list line with NO JD term
-is a whole-line cut — the TOP-BLOCK rule — not token trimming). Never
-strip
-a term the JD names, one that hosts a `[weak]`/covered ask, or a
-sentence/line carrying a practice-phrase concept (measure already spares
-those). Word-level trims are JD-alignment edits — they never substitute
-for a measured removal.
+**Prune kept content to the word, not just the bullet.** In the
+first pass, strip non-JD tools from kept bullets, cut sentences with
+no JD evidence, and remove non-JD chunks from list lines.
+`measure_resume.py --jd` emits **WORD-LEVEL TRIM CANDIDATES** with
+`find_p` anchors for each offender. A list line carrying no JD term at
+all is a whole-line TOP-BLOCK cut, not a token trim. See
+[docs/api.md](docs/api.md) for the output format, concept/protect
+guards, and the chunk-parsing rules.
 
 **Measure before cutting.** After the content edits (steps 4–7), run
 `measure_resume.py` with the agreed Step-3 target — it renders once and
@@ -785,16 +774,12 @@ reuses the company's prior-scan identification (Step 1's URL-optional
 rule) — never re-run a URL-less scan for a company whose ATS an earlier
 scan already identified without checking that reuse.
 
-**The match-rate target is 75 (≥75 = the hosting loop is DONE — a hard
-stop).** At or above it, the loop TERMINATES: stop weaving in hard/soft
-skills, stop keyword-driven rewording, and stop re-scanning for score —
-the residual no-host list at that point is genuine never-fabricate gaps
-and parser artifacts, and chasing it adds no score. Score-driven edits
-resume only when the user explicitly asks. Below 75, keep hosting literal
-phrases truthfully — hosting them is what moves the rate. `ats_audit.py`
-prints the target status when a report JSON is
-loaded (`--match-target` overrides; 0 disables), and `ats_check.py`
-prints the same verdict at scan time.
+**The match-rate target is 75.** `ats_audit.py` and `ats_check.py`
+enforce the stop: at or above it, the hosting loop closes and
+score-driven edits halt — the residual no-host list at that point is
+genuine never-fabricate gaps and parser artifacts. Below 75, keep
+hosting literal phrases truthfully. See
+[docs/api.md](docs/api.md) for `--match-target` overrides.
 
 **The honest ceiling — declared only WITH the user, never alone.** When
 the match rate stays below target and every remaining no-host is (per

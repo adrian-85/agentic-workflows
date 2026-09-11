@@ -306,6 +306,51 @@ to the residual gap) and, when even that cannot close it, a NOTE saying so —
 paste its `find_p` lines into the script's first pass and take the NOTE
 back to the user (whole-role drops / JD-matched tradeoffs).
 
+### WORD-LEVEL TRIM CANDIDATES
+
+`measure_resume.py --jd` emits this section after the JD-FIT AUDIT.
+It names non-JD content inside KEPT bullets (bullets carrying strong
+JD evidence) and list lines (Technical Proficiencies, role Tools
+lines) that survived bullet-granular cutting but still carry
+irrelevant tool mentions or dead sentences.
+
+**Bullet-level output:**
+```
+WORD-LEVEL TRIM CANDIDATES (kept bullets and list lines still
+carrying non-JD content — prune to the word: cut the flagged
+sentence, strip the flagged tool from its clause, remove the
+flagged chunk from the list; never strip a term the JD names or
+one that hosts a [weak]/covered ask; SKILL Step 8):
+  Acme, City:
+    find_p(ps, "Built ")  # Built Selenium suites with Java, TestNG.
+      - JD does not name: testng
+      - sentence with no JD evidence: "Mentored interns on agile rituals"
+```
+
+**List-line output:**
+```
+  list lines (Technical Proficiencies / Tools & Technologies):
+    find_p(ps, "Tools ")  # Tools & Technologies: Selenium, Java, TestNG
+      - JD does not name: testng
+```
+
+A list line with NO JD term at all prints a whole-line cut note
+(`no JD term on this line — whole-line cut (TOP-BLOCK rule), not
+token trimming`) — the line is a TOP-BLOCK RECLAIM CANDIDATE, not a
+token-trim candidate.
+
+**Guards (deterministic):**
+- **Protected bullets** (`--protect`) are never flagged.
+- **Concept sentences** — sentences carrying a JD practice phrase
+  (`_concept_hits`) are skipped entirely; their tokens may host the
+  concept (Kafka hosting `root-cause` analysis).
+- **Concept list lines** — a list line whose label matches a practice
+  phrase is skipped entirely.
+- **Tech-noun gate** — a vocab token is only flagged when it reads as
+  a tech noun: in CORE_TECH_NOUNS, contains `#+`, or appears
+  capitalized mid-sentence (`_jd_capitalized`). Generic lowercase prose
+  (services, testing, automation) never flags.
+
 ### JD REQUIREMENT COVERAGE
 
 The coverage map matches the JD's extracted terms as **literal phrases**:
@@ -513,8 +558,13 @@ literal check is the fallback. Report soft-skill no-hosts warn as
 ACTIONABLE (SKILL Steps 2/11: soft skills are safe to infer — host each
 literal phrase where the action-verb evidence lives). With `--report-json`,
 also prints the **match-rate target** (default 75, `--match-target N` to
-change, `0` disables): score ≥ target ⇒ literal hosting is DONE — stop
-adding hard/soft skills; below ⇒ keep hosting (SKILL Step 11).
+change, `0` disables). The target is a **hard stop** (2026-09-11):
+score ≥ target ⇒ the hosting loop closes: stop hosting, stop keyword-
+driven rewording, and stop re-scanning for score. Below target ⇒ keep
+hosting literal phrases truthfully — hosting them is what moves the rate.
+The verdict message (`hosting loop CLOSED: stop score-driven edits now`)
+is the enforcement signal; further score-driven edits resume only when
+the user explicitly asks.
 
 **Match-rate state and the ceiling signal.** Each run persists the match
 rate in a sidecar, `<resume>.ceiling.json` (written best-effort, never
