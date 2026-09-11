@@ -286,24 +286,24 @@ def _sentence_clauses(text):
     return [p for p in re.split(r"(?<=[.!?])\s+", text.strip()) if p]
 
 
-def _nonjd_terms_in(sentence, vocab, jd_terms):
+def _nonjd_terms_in(sentence, nonjd_pool):
     """Non-JD tech terms the sentence hosts, deterministically.
 
-    A vocab term (proficiencies/Tools/job-title claimed tech) counts when
-    the sentence hosts it (whole-word, plural-tolerant via _jd_hits), the
-    JD does not name it, and it reads as a TECH NOUN: a core tech noun,
-    a #/+ token (c#, c++), or a mid-sentence Capitalized token (tool
-    names are proper nouns — the same heuristic _jd_capitalized applies
-    to JD text). Generic lowercase prose (services, testing, automation)
-    never flags, so the section stays signal, not noise.
+    ``nonjd_pool`` is the pre-computed ``sorted(vocab - jd_terms)`` from
+    the caller — avoids recomputing the set difference on every sentence.
+    A vocab term counts when the sentence hosts it (whole-word,
+    plural-tolerant via _jd_hits), and it reads as a TECH NOUN: a core
+    tech noun, a #/+ token (c#, c++), or a mid-sentence Capitalized token
+    (tool names are proper nouns — the same heuristic _jd_capitalized
+    applies to JD text). Generic lowercase prose (services, testing,
+    automation) never flags, so the section stays signal, not noise.
     """
-    low = sentence.lower()
     out = []
-    for t in sorted(vocab - jd_terms):
+    for t in nonjd_pool:
         if len(t) < 2 or t in JD_STOP:
             continue
         if " " in t:
-            hosted = t in low
+            hosted = t in sentence.lower()
         else:
             hosted = bool(_jd_hits(sentence, {t}))
         if not hosted:
@@ -325,6 +325,7 @@ def _keep_trim_candidates(role, jd_terms, vocab):
     candidates.
     """
     bullets = role.get("bullet_texts") or []
+    nonjd_pool = sorted(vocab - jd_terms)
     out = []
     for b in bullets:
         strong, _ = _jd_hits_classified(b, jd_terms, bullets)
@@ -334,7 +335,7 @@ def _keep_trim_candidates(role, jd_terms, vocab):
         for s in _sentence_clauses(b):
             if _concept_hits(s):
                 continue
-            nonjd.extend(_nonjd_terms_in(s, vocab, jd_terms))
+            nonjd.extend(_nonjd_terms_in(s, nonjd_pool))
             if not _jd_hits(s, jd_terms):
                 dead.append(s)
         if nonjd or dead:

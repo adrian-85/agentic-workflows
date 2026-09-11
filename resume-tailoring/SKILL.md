@@ -593,8 +593,8 @@ bullets' text is final FOR PAGE MATH: hand-shortening a kept bullet from
 two rendered lines to one is not a cut and never closes a measured gap.
 
 **Prune kept content to the word, not just the bullet — proficiencies
-included.** Bullet-granular
-cutting leaves a kept bullet carrying everything the master said — tools
+included.** Bullet-granular cutting leaves a kept bullet carrying
+everything the master said — tools
 the JD never names (TestNG when the JD is silent on it) and sentences
 with no JD evidence riding along — and leaves Technical Proficiencies /
 Tools lines carrying non-JD tools list entries. measure's **WORD-LEVEL
