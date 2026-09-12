@@ -110,9 +110,9 @@ manual habits are:
    script's `drop()`/`set_text` edits. This is the ONLY sanctioned measure run on the
    master: it emits the relevance assessment alone (JD-FIT AUDIT with anchors, WORD-LEVEL
    TRIM CANDIDATES, TOP-BLOCK PRUNE CANDIDATES) plus the PRUNE DISPOSITION CHECKLIST —
-   no page targets, role drops, or word counts,
-   because those decisions belong AFTER pruning, on the pruned copy (Step 4), and the
-   tool refuses full-master measurement outright. **The prune plan's WHICH is final;
+   no page targets, role drops, or word counts, because those decisions belong AFTER
+   pruning, on the pruned copy (Step 4), and the tool refuses full-master measurement
+   outright. **The prune plan's WHICH is final;
    nothing about HOW MANY exists yet** — how much survives is discovered by measuring
    the tailored copy after pruning. Fill every checklist line (CUT/TRIM/KEEP + reason)
    into the one-message plan and mirror every row in the script; `run_tailor.sh` refuses
@@ -134,10 +134,10 @@ manual habits are:
 6. **Syntax-check and lint a tailor script the moment it is written.** Run
    `scripts/run_tailor.sh "<master>.docx" scripts/tailor_<target>.py` — it
    ast.parses the script, verifies EVERY `find_p` target resolves against
-   the master (`--lint-script`), verifies EVERY
-   prune-plan candidate is addressed by an edit or a recorded `# kept:`
-   reason (`--lint-prune` — output format, sidecar, and exit codes:
-   [docs/api.md](docs/api.md)), then executes it under `DOCX_EDIT_STRICT=1` in one command
+   the master (`--lint-script`), verifies EVERY prune-plan candidate is
+   addressed by an edit or a recorded `# kept:` reason (`--lint-prune` —
+   output format, sidecar, and exit codes: [docs/api.md](docs/api.md)),
+   then executes it under `DOCX_EDIT_STRICT=1` in one command
    (`RESUME_VALIDATE_ARGS` passes through). Syntax-check alone (without
    the lints) is the fallback:
    `python3 -c "import ast; ast.parse(open('scripts/tailor_<target>.py').read())"`.
@@ -301,9 +301,9 @@ demonstrated history.
 It has no page math, no word counts, no squeeze, no reclaim plan — those
 are Step 4+ decisions, meaningless over content that is about to be cut
 (and every word/sentence/list trim this step prescribes is implemented
-HERE, in the authoring pass — never deferred). Every word in the master was written for
-SOME audience; almost none of it
-was written for THIS JD. Relevance is assessed against the JD before any
+HERE, in the authoring pass — never deferred). Every word in the master
+was written for SOME audience; almost none of it was written for THIS JD.
+Relevance is assessed against the JD before any
 measurement: **the full master is never page/word-measured** —
 `measure_resume.py` refuses it (exit 2 without `--jd`) and with `--jd` emits
 the PRUNE PLAN only:
@@ -328,17 +328,19 @@ inference rule for soft skills; never fabricate hard skills).
 **Every candidate gets a disposition in the plan; the checklist IS the
 plan.** The --jd run ends with the PRUNE DISPOSITION CHECKLIST — one fill-in
 line per candidate, each with its `find_p` anchor (output format and the
-machine-readable sidecar the coverage gate reads: [docs/api.md](docs/api.md)).
-Fill every line — `CUT` (drop whole), `TRIM`
+plan.** The --jd run ends with the PRUNE DISPOSITION CHECKLIST — one
+fill-in line per candidate, each with its `find_p` anchor (output format
+and the machine-readable sidecar the coverage gate reads:
+[docs/api.md](docs/api.md)). Fill every line — `CUT` (drop whole), `TRIM`
 (word-level: exactly the flagged sentence/clause/chunk), or `KEEP` + JD
 reason — and copy the filled table into the ONE-message plan. 'Prune plan
-highlights' are not a plan. The default
-disposition for a WORD-LEVEL candidate is the trim itself; escalating to a
-whole-bullet drop is allowed only when the bullet's remaining content
-carries no JD host — record why in the drop-list comment. Over-cutting a
-trim candidate into a bullet drop is cheap to restore (re-add the text in
-a later edit); skipping the trim silently is not — `run_tailor.sh` refuses
-to run the script while any candidate lacks an edit or a recorded keep.
+highlights' are not a plan. The default disposition for a WORD-LEVEL
+candidate is the trim itself; escalating to a whole-bullet drop is allowed
+only when the bullet's remaining content carries no JD host — record why
+in the drop-list comment. Over-cutting a trim candidate into a bullet drop
+is cheap to restore (re-add the text in a later edit); skipping the trim
+silently is not — `run_tailor.sh` refuses to run the script while any
+candidate lacks an edit or a recorded keep.
 
 **Every flag you override gets a recorded one-line JD reason — in the plan,
 next to the keep.** The matcher is heuristic. Write `# kept: <one-line JD reason>` 
@@ -550,8 +552,8 @@ they have, fold that content into the master first (real experience lives in
 the master, not per-target scripts).
 
 ### 8. Residual compression — size what survives to the budgets
-**Scope: length only.** This step only SIZES what survived: measure the TAILORED
-COPY (never the master — the tool refuses it): the page-fill table,
+**Scope: length only.** This step only SIZES what survived: measure the
+TAILORED COPY (never the master — the tool refuses it): the page-fill table,
 TIMELINE, and BATCH RECLAIM PLAN are all computed on content that already
 passed the JD filter. **Cuts can still come from
 ANY section, not just job bullets — and from ANY role, including the most
