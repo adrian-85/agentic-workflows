@@ -252,7 +252,7 @@ def _prune_covered(candidate, literals, keeps):
     return None
 
 
-def _prune_sidecar_candidates(docx_path, sidecar):
+def _prune_sidecar_candidates(sidecar):
     """(candidates, error) from the prune sidecar — a non-None error
     means exit 2 (sidecar missing)."""
     if not os.path.exists(sidecar):
@@ -334,14 +334,11 @@ def lint_prune_coverage(docx_path, script_path):
     """
     try:
         literals, keeps = _script_cover_strings(script_path)
-    except OSError:
-        print(f"error: script not found: {script_path}", file=sys.stderr)
+    except (OSError, SyntaxError) as e:
+        print(f"error: {script_path}: {e}", file=sys.stderr)
         return 2
-    except SyntaxError as e:
-        print(f"error: {script_path} does not parse: {e}", file=sys.stderr)
-        return 1
     sidecar = docx_path + PRUNE_SIDECAR_SUFFIX
-    candidates, err = _prune_sidecar_candidates(docx_path, sidecar)
+    candidates, err = _prune_sidecar_candidates(sidecar)
     if err:
         print(err, file=sys.stderr)
         return 2
@@ -555,17 +552,10 @@ def cli(argv):
           this docx BEFORE running the script (exit 1 on a miss) — the
           pre-run gate scripts/run_tailor.sh drives automatically.
     """
-    if len(argv) < 2 or argv[1] in ("--help", "-h"):
+    if _wants_usage(argv):
         return _cli_usage()
     path = argv[1]
     args = argv[2:]
-    # Every flag takes exactly one argument — reject a trailing flag
-    # before dispatching, so each mode handler can index its argument
-    # directly.
-    for flag in ("--append-after", "--set-text", "--lint-script",
-                 "--lint-prune"):
-        if flag in args and args.index(flag) + 1 >= len(args):
-            return _cli_usage()
     if "--append-after" in args:
         return _cli_append_after(path, args)
     if "--set-text" in args:
@@ -576,6 +566,17 @@ def cli(argv):
         return lint_prune_coverage(path,
                                    args[args.index("--lint-prune") + 1])
     return _cli_inspect(path, args)
+
+
+def _wants_usage(argv):
+    """Whether argv cannot dispatch: no path, a help flag, or a mode flag
+    missing its argument (every mode flag takes exactly one)."""
+    if len(argv) < 2 or argv[1] in ("--help", "-h"):
+        return True
+    args = argv[2:]
+    return any(flag in args and args.index(flag) + 1 >= len(args)
+               for flag in ("--append-after", "--set-text",
+                            "--lint-script", "--lint-prune"))
 
 
 if __name__ == "__main__":
