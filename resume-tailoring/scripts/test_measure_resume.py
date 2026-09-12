@@ -21,6 +21,7 @@ Run from the scripts directory (so `docx_edit`/`measure_resume` import):
 #
 import contextlib
 import io
+import json
 import os
 import re
 import sys
@@ -1357,6 +1358,32 @@ class PruneCandidatesTests(unittest.TestCase):
     def test_no_jd_terms_no_candidates(self):
         self.assertEqual(mrd.prune_candidates([], set(), self._cand_body()),
                          [])
+
+    def test_sidecar_written_next_to_master_and_round_trips(self):
+        cands = self._cands()
+        sidecar = mr._write_prune_sidecar("/tmp/x Master Resume.docx",
+                                          "jd_acme.txt", cands)
+        self.assertEqual(sidecar, "/tmp/x Master Resume.docx.prune.json")
+        try:
+            with open(sidecar, encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(data["jd"], "jd_acme.txt")
+            self.assertEqual(data["candidates"], cands)
+        finally:
+            os.unlink(sidecar)
+
+    def test_checklist_covers_every_candidate_with_disposition_rules(self):
+        cands = self._cands()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            mr._print_disposition_checklist("s.prune.json", cands)
+        text = out.getvalue()
+        self.assertIn("PRUNE DISPOSITION CHECKLIST", text)
+        self.assertIn("--lint-prune", text)
+        for i in range(1, len(cands) + 1):
+            self.assertIn(f"{i:2d}.", text)
+        self.assertEqual(text.count("bullet-cut"),
+                         sum(1 for c in cands if c["kind"] == "bullet-cut"))
 
 
 def _docx_with_roles():

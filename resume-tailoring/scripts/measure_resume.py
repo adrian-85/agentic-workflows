@@ -16,7 +16,11 @@ sanctioned measure run on the master::
 
 It prints ONLY the JD assessment — requirement coverage, the per-role
 JD-FIT AUDIT (with copy-pasteable ``find_p`` anchors), WORD-LEVEL TRIM
-CANDIDATES, and TOP-BLOCK PRUNE CANDIDATES — and suppresses every
+CANDIDATES, and TOP-BLOCK PRUNE CANDIDATES — plus the PRUNE DISPOSITION
+CHECKLIST (one fill-in CUT/TRIM/KEEP line per candidate, for the
+one-message plan) and writes the machine-readable twin to the
+``<master>.prune.json`` sidecar (enforced by ``docx_edit.py --lint-prune``
+at tailor-run time). It suppresses every
 page/word/role-drop metric. Relevance assessment and page math are
 different decisions: all the irrelevant content is cut FIRST (SKILL
 Step 3), before pages, seniority, or word counts are decided, and a
@@ -73,6 +77,7 @@ them. Re-run render_pdf.sh after cutting to verify.
 
 import contextlib
 import io
+import json
 import math
 from typing import NamedTuple
 import os
@@ -196,7 +201,8 @@ from measure_resume_drops import (
     _role_jd_evidence_lines,
     _sparse_last_page_note,
     _suggest_drops,
-    _top_role_batch)
+    _top_role_batch,
+    prune_candidates)
 
 def _is_master_input(docx):
     """True when <docx> is the master resume — the same convention
@@ -760,6 +766,50 @@ def _main_prune_plan(args):
     _print_jd_coverage(roles, body, args.jd_text, jd_terms)
     _print_jd_audit(roles, body, jd_terms, args.protect)
     _print_top_block_prune(body, jd_terms)
+    candidates = prune_candidates(roles, jd_terms, body, protect=args.protect)
+    sidecar = _write_prune_sidecar(args.docx, args.jd_file, candidates)
+    _print_disposition_checklist(sidecar, candidates)
+
+
+def _write_prune_sidecar(docx_path, jd_file, candidates):
+    """Write the machine-readable prune plan next to the master.
+
+    ``<master>.prune.json`` — the same sidecar pattern as the drift
+    file: docx_edit.py --lint-prune (run_tailor.sh) reads it and blocks
+    the tailor run while any candidate lacks an edit or a recorded
+    ``# kept:`` reason. Written fresh on EVERY --jd run, so re-running
+    the prune plan also refreshes it after a master fold or a user edit.
+    Returns the sidecar path.
+    """
+    path = docx_path + ".prune.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"jd": os.path.basename(jd_file) if jd_file else None,
+                   "candidates": candidates}, f, indent=1)
+    return path
+
+
+def _print_disposition_checklist(sidecar_path, candidates):
+    """The fill-in disposition table for the ONE-message plan (SKILL
+    Steps 2-4) — the fix for the motivating session's 'Prune plan
+    highlights' summary, which listed only the bullet cuts and left the
+    word/sentence-level trims out of the user's approval entirely."""
+    print()
+    print(f"PRUNE COVERAGE SIDECAR: {sidecar_path}")
+    print("PRUNE DISPOSITION CHECKLIST — EVERY candidate needs exactly one "
+          "disposition: CUT (drop whole), TRIM (word-level per the plan: "
+          "cut the flagged sentence, strip the flagged clause/chunk), or "
+          "KEEP (# kept: <one-line JD reason>). Copy this table into the "
+          "ONE-message plan filled in — 'highlights' are not a plan — and "
+          "mirror every row in the tailor script: run_tailor.sh exits 2 "
+          "while any line is uncovered (--lint-prune).")
+    for i, c in enumerate(candidates, 1):
+        anchor = (f'find_p(ps, "{c["prefix"]}")' if c["prefix"]
+                  else "(no unique prefix)")
+        print(f"  {i:2d}. {c['kind']:<10s} {anchor}")
+        print(f"      # {c['text'][:76]}")
+        if c["detail"]:
+            print(f"      ({c['detail'][:76]})")
+    print()
 
 
 def _print_layout_summary(ctx):
