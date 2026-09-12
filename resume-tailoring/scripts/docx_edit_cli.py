@@ -237,13 +237,13 @@ def _script_cover_strings(script_path):
 
 def _prune_covered(candidate, literals, keeps):
     """Whether one sidecar candidate is addressed by the script: an edit
-    anchor (any string literal that shares the candidate's anchor prefix
-    — the plan's prefix is the shortest unique one, the script may use a
-    longer prefix of the same paragraph), or a keep-reason comment
-    quoting it. Returns 'EDIT', 'KEEP', or None."""
+    anchor (a string literal that extends the candidate's anchor prefix —
+    the plan's prefix is the shortest unique one, and the only session
+    using this flow always pasted its extensions verbatim) or a
+    keep-reason comment quoting it. Returns 'EDIT', 'KEEP', or None."""
     head = _norm_prune(candidate["prefix"] or candidate["text"][:24])
     for lit in literals:
-        if len(lit) >= 6 and (lit.startswith(head) or head.startswith(lit)):
+        if len(lit) >= 6 and lit.startswith(head):
             return "EDIT"
     text_head = _norm_prune(candidate["text"][:24])
     for keep in keeps:
@@ -388,13 +388,10 @@ def _cli_usage():
           file=sys.stderr)
     print("              resolves against this docx BEFORE running it (exit 1 on miss)",
           file=sys.stderr)
-    print("  --lint-prune S:  verify the tailor script addresses every candidate of the",
+    print("  --lint-prune S:  every <docx>.prune.json candidate (emitted by the PRUNE",
           file=sys.stderr)
-    print("              <docx>.prune.json sidecar (measure_resume.py --jd emits it) —",
+    print("              PLAN) is addressed by S — an edit or a # kept: reason",
           file=sys.stderr)
-    print("              an edit per candidate or a # kept: reason; exit 1 on",
-          file=sys.stderr)
-    print("              uncovered", file=sys.stderr)
     return 2
 
 
@@ -569,14 +566,14 @@ def cli(argv):
 
 
 def _wants_usage(argv):
-    """Whether argv cannot dispatch: no path, a help flag, or a mode flag
-    missing its argument (every mode flag takes exactly one)."""
+    """Whether argv cannot dispatch: no path, a help flag, or a lint flag
+    missing its argument (these two index their argument directly; the
+    append/set-text modes report their own usage errors)."""
     if len(argv) < 2 or argv[1] in ("--help", "-h"):
         return True
     args = argv[2:]
     return any(flag in args and args.index(flag) + 1 >= len(args)
-               for flag in ("--append-after", "--set-text",
-                            "--lint-script", "--lint-prune"))
+               for flag in ("--lint-script", "--lint-prune"))
 
 
 if __name__ == "__main__":

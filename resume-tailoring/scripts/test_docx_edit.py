@@ -1114,22 +1114,7 @@ class AppendCLITests(unittest.TestCase):
     reference paragraph located by prefix, in place. A one-shot CLI call
     must not silently no-op: a missing/ambiguous ref exits 2."""
 
-    def _docx_with(self, *texts):
-        fd, path = tempfile.mkstemp(suffix=".docx")
-        os.close(fd)
-        doc = (
-            '<?xml version="1.0"?>'
-            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
-        )
-        for t in texts:
-            doc += (
-                f'<w:p><w:r><w:t xml:space="preserve">{t}</w:t></w:r></w:p>'
-            )
-        doc += '</w:body></w:document>'
-        with zipfile.ZipFile(path, "w") as z:
-            z.writestr("word/document.xml", doc)
-            z.writestr("[Content_Types].xml", "<Types/>")
-        return path
+    _docx_with = staticmethod(test_helpers._docx_with_texts)
 
     def _texts(self, path):
         _root, body, _names, _data, _ = de.load(path)
@@ -1299,25 +1284,7 @@ class PruneCoverageTests(unittest.TestCase):
     user prompts; this gate makes the coverage claim checked, not
     asserted."""
 
-    def _docx_with(self, *texts):
-        fd, path = tempfile.mkstemp(suffix=".docx")
-        os.close(fd)
-        doc = (
-            '<?xml version="1.0"?>'
-            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
-        )
-        for t in texts:
-            escaped = (t.replace("&", "&amp;").replace("<", "&lt;")
-                       .replace(">", "&gt;"))
-            doc += (
-                f'<w:p><w:r><w:t xml:space="preserve">{escaped}</w:t>'
-                f'</w:r></w:p>'
-            )
-        doc += '</w:body></w:document>'
-        with zipfile.ZipFile(path, "w") as z:
-            z.writestr("word/document.xml", doc)
-            z.writestr("[Content_Types].xml", "<Types/>")
-        return path
+    _docx_with = staticmethod(test_helpers._docx_with_texts)
 
     def _sidecar(self, docx, candidates):
         path = docx + ".prune.json"
@@ -1325,12 +1292,7 @@ class PruneCoverageTests(unittest.TestCase):
             json.dump({"jd": "jd_x.txt", "candidates": candidates}, f)
         return path
 
-    def _script(self, *lines):
-        fd, path = tempfile.mkstemp(suffix=".py")
-        os.close(fd)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
-        return path
+    _script = staticmethod(test_helpers._py_script)
 
     def _cand(self, **kw):
         return dict({"kind": "bullet-cut", "role": "Acme",
@@ -1386,6 +1348,37 @@ class PruneCoverageTests(unittest.TestCase):
             finally:
                 os.unlink(docx)
                 os.unlink(script)
+
+    def test_strict_direction_shorter_literal_does_not_cover(self):
+        # A literal SHORTER than the plan's shortest-unique prefix cannot
+        # point at the same paragraph (it would be ambiguous) — the only
+        # session using this flow always pasted the plan's extensions
+        # verbatim, so matching is one-directional (YAGNI on the reverse).
+        docx = self._docx_with(
+            "Led testing efforts for the API releases")
+        self._sidecar(docx, [self._cand(prefix="Led testing efforts")])
+        script = self._script(
+            'from docx_edit import drop, find_p\n',
+            'ps = None\n',
+            'ps = drop(ps, [find_p(ps, "Led te")])\n')
+        try:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = dcli.lint_prune_coverage(docx, script)
+            self.assertEqual(rc, 1)
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_trailing_lint_flag_prints_usage(self):
+        # The lint flags index their argument directly — a trailing flag
+        # must hit the usage path, not IndexError.
+        for flag in ("--lint-script", "--lint-prune"):
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = dcli.cli(["docx_edit.py", "x.docx", flag])
+            self.assertEqual(rc, 2, flag)
+            self.assertIn("usage", err.getvalue())
 
     def test_trim_anchor_counts_as_edit(self):
         docx = self._docx_with(
@@ -1517,32 +1510,9 @@ class LintScriptTests(unittest.TestCase):
     run-crash-fix cycle that DOCX_EDIT_STRICT only catches AFTER
     execution. The lint verifies the whole edit set pre-run."""
 
-    def _docx_with(self, *texts):
-        fd, path = tempfile.mkstemp(suffix=".docx")
-        os.close(fd)
-        doc = (
-            '<?xml version="1.0"?>'
-            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
-        )
-        for t in texts:
-            escaped = (t.replace("&", "&amp;").replace("<", "&lt;")
-                       .replace(">", "&gt;"))
-            doc += (
-                f'<w:p><w:r><w:t xml:space="preserve">{escaped}</w:t>'
-                f'</w:r></w:p>'
-            )
-        doc += '</w:body></w:document>'
-        with zipfile.ZipFile(path, "w") as z:
-            z.writestr("word/document.xml", doc)
-            z.writestr("[Content_Types].xml", "<Types/>")
-        return path
+    _docx_with = staticmethod(test_helpers._docx_with_texts)
 
-    def _script(self, *lines):
-        fd, path = tempfile.mkstemp(suffix=".py")
-        os.close(fd)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
-        return path
+    _script = staticmethod(test_helpers._py_script)
 
     def test_all_targets_resolve_passes(self):
         docx = self._docx_with(
@@ -1648,22 +1618,7 @@ class SetTextCLITests(unittest.TestCase):
     """docx_edit.py --set-text — one-shot bullet rewrite from the CLI, the
     replacement for bespoke fold scripts whose only edit is set_text."""
 
-    def _docx_with(self, *texts):
-        fd, path = tempfile.mkstemp(suffix=".docx")
-        os.close(fd)
-        doc = (
-            '<?xml version="1.0"?>'
-            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
-        )
-        for t in texts:
-            doc += (
-                f'<w:p><w:r><w:t xml:space="preserve">{t}</w:t></w:r></w:p>'
-            )
-        doc += '</w:body></w:document>'
-        with zipfile.ZipFile(path, "w") as z:
-            z.writestr("word/document.xml", doc)
-            z.writestr("[Content_Types].xml", "<Types/>")
-        return path
+    _docx_with = staticmethod(test_helpers._docx_with_texts)
 
     def _texts(self, path):
         _root, body, _names, _data, _ = de.load(path)
@@ -1884,22 +1839,7 @@ class CommaListRangeTests(unittest.TestCase):
     """cli() range argument accepts comma-separated indexes (61,63,65,70-72)
     — reading scattered bullets used to cost one subprocess per index."""
 
-    def _docx_with(self, *texts):
-        fd, path = tempfile.mkstemp(suffix=".docx")
-        os.close(fd)
-        doc = (
-            '<?xml version="1.0"?>'
-            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
-        )
-        for t in texts:
-            doc += (
-                f'<w:p><w:r><w:t xml:space="preserve">{t}</w:t></w:r></w:p>'
-            )
-        doc += '</w:body></w:document>'
-        with zipfile.ZipFile(path, "w") as z:
-            z.writestr("word/document.xml", doc)
-            z.writestr("[Content_Types].xml", "<Types/>")
-        return path
+    _docx_with = staticmethod(test_helpers._docx_with_texts)
 
     def _map(self, path, rng):
         out = io.StringIO()

@@ -70,3 +70,33 @@ def _write_docx(path, paragraphs):
     with contextlib.redirect_stdout(io.StringIO()):
         de.save(path, root, names, data)
     return root, body, names, data
+
+
+def _docx_with_texts(*texts):
+    """Zip a minimal .docx whose body is one plain <w:p> per text — the
+    fixture for the CLI/lint tests. XML-escapes each text (a fixture with
+    '&' once produced invalid XML)."""
+    fd, path = tempfile.mkstemp(suffix=".docx")
+    os.close(fd)
+    doc = ('<?xml version="1.0"?>'
+           '<w:document xmlns:w="' + de.XMLNS + '"><w:body>')
+    for t in texts:
+        escaped = (t.replace("&", "&amp;").replace("<", "&lt;")
+                   .replace(">", "&gt;"))
+        doc += (f'<w:p><w:r><w:t xml:space="preserve">{escaped}</w:t>'
+                f'</w:r></w:p>')
+    doc += '</w:body></w:document>'
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("word/document.xml", doc)
+        z.writestr("[Content_Types].xml", "<Types/>")
+    return path
+
+
+def _py_script(*lines):
+    """Write lines to a temp .py file (the tailor-script fixture for the
+    lints) and return its path."""
+    fd, path = tempfile.mkstemp(suffix=".py")
+    os.close(fd)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    return path

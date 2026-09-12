@@ -472,17 +472,21 @@ def _keep_trim_section(roles, jd_terms, body, protect=()):
             "Step 3):\n" + "\n".join(lines))
 
 
-def _cand(kind, role, text, detail, all_texts):
-    """One prune-plan candidate as data: its ``find_p`` anchor prefix
-    (or None when no unique prefix resolves — the printed plan falls
-    back to the plain-text line, and coverage matching falls back to the
-    normalized text head), its text, and why it was flagged."""
-    prefix = None
+def _anchor_prefix(text, all_texts):
+    """The shortest-unique ``find_p`` prefix for one paragraph text, or
+    None when no unique prefix resolves (the printed plan falls back to
+    the plain-text line, and coverage matching falls back to the
+    normalized text head)."""
     try:
-        idx = all_texts.index(text)
-        prefix = de.shortest_unique_prefix(all_texts, idx, min_len=6)
+        return de.shortest_unique_prefix(all_texts, all_texts.index(text),
+                                         min_len=6)
     except ValueError:
-        pass
+        return None
+
+
+def _cand(kind, role, text, detail, prefix):
+    """One prune-plan candidate as data: its ``find_p`` anchor prefix,
+    its text, and why it was flagged."""
     return {"kind": kind, "role": role, "prefix": prefix,
             "text": text, "detail": detail}
 
@@ -491,16 +495,17 @@ def _role_prune_candidates(role, jd_terms, protect, all_texts, vocab):
     """The bullet-cut and word-trim candidates of one role."""
     key = role["key"]
     off, weak, _kept = _classify_role_bullets(role, jd_terms, protect)
-    cuts = [_cand("bullet-cut", key, b, "OFF-JD", all_texts) for b in off]
+    cuts = [_cand("bullet-cut", key, b, "OFF-JD",
+                  _anchor_prefix(b, all_texts)) for b in off]
     cuts += [_cand("bullet-cut", key, b, "weak: " + ", ".join(hits),
-                   all_texts) for b, hits in weak]
+                   _anchor_prefix(b, all_texts)) for b, hits in weak]
     for b, nonjd, dead in _keep_trim_candidates(role, jd_terms, vocab):
         if _is_protected(b, protect):
             continue
         parts = ["strip: " + ", ".join(nonjd)] if nonjd else []
         parts.extend('dead sentence: "' + s[:60] + '"' for s in dead)
         cuts.append(_cand("word-trim", key, b, "; ".join(parts),
-                          all_texts))
+                          _anchor_prefix(b, all_texts)))
     return cuts
 
 
@@ -510,16 +515,15 @@ def _list_prune_candidates(body, jd_terms, all_texts):
     top = _top_block_candidates(body, jd_terms)
     top_texts = {t for _p, t in top}
     out = [
-        {"kind": "list-trim", "role": None, "prefix": prefix,
-         "text": text,
-         "detail": ("no JD term on this line — whole-line cut"
-                    if not has_jd else "strip: " + ", ".join(chunks))}
+        _cand("list-trim", None, text,
+              ("no JD term on this line — whole-line cut" if not has_jd
+               else "strip: " + ", ".join(chunks)),
+              prefix)
         for prefix, text, chunks, has_jd in _list_trim_candidates(
             body, jd_terms, all_texts)
         if text not in top_texts]
     out.extend(
-        {"kind": "top-block", "role": None, "prefix": prefix,
-         "text": text, "detail": "no JD evidence; cut whole"}
+        _cand("top-block", None, text, "no JD evidence; cut whole", prefix)
         for prefix, text in top)
     return out
 

@@ -114,10 +114,9 @@ manual habits are:
    pruning, on the pruned copy (Step 4), and the tool refuses full-master measurement
    outright. **The prune plan's WHICH is final;
    nothing about HOW MANY exists yet** — how much survives is discovered by measuring
-   the tailored copy after pruning. Fill every checklist line (CUT/TRIM/KEEP + reason)
-   into the one-message plan and mirror every row in the script; `run_tailor.sh` refuses
-   to run the script while any candidate is uncovered. That build measure is also the
-   term-coverage drift check: its **JD terms with NO host** list catches an ask whose
+   the tailored copy after pruning. Every checklist line is mirrored in the script by
+   the Step-3 disposition rule; `run_tailor.sh` enforces it. That build measure is also
+   the term-coverage drift check: its **JD terms with NO host** list catches an ask whose
    only host died with a cut role or trimmed Tools line.
 3. **Before reusing a tailor script after the user edited the .docx, run `diff_resume.py --tailor`**
    first — one command surfaces manual edits a blind re-run would wipe. (The drift sidecar
