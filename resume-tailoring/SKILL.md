@@ -336,7 +336,8 @@ reason — and copy the filled table into the ONE-message plan. 'Prune plan
 highlights' are not a plan. The default disposition for a WORD-LEVEL
 candidate is the trim itself; escalating to a whole-bullet drop is allowed
 only when the bullet's remaining content carries no JD host — record why
-in the drop-list comment. Over-cutting a trim candidate into a bullet drop
+in the drop-list comment under the `# kept:` override rule below.
+Over-cutting a trim candidate into a bullet drop
 is cheap to restore (re-add the text in a later edit); skipping the trim
 silently is not — `run_tailor.sh` refuses to run the script while any
 candidate lacks an edit or a recorded keep.
@@ -519,9 +520,9 @@ Technical Proficiencies section — a third keyword surface between them adds
 noise, not signal. `validate_resume.py`'s GUIDANCE section warns when a
 SectionHeading appears between Summary and Technical Proficiencies.
 
-When a recruiter or JD names required skills/tools, weave each into the role
-bullet where it was actually used (see Step 7) so the skill appears as in-role
-evidence, not a bare list.
+When a recruiter or JD names required skills/tools, they belong in the role
+bullet where they were actually used — never a bare keyword list (Step 7's
+weave rule).
 
 ### 7. Re-anchor the most recent / senior role, and expand the role most adjacent to the JD's industry/stage
 That role carries the most weight. Rewrite its intro to emphasize
@@ -892,12 +893,11 @@ fold themselves.
 The fold is strictly ADDITIVE: new bullets (`clone_after`), proficiency
 line additions, and in-place appends (`--set-text`/`--append-after`) —
 never removals or replacements of master text. Run it AFTER the per-target
-script is final (a fold rewrites master text and invalidates the script's
-`find_p` prefixes); the next tailor re-run detects the changed master
-(`MASTER CHANGED:` auto-strict) and must come up green — new master
-bullets whose evidence already lives in kept, rewritten bullets join that
-role's drop list. See the Assets section above for the full ordering and
-the user-edit precedence rule.
+script is final, and the next tailor re-run must come up green against the
+changed master — new master bullets whose evidence already lives in kept,
+rewritten bullets join that role's drop list. The Assets section above owns
+the ordering, the `MASTER CHANGED:` auto-strict tripwire, and the user-edit
+precedence rule.
 
 ## When NOT to use this skill
 
@@ -921,8 +921,8 @@ verb that can't be defended is worse than a JD keyword that went unmirrored.
 
 **Never fabricate a role bullet for a tool you haven't used.** If a recruiter
 or JD names a tool the user doesn't have, omit it and flag it to the user
-rather than inventing a bullet — the user must stand behind every line in an
-interview, and a made-up tool usage is the easiest thing to catch.
+rather than inventing a bullet — a made-up tool usage is the easiest thing
+to catch.
 
 **Soft-skill claims are the user's word, evidenced by their history.** The
 never-fabricate rule governs tools and employers. Communication,

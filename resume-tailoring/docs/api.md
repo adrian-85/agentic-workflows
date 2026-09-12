@@ -349,13 +349,10 @@ script: run_tailor.sh exits 2 while any line is uncovered (--lint-prune).
 
 and writes the machine-readable
 twin to `<master>.prune.json` (the drift-sidecar pattern; refreshed on every
-run). Copy the checklist into the ONE-message plan with every line filled
-(`CUT` / `TRIM` / `KEEP` + reason) — the user approves dispositions, not a
-'highlights' summary. The default disposition for a WORD-LEVEL candidate is
-the trim itself; escalating to a whole-bullet drop is allowed only when the
-bullet's remaining content carries no JD host (record why in the drop-list
-comment). Never defer a trim to Step 8 compression — compression sizes what
-survives the prune pass; it never finishes it.
+run). Fill every line in the one-message plan — the dispositions themselves
+(`CUT` / `TRIM` / `KEEP` and when a whole-bullet drop is allowed) are SKILL
+Step 3's decision rule; this section documents what the tools emit and
+enforce.
 
 **Enforced, not a habit:** `run_tailor.sh` runs `docx_edit.py
 <master> --lint-prune <script>` before executing the tailor script. It
