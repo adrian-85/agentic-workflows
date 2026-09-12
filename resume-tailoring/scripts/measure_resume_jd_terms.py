@@ -83,8 +83,15 @@ JD_STOP = frozenset({
     "that", "what", "it", "its", "how", "much",
     # Repeated JD prose the freq>=2 gate re-admits (twice is not evidence
     # for words that are plain English).
-    "being", "full", "existing", "cross", "change", "changes",
+    "being", "full", "existing", "change", "changes",
     "changed", "making", "notes",
+    # Company-voice pronouns — never tech evidence, and they flood
+    # bigram mining ('we build', 'you will') if left unstopped.
+    "we", "you", "your",
+    # JD structural prose mined as 'asks' by the side-signal scan
+    # ('Senior QA Automation Engineer' headings, section labels).
+    "qualifications", "responsibilities", "overview", "location",
+    "position", "duties", "summary",
 })
 
 
@@ -94,6 +101,14 @@ JD_CONCEPTS = (
     "exploratory", "chaos", "model-based", "code review", "design review",
     "traceability", "documentation gaps", "go-live", "go live",
     "instructor-led", "incomplete documentation",
+    # Practice nouns the QA JDs ask for by name and the master demonstrates
+    # (six-session calibration: debugging/troubleshoot asked at freq 1
+    # lowercase in IA-test-architect JDs — invisible to the cap and freq
+    # gates, so hosted bullets read as evidence-free). Bare 'documentation'
+    # is deliberately NOT here: it over-protects junk ('enhance documentation
+    # practices') in every JD that mentions docs.
+    "debugging", "troubleshooting", "troubleshoot",
+    "coaching", "simulation", "debug",
 )
 
 

@@ -2135,6 +2135,58 @@ class JdTermRecallTests(unittest.TestCase):
         jd = "incident triage and RCA drafting. The RCA feeds the fix."
         self.assertIn("rca", mr._jd_terms(jd, body))
 
+    def test_workday_heading_forms_collect_quals(self):
+        # Six-session calibration: Workday-style postings carry NO
+        # 'Qualifications' heading ('Essential Functions', 'Basic
+        # Requirements', 'Knowledge, Skills and Abilities') — without
+        # these, the whole coverage map and the never-fabricate flags
+        # stayed silent (external ATS found the asks anyway).
+        for heading in ('Essential Functions', 'Basic Requirements',
+                        'Knowledge, Skills and Abilities',
+                        'Craft & Technical Requirements'):
+            jd = ("Software Engineer\nJob Summary\nWe do things.\n"
+                  f"{heading}\n"
+                  "Experience with Selenium Web Driver required\n")
+            lines = mr._jd_requirement_lines(jd)
+            self.assertTrue(any('Selenium' in ln for ln in lines),
+                            f'{heading!r} must collect its lines')
+
+    def test_whole_jd_signal_mining_flags_no_host_asks(self):
+        # Asks living in the responsibilities prose (outside the qual
+        # section) must still reach the never-fabricate checklist: the
+        # external ATS found kotlin/swift/wpf while the old qual-line-only
+        # mining stayed silent (six-session calibration).
+        jd = ("Software Engineer\n"
+              "At AcmeCo, we build things.\n"
+              "Essential Functions\n"
+              "Build and maintain platform services.\n"
+              "Experience with Kotlin and Swift is preferred. Kotlin and "
+              "Swift round out the mobile stack.\n"
+              "Knowledge, Skills and Abilities\n"
+              "Strong communication skills\n")
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " – 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Built web platform services", numId=2),
+        ])
+        missing = {t.lower() for t in mr._jd_missing_terms(jd, body, set())}
+        self.assertIn("kotlin", missing)
+        self.assertIn("swift", missing)
+        # Mission prose and section labels are not asks.
+        self.assertNotIn("acmeco", missing)
+
+    def test_missing_report_is_signal_ranked_and_bounded(self):
+        # An unbounded no-host list on a narrative JD (a real calibration
+        # run flagged 173) is an unusable checklist — the agent stops
+        # reading it. The report shows the strongest signals first.
+        jd = "Required Qualifications:\n" + \
+             ". ".join(f"Tool{i} expertise required" for i in range(40))
+        body = self._body()
+        lines = mr._jd_report("jd.txt", jd, {"selenium"}, body=body)
+        missing_block = re.sub(r"\s+", " ", "\n".join(lines))
+        self.assertIn("more, strongest signals shown first", missing_block)
+
     def test_negated_and_bare_headings_terminate_coverage(self):
         # 'What this role is not' must STOP qualification collection without
     # contributing lines; the bare 'Level' heading must not mine as a

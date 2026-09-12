@@ -18,8 +18,9 @@ import docx_edit as de  # noqa: E402
 from docx_edit_gate import tmp_jd_note  # noqa: E402
 from measure_resume_format import COMPANY_STYLE, SECTION_PROFICIENCIES  # noqa: E402
 from measure_resume_jd_terms import (JD_CONCEPTS, JD_STOP,  # noqa: E402
-                                     _adjacent_bigrams, _concept_hits,
-                                     _jd_hits)
+                                     _acronym_terms, _adjacent_bigrams,
+                                     _concept_hits, _jd_capitalized,
+                                     _jd_hits, _jd_term_freq, _norm_text)
 
 W = de.W
 
@@ -30,6 +31,8 @@ HEADLINE_STYLE = "Title"  # top-of-resume headline: 2nd 'Title' paragraph after 
 
 
 JD_SHORT_WORDS = 100  # below this, a --jd file is likely a summary, not the posting
+
+MISSING_REPORT_CAP = 24  # bounded no-host list (signal-ranked); narrative JDs flag 100+ otherwise
 
 
 JD_SEQ_TERM_RE = re.compile(
@@ -71,7 +74,15 @@ JD_QUAL_HEADING_RE = re.compile(
     # A bare section word heading ("Level") — terminates the section;
     # without it the heading itself mined as a one-word qualification
     # line (extracted term: 'level' — an UNCOVERED-ask false alarm).
-    r"|^\s*#{0,6}\s*level\s*:?\s*$",
+    r"|^\s*#{0,6}\s*level\s*:?\s*$"
+    # Workday-style sections whose lines are asks (six-session calibration:
+    # Zoll/Motorola/Voya postings carried NO 'Qualifications' heading, so
+    # the whole coverage map and the never-fabricate flags stayed silent
+    # while kotlin/swift/wpf/finops sat unflagged).
+    r"|^\s*#{0,6}\s*(?:essential\s+functions|basic\s+requirements"
+    r"|minimum\s+requirements|key\s+requirements"
+    r"|knowledge,?\s+skills,?(?:\s+and|\s*&)?\s+abilities?)\s*:?\s*$"
+    r"|^\s*#{0,6}\s*craft\s*(?:&|and)\s*technical\s+requirements\s*:?\s*$",
     re.I,
 )
 
@@ -295,6 +306,68 @@ def _jd_line_terms(line):
     return terms
 
 
+def _jd_side_signals(jd_text):
+    """JD-side skill-ask tokens mined over the WHOLE posting (not just the
+    qualification section): mid-sentence Capitalized tokens, ALL-CAPS
+    acronyms, lowercase tokens the JD names twice or more (frequency-summed
+    over morphological variants), and bigrams the JD names twice or more.
+    Qualification-line mining alone misses the asks that live in the
+    responsibilities prose — six-session calibration: kotlin/swift/wpf/
+    css/html/finops were named in responsibilities sections and never
+    surfaced in the never-fabricate checklist (the external ATS found
+    every one). Adverb-shaped tokens are dropped: Workday competency
+    boilerplate ('communicates openly', 'adapts easily') otherwise floods
+    the advisory checklist with behavior phrases.
+    """
+    jd_low = jd_text.lower()
+    out = set()
+    # Mine only from the first recognized heading onward — the same trust
+    # boundary _jd_requirement_lines uses. Pre-heading prose is the title
+    # and the company's mission statement ('At AcmeCo, we build things.'
+    # mined 'AcmeCo' as a missing skill); real sections start at headings.
+    # The heading pattern is ^-anchored per LINE (the collector splits
+    # lines) — find the first matching line's offset instead of searching
+    # the whole text (``^`` without MULTILINE only matches at string start).
+    heading_offset = None
+    pos = 0
+    for ln in jd_text.splitlines(keepends=True):
+        if JD_QUAL_HEADING_RE.match(ln.strip()):
+            heading_offset = pos
+            break
+        pos += len(ln)
+    body_text = jd_text[heading_offset:] if heading_offset is not None else jd_text
+    jd_lines = [ln.strip() for ln in body_text.splitlines() if ln.strip()]
+    # Line-initial words are imperative verbs ('Take ownership of...',
+    # 'Provide guidance...') — instructions, not skills.
+    line_first_words = {ln.split()[0].lower().rstrip(".,;:!?'")
+                        for ln in jd_lines if ln.split()}
+    for w in re.findall(r"[a-z0-9][a-z0-9#+]*", body_text.lower()):
+        w = w.rstrip(".,;:!?'")
+        if w in JD_STOP or len(w) < 3 or re.fullmatch(r"[0-9.]+\w*", w):
+            continue
+        if w in line_first_words:
+            continue
+        if w.endswith("ly") or JD_SOFT_SKILL_RE.search(w):
+            continue
+        if _jd_capitalized(jd_text, w) or _jd_term_freq(w, jd_low) >= 2:
+            out.add(w)
+    out |= {a for a in _acronym_terms(jd_text)
+            if not a.endswith("ly")}
+    jd_norm = _norm_text(jd_text)
+    for bg in _adjacent_bigrams(jd_text):
+        a, b = bg.split()
+        if a.endswith("ly") or b.endswith("ly"):
+            continue
+        # Phrase frequency >= 2 IN THE JD: a one-off two-word fragment is
+        # prose ('wrong way', 'are caught'); a repeated compound is an ask
+        # ('drift controls', 'acute care'). Count on the NORMALIZED text —
+        # the raw count double-counts when the phrase contains a normalized
+        # hyphen/slash.
+        if jd_norm.count(bg) >= 2:
+            out.add(bg)
+    return out
+
+
 def _jd_missing_terms(jd_text, body, jd_terms):
     """JD-side skill terms the resume does not host anywhere.
 
@@ -304,8 +377,9 @@ def _jd_missing_terms(jd_text, body, jd_terms):
     omission surfaces only if the agent re-reads the JD, and a preferred
     qual can be missed entirely (one was, until a final-review grep).
     This mines the qualification lines for capitalized tech-term
-    candidates and returns those with no host in the document, so the
-    'never fabricate' flags are mechanical. Heuristic and advisory:
+    candidates PLUS the whole posting for signal-bearing tokens
+    (_jd_side_signals) and returns those with no host in the document, so
+    the 'never fabricate' flags are mechanical. Heuristic and advisory:
     review each against the posting before acting.
     """
     qual_lines = _jd_requirement_lines(jd_text)
@@ -321,14 +395,17 @@ def _jd_missing_terms(jd_text, body, jd_terms):
             return True
         return re.sub(r"[\s-]+", "", term_low) in doc_flat
 
-    missing = set()
+    candidates = set()
     for line in qual_lines:
-        for t in _jd_line_terms(line):
-            if t in jd_terms or hosted(t):
-                continue
-            if all(hosted(w) for w in re.split(r"[\s-]+", t)):
-                continue
-            missing.add(t)
+        candidates |= _jd_line_terms(line)
+    candidates |= _jd_side_signals(jd_text)
+    missing = set()
+    for t in candidates:
+        if t in jd_terms or hosted(t):
+            continue
+        if all(hosted(w) for w in re.split(r"[\s-]+", t)):
+            continue
+        missing.add(t)
     return sorted(missing)
 
 
@@ -430,6 +507,36 @@ def _boundaries_without_spacer(body):
     return out
 
 
+def _missing_report_block(jd_text, missing):
+    """The bounded 'JD terms with NO host' display lines: proper-noun tech
+    (ALL-CAPS acronyms, mid-sentence Capitalized — the class external ATS
+    extractors find) first, then the rest, capped at MISSING_REPORT_CAP.
+    An unbounded list on a narrative JD (a real six-session calibration
+    run flagged 173) is an unusable checklist — the agent stops reading
+    it."""
+    acronyms = _acronym_terms(jd_text)
+    tech = [t for t in missing if t in acronyms
+            or _jd_capitalized(jd_text, t)]
+    rest = [t for t in missing if t not in tech]
+    ordered = tech + rest
+    shown, overflow = ordered[:MISSING_REPORT_CAP], \
+        ordered[MISSING_REPORT_CAP:]
+    tail = ""
+    if overflow:
+        tail = f" (+{len(overflow)} more, strongest signals shown first)"
+    lines = [
+        "JD terms with NO host in the resume (for each: infer from the "
+        "evidence below, or ASK the user — the master/LinkedIn understate "
+        "real experience; NEVER fabricate):",
+        textwrap.fill(
+            ", ".join(shown) + tail,
+            width=76,
+            initial_indent="  - ",
+            subsequent_indent="    "),
+    ]
+    return lines, shown
+
+
 def _jd_report(jd_file, jd_text, jd_terms, body=None, evidence_text=None):
     """Lines describing the --jd ranking (printed before the page math).
 
@@ -477,16 +584,9 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, evidence_text=None):
     if body is not None:
         missing = _jd_missing_terms(jd_text, body, jd_terms)
         if missing:
-            lines.append(
-                "JD terms with NO host in the resume (for each: infer "
-                "from the evidence below, or ASK the user — the master/"
-                "LinkedIn understate real experience; NEVER fabricate):")
-            lines.append(textwrap.fill(
-                ", ".join(missing),
-                width=76,
-                initial_indent="  - ",
-                subsequent_indent="    "))
-            lines.extend(_inference_map(missing, body, evidence_text))
+            block, shown = _missing_report_block(jd_text, missing)
+            lines.extend(block)
+            lines.extend(_inference_map(shown, body, evidence_text))
     return lines
 
 
