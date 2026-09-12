@@ -1,4 +1,5 @@
-"""measure_resume drop planning / fit audit / reclaim batching. Split from measure_resume.py; imported one-way by the measure_resume shim."""  # pylint: disable=line-too-long
+"""measure_resume drop planning / fit audit / reclaim batching.
+Split from measure_resume.py; imported one-way by the measure_resume shim."""
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
 # the specific rationale at each site where one is retained.
 
@@ -876,6 +877,7 @@ def _reclaim_batch(matched, per_bullet, gap):
             plan.append((key, f"drop {take} bullet(s) (saves ~{saved:.0f} lines)", saved))
             remaining -= saved
         else:
-            plan.append((key, f"consider dropping the whole role (saves ~{rendered:.0f} lines)", rendered))  # pylint: disable=line-too-long
+            note = f"consider dropping the whole role (saves ~{rendered:.0f} lines)"
+            plan.append((key, note, rendered))
             remaining -= rendered
     return plan, remaining

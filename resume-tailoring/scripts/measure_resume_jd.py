@@ -1,4 +1,6 @@
-"""measure_resume JD requirements / coverage / inference / title analysis. Split from measure_resume.py; term vocabulary/mining lives in measure_resume_jd_terms (imported one-way from there); imported one-way by measure_resume_drops + the shim."""  # pylint: disable=line-too-long  # (long string/help literal)
+"""measure_resume JD requirements / coverage / inference / title analysis.
+Split from measure_resume.py; term vocabulary/mining lives in measure_resume_jd_terms
+(imported one-way from there); imported one-way by measure_resume_drops + the shim."""
 # pylint: disable=invalid-name
 # invalid-name: JD vocabulary constants use the file's domain naming.
 # invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.

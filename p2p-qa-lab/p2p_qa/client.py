@@ -120,7 +120,8 @@ class StepRecord:  # pylint: disable=too-many-instance-attributes
     interpretation: str | None = None
     verified: bool = False
     verify_note: str | None = None
-    verifies: str | None = None  # if this GET is the double-verify proof for a create, that create's step name  # pylint: disable=line-too-long
+    # if this GET is the double-verify proof for a create, that create's step name
+    verifies: str | None = None
     schema_issues: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -272,12 +273,13 @@ class P2PClient:
             if lst.status_code < 400 and isinstance(lst.response_payload, list):
                 found = [v for v in lst.response_payload if v.get("id") == vendor_id]
                 if found:
+                    note = "detail endpoint absent; resolved via GET /vendors"
                     rec = StepRecord(name="get_vendor", method="GET",
                                      url=f"{self.base_url}/vendors/{vendor_id}",
                                      request_payload=None, status_code=200,
                                      response_payload=found[0],
                                      duration_ms=rec.duration_ms,
-                                     interpretation="detail endpoint absent; resolved via GET /vendors")  # pylint: disable=line-too-long
+                                     interpretation=note)
         return rec
 
     def create_vendor(self, name: str, status: str = "active",

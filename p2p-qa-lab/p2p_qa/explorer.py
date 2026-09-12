@@ -36,9 +36,11 @@ def _tool_specs():
 
     return [
         spec("list_vendors", "List all vendors.", {}, []),
-        spec("get_vendor", "Get one vendor by id.", {"vendor_id": {"type": "integer"}}, ["vendor_id"]),  # pylint: disable=line-too-long  # (long string/help literal)
+        spec("get_vendor", "Get one vendor by id.",
+             {"vendor_id": {"type": "integer"}}, ["vendor_id"]),
         spec("create_vendor", "Create a vendor.",
-             {"name": {"type": "string"}, "status": {"type": "string", "enum": ["active", "inactive"]}},  # pylint: disable=line-too-long  # (long code condition/arg line)
+             {"name": {"type": "string"},
+              "status": {"type": "string", "enum": ["active", "inactive"]}},
              ["name"]),
         spec("create_po", "Create a draft PO with line items.",
              {"vendor_id": {"type": "integer"},
@@ -57,17 +59,22 @@ def _tool_specs():
                                   "properties": {"sku": {"type": "string"},
                                                  "quantity_received": {"type": "integer"}}}}},
              ["po_id", "lines"]),
-        spec("get_po", "Get PO detail + receipt status.", {"po_id": {"type": "integer"}}, ["po_id"]),  # pylint: disable=line-too-long  # (long string/help literal)
+        spec("get_po", "Get PO detail + receipt status.",
+             {"po_id": {"type": "integer"}}, ["po_id"]),
         spec("create_invoice", "Create an invoice against a PO.",
              {"invoice_number": {"type": "string"}, "vendor_id": {"type": "integer"},
               "po_id": {"type": "integer"}, "amount_cents": {"type": "integer"}},
              ["invoice_number", "vendor_id", "po_id", "amount_cents"]),
-        spec("match_invoice", "3-way match an invoice.", {"invoice_id": {"type": "integer"}}, ["invoice_id"]),  # pylint: disable=line-too-long  # (long string/help literal)
-        spec("approve_invoice", "Approve a matched invoice + post to GL.", {"invoice_id": {"type": "integer"}}, ["invoice_id"]),  # pylint: disable=line-too-long  # (long string/help literal)
-        spec("get_exposure", "Total open AP liability for a vendor.", {"vendor_id": {"type": "integer"}}, ["vendor_id"]),  # pylint: disable=line-too-long  # (long string/help literal)
+        spec("match_invoice", "3-way match an invoice.",
+             {"invoice_id": {"type": "integer"}}, ["invoice_id"]),
+        spec("approve_invoice", "Approve a matched invoice + post to GL.",
+             {"invoice_id": {"type": "integer"}}, ["invoice_id"]),
+        spec("get_exposure", "Total open AP liability for a vendor.",
+             {"vendor_id": {"type": "integer"}}, ["vendor_id"]),
         spec("finish_happy_path", "Call when the full workflow is complete.",
              {"completed": {"type": "boolean"},
-              "summary": {"type": "string", "description": "JSON dict describing what was done and the outcome"}},  # pylint: disable=line-too-long  # (long string/help literal)
+              "summary": {"type": "string",
+                          "description": "JSON dict describing what was done and the outcome"}},
              ["completed"]),
     ]
 
@@ -271,7 +278,10 @@ def run_explorer(client, logger, llm_chat=None, max_steps=config.MAX_EXPLORER_ST
 
     for _ in range(max_steps):
         ctx = {"stage": "explore",
-               "plan": "create vendor -> PO -> submit -> partial receive -> invoice -> match (check partial) -> approve (check GL balanced). Do not keep re-exploring: once you have an active vendor id and a sku, move to creating the PO.",  # pylint: disable=line-too-long  # (long string/help literal)
+               "plan": "create vendor -> PO -> submit -> partial receive -> "
+                       "invoice -> match (check partial) -> approve (check GL "
+                       "balanced). Do not keep re-exploring: once you have an "
+                       "active vendor id and a sku, move to creating the PO.",
                "flow_done": state["flow_done"],
                "next_expected": _next_expected(state["flow_done"]),
                "facts": state["facts"],

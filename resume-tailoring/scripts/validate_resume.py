@@ -87,7 +87,8 @@ input; override with --master <path>.
 Usage:
     python3 scripts/validate_resume.py <resume.docx> [--strict] [--master p]
     python3 scripts/validate_resume.py <resume.docx> --jd-years 5 [--master p]
-    python3 scripts/validate_resume.py <resume.docx> --jd <JD.txt> [--jd-years 5] [--education-approved] [--master p]  # pylint: disable=line-too-long
+    python3 scripts/validate_resume.py <resume.docx> --jd <JD.txt>
+                                        [--jd-years 5] [--education-approved] [--master p]
 """
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
 # the specific rationale at each site where one is retained.

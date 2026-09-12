@@ -97,7 +97,8 @@ PRODUCT_CONTEXT_WORDS = ["jersey", "shirt", "size", "model", "sneaker", "jacket"
 # successful action exists" (e.g. reschedule never actually executed).
 CLAIMED_ACTION: List[Dict[str, Any]] = [
     {
-        "claim_re": r"reschedul|you'?re all set for|delivery (has been )?moved|moved to (friday|monday|tuesday)",  # pylint: disable=line-too-long
+        "claim_re": r"reschedul|you'?re all set for|delivery (has been )?moved"
+                    r"|moved to (friday|monday|tuesday)",
         "action_re": r"reschedul|update_delivery|change_delivery|reschedule_delivery",
         "label": "delivery reschedule",
     },
@@ -577,8 +578,12 @@ def parse_args():
                    help="OpenRouter model id")
     p.add_argument("--temperature", type=float, default=0.2,
                    help="Judge temperature (default 0.2)")
-    p.add_argument("--output", help="Output directory; each run creates a timestamped subfolder here so runs never overwrite each other")  # pylint: disable=line-too-long
-    p.add_argument("--run-id", help="Override the run subfolder name (defaults to run-<timestamp>-<shortid>)")  # pylint: disable=line-too-long
+    p.add_argument("--output",
+                   help="Output directory; each run creates a timestamped "
+                        "subfolder here so runs never overwrite each other")
+    p.add_argument("--run-id",
+                   help="Override the run subfolder name "
+                        "(defaults to run-<timestamp>-<shortid>)")
     p.add_argument("--prepass-only", action="store_true",
                    help="Run only the deterministic pre-pass; skip the LLM call")
     return p.parse_args()

@@ -77,7 +77,8 @@ def _setup_received_po(client: P2PClient, vendor_name: str,
     po = client.create_po(v["id"], [{"sku": sku, "description": "adv",
                                      "unit_price_cents": price, "quantity": qty}]).response_payload
     client.submit_po(po["id"])
-    client.receive_po(po["id"], [{"sku": sku, "quantity_received": qty if received is None else received}])  # pylint: disable=line-too-long
+    received_qty = qty if received is None else received
+    client.receive_po(po["id"], [{"sku": sku, "quantity_received": received_qty}])
     return v, po
 
 
@@ -92,10 +93,11 @@ def probe_overpayment(client: P2PClient) -> ProbeResult:
         return ProbeResult("overpayment_protection", "overpayment_plus_1_cent", "HELD",
                            _ev("POST", f"/invoices/{inv.response_payload['id']}/match",
                                m.status_code, m.response_payload,
-                               request_payload={"invoice_number": inv.response_payload.get("invoice_number"),  # pylint: disable=line-too-long
-                                                "vendor_id": inv.response_payload.get("vendor_id"),
-                                                "po_id": inv.response_payload.get("po_id"),
-                                                "amount_cents": inv.response_payload.get("amount_cents")}),  # pylint: disable=line-too-long
+                               request_payload={
+                                   "invoice_number": inv.response_payload.get("invoice_number"),
+                                   "vendor_id": inv.response_payload.get("vendor_id"),
+                                   "po_id": inv.response_payload.get("po_id"),
+                                   "amount_cents": inv.response_payload.get("amount_cents")}),
                            "invoice (5001) > received value (5000) rejected at match")
     return ProbeResult("overpayment_protection", "overpayment_plus_1_cent", "BREACHED",
                        _ev("POST", f"/invoices/{inv.response_payload['id']}/match",
@@ -320,7 +322,8 @@ def probe_destructive_ops(client: P2PClient) -> ProbeResult:
         gone = client.get_vendor(1)
         if gone.status_code == 404:
             return ProbeResult("destructive_ops", "delete_vendor", "BREACHED",
-                               _ev("DELETE", "/vendors/1", del_r.status_code, del_r.response_payload),  # pylint: disable=line-too-long
+                               _ev("DELETE", "/vendors/1",
+                                   del_r.status_code, del_r.response_payload),
                                "DELETE /vendors/1 succeeded and removed the resource")
         return ProbeResult("destructive_ops", "delete_vendor", "BREACHED",
                            _ev("DELETE", "/vendors/1", del_r.status_code, del_r.response_payload),
@@ -372,7 +375,8 @@ def run_baseline(client: P2PClient) -> list[ProbeResult]:
 # Open-ended LLM hacker agent (red-team, not limited to the six invariants)
 # ---------------------------------------------------------------------------
 
-HACKER_SYSTEM = """You are an adversarial QA hacker for a Purchase-to-Pay (P2P) API. Your job: try to break it, then verify the guardrail held or leaked.  # pylint: disable=line-too-long
+HACKER_SYSTEM = """You are an adversarial QA hacker for a Purchase-to-Pay (P2P) API.
+Your job: try to break it, then verify the guardrail held or leaked.
 
 Endpoints: GET /vendors | POST /vendors | POST /purchase-orders | POST /purchase-orders/{id}/submit | POST /purchase-orders/{id}/receive | GET /purchase-orders/{id} | POST /invoices | POST /invoices/{id}/match | POST /invoices/{id}/approve | GET /vendors/{id}/exposure
 
@@ -419,7 +423,8 @@ _RULE_ALIASES = {
     "pii": "pii_exposure", "pii_exposure": "pii_exposure", "pii_leak": "pii_exposure",
     "miscredit": "mis_credit", "mis_credit": "mis_credit", "mis-credit": "mis_credit",
     "injection": "injection", "sqli": "injection", "sql": "injection", "xss": "injection",
-    "destructive": "destructive_ops", "destructive_ops": "destructive_ops", "delete": "destructive_ops",  # pylint: disable=line-too-long
+    "destructive": "destructive_ops", "destructive_ops": "destructive_ops",
+    "delete": "destructive_ops",
     "data_integrity": "data_integrity", "dataintegrity": "data_integrity",
 }
 
@@ -442,11 +447,14 @@ def _hacker_tool_specs():
               "path": {"type": "string"},
               "payload": {"type": ["object", "null"], "description": "JSON body (for POST/PUT)"}},
              ["method", "path"]),
-        spec("get_vendor", "GET one vendor by id.", {"vendor_id": {"type": "integer"}}, ["vendor_id"]),  # pylint: disable=line-too-long
+        spec("get_vendor", "GET one vendor by id.",
+             {"vendor_id": {"type": "integer"}}, ["vendor_id"]),
         spec("get_po", "GET a PO by id.", {"po_id": {"type": "integer"}}, ["po_id"]),
-        spec("get_exposure", "GET a vendor's open AP exposure.", {"vendor_id": {"type": "integer"}}, ["vendor_id"]),  # pylint: disable=line-too-long
+        spec("get_exposure", "GET a vendor's open AP exposure.",
+             {"vendor_id": {"type": "integer"}}, ["vendor_id"]),
         spec("finish", "Call when done probing.",
-             {"summary": {"type": "string", "description": "JSON dict: {rules_probed: [..], overall_risk: str}"}},  # pylint: disable=line-too-long
+             {"summary": {"type": "string",
+                          "description": "JSON dict: {rules_probed: [..], overall_risk: str}"}},
              ["summary"]),
     ]
 
@@ -545,7 +553,8 @@ def _run_hacker_tools(client, tool_calls, history, state, progress):
 
 VERDICT_PROMPT = ("For each probe whose result you just received, write exactly one line:\n"
                  "VERDICT: HELD|BREACHED <rule> <one sentence of reasoning with evidence>\n"
-                 "If a probe was pure reconnaissance with no rule under test, write: VERDICT: INFO <reason>.\n"  # pylint: disable=line-too-long
+                 "If a probe was pure reconnaissance with no rule under test, "
+                 "write: VERDICT: INFO <reason>.\n"
                  "Do not fire new tools in this reply; verdicts only.")
 
 

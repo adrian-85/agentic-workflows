@@ -1,4 +1,6 @@
-"""measure_resume JD vocabulary, term mining, and hit classification. Split from measure_resume_jd.py; imported one-way by the jd analysis module, measure_resume_drops, and the shim."""  # pylint: disable=line-too-long  # (long string/help literal)
+"""measure_resume JD vocabulary, term mining, and hit classification.
+Split from measure_resume_jd.py; imported one-way by the jd analysis module,
+measure_resume_drops, and the shim."""
 # pylint: disable=invalid-name
 # invalid-name: JD vocabulary constants use the file's domain naming.
 

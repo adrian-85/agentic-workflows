@@ -1,5 +1,5 @@
-"""validate_resume's master-loading / role-integrity / education-gate helpers. Split from validate_resume.py; imported
-one-way by the shim."""
+"""validate_resume's master-loading / role-integrity / education-gate helpers.
+Split from validate_resume.py; imported one-way by the shim."""
 
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
 # the specific rationale at each site where one is retained.

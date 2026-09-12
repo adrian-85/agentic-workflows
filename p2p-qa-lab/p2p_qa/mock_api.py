@@ -308,7 +308,8 @@ def _po_routes(appl, store, lock, require_auth: bool, bug_profile: str) -> None:
                 new_total = so_far.get(rl["sku"], 0) + rl["quantity_received"]
                 if new_total > item["quantity"]:
                     raise HTTPException(status_code=400,
-                                        detail=f"over-receipt: {rl['sku']} {new_total}>{item['quantity']}")  # pylint: disable=line-too-long  # (long string/help literal)
+                                        detail=f"over-receipt: {rl['sku']} "
+                                               f"{new_total}>{item['quantity']}")
                 so_far[rl["sku"]] = new_total
             new_lines = list((po.get("receipt") or {}).get("lines", []))
             for rl in lines:
@@ -336,7 +337,8 @@ def _do_match_invoice(store, bug_profile: str, invoice_id: int) -> dict:
     received = _po_received_value(po)
     if inv["amount_cents"] > received and not _allowed(bug_profile, "overpayment_leak"):
         raise HTTPException(status_code=400,
-                            detail=f"invoice exceeds received value ({inv['amount_cents']}>{received})")  # pylint: disable=line-too-long  # (long string/help literal)
+                            detail=f"invoice exceeds received value "
+                                   f"({inv['amount_cents']}>{received})")
     partial = _po_partial(po)
     if bug_profile == "partial_flag_missing":
         partial = False

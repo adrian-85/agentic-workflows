@@ -1,4 +1,5 @@
-"""validate_resume's deterministic structural/punctuation/text-integrity checks. Split from validate_resume.py; imported one-way by validate_resume_master and the shim."""  # pylint: disable=line-too-long
+"""validate_resume's deterministic structural/punctuation/text-integrity checks.
+Split from validate_resume.py; imported one-way by validate_resume_master and the shim."""
 # pylint: disable=invalid-name
 # invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
@@ -426,7 +427,8 @@ def _readability_guidance(body, summary, *, region=None, master_input=False):
             if n <= PARA_WORD_CAP:
                 continue
             notes.append(("warn",
-                f"{'Summary' if p is summary else 'Bullet' if _is_bullet(p) else 'Paragraph'} has {n} words (cap {PARA_WORD_CAP}, SKILL Step 5): "
+                f"{'Summary' if p is summary else 'Bullet' if _is_bullet(p) else 'Paragraph'}"
+                f" has {n} words (cap {PARA_WORD_CAP}, SKILL Step 5): "
                 f"{' '.join(text.split())[:60]!r}... — split or trim to {PARA_WORD_CAP} words"))
     if summary_text and len(summary_text.split()) <= PARA_WORD_CAP:
         notes.append(("ok",

@@ -107,7 +107,8 @@ def _run_phases(args, client, logger):
     print(f"  -> {len(baseline)} verdicts\n", flush=True)
     hacker = []
     if not args.prepass_only:
-        print(f"[3/4] adversarial hacker: open-ended LLM probes (up to {config.MAX_HACKER_PROBES})...", flush=True)  # pylint: disable=line-too-long
+        print(f"[3/4] adversarial hacker: open-ended LLM probes "
+              f"(up to {config.MAX_HACKER_PROBES})...", flush=True)
         hacker = run_hacker(client, max_probes=config.MAX_HACKER_PROBES,
                             progress=_cli_progress("hacker"))
         print(f"  -> {len(hacker)} verdicts\n", flush=True)
@@ -187,7 +188,8 @@ def main(argv=None) -> int:
     p_run = sub.add_parser("run", help="run agents against a live API")
     p_run.add_argument("--api", required=True, help="base URL")
     p_run.add_argument("--token", default=None, help="Bearer token")
-    p_run.add_argument("--report", default=None, help="output report path (default: reports/<ts>/report.json)")  # pylint: disable=line-too-long
+    p_run.add_argument("--report", default=None,
+                       help="output report path (default: reports/<ts>/report.json)")
     p_run.add_argument("--skip-explorer", action="store_true")
     p_run.add_argument("--prepass-only", action="store_true")
     p_run.set_defaults(fn=cmd_run)
