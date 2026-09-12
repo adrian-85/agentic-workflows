@@ -227,6 +227,15 @@ def _vocab_terms(body):
     return terms
 
 
+def _is_content_token(w, min_len=4):
+    """True when ``w`` can carry term evidence: not a stop word, long
+    enough, not a numeric/versioned token. The one definition every
+    mining site shares (drifting copies made 'test'/'automation' behave
+    differently per site)."""
+    return (w not in JD_STOP and len(w) >= min_len
+            and not re.fullmatch(r"[0-9.]+\w*", w))
+
+
 def _bullet_terms(body):
     """Single-word alnum tokens (len>=4, not stops/numeric) from every
     numbered bullet. This catches candidate tools that appear ONLY in a
@@ -239,7 +248,7 @@ def _bullet_terms(body):
     for text in _all_bullet_texts(body):
         for w in re.findall(r"[a-z0-9][a-z0-9#.+-]*", text.lower()):
             w = w.rstrip(".,;:!?'")
-            if w in JD_STOP or len(w) < 4 or re.fullmatch(r"[0-9.]+\w*", w):
+            if not _is_content_token(w):
                 continue
             terms.add(w)
     return terms
@@ -269,9 +278,17 @@ def _jd_variants(term):
     lengths, "triaged"→"triage" and "reviewed"→"review"), and the
     y/ies pair. Substring (not whole-word) on purpose — lenient recall;
     precision is downstream's (JD_STOP, the generic-rate guard, the
-    ambient/weak classes).
+    ambient/weak classes). The strict whole-word sibling is
+    _jd_term_freq; _in_jd is the lenient prefilter over the same
+    variants.
     """
-    out = {term, term + "s", term + "es"}
+    out = {term}
+    # Plural EXPANSION: 'harness' → 'harnesses' is a real plural; 'harness'
+    # → 'harnesss' is junk, so s-ending terms only get the +es form.
+    if not term.endswith("s"):
+        out.add(term + "s")
+    if not term.endswith("es"):
+        out.add(term + "es")
     if term.endswith("ies") and len(term) > 4:
         out.add(term[:-3] + "y")
     if term.endswith("es") and len(term) > 4:
@@ -295,7 +312,8 @@ def _in_jd(term, jd_low):
 def _jd_term_freq(term, jd_low):
     """WHOLE-WORD occurrences of ``term`` across its non-stop variants,
     summed — 'harness layer' + 'harnesses and playbooks' is the JD asking
-    for the harness layer twice. Substring counting made 'notes' freq=12
+    for the harness layer twice (the lenient substring prefilter over the
+    same variants is _in_jd). Substring counting made 'notes' freq=12
     via 'not' and 'served' freq=2 via 'service' — resume VERBS admitted
     as JD asks (a real probe's term list was one-third past-tense action
     verbs). Variants shorter than 3 chars never count ('notes'→'not' is a
@@ -396,15 +414,14 @@ def _doc_tokens(body):
     for text in _all_paragraph_texts(body):
         for w in re.findall(r"[a-z0-9][a-z0-9#.+-]*", text.lower()):
             w = w.rstrip(".,;:!?'")
-            if w in JD_STOP or len(w) < 4 or re.fullmatch(r"[0-9.]+\w*", w):
+            if not _is_content_token(w):
                 continue
             tokens.add(w)
             # Hyphen compounds contribute their parts: 'sub-agents' hosts
             # the JD's 'agents' ask — the compound token itself never
             # intersects the JD's single word.
             for part in w.split("-"):
-                if part not in JD_STOP and len(part) >= 3 \
-                        and not re.fullmatch(r"[0-9.]+\w*", part):
+                if _is_content_token(part, 3):
                     tokens.add(part)
         for a in _acronym_terms(text):
             acronyms.add(a)
@@ -421,10 +438,10 @@ def _admit_doc_token(t, jd_text, jd_low, first_words):
     ("reviewed"→"review") as a JD ask. Claimed tools legitimately start
     bullets too ("Playwright cross-browser...") but pass the
     capitalization gate instead."""
-    if t in JD_STOP or re.fullmatch(r"[0-9.]+\w*", t) or not _in_jd(t, jd_low):
+    if not _is_content_token(t) or not _in_jd(t, jd_low):
         return False
-    return bool(_jd_capitalized(jd_text, t) or t in CORE_TECH_NOUNS
-                or (t not in first_words and _jd_term_freq(t, jd_low) >= 2))
+    return (_jd_capitalized(jd_text, t) or t in CORE_TECH_NOUNS
+            or (t not in first_words and _jd_term_freq(t, jd_low) >= 2))
 
 
 def _guard_drops(terms, body):

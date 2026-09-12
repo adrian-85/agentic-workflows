@@ -318,18 +318,11 @@ and plan the literal-phrase hosts for this same authoring pass (Step 2's
 inference rule for soft skills; never fabricate hard skills).
 
 **Every flag you override gets a recorded one-line JD reason — in the plan,
-next to the keep.** The matcher is heuristic: a real session saw it flag
-the JD's literal core ask ("AI adoption", "MCP context delivery", the
-MCP→Pi migration library) as "no JD evidence" while its generic terms
-protected genuinely off-JD bullets, and the agent overrode the flags by
-judgment — sanctioned, but the overrides were never written down, so the
-deliverable's least-verified content (the keeps the matcher DISAGREED
-with) had no backstop and the user hand-trimmed the resume again at the
-end. Write `# kept: <one-line JD reason>` beside every overridden flag,
-and Step 11's final review re-reads exactly those lines: a keep whose
-reason no longer holds under the final content gets cut. An overridden
-flag with neither a recorded reason nor a cut is a MISS — treat it like
-the drop-list arithmetic: fix it, don't rationalize it.
+next to the keep.** The matcher is heuristic. Write `# kept: <one-line JD reason>` 
+beside every overridden flag, and Step 11's final review re-reads exactly 
+those lines: a keep whose reason no longer holds under the final content gets 
+cut. An overridden flag with neither a recorded reason nor a cut is a MISS — 
+treat it like the drop-list arithmetic: fix it, don't rationalize it.
 
 **Never cut the LAST host of a hard skill the JD names** — check the term
 isn't the JD-named skill's only remaining host before any cut (Step 8's

@@ -322,7 +322,10 @@ python3 scripts/measure_resume.py "<userName> Master Resume.docx" --jd jd_<targe
 The master without `--jd` exits 2; `--simulate` on the master exits 2
 (seniority what-ifs run on the pruned copy, Step 4). An explicit page target
 is ignored with a note. Prune everything the plan lists (SKILL Step 3), THEN
-measure the tailored copy for length/seniority (Step 4).
+measure the tailored copy for length/seniority (Step 4). A plan flag you
+override by judgment gets a recorded `# kept: <one-line JD reason>` beside
+the keep — Step 11's final review re-reads exactly those lines (SKILL
+Step 3's override rule).
 
 ### WORD-LEVEL TRIM CANDIDATES
 
