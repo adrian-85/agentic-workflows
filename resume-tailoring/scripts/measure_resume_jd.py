@@ -18,7 +18,8 @@ import docx_edit as de  # noqa: E402
 from docx_edit_gate import tmp_jd_note  # noqa: E402
 from measure_resume_format import COMPANY_STYLE, SECTION_PROFICIENCIES  # noqa: E402
 from measure_resume_jd_terms import (JD_CONCEPTS, JD_STOP,  # noqa: E402
-                                     _concept_hits, _jd_hits)
+                                     _adjacent_bigrams, _concept_hits,
+                                     _jd_hits)
 
 W = de.W
 
@@ -59,22 +60,34 @@ JD_QUAL_HEADING_RE = re.compile(
     # label for the qualification section (e.g. OnePay's QE Platform
     # posting). Without it the requirement-coverage map (and its
     # never-fabricate guard) silently stays silent for the whole posting.
-    r"|^\s*#{0,6}\s*(?:what\s+)?you(?:'ll)?\s+bring\s*:?\s*$",
+    r"|^\s*#{0,6}\s*(?:what\s+)?you(?:'ll)?\s+bring\s*:?\s*$"
+    # "What makes you a fit" — HubSync-style fit heading; its lines ARE
+    # asks ("Strong engineering fundamentals...", "Comfortable being
+    # measured on adoption..."). Without it the collector ran straight
+    # through it and mined the NEGATED section below as qualification
+    # lines (a real session's coverage map reported "Not a research
+    # position" and the bare heading "Level" as uncovered asks).
+    r"|^\s*what\s+makes\s+you\s+(?:a\s+)?fit\s*:?\s*$"
+    # A bare section word heading ("Level") — terminates the section;
+    # without it the heading itself mined as a one-word qualification
+    # line (extracted term: 'level' — an UNCOVERED-ask false alarm).
+    r"|^\s*#{0,6}\s*level\s*:?\s*$",
     re.I,
 )
 
+# Negative JD sections ("What this role is not") — they TERMINATE
+# qualification collection but never contribute lines: their bullets are
+# definitionally non-asks ("Not a research position..." mined as an
+# uncovered qualification with the extracted term 'not').
+JD_NEGATED_HEADING_RE = re.compile(
+    r"^\s*what\s+this\s+role\s+is\s+(?:not|n[o']t)\s*:?\s*$", re.I)
 
-JD_SELF_ASSESSMENT = frozenset({
-    "excellent", "outstanding", "exceptional", "effective",
-    "effectively", "superior", "superb", "expert", "good", "great",
-})
 
-
-JD_SOFT_SKILL_RE = re.compile(
-    r"\b(communication|stakeholder|leadership|mentorship|"
-    r"collaboration|teamwork|interpersonal|presentation|reliability|"
-    r"dependability|ownership|accountability|adaptability|autonomy)\b",
-    re.I)
+# JD_SELF_ASSESSMENT and JD_SOFT_SKILL_RE live in measure_resume_jd_terms
+# (the bigram extractor shares both filters); re-exported for the
+# qual-line scanner.
+from measure_resume_jd_terms import JD_SELF_ASSESSMENT  # noqa: E402,F401
+from measure_resume_jd_terms import JD_SOFT_SKILL_RE  # noqa: E402,F401
 
 
 INFERENCE_FAMILIES = (
@@ -204,6 +217,9 @@ def _jd_requirement_lines(jd_text):
     out, collecting = [], False
     for line in lines:
         s = line.strip()
+        if JD_NEGATED_HEADING_RE.match(s):
+            collecting = False
+            continue
         if JD_QUAL_HEADING_RE.match(s):
             collecting = True
             continue
@@ -267,6 +283,15 @@ def _jd_line_terms(line):
         low = m.group(1).lower().rstrip(".")
         if _admit(low, m.start(1)):
             terms.add(low)
+    # Lowercase compound asks: ADJACENT non-stop-word bigrams ("cycle
+    # time", "review latency", "escaped defects"), adjacency preserved
+    # from the raw line (see _adjacent_bigrams — 'measured on adoption'
+    # must NOT yield 'measured adoption'). The HubSync coverage map
+    # extracted 'own' from "Own the measurement. Cycle time, review
+    # latency..." — the actual asks were the bigrams, invisible to the
+    # capitalized-token scan, so the line read UNCOVERED while the RCA
+    # bullet literally hosted "review latency".
+    terms |= _adjacent_bigrams(line)
     return terms
 
 

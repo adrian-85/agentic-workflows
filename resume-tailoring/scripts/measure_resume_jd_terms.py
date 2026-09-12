@@ -74,6 +74,17 @@ JD_STOP = frozenset({
     "business", "businesses", "progress", "flexible", "flexibility",
     "learning", "collaborative", "environment", "environments",
     "practice", "practices", "types", "type", "internally",
+    # Soft-skill/relationship nouns — never tech evidence: a JD mentioning
+    # 'stakeholders' must not make stakeholder-management bullets read as
+    # JD-aligned; soft-skill asks live in JD_SOFT_SKILL_RE instead.
+    "stakeholder", "stakeholders", "evangelist", "evangelism",
+    # Pronoun/complementizer misses that the freq>=2 gate re-admits (a JD
+    # uses 'it'/'that' constantly; matching twice is not evidence).
+    "that", "what", "it", "its", "how", "much",
+    # Repeated JD prose the freq>=2 gate re-admits (twice is not evidence
+    # for words that are plain English).
+    "being", "full", "existing", "cross", "change", "changes",
+    "changed", "making", "notes",
 })
 
 
@@ -92,6 +103,50 @@ CORE_TECH_NOUNS = frozenset({
     "database", "databases", "sandbox",
     "regression", "end-to-end", "playwright", "cypress", "selenium",
     "karate", "postman", "jenkins", "docker", "kubernetes", "terraform",
+})
+
+# Self-assessment adjectives ('excellent', 'expert') — self-descriptions,
+# never skill evidence; mined nowhere. Lives beside the term mining so the
+# bigram extractor shares the filter (a real qual line 'Excellent
+# communication, stakeholder management...' mined 'excellent communication'
+# as a compound ask).
+JD_SELF_ASSESSMENT = frozenset({
+    "excellent", "outstanding", "exceptional", "effective",
+    "effectively", "superior", "superb", "expert", "good", "great",
+})
+
+# Stop-listed words that still end a legitimate metric compound when a
+# content word leads ('cycle time', 'lead time', 'escaped-defect rate').
+JD_METRIC_HEADS = frozenset({"time", "rate", "latency", "cost"})
+
+# Soft-skill nouns — asks evidenced by ACTION-VERB bullets (SKILL Step 2),
+# never literal keyword hosts. Excluded from bigram mining so a qual line
+# like 'stakeholder management and technical leadership' mines no compound
+# that would flip it out of the by-hand soft-skill path.
+JD_SOFT_SKILL_RE = re.compile(
+    r"\b(communication|stakeholder|leadership|mentorship|"
+    r"collaboration|teamwork|interpersonal|presentation|reliability|"
+    r"dependability|ownership|accountability|adaptability|autonomy|"
+    r"patience|credibility)\b",
+    re.I)
+
+# Ambient tech vocabulary: words every software resume carries regardless
+# of the JD. A hit on one of these is DISPLAY-ONLY evidence — it never
+# protects a bullet (SKILL Step 3's weak class). The HubSync session's
+# kept-off-JD junk ("Mentored a junior quality engineer... transition to
+# an automation role", "Served as SME for Karate framework") survived the
+# prune only because "automation"/"frameworks"/"test" counted as strong
+# JD evidence — ambient words cannot arbitrate between bullets. A bullet
+# whose ONLY hits are ambient lands in the weak-match (cuttable) listing;
+# distinctive terms (CORE_TECH_NOUNS, mined compounds, acronyms, anything
+# JD-frequent) still protect. Deliberately NOT here: github/aws — for a
+# GitHub-platform or cloud JD those ARE the ask.
+AMBIENT_TECH_NOUNS = frozenset({
+    "automation", "test", "testing", "framework", "frameworks",
+    "code", "coding", "software", "platform", "platforms",
+    "tool", "tools", "service", "services", "server", "servers",
+    "management", "engineering", "build", "building",
+    "development", "developer", "deployment", "deploying",
 })
 
 
@@ -186,6 +241,65 @@ def _all_bullet_texts(body):
     return out
 
 
+def _jd_variants(term):
+    """Morphological variants of ``term`` for JD-presence checking.
+
+    Mining intersects the resume's tokens with the JD text, but the two
+    inflect differently: the resume says "Triaged"/"RCAs"/"reviewed",
+    the JD asks for "triage"/"RCA"/"review". The raw substring check
+    (``t in jd_low``) misses every one of those — a real session's prune
+    plan flagged the folded "Triaged production incidents" bullet as
+    OFF-JD while "triage" was literally a JD ask. Bidirectional
+    light-stemming: plural strip/add, ``-ed``/``-ing`` strip (both
+    lengths, "triaged"→"triage" and "reviewed"→"review"), and the
+    y/ies pair. Substring (not whole-word) on purpose — lenient recall;
+    precision is downstream's (JD_STOP, the generic-rate guard, the
+    ambient/weak classes).
+    """
+    out = {term, term + "s", term + "es"}
+    if term.endswith("ies") and len(term) > 4:
+        out.add(term[:-3] + "y")
+    if term.endswith("es") and len(term) > 4:
+        out.add(term[:-2])
+    if term.endswith("s") and len(term) > 3:
+        out.add(term[:-1])
+    if term.endswith("ed") and len(term) > 4:
+        out.add(term[:-1])
+        out.add(term[:-2])
+    if term.endswith("ing") and len(term) > 5:
+        out.add(term[:-3])
+        out.add(term[:-3] + "e")
+    return out
+
+
+def _in_jd(term, jd_low):
+    """True if ``term`` (or a morphological variant) occurs in the JD."""
+    return any(v in jd_low for v in _jd_variants(term))
+
+
+def _jd_term_freq(term, jd_low):
+    """WHOLE-WORD occurrences of ``term`` across its non-stop variants,
+    summed — 'harness layer' + 'harnesses and playbooks' is the JD asking
+    for the harness layer twice. Substring counting made 'notes' freq=12
+    via 'not' and 'served' freq=2 via 'service' — resume VERBS admitted
+    as JD asks (a real probe's term list was one-third past-tense action
+    verbs). Variants shorter than 3 chars never count ('notes'→'not' is a
+    different word, not a plural)."""
+    total = 0
+    for v in _jd_variants(term):
+        if len(v) < 3 or v in JD_STOP:
+            continue
+        total += len(re.findall(
+            rf"(?<![a-z0-9#+]){re.escape(v)}(?![a-z0-9#+])", jd_low))
+    return total
+
+
+def _norm_text(text):
+    """Lowercased with hyphens/slashes as spaces — bigram-mining form so
+    "cycle-time"/"CI/CD" phrase boundaries tokenize like the JD's."""
+    return re.sub(r"[-/]+", " ", text.lower())
+
+
 def _jd_capitalized(jd_text, term):
     """True if ``term`` occurs in the JD as a mid-sentence Capitalized or
     ALL-CAPS token.
@@ -208,16 +322,99 @@ def _jd_capitalized(jd_text, term):
     return False
 
 
-def _jd_terms(jd_text, body):
-    """Candidate-technical terms the JD actually asks for: vocabulary and
-    bullet-tool terms the JD also names, minus generic stopwords. Empty
-    when jd_text is empty/garbage — callers fall back to the JD-blind
-    ranking.
+def _all_paragraph_texts(body):
+    """Texts of every non-empty paragraph (document order) — the FULL
+    term-source pool: bullets, proficiencies, Tools lines, AND the
+    Summary/role-intro prose. Intros are kept, rewritten content that
+    legitimately hosts JD asks: the HubSync session's hosting pass lived
+    on exactly those paragraphs ("Built the shared harness layer...",
+    "contributing skills files, playbooks, and context configuration").
+    Mining only numbered bullets made every intro-hosted ask lexically
+    invisible to the prune plan.
+    """
+    return [de.text_of(p) for p in de.paras(body) if de.text_of(p).strip()]
 
-    Vocab-derived terms (proficiencies, Tools lines, job titles — the
-    candidate's CLAIMED tech) match anywhere in the JD. Bullet-only terms
-    must additionally pass _jd_capitalized: they are the prose-flood
-    source, and a tool name is a proper noun.
+
+def _adjacent_bigrams(text):
+    """Bigrams of non-stop words separated by WHITESPACE ONLY — 'cycle
+    time' joins, but 'time, review' does not (punctuation breaks a
+    compound), and a stop word between two content words ('measured on
+    adoption') never yields a false compound ('measured adoption')."""
+    toks = [(m.group(0), m.start(), m.end())
+            for m in re.finditer(r"[a-z0-9][a-z0-9#+]*", _norm_text(text))]
+    out = set()
+    for (a, i, iend), (b, j, _jend) in zip(toks, toks[1:]):
+        gap = _norm_text(text)[iend:j]
+        if not gap.isspace():  # punctuation or a short token between
+            continue
+        # The HEAD (second word) may be a stop-listed METRIC head ('cycle
+        # time') when the FIRST word is a solid content word — the JD's
+        # metric compounds end in stopped heads, and excluding them made
+        # 'cycle time' unmineable. The head set is a whitelist ('and' as a
+        # head forms junk like 'adoption and'); a stop word FIRST ('on
+        # adoption') or as BOTH words never forms a compound.
+        if (len(a) < 3 or len(b) < 3
+                or a in JD_STOP or a in JD_SELF_ASSESSMENT
+                or b in JD_SELF_ASSESSMENT
+                or JD_SOFT_SKILL_RE.search(a) or JD_SOFT_SKILL_RE.search(b)
+                or (b in JD_STOP and b not in JD_METRIC_HEADS)
+                or re.fullmatch(r"[0-9.]+\w*", a)
+                or re.fullmatch(r"[0-9.]+\w*", b)):
+            continue
+        out.add(f"{a} {b}")
+    return out
+
+
+def _doc_tokens(body):
+    """Candidate term pool over ALL paragraphs, in three classes:
+    single-word tokens (len>=4, not stops/numeric), ALL-CAPS acronym
+    tokens (len>=2 — RCA, MCP, PR, V1; the same rule _line_terms applies
+    to labeled lines), and adjacent non-stop WORD BIGRAMS. Bigrams catch
+    the JD's compound asks the single-token scan cannot see ("cycle
+    time", "review latency") — each was a real HubSync hosting miss when
+    only single tokens were mined.
+    """
+    tokens, acronyms, bigrams = set(), set(), set()
+    for text in _all_paragraph_texts(body):
+        for w in re.findall(r"[a-z0-9][a-z0-9#.+-]*", text.lower()):
+            w = w.rstrip(".,;:!?'")
+            if w in JD_STOP or len(w) < 4 or re.fullmatch(r"[0-9.]+\w*", w):
+                continue
+            tokens.add(w)
+            # Hyphen compounds contribute their parts: 'sub-agents' hosts
+            # the JD's 'agents' ask — the compound token itself never
+            # intersects the JD's single word.
+            for part in w.split("-"):
+                if part not in JD_STOP and len(part) >= 3 \
+                        and not re.fullmatch(r"[0-9.]+\w*", part):
+                    tokens.add(part)
+        for a in _acronym_terms(text):
+            acronyms.add(a)
+        bigrams |= _adjacent_bigrams(text)
+    return tokens, acronyms, bigrams
+
+
+def _jd_terms(jd_text, body):
+    """Candidate-technical terms the JD actually asks for: vocabulary,
+    bullet/prose tokens, acronyms, and word bigrams the JD also names,
+    minus generic stopwords. Empty when jd_text is empty/garbage —
+    callers fall back to the JD-blind ranking.
+
+    Admission gates for single tokens (recall-oriented; the HubSync
+    session's prune plan missed "agents", "context", "triage" — core
+    asks — because lowercase mid-sentence nouns were rejected outright):
+      - vocab-derived terms (proficiencies, Tools lines, titles — the
+        candidate's CLAIMED tech) match anywhere in the JD;
+      - doc tokens (bullets + prose) pass _jd_capitalized (proper
+        nouns), CORE_TECH_NOUNS, or JD frequency >= 2. Freq admission
+        EXCLUDES each paragraph's first word: bullet-initial tokens are
+        the candidate's ACTION VERBS ("Triaged", "Developed", "Led") —
+        morphological variant matching would otherwise admit the verb
+        ("reviewed"→"review") as a JD ask. Claimed tools legitimately
+        start bullets too ("Playwright cross-browser...") but pass the
+        capitalization gate instead.
+    Bigrams admit when the JD contains the phrase (hyphen/slash-normalized
+    on both sides).
 
     A GENERIC-HIT-RATE GUARD discards any surviving term that matches more
     than half of the document's bullets: such a term is prose the stop list
@@ -231,12 +428,33 @@ def _jd_terms(jd_text, body):
         if (len(t) < 3 and not re.search(r"[#+]", t)) or t in JD_STOP \
                 or re.fullmatch(r"[0-9.]+\w*", t):
             continue
-        if t in jd_low:
+        if _in_jd(t, jd_low):
             terms.add(t)
-    for t in _bullet_terms(body):
-        if t in jd_low and (_jd_capitalized(jd_text, t)
-                            or t in CORE_TECH_NOUNS):
+    tokens, acronyms, bigrams = _doc_tokens(body)
+    first_words = {t.split()[0].lower() for t in _all_paragraph_texts(body)
+                   if t.split()}
+    for t in tokens:
+        if t in JD_STOP or re.fullmatch(r"[0-9.]+\w*", t):
+            continue
+        if not _in_jd(t, jd_low):
+            continue
+        if (_jd_capitalized(jd_text, t) or t in CORE_TECH_NOUNS
+                or (t not in first_words and _jd_term_freq(t, jd_low) >= 2)):
             terms.add(t)
+    # Acronyms admit on WHOLE-WORD JD presence, never substring: the doc
+    # side mines 'CA' (state codes), 'OS', 'IT' from headers/addresses, and
+    # a 2-char substring check matches 'ca' inside 'candidate' — noise that
+    # flooded the term list (the first probe's 123-term list was two-thirds
+    # 'ca'/'os'/'it'/'ms' artifacts).
+    for a in acronyms:
+        if a in JD_STOP or len(a) < 2:
+            continue
+        if re.search(rf"(?<![a-z0-9#+]){re.escape(a)}(?![a-z0-9#+])", jd_low):
+            terms.add(a)
+    jd_norm = _norm_text(jd_text)
+    for bg in bigrams:
+        if bg in jd_low or bg in jd_norm:
+            terms.add(bg)
     if terms:
         bullets = _all_bullet_texts(body)
         if len(bullets) >= 6:
@@ -266,7 +484,11 @@ def _jd_hits(text, jd_terms):
     whole word (the JD asks for "API integrations", the bullet says
     "integration test"), and a singular term also matches its ``s``-plural
     (JD: "integration"; bullet: "partner integrations"; JD: "API";
-    resume line: "REST APIs"). Keeps genuinely-technical lines (an API
+    resume line: "REST APIs"). Hyphen compounds host their head: a bullet
+    saying "sub-agents" DOES host the JD's "agents" ask — the lookbehind
+    rejects token characters but NOT the hyphen (a real prune read the
+    semi-autonomous-workflow bullet as evidence-free because of it).
+    Keeps genuinely-technical lines (an API
     proficiencies line vs the JD's "APIs") from being misread as off-JD
     cut candidates.
 
@@ -279,10 +501,15 @@ def _jd_hits(text, jd_terms):
     passes.
     """
     low = text.lower()
+    low_norm = _norm_text(text)
     out = []
     for t in jd_terms:
         if " " in t:
-            if t in low:
+            # Hyphen/slash-normalized fallback: a resume hosts 'pull-request'
+            # where the JD asks for 'pull request' — same evidence, one
+            # hyphen apart (the ASDLC bullet read as evidence-free without
+            # this and landed in the weak-match cut list).
+            if t in low or _norm_text(t) in low_norm:
                 out.append(t)
             continue
         cands = {t}
@@ -292,7 +519,7 @@ def _jd_hits(text, jd_terms):
             cands.add(t + "s")
         for c in cands:
             if re.search(
-                    r"(?<![a-z0-9#.+-])" + re.escape(c)
+                    r"(?<![a-z0-9#.+])" + re.escape(c)
                     + r"(?![a-z0-9#+-]|\.[a-z0-9#+-])",
                     low):
                 out.append(t)
@@ -363,15 +590,20 @@ def _jd_hits_classified(text, jd_terms, corpus):
     """(strong_hits, weak_hits) for ``text`` against ``jd_terms``.
 
     A hit is weak when its term matches >50% of ``corpus`` (the role's own
-    bullets — see :func:`_weak_jd_terms`). Strong hits protect; weak hits
-    are display-only evidence that the human rule may override.
+    bullets — see :func:`_weak_jd_terms`) or when the term is AMBIENT tech
+    vocabulary (AMBIENT_TECH_NOUNS — see that constant; ambient words
+    cannot arbitrate between bullets, so they display as evidence but
+    never protect). Strong hits protect; weak hits are display-only
+    evidence that the human rule may override.
     """
     hits = _jd_hits(text, jd_terms)
     if not hits:
         return [], []
     weak = _weak_jd_terms(corpus, jd_terms)
-    strong = [h for h in hits if h not in weak]
-    return strong, [h for h in hits if h in weak]
+    strong = [h for h in hits if h not in weak
+              and h not in AMBIENT_TECH_NOUNS]
+    return strong, [h for h in hits
+                    if h in weak or h in AMBIENT_TECH_NOUNS]
 
 
 def _jd_kept(text, jd_terms, corpus=None):
@@ -385,7 +617,8 @@ def _jd_kept(text, jd_terms, corpus=None):
     instead of dead-ending on nominal protection.
     """
     if corpus is None:
-        strong = _jd_hits(text, jd_terms)
+        strong = [h for h in _jd_hits(text, jd_terms)
+                  if h not in AMBIENT_TECH_NOUNS]
     else:
         strong, _ = _jd_hits_classified(text, jd_terms, corpus)
     return bool(strong) or bool(_concept_hits(text))

@@ -140,6 +140,7 @@ from measure_resume_jd_terms import (
     _jd_hits_classified,
     _jd_kept,
     _jd_terms,
+    _adjacent_bigrams,
     _line_terms,
     _vocab_terms,
     _weak_jd_terms,

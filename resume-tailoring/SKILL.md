@@ -317,6 +317,20 @@ Read the coverage report's [UNCOVERED] and [weak] lists in the same pass
 and plan the literal-phrase hosts for this same authoring pass (Step 2's
 inference rule for soft skills; never fabricate hard skills).
 
+**Every flag you override gets a recorded one-line JD reason — in the plan,
+next to the keep.** The matcher is heuristic: a real session saw it flag
+the JD's literal core ask ("AI adoption", "MCP context delivery", the
+MCP→Pi migration library) as "no JD evidence" while its generic terms
+protected genuinely off-JD bullets, and the agent overrode the flags by
+judgment — sanctioned, but the overrides were never written down, so the
+deliverable's least-verified content (the keeps the matcher DISAGREED
+with) had no backstop and the user hand-trimmed the resume again at the
+end. Write `# kept: <one-line JD reason>` beside every overridden flag,
+and Step 11's final review re-reads exactly those lines: a keep whose
+reason no longer holds under the final content gets cut. An overridden
+flag with neither a recorded reason nor a cut is a MISS — treat it like
+the drop-list arithmetic: fix it, don't rationalize it.
+
 **Never cut the LAST host of a hard skill the JD names** — check the term
 isn't the JD-named skill's only remaining host before any cut (Step 8's
 `ats_audit.py --jd` backstop catches it post-build; the external score
@@ -836,6 +850,11 @@ automated (`validate_resume.py`); JD-fit judgment of kept bullets is not — tha
 stays human. The post-build measure run's **JD-FIT AUDIT** narrows where to
 look: any OFF-JD or weak-match bullet it lists gets cut or shortened even
 when the page target is met, or kept with a one-line reason tied to the JD.
+**Re-read the Step-3 override reasons first** — they are the keeps the
+matcher disagreed with, the deliverable's least-verified content: a keep
+whose recorded reason no longer holds under the final content (the
+hosting loop rewrote it, the page math squeezed its section) gets cut
+here, not handed to the user as a trim.
 
 If it overshoots the target, **compress one more older-role bullet** and
 re-render until the last page is full (the `.pdf` is the deliverable; the `.docx` is
@@ -922,6 +941,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Measuring the full master for page/word budgets | Refused by the tool — the master is only prune-planned (Step 3); length/word decisions run on the PRUNED copy (Step 4) |
 | Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 3, 8) |
 | Trusting a JD-matched (kept) listing that protected everything | A term matching half a role's bullets is shown as `[weak: term]` and protects nothing; specific tech nouns stay strong — read the weak-match (cuttable) listing before calling a role a dead end (Step 8) |
+| Overriding PRUNE flags by judgment without recording the reason | Sanctioned (the matcher is heuristic) but an override with no recorded `# kept: <JD reason>` is invisible at final review — the user hand-trimmed a real deliverable because of it. Record beside the keep; Step 11 re-reads exactly those lines (Step 3) |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
 | Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (`save()` prints one summary line if element-form was used). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form (Helper library) |
 | Iterating Tools-line trims because a trimmed line still wraps | Rare now: TOOLS LINES THAT WRAP reports the MEASURED budget per line ("value is N chars, wraps after ~M — cut ~N-M chars"), so the first trim lands. Trim to the reported budget, not a tool count — the proportional font makes "~8 tools" unreliable (Step 8) |

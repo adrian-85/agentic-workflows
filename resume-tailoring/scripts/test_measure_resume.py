@@ -1977,6 +1977,182 @@ class JdMissingTermsTests(unittest.TestCase):
         self.assertEqual(terms, set())
 
 
+class JdTermRecallTests(unittest.TestCase):
+    """JD term-mining recall, regression-tested on a HubSync-shaped JD
+    (real session 2026-09-11): the prune plan missed 'agents', 'context',
+    'sdlc', 'spec', 'V1', 'MCP', 'RCA', 'cycle time', 'review latency' —
+    the JD's core asks — because lowercase mid-sentence nouns, compound
+    metric phrases, short acronyms, and intro-hosted vocabulary were all
+    rejected at mining time. The noise flooded the other direction: every
+    kept-off-JD junk bullet survived on 'automation'/'test'/'frameworks'
+    hits, and the agent overrode the flags by judgment ("the matcher is
+    noisy here"), which killed the plan's authority. Every test here maps
+    to one of those failure classes."""
+
+    def _body(self):
+        """Resume whose JD-relevant evidence lives in bullets, proficiencies,
+        AND a role intro — the real master's shape."""
+        return _body([
+            _para("Technical Proficiencies", style="SectionHeading"),
+            _para("Programming Languages: Go, Python, TypeScript"),
+            _para(mr.SECTION_CAREER, style="SectionHeading"),
+            _para("Company ABC, City" + _sample_date() + " – 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Staff Engineer", style="JobTitleBlock"),
+            _para("AI adoption leader. Built the shared harness layer, "
+                  "contributing skills files, playbooks, and context "
+                  "configuration.", numId=2),
+            _para("Developed agentic workflows using sub-agents running in "
+                  "parallel, shipping a working V1 in a day.", numId=2),
+            _para("Triaged production incidents and helped track review "
+                  "latency and cycle time across the department.", numId=2),
+            _para("Engineered an ASDLC from ticket creation through "
+                  "pull-request comment resolution, delivering agent "
+                  "context via MCP servers.", numId=2),
+            _para("Led SDLC process improvements across an Agile team, "
+                  "using the Scrum framework.", numId=2),
+        ])
+
+    JD = ("Staff or Senior Software Engineer, AI-Native SDLC\n"
+          "We build AI into everything: internal agents should be treated "
+          "like product. A QA agent tests every pull request; an AI "
+          "reviewer earns merge authority. Agents that sharpen specs "
+          "before an engineer touches them; agents that watch production.\n"
+          "What you'll do\n"
+          "Build internal agents as products, across the whole lifecycle: "
+          "the shared harness layer (skills, context, MCP servers, "
+          "per-repo configuration) that makes every engineer's agent "
+          "dramatically better than stock, with the prompt and context "
+          "engineering to match. You build and maintain the harnesses "
+          "and playbooks.\n"
+          "Own the measurement. Cycle time, review latency, escaped "
+          "defects, cost per feature.\n"
+          "What makes you a fit\n"
+          "You ship a working V1 in a day and harden it in week two.\n"
+          "What this role is not\n"
+          "Not a research position, and not a decks-and-frameworks seat.\n"
+          "Level\n"
+          "Staff or Senior depending on how much of the drive you can "
+          "carry yourself.\n")
+
+    def test_lowercase_jd_asks_mine_at_frequency(self):
+        # 'agents', 'context', 'sdlc' are lowercase mid-sentence in the JD —
+        # the old _jd_capitalized-only gate rejected every one of them, so
+        # the plan flagged the AI-adoption bullets as OFF-JD ("no JD
+        # evidence") while they carried the JD's literal core ask.
+        terms = mr._jd_terms(self.JD, self._body())
+        for want in ("agents", "context", "sdlc"):
+            self.assertIn(want, terms, f"{want!r} is a core JD ask")
+
+    def test_intro_paragraphs_are_term_sources(self):
+        # The master's GEICO intro (kept, rewritten content) hosts the
+        # 'harness layer' — mining only numbered bullets made every
+        # intro-hosted ask lexically invisible to the prune plan.
+        terms = mr._jd_terms(self.JD, self._body())
+        self.assertIn("harness", terms)
+
+    def test_compound_metric_bigrams_mine(self):
+        # 'cycle time' / 'review latency' are the JD's measurement asks; the
+        # single-token scan cannot see compounds, so the RCA bullet read as
+        # evidence-free and the coverage map printed 'own' as the ask.
+        terms = mr._jd_terms(self.JD, self._body())
+        for want in ("cycle time", "review latency"):
+            self.assertIn(want, terms)
+
+    def test_hyphen_compounds_host_phrase_terms(self):
+        # The resume hosts 'pull-request'; the JD asks for 'pull request' —
+        # same evidence, one hyphen apart. Without the normalized fallback
+        # the ASDLC bullet landed in the weak-match cut list.
+        terms = mr._jd_terms(self.JD, self._body())
+        self.assertIn("pull request", terms)
+        hits = mr._jd_hits(
+            "engineered an asdlc from ticket creation through "
+            "pull-request comment resolution.", {"pull request"})
+        self.assertEqual(hits, ["pull request"])
+
+    def test_hyphen_compound_heads_host_single_terms(self):
+        # 'sub-agents' hosts the JD's 'agents' ask — the lookbehind must
+        # reject token characters but not the hyphen.
+        self.assertEqual(mr._jd_hits("workflows using sub-agents in parallel",
+                                     {"agents"}), ["agents"])
+
+    def test_ambient_terms_cannot_protect(self):
+        # Junk bullets survived the prune only on 'automation'/'test'/'
+        # 'frameworks' hits — ambient words that cannot arbitrate between
+        # bullets. A bullet whose ONLY hits are ambient must classify as
+        # cuttable (weak), not JD-evidence (kept).
+        bullet = ("Served as a subject matter expert for Karate framework, "
+                  "hosting training sessions.")
+        corpus = [bullet, "Built REST API test suites with Selenium",
+                  "Created SQL queries for validation",
+                  "Led SDLC process improvements on an Agile team",
+                  "Wrote scripts for image storage in JFrog",
+                  "Established bi-monthly QA meetings"]
+        terms = mr._jd_terms(self.JD, self._body())
+        self.assertFalse(mr._jd_kept(bullet, terms, corpus=corpus),
+                         "ambient-only hits must not protect a bullet")
+
+    def test_paragraph_initial_verbs_not_freq_admitted(self):
+        # 'Triaged'/'Developed'/'Reviewed' open bullets — they are the
+        # candidate's ACTION VERBS. Morphological variant matching must not
+        # admit the verb ('reviewed'→'review') as a JD ask via frequency.
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " – 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Reviewed production incidents weekly.", numId=2),
+            _para("Reviewed handbooks for the compliance team.", numId=2),
+        ])
+        jd = "Review latency matters. Every change gets a review."
+        self.assertNotIn("reviewed", mr._jd_terms(jd, body))
+
+    def test_state_code_acronyms_not_mined(self):
+        # Acronyms admit on WHOLE-WORD JD presence: 'CA' from 'San Diego,
+        # CA' headers and 'OS'/'IT' from prose must not mine as terms (a
+        # 2-char substring check matches 'ca' inside 'candidate').
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, San Diego, CA" + _sample_date() + " – 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Built macOS and iOS test harnesses", numId=2),
+        ])
+        jd = "Build the platform the top firms run on."
+        terms = mr._jd_terms(jd, body)
+        for banned in ("ca", "os", "it", "id", "ms", "ng"):
+            self.assertNotIn(banned, terms)
+
+    def test_short_jd_acronyms_mine_whole_word(self):
+        # 'RCA' is a 3-char acronym: the len>=4 token scan never saw it,
+        # and 'RCA drafting' is lowercase-adjacent prose to the capitalization
+        # gate. Acronym extraction from the resume's '(RCAs)' hosts it.
+        body = _body([
+            _para("Career Experience", style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " – 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Triaged production incidents, authoring root cause "
+                  "analyses (RCAs) and reviewing them.", numId=2),
+        ])
+        jd = "incident triage and RCA drafting. The RCA feeds the fix."
+        self.assertIn("rca", mr._jd_terms(jd, body))
+
+    def test_negated_and_bare_headings_terminate_coverage(self):
+        # 'What this role is not' must STOP qualification collection without
+    # contributing lines; the bare 'Level' heading must not mine as a
+        # one-word qualification (extracted term 'level' was reported as an
+        # uncovered ask — the noise that made the agent override the plan).
+        qual_lines = mr._jd_requirement_lines(self.JD)
+        self.assertFalse(any("role is not" in q for q in qual_lines))
+        self.assertFalse(any(q.strip().lower() == "level" for q in qual_lines))
+        self.assertFalse(any("research position" in q for q in qual_lines))
+
+    def test_stop_word_gap_bigrams_not_mined(self):
+        # 'measured on adoption' must NOT yield 'measured adoption' — a
+        # bigram across a stop-word gap is a false compound.
+        self.assertEqual(mr._adjacent_bigrams(
+            "Comfortable being measured on adoption and dollars saved"),
+            {"dollars saved"})
+
+
 class KeepTrimCandidatesTests(unittest.TestCase):
     """Word-level trim candidates: kept bullets that still carry non-JD
     content. Compression was bullet-granular — a kept bullet dragged its
