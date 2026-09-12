@@ -138,9 +138,9 @@ The chat is the approval mechanism — there is no approval script.
    - Work entirely inside the worktree (use the returned path; do not
      modify files in the main working tree)
    - Run `verify-worktree.sh preflight <workflow>` once before writing
-     code — it confirms pylint is invokable and flags source files over
-     the 1000-line cap, so constraints surface at setup, not at the
-     final verify
+     code — it confirms the CI-pinned pylint is invokable and flags
+     source files over the 1000-line cap, so constraints surface at
+     setup, not at the final verify
    - Apply each approved change; follow existing patterns in the workflow
    - Commit after each logical change with descriptive messages
    - Per commit, run only the touched test files; the FULL suite belongs
@@ -373,6 +373,13 @@ scripts/verify-worktree.sh baseline <workflow>    # full suite on current tree �
                                                   # surfaces pre-existing failures
                                                   # in carried-in WIP
 scripts/verify-worktree.sh                        # no args: the full gate
+scripts/verify-worktree.sh lint FILE...           # ad-hoc lint with the CI-pinned
+#                                                  pylint — never lint with a
+#                                                  different version: message
+#                                                  sets differ between pylint
+#                                                  versions, so a clean from the
+#                                                  wrong one is a false negative
+#                                                  CI then fails on
 ```
 
 ### merge-worktree.sh

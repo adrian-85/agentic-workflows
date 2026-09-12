@@ -19,6 +19,7 @@
 #   verify-worktree.sh baseline <wf>    run one workflow's full suite on the
 #                                       current tree — surfaces pre-existing
 #                                       failures in carried-in WIP
+#   verify-worktree.sh lint FILE...     ad-hoc lint with the CI-pinned pylint
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -28,19 +29,48 @@ cd "$REPO_ROOT"
 # files must stay under it, test files are exempt (1:1 test→source mapping).
 LINE_CAP=1000
 
+# pylint version pin — read from the CI workflow (single source of truth)
+# so this gate can never drift from CI. The gate MUST run the pylint CI
+# runs: message sets differ between versions, so a gate on the wrong
+# version silences live messages (or flags dead ones) that CI then fails
+# on. The 1e10a2f/fb53fa6 "strip stale disables" commits ran an unpinned
+# pylint, judged live C0413 pragmas stale, and CI went red. Any pylint
+# not matching the pin is ignored; a matching one is used in place;
+# otherwise /tmp/lintvenv is built with the pinned version.
+PYLINT_PIN="$(sed -n 's/.*pip install pylint==\([0-9][0-9.]*\).*/\1/p' \
+    .github/workflows/pylint.yml | head -1)"
+[ -n "$PYLINT_PIN" ] || {
+    echo "cannot read pylint pin from .github/workflows/pylint.yml" >&2
+    exit 1
+}
+
+pylint_is_pinned() {  # $1: pylint binary (path or PATH name)
+    "$1" --version 2>/dev/null | head -1 | grep -qx "pylint $PYLINT_PIN"
+}
+
 ensure_pylint() {
-    # Prefer an existing pinned venv (local dev); otherwise install into the
-    # active python. pylint must be on PATH for the lint step below.
-    if [ -x /tmp/lintvenv/bin/pylint ]; then
+    # Resolve a pylint that exactly matches the CI pin ($PYLINT_PIN).
+    # Order: existing matching /tmp/lintvenv (fast path, local dev) ->
+    # system pylint matching the pin -> build the pinned /tmp/lintvenv.
+    if [ -x /tmp/lintvenv/bin/pylint ] \
+            && pylint_is_pinned /tmp/lintvenv/bin/pylint; then
         PY_BIN=/tmp/lintvenv/bin/python
         export PATH="/tmp/lintvenv/bin:$PATH"
-    elif command -v pylint >/dev/null 2>&1 && pylint --version >/dev/null 2>&1; then
-        echo "using system pylint: $(pylint --version | head -1)"
+    elif command -v pylint >/dev/null 2>&1 && pylint_is_pinned pylint; then
+        echo "using system pylint $(pylint --version | head -1 | awk '{print $2}') (CI pin $PYLINT_PIN)"
     else
-        python3 -m pip install --quiet --break-system-packages \
-            -r p2p-qa-lab/requirements.txt pylint==4.0.8 2>/dev/null \
-          || python3 -m pip install --quiet -r p2p-qa-lab/requirements.txt pylint==4.0.8
+        echo "pylint $PYLINT_PIN not available — building /tmp/lintvenv (CI pin)"
+        python3 -m venv /tmp/lintvenv
+        /tmp/lintvenv/bin/pip install --quiet \
+            -r p2p-qa-lab/requirements.txt "pylint==$PYLINT_PIN"
+        PY_BIN=/tmp/lintvenv/bin/python
+        export PATH="/tmp/lintvenv/bin:$PATH"
     fi
+    # Belt and braces: whatever PATH resolves now MUST be the pinned one.
+    pylint_is_pinned pylint || {
+        echo "pylint version mismatch: gate requires $PYLINT_PIN (CI pin), got: $(pylint --version 2>/dev/null | head -1)" >&2
+        exit 1
+    }
 }
 
 # Single source of truth for each workflow's test suite — used by the full
@@ -81,6 +111,14 @@ record_pass() {
 }
 
 case "${1:-verify}" in
+
+lint)
+    # Ad-hoc lint for sessions: the same pylint the gate and CI run, so a
+    # local clean can never be a version-skew false negative.
+    ensure_pylint
+    shift
+    pylint "$@"
+    ;;
 
 preflight)
     WF="${2:?usage: verify-worktree.sh preflight <workflow>}"
