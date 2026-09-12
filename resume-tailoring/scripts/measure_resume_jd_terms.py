@@ -335,33 +335,36 @@ def _all_paragraph_texts(body):
     return [de.text_of(p) for p in de.paras(body) if de.text_of(p).strip()]
 
 
+def _bigram_ok(a, b):
+    """True when ``a b`` is a legitimate compound: both content words, or
+    a solid first word followed by a stop-listed METRIC head ('cycle
+    time'). The head set is a whitelist ('and' as a head forms junk like
+    'adoption and'); a stop word FIRST ('on adoption') never forms one."""
+    if len(a) < 3 or len(b) < 3:
+        return False
+    if a in JD_STOP or a in JD_SELF_ASSESSMENT:
+        return False
+    if b in JD_SELF_ASSESSMENT or JD_SOFT_SKILL_RE.search(a) \
+            or JD_SOFT_SKILL_RE.search(b):
+        return False
+    if b in JD_STOP and b not in JD_METRIC_HEADS:
+        return False
+    return not (re.fullmatch(r"[0-9.]+\w*", a)
+                or re.fullmatch(r"[0-9.]+\w*", b))
+
+
 def _adjacent_bigrams(text):
     """Bigrams of non-stop words separated by WHITESPACE ONLY — 'cycle
     time' joins, but 'time, review' does not (punctuation breaks a
     compound), and a stop word between two content words ('measured on
     adoption') never yields a false compound ('measured adoption')."""
+    norm = _norm_text(text)
     toks = [(m.group(0), m.start(), m.end())
-            for m in re.finditer(r"[a-z0-9][a-z0-9#+]*", _norm_text(text))]
+            for m in re.finditer(r"[a-z0-9][a-z0-9#+]*", norm)]
     out = set()
-    for (a, i, iend), (b, j, _jend) in zip(toks, toks[1:]):
-        gap = _norm_text(text)[iend:j]
-        if not gap.isspace():  # punctuation or a short token between
-            continue
-        # The HEAD (second word) may be a stop-listed METRIC head ('cycle
-        # time') when the FIRST word is a solid content word — the JD's
-        # metric compounds end in stopped heads, and excluding them made
-        # 'cycle time' unmineable. The head set is a whitelist ('and' as a
-        # head forms junk like 'adoption and'); a stop word FIRST ('on
-        # adoption') or as BOTH words never forms a compound.
-        if (len(a) < 3 or len(b) < 3
-                or a in JD_STOP or a in JD_SELF_ASSESSMENT
-                or b in JD_SELF_ASSESSMENT
-                or JD_SOFT_SKILL_RE.search(a) or JD_SOFT_SKILL_RE.search(b)
-                or (b in JD_STOP and b not in JD_METRIC_HEADS)
-                or re.fullmatch(r"[0-9.]+\w*", a)
-                or re.fullmatch(r"[0-9.]+\w*", b)):
-            continue
-        out.add(f"{a} {b}")
+    for (a, _i, iend), (b, j, _jend) in zip(toks, toks[1:]):
+        if norm[iend:j].isspace() and _bigram_ok(a, b):
+            out.add(f"{a} {b}")
     return out
 
 
@@ -392,6 +395,36 @@ def _doc_tokens(body):
             acronyms.add(a)
         bigrams |= _adjacent_bigrams(text)
     return tokens, acronyms, bigrams
+
+
+def _admit_doc_token(t, jd_text, jd_low, first_words):
+    """Admission gates for one doc token (bullets + prose): a proper noun
+    (_jd_capitalized), a CORE_TECH_NOUN, or JD frequency >= 2. Freq
+    admission EXCLUDES each paragraph's first word: bullet-initial tokens
+    are the candidate's ACTION VERBS ("Triaged", "Developed", "Led") —
+    morphological variant matching would otherwise admit the verb
+    ("reviewed"→"review") as a JD ask. Claimed tools legitimately start
+    bullets too ("Playwright cross-browser...") but pass the
+    capitalization gate instead."""
+    if t in JD_STOP or re.fullmatch(r"[0-9.]+\w*", t) or not _in_jd(t, jd_low):
+        return False
+    return bool(_jd_capitalized(jd_text, t) or t in CORE_TECH_NOUNS
+                or (t not in first_words and _jd_term_freq(t, jd_low) >= 2))
+
+
+def _guard_drops(terms, body):
+    """The GENERIC-HIT-RATE GUARD's drop set: surviving terms that match
+    more than half of the document's bullets are prose the stop list
+    missed, not technology — keeping them would "protect" half the
+    resume and stall the DROP PLAN (the consulting-JD flood this guard
+    exists for)."""
+    bullets = _all_bullet_texts(body)
+    if len(bullets) < 6:
+        return set()
+    texts_low = [b.lower() for b in bullets]
+    return {t for t in terms
+            if sum(1 for b in texts_low if _jd_hits(b, {t}))
+            > 0.5 * len(texts_low)}
 
 
 def _jd_terms(jd_text, body):
@@ -433,39 +466,20 @@ def _jd_terms(jd_text, body):
     tokens, acronyms, bigrams = _doc_tokens(body)
     first_words = {t.split()[0].lower() for t in _all_paragraph_texts(body)
                    if t.split()}
-    for t in tokens:
-        if t in JD_STOP or re.fullmatch(r"[0-9.]+\w*", t):
-            continue
-        if not _in_jd(t, jd_low):
-            continue
-        if (_jd_capitalized(jd_text, t) or t in CORE_TECH_NOUNS
-                or (t not in first_words and _jd_term_freq(t, jd_low) >= 2)):
-            terms.add(t)
+    terms |= {t for t in tokens
+              if _admit_doc_token(t, jd_text, jd_low, first_words)}
     # Acronyms admit on WHOLE-WORD JD presence, never substring: the doc
     # side mines 'CA' (state codes), 'OS', 'IT' from headers/addresses, and
     # a 2-char substring check matches 'ca' inside 'candidate' — noise that
     # flooded the term list (the first probe's 123-term list was two-thirds
     # 'ca'/'os'/'it'/'ms' artifacts).
-    for a in acronyms:
-        if a in JD_STOP or len(a) < 2:
-            continue
-        if re.search(rf"(?<![a-z0-9#+]){re.escape(a)}(?![a-z0-9#+])", jd_low):
-            terms.add(a)
+    terms |= {a for a in acronyms
+              if a not in JD_STOP and len(a) >= 2
+              and re.search(rf"(?<![a-z0-9#+]){re.escape(a)}(?![a-z0-9#+])",
+                            jd_low)}
     jd_norm = _norm_text(jd_text)
-    for bg in bigrams:
-        if bg in jd_low or bg in jd_norm:
-            terms.add(bg)
-    if terms:
-        bullets = _all_bullet_texts(body)
-        if len(bullets) >= 6:
-            texts_low = [b.lower() for b in bullets]
-            generic = set()
-            for t in terms:
-                hits = sum(1 for b in texts_low if _jd_hits(b, {t}))
-                if hits > 0.5 * len(texts_low):
-                    generic.add(t)
-            terms -= generic
-    return terms
+    terms |= {bg for bg in bigrams if bg in jd_low or bg in jd_norm}
+    return terms - _guard_drops(terms, body)
 
 
 def _jd_hits(text, jd_terms):
