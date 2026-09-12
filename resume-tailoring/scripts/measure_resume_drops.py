@@ -15,6 +15,7 @@ import sys
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
+from measure_resume_jd import _top_block_candidates  # noqa: E402
 from measure_resume_jd_terms import (CORE_TECH_NOUNS, JD_STOP,  # noqa: E402
     _concept_hits, _is_protected, _jd_capitalized, _jd_hits,
     _jd_hits_classified, _jd_kept, _vocab_terms, _weakness_key)
@@ -471,6 +472,75 @@ def _keep_trim_section(roles, jd_terms, body, protect=()):
             "Step 3):\n" + "\n".join(lines))
 
 
+def _cand(kind, role, text, detail, all_texts):
+    """One prune-plan candidate as data: its ``find_p`` anchor prefix
+    (or None when no unique prefix resolves — the printed plan falls
+    back to the plain-text line, and coverage matching falls back to the
+    normalized text head), its text, and why it was flagged."""
+    prefix = None
+    try:
+        idx = all_texts.index(text)
+        prefix = de.shortest_unique_prefix(all_texts, idx, min_len=6)
+    except ValueError:
+        pass
+    return {"kind": kind, "role": role, "prefix": prefix,
+            "text": text, "detail": detail}
+
+
+def prune_candidates(roles, jd_terms, body, protect=()):
+    """Every PRUNE-PLAN cut candidate as data — the machine-readable twin
+    of the printed plan, written to the ``<master>.prune.json`` sidecar by
+    measure_resume's --jd mode and enforced by ``docx_edit.py
+    --lint-prune`` (run_tailor.sh): a tailor script must address every
+    candidate with an edit or a recorded ``# kept:`` reason, or the run
+    exits 2.
+
+    Kinds mirror the printed plan's sections: ``bullet-cut`` (JD-FIT
+    AUDIT: OFF-JD or weak-match bullets — the detail carries which),
+    ``word-trim`` (kept bullets whose sentences/clauses carry non-JD
+    content), ``list-trim`` (proficiencies/Tools list lines), and
+    ``top-block`` (whole-line cuts — emitted once even when both the
+    list-line scan and the TOP-BLOCK scan flag the same line).
+    """
+    if not jd_terms:
+        return []
+    all_texts = [de.text_of(p) for p in de.paras(body)]
+    vocab = _vocab_terms(body)
+    out = []
+    for role in roles:
+        key = role["key"]
+        off, weak, _kept = _classify_role_bullets(role, jd_terms, protect)
+        for b in off:
+            out.append(_cand("bullet-cut", key, b, "OFF-JD", all_texts))
+        for b, hits in weak:
+            out.append(_cand("bullet-cut", key, b,
+                             "weak: " + ", ".join(hits), all_texts))
+        for b, nonjd, dead in _keep_trim_candidates(role, jd_terms, vocab):
+            if _is_protected(b, protect):
+                continue
+            parts = []
+            if nonjd:
+                parts.append("strip: " + ", ".join(nonjd))
+            for s in dead:
+                parts.append('dead sentence: "' + s[:60] + '"')
+            out.append(_cand("word-trim", key, b, "; ".join(parts),
+                             all_texts))
+    top_texts = {t for _p, t in _top_block_candidates(body, jd_terms)}
+    for prefix, text, chunks, has_jd in _list_trim_candidates(
+            body, jd_terms, all_texts):
+        if text in top_texts:
+            continue  # emitted below as a top-block whole-line cut
+        detail = ("no JD term on this line — whole-line cut"
+                  if not has_jd else
+                  "strip: " + ", ".join(chunks))
+        out.append({"kind": "list-trim", "role": None,
+                    "prefix": prefix, "text": text, "detail": detail})
+    for prefix, text in _top_block_candidates(body, jd_terms):
+        out.append({"kind": "top-block", "role": None, "prefix": prefix,
+                    "text": text, "detail": "no JD evidence; cut whole"})
+    return out
+
+
 def _jd_fit_audit(roles, jd_terms, protect=(), all_texts=None):
     """Per-role JD-fit audit — printed for EVERY role when --jd is passed.
 
@@ -508,12 +578,13 @@ def _audit_anchor_line(b, all_texts):
     return f"    - {b[:80]}"
 
 
-def _jd_fit_section(role, jd_terms, protect, all_texts=None):
-    """The JD-FIT AUDIT block for one role, or empty when every bullet
-    carries JD evidence (nothing to report)."""
+def _classify_role_bullets(role, jd_terms, protect):
+    """(off, weak, kept) classification for one role's bullets — the
+    single source for both the JD-FIT AUDIT printer and the
+    :func:`prune_candidates` sidecar collector, so the printed plan and
+    the machine-readable twin can never disagree about which bullets are
+    cut candidates."""
     bullets = role.get("bullet_texts") or []
-    if not bullets:
-        return None
     off, weak, kept = [], [], 0
     for b in bullets:
         if _is_protected(b, protect):
@@ -526,6 +597,16 @@ def _jd_fit_section(role, jd_terms, protect, all_texts=None):
             weak.append((b, weak_hits))
         else:
             off.append(b)
+    return off, weak, kept
+
+
+def _jd_fit_section(role, jd_terms, protect, all_texts=None):
+    """The JD-FIT AUDIT block for one role, or empty when every bullet
+    carries JD evidence (nothing to report)."""
+    bullets = role.get("bullet_texts") or []
+    if not bullets:
+        return None
+    off, weak, kept = _classify_role_bullets(role, jd_terms, protect)
     if not off and not weak:
         return None
     lines = [f"JD-FIT AUDIT ({role['key']}): {kept} of {len(bullets)} "

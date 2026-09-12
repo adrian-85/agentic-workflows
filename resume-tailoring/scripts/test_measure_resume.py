@@ -34,6 +34,7 @@ sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 import test_helpers
 import measure_resume as mr  # noqa: E402
+import measure_resume_drops as mrd  # noqa: E402
 import measure_resume_jd  # noqa: E402
 import measure_resume_format as mrf  # noqa: E402  (constants live here post-split)
 
@@ -1258,6 +1259,104 @@ class TopBlockCandidatesTests(unittest.TestCase):
         texts = [t for _p, t in cands]
         self.assertFalse(any(t.startswith("Company") for t in texts))
         self.assertFalse(any(t == "Bullet one" for t in texts))
+
+
+class PruneCandidatesTests(unittest.TestCase):
+    """prune_candidates: the machine-readable twin of the printed PRUNE
+    PLAN — every candidate the plan prints is a dict here (kind, role,
+    prefix, text, detail), written to the <master>.prune.json sidecar and
+    enforced by docx_edit --lint-prune (run_tailor.sh). The motivating
+    session: the plan's word/sentence-level trim candidates were never
+    implemented, the agent asserted 'trims are in', and two user prompts
+    were needed — the sidecar turns 'are they in' into a checked claim."""
+
+    KIND_KEYS = {"kind", "role", "prefix", "text", "detail"}
+
+    def _cand_body(self):
+        return _body([
+            _para("Technical Proficiencies", style="SectionHeading"),
+            _para("Programming Languages: Java, C#, JavaScript, Python"),
+            _para("Automation Testing Frameworks: Karate, Cypress, "
+                    "Playwright, Gatling, Selenium"),
+            _para("Certifications", style="SectionHeading"),
+            _para(mr.SECTION_CAREER, style="SectionHeading"),
+            _para("Company ABC, City" + _sample_date() + " – 08/2016",
+                  style=mr.COMPANY_STYLE),
+            _para("Senior SDET", style="JobTitleBlock"),
+            _para("Championed the adoption of Cypress, co-architecting the "
+                    "initial framework", numId=2),
+            _para("Created performance tests using Gatling", numId=2),
+            _para("Championed the adoption of Cypress. Applied "
+                    "test-driven development (TDD) practices.", numId=2),
+            _para("Tools & Technologies: Cypress, JavaScript, Gatling, "
+                    "Jenkins"),
+            _para(mr.SECTION_EDUCATION, style="SectionHeading"),
+        ])
+
+    def _cands(self, jd="Hands-on Cypress. CI/CD with Jenkins."):
+        body = self._cand_body()
+        roles = mr._roles(body)
+        terms = mr._jd_terms(jd, body)
+        return mrd.prune_candidates(roles, terms, body)
+
+    def test_schema_shape(self):
+        for c in self._cands():
+            self.assertEqual(set(c), self.KIND_KEYS)
+            self.assertIn(c["kind"],
+                          ("bullet-cut", "word-trim", "list-trim",
+                           "top-block"))
+
+    def test_off_jd_bullet_is_bullet_cut_with_prefix(self):
+        cands = [c for c in self._cands()
+                 if "Created performance tests" in c["text"]]
+        self.assertEqual(len(cands), 1)
+        self.assertEqual(cands[0]["kind"], "bullet-cut")
+        self.assertEqual(cands[0]["detail"], "OFF-JD")
+        self.assertTrue(cands[0]["prefix"])
+
+    def test_jd_named_bullet_not_a_cut_candidate(self):
+        self.assertFalse([c for c in self._cands()
+                         if "co-architecting the initial framework"
+                         in c["text"] and c["kind"] == "bullet-cut"])
+
+    def test_dead_sentence_is_word_trim_with_detail(self):
+        cands = [c for c in self._cands()
+                 if c["kind"] == "word-trim"
+                 and "Applied" in c["text"]]
+        self.assertEqual(len(cands), 1)
+        self.assertIn("dead sentence", cands[0]["detail"])
+        self.assertIn("test-driven", cands[0]["detail"])
+
+    def test_whole_line_cut_deduped_to_top_block(self):
+        # 'Programming Languages: Java...' carries no JD term: both the
+        # list-line scan (WORD-LEVEL) and the TOP-BLOCK scan flag it — the
+        # sidecar must emit it ONCE, as the whole-line top-block cut.
+        hits = [c for c in self._cands()
+                if c["text"].startswith("Programming Languages:")]
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["kind"], "top-block")
+
+    def test_tools_line_nonjd_chunks_are_list_trim(self):
+        cands = [c for c in self._cands()
+                 if c["kind"] == "list-trim"
+                 and c["text"].startswith("Tools & Technologies:")]
+        self.assertEqual(len(cands), 1)
+        self.assertIn("gatling", cands[0]["detail"])
+        self.assertIn("javascript", cands[0]["detail"])
+
+    def test_prefixes_resolve_against_the_document(self):
+        body = self._cand_body()
+        texts = [de.text_of(p) for p in de.paras(body)]
+        for c in self._cands():
+            if c["prefix"] is None:
+                continue
+            owners = [t for t in texts if t.startswith(c["prefix"])]
+            self.assertEqual(len(owners), 1)
+            self.assertTrue(owners[0].startswith(c["text"][:20]))
+
+    def test_no_jd_terms_no_candidates(self):
+        self.assertEqual(mrd.prune_candidates([], set(), self._cand_body()),
+                         [])
 
 
 def _docx_with_roles():
