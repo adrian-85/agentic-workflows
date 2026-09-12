@@ -327,6 +327,27 @@ override by judgment gets a recorded `# kept: <one-line JD reason>` beside
 the keep — Step 11's final review re-reads exactly those lines (SKILL
 Step 3's override rule).
 
+**PRUNE DISPOSITION CHECKLIST + sidecar.** Every --jd run ends with a flat
+checklist — one line per candidate (bullet-cut / word-trim / list-trim /
+top-block, each with its `find_p` anchor) — and writes the machine-readable
+twin to `<master>.prune.json` (the drift-sidecar pattern; refreshed on every
+run). Copy the checklist into the ONE-message plan with every line filled
+(`CUT` / `TRIM` / `KEEP` + reason) — the user approves dispositions, not a
+'highlights' summary. The default disposition for a WORD-LEVEL candidate is
+the trim itself; escalating to a whole-bullet drop is allowed only when the
+bullet's remaining content carries no JD host (record why in the drop-list
+comment). Never defer a trim to Step 8 compression — compression sizes what
+survives the prune pass; it never finishes it.
+
+**Enforced, not a habit:** `run_tailor.sh` runs `docx_edit.py
+<master> --lint-prune <script>` before executing the tailor script. It
+exits 2 while any candidate has neither an edit nor a recorded keep, and 2
+on a STALE sidecar (a candidate anchor no longer resolves — the master
+changed since the plan; re-run the prune plan). A `# kept:` comment must
+quote the candidate's anchor prefix or text head (whitespace/quote
+normalization is applied, so curly apostrophes match) — the comment IS the
+record the final review re-reads.
+
 ### WORD-LEVEL TRIM CANDIDATES
 
 `measure_resume.py --jd` emits this section after the JD-FIT AUDIT.

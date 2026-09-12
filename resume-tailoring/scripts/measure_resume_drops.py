@@ -487,6 +487,49 @@ def _cand(kind, role, text, detail, all_texts):
             "text": text, "detail": detail}
 
 
+def _role_prune_candidates(role, jd_terms, protect, all_texts, vocab):
+    """The bullet-cut and word-trim candidates of one role."""
+    out = []
+    key = role["key"]
+    off, weak, _kept = _classify_role_bullets(role, jd_terms, protect)
+    for b in off:
+        out.append(_cand("bullet-cut", key, b, "OFF-JD", all_texts))
+    for b, hits in weak:
+        out.append(_cand("bullet-cut", key, b,
+                         "weak: " + ", ".join(hits), all_texts))
+    for b, nonjd, dead in _keep_trim_candidates(role, jd_terms, vocab):
+        if _is_protected(b, protect):
+            continue
+        parts = []
+        if nonjd:
+            parts.append("strip: " + ", ".join(nonjd))
+        for s in dead:
+            parts.append('dead sentence: "' + s[:60] + '"')
+        out.append(_cand("word-trim", key, b, "; ".join(parts),
+                         all_texts))
+    return out
+
+
+def _list_prune_candidates(body, jd_terms, all_texts):
+    """The list-trim and top-block candidates, deduped across the two
+    scans (a whole-line cut flagged by both is one top-block candidate)."""
+    out = []
+    top_texts = {t for _p, t in _top_block_candidates(body, jd_terms)}
+    for prefix, text, chunks, has_jd in _list_trim_candidates(
+            body, jd_terms, all_texts):
+        if text in top_texts:
+            continue  # emitted below as a top-block whole-line cut
+        detail = ("no JD term on this line — whole-line cut"
+                  if not has_jd else
+                  "strip: " + ", ".join(chunks))
+        out.append({"kind": "list-trim", "role": None,
+                    "prefix": prefix, "text": text, "detail": detail})
+    for prefix, text in _top_block_candidates(body, jd_terms):
+        out.append({"kind": "top-block", "role": None, "prefix": prefix,
+                    "text": text, "detail": "no JD evidence; cut whole"})
+    return out
+
+
 def prune_candidates(roles, jd_terms, body, protect=()):
     """Every PRUNE-PLAN cut candidate as data — the machine-readable twin
     of the printed plan, written to the ``<master>.prune.json`` sidecar by
@@ -508,36 +551,9 @@ def prune_candidates(roles, jd_terms, body, protect=()):
     vocab = _vocab_terms(body)
     out = []
     for role in roles:
-        key = role["key"]
-        off, weak, _kept = _classify_role_bullets(role, jd_terms, protect)
-        for b in off:
-            out.append(_cand("bullet-cut", key, b, "OFF-JD", all_texts))
-        for b, hits in weak:
-            out.append(_cand("bullet-cut", key, b,
-                             "weak: " + ", ".join(hits), all_texts))
-        for b, nonjd, dead in _keep_trim_candidates(role, jd_terms, vocab):
-            if _is_protected(b, protect):
-                continue
-            parts = []
-            if nonjd:
-                parts.append("strip: " + ", ".join(nonjd))
-            for s in dead:
-                parts.append('dead sentence: "' + s[:60] + '"')
-            out.append(_cand("word-trim", key, b, "; ".join(parts),
-                             all_texts))
-    top_texts = {t for _p, t in _top_block_candidates(body, jd_terms)}
-    for prefix, text, chunks, has_jd in _list_trim_candidates(
-            body, jd_terms, all_texts):
-        if text in top_texts:
-            continue  # emitted below as a top-block whole-line cut
-        detail = ("no JD term on this line — whole-line cut"
-                  if not has_jd else
-                  "strip: " + ", ".join(chunks))
-        out.append({"kind": "list-trim", "role": None,
-                    "prefix": prefix, "text": text, "detail": detail})
-    for prefix, text in _top_block_candidates(body, jd_terms):
-        out.append({"kind": "top-block", "role": None, "prefix": prefix,
-                    "text": text, "detail": "no JD evidence; cut whole"})
+        out.extend(_role_prune_candidates(role, jd_terms, protect,
+                                          all_texts, vocab))
+    out.extend(_list_prune_candidates(body, jd_terms, all_texts))
     return out
 
 

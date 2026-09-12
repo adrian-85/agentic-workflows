@@ -252,6 +252,66 @@ def _prune_covered(candidate, literals, keeps):
     return None
 
 
+def _prune_sidecar_candidates(docx_path, sidecar):
+    """(candidates, error) from the prune sidecar — a non-None error
+    means exit 2 (sidecar missing)."""
+    if not os.path.exists(sidecar):
+        return None, (
+            f"prune-coverage: no sidecar: {sidecar} — run the PRUNE PLAN "
+            "first (measure_resume.py <master> --jd <JD.txt>); it emits "
+            "the candidate list this gate enforces (SKILL Step 3)")
+    with open(sidecar, encoding="utf-8") as f:
+        return json.load(f).get("candidates", []), None
+
+
+def _prune_stale_prefixes(candidates, ps):
+    """Sidecar candidate anchors that no longer resolve against the docx
+    — the master changed since the plan (stale sidecar)."""
+    stale = []
+    with contextlib.redirect_stderr(io.StringIO()):
+        for c in candidates:
+            if c["prefix"] is not None and find_p(ps, c["prefix"]) is None:
+                stale.append(c["prefix"])
+    return stale
+
+
+def _prune_coverage_counts(candidates, literals, keeps):
+    """(uncovered, edit_count, keep_count) over the sidecar candidates."""
+    uncovered, edits, keeps_n = [], 0, 0
+    for c in candidates:
+        state = _prune_covered(c, literals, keeps)
+        if state == "EDIT":
+            edits += 1
+        elif state == "KEEP":
+            keeps_n += 1
+        else:
+            uncovered.append(c)
+    return uncovered, edits, keeps_n
+
+
+def _report_uncovered(uncovered, total):
+    """Print the UNCOVERED candidate listing + summary (the exit-1 path)."""
+    print(
+        f"prune-coverage: {len(uncovered)} of {total} "
+        "PRUNE-PLAN candidate(s) UNCOVERED — no edit targets them and "
+        'no "# kept: <JD reason>" comment records them. Address each '
+        "(CUT: drop(); TRIM: set_text/replace_text on the flagged "
+        "sentence/clause/chunk) or record the keep — the plan is final "
+        "on WHICH, and a skipped trim is the motivating session's "
+        "two-prompt failure:", file=sys.stderr)
+    for c in uncovered:
+        prefix = c["prefix"]
+        anchor = f'find_p(ps, "{prefix}")' if prefix \
+            else "(no unique prefix)"
+        print(f"  UNCOVERED  {c['kind']:<10s} {anchor}", file=sys.stderr)
+        print(f"      # {c['text'][:76]}", file=sys.stderr)
+        if c["detail"]:
+            print(f"      ({c['detail'][:76]})", file=sys.stderr)
+    print(f"prune-coverage: {len(uncovered)} uncovered / {total} "
+          "candidate(s) — fix the tailor script before running",
+          file=sys.stderr)
+
+
 def lint_prune_coverage(docx_path, script_path):
     """Every PRUNE-PLAN candidate must be addressed by the tailor script.
 
@@ -272,72 +332,35 @@ def lint_prune_coverage(docx_path, script_path):
     re-run the prune plan; the fold/user-edit flow re-runs it anyway).
     Returns 0 clean, 1 uncovered candidates, 2 usage/sidecar errors.
     """
-    if not os.path.exists(script_path):
+    try:
+        literals, keeps = _script_cover_strings(script_path)
+    except OSError:
         print(f"error: script not found: {script_path}", file=sys.stderr)
         return 2
+    except SyntaxError as e:
+        print(f"error: {script_path} does not parse: {e}", file=sys.stderr)
+        return 1
     sidecar = docx_path + PRUNE_SIDECAR_SUFFIX
-    if not os.path.exists(sidecar):
-        print(f"prune-coverage: no sidecar: {sidecar} — run the PRUNE PLAN "
-              "first (measure_resume.py <master> --jd <JD.txt>); it emits "
-              "the candidate list this gate enforces (SKILL Step 3)",
-              file=sys.stderr)
+    candidates, err = _prune_sidecar_candidates(docx_path, sidecar)
+    if err:
+        print(err, file=sys.stderr)
         return 2
-    with open(sidecar, encoding="utf-8") as f:
-        candidates = json.load(f).get("candidates", [])
     if not candidates:
         print("prune-coverage: sidecar has no candidates — nothing to "
               "cover (the plan flagged nothing against this JD)")
         return 0
-    try:
-        literals, keeps = _script_cover_strings(script_path)
-    except SyntaxError as e:
-        print(f"error: {script_path} does not parse: {e}", file=sys.stderr)
-        return 1
     _, body, _, _, _ = load(docx_path)
-    ps = paras(body)
-    stale = []
-    with contextlib.redirect_stderr(io.StringIO()):
-        for c in candidates:
-            if c["prefix"] is None:
-                continue
-            if find_p(ps, c["prefix"]) is None:
-                stale.append(c["prefix"])
+    stale = _prune_stale_prefixes(candidates, paras(body))
     if stale:
         print(f"prune-coverage: {len(stale)} sidecar candidate(s) no longer "
               "resolve against this docx — the sidecar is STALE (master "
               "edited since the plan). Re-run the prune plan: "
               "measure_resume.py <master> --jd <JD.txt>", file=sys.stderr)
         return 2
-    uncovered, edits, keeps_n = [], 0, 0
-    for c in candidates:
-        state = _prune_covered(c, literals, keeps)
-        if state == "EDIT":
-            edits += 1
-        elif state == "KEEP":
-            keeps_n += 1
-        else:
-            uncovered.append(c)
+    uncovered, edits, keeps_n = _prune_coverage_counts(
+        candidates, literals, keeps)
     if uncovered:
-        print(
-            f"prune-coverage: {len(uncovered)} of {len(candidates)} "
-            "PRUNE-PLAN candidate(s) UNCOVERED — no edit targets them and "
-            'no "# kept: <JD reason>" comment records them. Address each '
-            "(CUT: drop(); TRIM: set_text/replace_text on the flagged "
-            "sentence/clause/chunk) or record the keep — the plan is "
-            "final on WHICH, and a skipped trim is the motivating "
-            "session's two-prompt failure:",
-            file=sys.stderr)
-        for c in uncovered:
-            anchor = f'find_p(ps, "{c["prefix"]}")' if c["prefix"] \
-                else "(no unique prefix)"
-            print(f"  UNCOVERED  {c['kind']:<10s} {anchor}", file=sys.stderr)
-            print(f"      # {c['text'][:76]}", file=sys.stderr)
-            if c["detail"]:
-                print(f"      ({c['detail'][:76]})", file=sys.stderr)
-        print(
-            f"prune-coverage: {len(uncovered)} uncovered / "
-            f"{len(candidates)} candidate(s) — fix the tailor script "
-            "before running", file=sys.stderr)
+        _report_uncovered(uncovered, len(candidates))
         return 1
     print(f"prune-coverage: all {len(candidates)} PRUNE-PLAN candidate(s) "
           f"covered ({edits} edit(s), {keeps_n} recorded keep(s))")
@@ -372,7 +395,9 @@ def _cli_usage():
           file=sys.stderr)
     print("              <docx>.prune.json sidecar (measure_resume.py --jd emits it) —",
           file=sys.stderr)
-    print("              an edit per candidate or a # kept: reason; exit 1 on uncovered", file=sys.stderr)
+    print("              an edit per candidate or a # kept: reason; exit 1 on",
+          file=sys.stderr)
+    print("              uncovered", file=sys.stderr)
     return 2
 
 
@@ -534,20 +559,22 @@ def cli(argv):
         return _cli_usage()
     path = argv[1]
     args = argv[2:]
+    # Every flag takes exactly one argument — reject a trailing flag
+    # before dispatching, so each mode handler can index its argument
+    # directly.
+    for flag in ("--append-after", "--set-text", "--lint-script",
+                 "--lint-prune"):
+        if flag in args and args.index(flag) + 1 >= len(args):
+            return _cli_usage()
     if "--append-after" in args:
         return _cli_append_after(path, args)
     if "--set-text" in args:
         return _cli_set_text(path, args)
     if "--lint-script" in args:
-        i = args.index("--lint-script")
-        if i + 1 >= len(args):
-            return _cli_usage()
-        return lint_script(path, args[i + 1])
+        return lint_script(path, args[args.index("--lint-script") + 1])
     if "--lint-prune" in args:
-        i = args.index("--lint-prune")
-        if i + 1 >= len(args):
-            return _cli_usage()
-        return lint_prune_coverage(path, args[i + 1])
+        return lint_prune_coverage(path,
+                                   args[args.index("--lint-prune") + 1])
     return _cli_inspect(path, args)
 
 

@@ -41,12 +41,12 @@ recency are only tiebreakers, never a cut signal and never an exemption.
 |---|---|---|
 | 1 | Read inputs (JD — persist to skill root, master, LinkedIn) | `read_profile.sh` |
 | 2 | Extract employer selling points | — |
-| 3 | PRUNE FIRST: assess ALL master content against the JD; cut every off-JD/weak bullet, dead sentence, non-JD clause, non-JD list chunk from every role and section — no page math, no budgets (the master is never page/word-measured) | `measure_resume.py "<master>" --jd` (PRUNE PLAN: audit + trim candidates, each with `find_p` anchors) |
+| 3 | PRUNE FIRST: assess ALL master content against the JD; cut every off-JD/weak bullet, dead sentence, non-JD clause, non-JD list chunk from every role and section — no page math, no budgets (the master is never page/word-measured). Fill the PRUNE DISPOSITION CHECKLIST (CUT/TRIM/KEEP per candidate) into the one-message plan | `measure_resume.py "<master>" --jd` (PRUNE PLAN: audit + trim candidates, each with `find_p` anchors; checklist + `<master>.prune.json` sidecar) |
 | 4 | Measure the PRUNED copy → decide length + seniority alignment (whole-role drops) | `measure_resume.py` on the tailored copy (TIMELINE, `--simulate`) |
 | 5 | Align top title to JD title (less senior); rewrite Summary to lead with JD value | `set_text` |
 | 6 | No sections between Summary & Proficiencies | — |
 | 7 | Re-anchor senior role (merge, don't append); expand role adjacent to JD industry/stage | `set_text`, `merge_into` |
-| 8 | Residual compression: per-role 8-bullet cap, ≤1,000-word cap, reclaim plan on the build, squeeze residual gap, spacers | `measure_resume.py` (on the build); `squeeze_resume.py --protect`; `scripts/run_tailor.sh` (ast + find_p lint + strict exec) |
+| 8 | Residual compression: per-role 8-bullet cap, ≤1,000-word cap, reclaim plan on the build, squeeze residual gap, spacers | `measure_resume.py` (on the build); `squeeze_resume.py --protect`; `scripts/run_tailor.sh` (ast + find_p lint + PRUNE-COVERAGE gate + strict exec) |
 | 9 | Fix grammar, typos, punctuation | grep + `validate_resume.py` |
 | 10 | Save tailored copy (never overwrite master) | `save()` |
 | 11 | Render + verify PDF | `render_pdf.sh` |
@@ -109,13 +109,16 @@ manual habits are:
    writing the tailor script, and paste its PRUNE PLAN `find_p` lines verbatim into the
    script's `drop()`/`set_text` edits. This is the ONLY sanctioned measure run on the
    master: it emits the relevance assessment alone (JD-FIT AUDIT with anchors, WORD-LEVEL
-   TRIM CANDIDATES, TOP-BLOCK PRUNE CANDIDATES) — no page targets, role drops, or word
-   counts, because those decisions belong AFTER pruning, on the pruned copy (Step 4), and
-   the tool refuses full-master measurement outright. **The prune plan's WHICH is final;
-   nothing about HOW MANY exists yet** — how much survives is discovered by measuring the
-   tailored copy after pruning. That build measure is also the term-coverage drift check:
-   its **JD terms with NO host** list catches an ask whose only host died with a cut role
-   or trimmed Tools line.
+   TRIM CANDIDATES, TOP-BLOCK PRUNE CANDIDATES) plus the PRUNE DISPOSITION CHECKLIST and
+   the `<master>.prune.json` sidecar — no page targets, role drops, or word counts,
+   because those decisions belong AFTER pruning, on the pruned copy (Step 4), and the
+   tool refuses full-master measurement outright. **The prune plan's WHICH is final;
+   nothing about HOW MANY exists yet** — how much survives is discovered by measuring
+   the tailored copy after pruning. Fill every checklist line (CUT/TRIM/KEEP + reason)
+   into the one-message plan and mirror every row in the script; `run_tailor.sh` refuses
+   to run the script while any candidate is uncovered. That build measure is also the
+   term-coverage drift check: its **JD terms with NO host** list catches an ask whose
+   only host died with a cut role or trimmed Tools line.
 3. **Before reusing a tailor script after the user edited the .docx, run `diff_resume.py --tailor`**
    first — one command surfaces manual edits a blind re-run would wipe. (The drift sidecar
    is the tripwire; diff_resume is the review.)
@@ -132,9 +135,14 @@ manual habits are:
    `scripts/run_tailor.sh "<master>.docx" scripts/tailor_<target>.py` — it
    ast.parses the script, verifies EVERY `find_p` target resolves against
    the master (`--lint-script`: a real session hand-typed two prefixes
-   that missed and burned a run-fix cycle on each), then executes it under
-   `DOCX_EDIT_STRICT=1` in one command (`RESUME_VALIDATE_ARGS` passes
-   through). Syntax-check alone (without the lint) is the fallback:
+   that missed and burned a run-fix cycle on each), verifies EVERY
+   prune-plan candidate is addressed by an edit or a recorded `# kept:`
+   reason (`--lint-prune` against the `<master>.prune.json` sidecar —
+   exit 2 while uncovered; a real session skipped the plan's
+   word/sentence-level trims, asserted they were in, and needed two user
+   prompts), then executes it under `DOCX_EDIT_STRICT=1` in one command
+   (`RESUME_VALIDATE_ARGS` passes through). Syntax-check alone (without
+   the lints) is the fallback:
    `python3 -c "import ast; ast.parse(open('scripts/tailor_<target>.py').read())"`.
    On corruption, do not repair incrementally
    with `edit` — rewrite the whole file in one bash heredoc and re-check.
@@ -152,7 +160,6 @@ manual habits are:
    anchor it against a unique existing line.
 
 Tool-enforced (no instruction needed): `measure_resume.py` REFUSES full-master page/word
-measurement (exit 2 without `--jd`; `--jd` gives the PRUNE PLAN and suppresses page math)
 measurement (exit 2 without `--jd`; `--jd` gives the PRUNE PLAN and suppresses page math)
 and, on a tailored copy, prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
 with copy-pasteable `find_p` cut lines, the per-role **JD-FIT AUDIT** (off-JD/weak bullets in every
@@ -293,12 +300,17 @@ LoadRunner) — not for soft skills backed by the candidate's own
 demonstrated history.
 
 ### 3. Prune first — cut everything that does not help get the job
-Every word in the master was written for SOME audience; almost none of it
+**Scope: relevance only.** This step decides WHAT survives the JD filter.
+It has no page math, no word counts, no squeeze, no reclaim plan — those
+are Step 4+ decisions, meaningless over content that is about to be cut
+(and every word/sentence/list trim this step prescribes is implemented
+HERE, in the authoring pass — never deferred to Step 8, which only sizes
+what this step leaves behind). Every word in the master was written for
+SOME audience; almost none of it
 was written for THIS JD. Relevance is assessed against the JD before any
 measurement: **the full master is never page/word-measured** —
 `measure_resume.py` refuses it (exit 2 without `--jd`) and with `--jd` emits
-the PRUNE PLAN only (no page targets, no role drops, no word counts — those
-are Step 4+ decisions, meaningless over content that is about to be cut):
+the PRUNE PLAN only:
 
 ```bash
 python3 scripts/measure_resume.py "<userName> Master Resume.docx" --jd jd_<target>.txt
@@ -316,6 +328,22 @@ term in a kept JD bullet: one-line edit); late cuts are the 6-cycle loop.
 Read the coverage report's [UNCOVERED] and [weak] lists in the same pass
 and plan the literal-phrase hosts for this same authoring pass (Step 2's
 inference rule for soft skills; never fabricate hard skills).
+
+**Every candidate gets a disposition in the plan; the checklist IS the
+plan.** The --jd run ends with the PRUNE DISPOSITION CHECKLIST (one fill-in
+line per candidate) and writes its machine-readable twin to
+`<master>.prune.json`. Fill every line — `CUT` (drop whole), `TRIM`
+(word-level: exactly the flagged sentence/clause/chunk), or `KEEP` + JD
+reason — and copy the filled table into the ONE-message plan. 'Prune plan
+highlights' are not a plan: the motivating session's summary listed only
+the bullet cuts, the word/sentence-level trims never entered what the user
+approved, and two extra prompts were needed to apply them. The default
+disposition for a WORD-LEVEL candidate is the trim itself; escalating to a
+whole-bullet drop is allowed only when the bullet's remaining content
+carries no JD host — record why in the drop-list comment. Over-cutting a
+trim candidate into a bullet drop is cheap to restore (re-add the text in
+a later edit); skipping the trim silently is not — `run_tailor.sh` refuses
+to run the script while any candidate lacks an edit or a recorded keep.
 
 **Every flag you override gets a recorded one-line JD reason — in the plan,
 next to the keep.** The matcher is heuristic. Write `# kept: <one-line JD reason>` 
@@ -526,11 +554,14 @@ make the theme explicit. If the master is missing a theme the user confirms
 they have, fold that content into the master first (real experience lives in
 the master, not per-target scripts).
 
-### 8. Residual compression — the whole resume tailors to the JD
-The prune pass (Step 3) removed everything irrelevant; this step sizes what
-survives. Measure the TAILORED COPY (never the master — the tool refuses
-it): the page-fill table, TIMELINE, and BATCH RECLAIM PLAN are all computed
-on content that already passed the JD filter. **Cuts can still come from
+### 8. Residual compression — size what survives to the budgets
+**Scope: length only.** The prune pass (Step 3) already removed everything
+irrelevant, including its word/sentence/list trims — the
+`run_tailor.sh` coverage gate guarantees zero unresolved prune candidates
+entered the build. This step only SIZES what survived: measure the TAILORED
+COPY (never the master — the tool refuses it): the page-fill table,
+TIMELINE, and BATCH RECLAIM PLAN are all computed on content that already
+passed the JD filter. **Cuts can still come from
 ANY section, not just job bullets — and from ANY role, including the most
 recent.** Technical Proficiencies lines, Certifications, Tools lines, blank
 spacers, and role bullets are all first-class cuts — the
@@ -541,7 +572,9 @@ choosing among JD-relevant bullets; (2) **readability** — concise, spaced,
 within the per-role bullet cap below; only then (3) time-in-role and
 recency as tiebreakers between otherwise-equal bullets. Compression order:
 (1) residual weak bullets via the build's DROP PLAN, (2) TOP-BLOCK CANDIDATES
-lines (off-JD proficiencies/certs), (3) Tools line trims, (4) blank spacers.
+lines (off-JD proficiencies/certs), (3) Tools line wrap-budget trims
+(shorten a line that wraps — its non-JD chunks are already gone from the
+prune pass), (4) blank spacers.
 Go in that order; don't hand-pick.
 
 **Hard bullet cap per role: never more than 8 kept bullets.** Enforced by
@@ -924,7 +957,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Hand-rolling whole-role removal in the tailor script | Use `drop_role(body, "<company prefix>")` / `drop_section(body, "Education")` — the library owns the block grammar. A hand-rolled helper that appends before checking the boundary (or only treats Heading1/2 as boundaries) swallows the next `SectionHeading` (Education) and strands later edits as "not found" skips |
 | Verifying the PDF by rendering pages to images | Never works — this harness reads no images. Use `render_pdf.sh --verbose` (page map, last-page tail), `measure_resume.py`'s page-fill table, and `pdftotext` |
 | Chasing a skip warning as a library bug | Re-dump `--prefixes` on the master FIRST — it may have been edited since your dump (the `MASTER CHANGED:` sidecar warning fires on this); a prefix can also match a paragraph an earlier `drop` already removed if you thread a stale `ps` list — use `ps = drop(body, [...])` |
-| Guessing WHICH bullets to cut | Run the PRUNE PLAN on the master (`measure_resume.py "<master>" --jd`) with `--protect "<fact>"`; paste its `find_p` lines, or run `squeeze_resume.py` for the residual gap (Step 8) |
+| Guessing WHICH bullets to cut | Run the PRUNE PLAN on the master (`measure_resume.py "<master>" --jd`) with `--protect "<fact>"` and fill its disposition checklist (Step 3); the build-time residual gap is squeeze_resume.py's job (Step 8) |
 | Reading "no unprotected bullet to give" as a dead end while the most-recent role carries off-JD content | JD-matching false-positives on generic terms — read the TOP-ROLE PROTECTED BULLETS list (matched term per bullet) and override weak matches deliberately; that is the sanctioned top-role trim, not hand-picking (Step 8) |
 | Running squeeze in apply mode on the tailored .docx and then folding cuts back into the script by hand | Harvest with `--plan-only` BEFORE the script's first run — same loop, same fold-back block, file untouched (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
@@ -934,7 +967,8 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Measuring the full master for page/word budgets | Refused by the tool — the master is only prune-planned (Step 3); length/word decisions run on the PRUNED copy (Step 4) |
 | Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 3, 8) |
 | Trusting a JD-matched (kept) listing that protected everything | A term matching half a role's bullets is shown as `[weak: term]` and protects nothing; specific tech nouns stay strong — read the weak-match (cuttable) listing before calling a role a dead end (Step 8) |
-| Overriding PRUNE flags by judgment without recording the reason | Sanctioned (the matcher is heuristic) but an override with no recorded `# kept: <JD reason>` is invisible at final review — the user hand-trimmed a real deliverable because of it. Record beside the keep; Step 11 re-reads exactly those lines (Step 3) |
+| Overriding PRUNE flags by judgment without recording the reason | Sanctioned (the matcher is heuristic) but an override with no recorded `# kept: <JD reason>` is invisible at final review — the user hand-trimmed a real deliverable because of it. Record beside the keep (quoting the anchor — run_tailor.sh's coverage gate reads it); Step 11 re-reads exactly those lines (Step 3) |
+| Deferring the prune plan's word/sentence trims to compression, or summarizing the plan as 'highlights' | The plan's WHICH is final (Step 3): fill every disposition-checklist line into the one-message plan and mirror it in the script — run_tailor.sh exits 2 while any candidate is uncovered; Step 8 only sizes what survives, it never finishes the prune pass |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
 | Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (`save()` prints one summary line if element-form was used). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form (Helper library) |
 | Iterating Tools-line trims because a trimmed line still wraps | Rare now: TOOLS LINES THAT WRAP reports the MEASURED budget per line ("value is N chars, wraps after ~M — cut ~N-M chars"), so the first trim lands. Trim to the reported budget, not a tool count — the proportional font makes "~8 tools" unreliable (Step 8) |
