@@ -329,7 +329,25 @@ Step 3's override rule).
 
 **PRUNE DISPOSITION CHECKLIST + sidecar.** Every --jd run ends with a flat
 checklist — one line per candidate (bullet-cut / word-trim / list-trim /
-top-block, each with its `find_p` anchor) — and writes the machine-readable
+top-block, each with its `find_p` anchor):
+
+```
+PRUNE COVERAGE SIDECAR: <skill root>/Adrian Master Resume.docx.prune.json
+PRUNE DISPOSITION CHECKLIST — EVERY candidate needs exactly one
+disposition: CUT (drop whole), TRIM (word-level per the plan: cut the
+flagged sentence, strip the flagged clause/chunk), or KEEP (# kept:
+<one-line JD reason>). Copy this table into the ONE-message plan filled
+in — 'highlights' are not a plan — and mirror every row in the tailor
+script: run_tailor.sh exits 2 while any line is uncovered (--lint-prune).
+   1. bullet-cut find_p(ps, "Pushed")
+      # Pushed for and obtained a weekly release cadence enabling…
+      (OFF-JD)
+   2. word-trim find_p(ps, "Champi")
+      # Championed the adoption of Cypress, co-architecting…
+      (strip: cypress)
+```
+
+and writes the machine-readable
 twin to `<master>.prune.json` (the drift-sidecar pattern; refreshed on every
 run). Copy the checklist into the ONE-message plan with every line filled
 (`CUT` / `TRIM` / `KEEP` + reason) — the user approves dispositions, not a
