@@ -1679,19 +1679,9 @@ class StyleFilterCLITests(unittest.TestCase):
             ("Bullet one", "BodyText"),
             ("Education", "SectionHeading"),
         )
-        doc = (
-            '<?xml version="1.0"?>'
-            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
-        )
-        for text, style in ps:
-            doc += (
-                f'<w:p><w:pPr><w:pStyle w:val="{style}"/></w:pPr>'
-                f'<w:r><w:t xml:space="preserve">{text}</w:t></w:r></w:p>'
-            )
-        doc += '</w:body></w:document>'
-        with zipfile.ZipFile(path, "w") as z:
-            z.writestr("word/document.xml", doc)
-            z.writestr("[Content_Types].xml", "<Types/>")
+        test_helpers._write_docx(
+            path, [test_helpers._para(text, style=style)
+                   for text, style in ps])
         return path
 
     def test_filters_paragraphs_by_style(self):
