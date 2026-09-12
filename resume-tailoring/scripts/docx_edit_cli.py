@@ -8,8 +8,6 @@ so `python3 scripts/docx_edit.py` keeps working unchanged.
 """
 # pylint: disable=invalid-name
 # invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
 # the specific rationale at each site where one is retained.
 

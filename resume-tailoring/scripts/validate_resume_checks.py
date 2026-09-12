@@ -1,8 +1,6 @@
 """validate_resume's deterministic structural/punctuation/text-integrity checks. Split from validate_resume.py; imported one-way by validate_resume_master and the shim."""  # pylint: disable=line-too-long
 # pylint: disable=invalid-name
 # invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
 # the specific rationale at each site where one is retained.
 

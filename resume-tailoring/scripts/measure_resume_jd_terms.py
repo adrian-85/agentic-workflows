@@ -1,10 +1,6 @@
 """measure_resume JD vocabulary, term mining, and hit classification. Split from measure_resume_jd.py; imported one-way by the jd analysis module, measure_resume_drops, and the shim."""  # pylint: disable=line-too-long  # (long string/help literal)
 # pylint: disable=invalid-name
 # invalid-name: JD vocabulary constants use the file's domain naming.
-# wrong-import-position: flat-namespace sibling imports must follow the
-#   sys.path bootstrap (spec 2026-09-07-pylint-clean-refactor).
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use.
 
 
 import re

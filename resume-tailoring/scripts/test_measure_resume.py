@@ -14,8 +14,6 @@ Run from the scripts directory (so `docx_edit`/`measure_resume` import):
 """
 
 # pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access,too-many-lines,invalid-name
-# wrong-import-position: sibling imports follow the sys.path bootstrap
-#   (flat namespace; spec 2026-09-07-pylint-clean-refactor).
 # unittest/pytest method names are self-documenting (no docstrings needed).
 # protected-access: tests white-box the _ helpers they test — that IS the contract.
 # too-many-lines: test files may exceed 1000 lines when they map 1:1 to a source file.

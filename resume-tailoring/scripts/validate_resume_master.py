@@ -1,9 +1,6 @@
-"""validate_resume's master-loading / role-integrity / education-gate helpers. Split from validate_resume.py; imported one-way by the shim."""  # pylint: disable=line-too-long  # (long string/help literal)
+"""validate_resume's master-loading / role-integrity / education-gate helpers. Split from validate_resume.py; imported
+one-way by the shim."""
 
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, so sibling imports follow the bootstrap
-# statement. wrong-import-position: that necessary ordering is the file
-# convention — suppressed file-wide (spec 2026-09-07-pylint-clean-refactor).
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
 # the specific rationale at each site where one is retained.
 

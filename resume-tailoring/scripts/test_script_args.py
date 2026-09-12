@@ -10,7 +10,7 @@ flag reading three times with divergent error behavior — see
 flag_value, the single read-without-consuming variant).
 """
 
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,wrong-import-position
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring
 # unittest/pytest method names are self-documenting.
 
 import sys

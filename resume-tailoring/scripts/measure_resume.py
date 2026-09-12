@@ -59,8 +59,6 @@ Summary, re-anchoring) and BEFORE the residual compression cuts, to plan
 them. Re-run render_pdf.sh after cutting to verify.
 """
 
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
 # the specific rationale at each site where one is retained.
 

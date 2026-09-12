@@ -11,9 +11,7 @@ block: it runs BEFORE the zip write, on the in-memory tree, so a gated
 state (broken structure, punctuation prose, 8-bullet-cap violation,
 unapproved whole-role elimination) never becomes a file.
 """
-# pylint: disable=wrong-import-position,import-outside-toplevel
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
+# pylint: disable=import-outside-toplevel
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
 # the specific rationale at each site where one is retained.
 

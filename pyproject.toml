@@ -13,6 +13,18 @@ fail-on = ["C", "W", "R", "E", "F"]
 # prefixed helpers across sibling modules (their "internal API"). Tests
 # white-box the same helpers. Expected until the API-promotion spec
 # lands; see docs/superpowers/specs/2026-09-07-script-api-promotion-design.md
+#
+# wrong-import-position: every flat-namespace script does a
+# sys.path.insert(0, <scripts dir>) bootstrap BEFORE its sibling imports,
+# so those imports necessarily sit below the bootstrap line. This is the
+# repo's deliberate file convention (spec 2026-09-07-pylint-clean-refactor,
+# "C0413 -> Suppress"). LIVE message in the CI-pinned pylint 4.0.8 — it
+# fires on any pragma-less mid-file import (verified empirically; a
+# file-wide pragma naming it does NOT raise W0012). Do NOT strip this
+# disable as "stale": pylint 4.0.8 still has the message. Commit
+# 1e10a2f stripped the per-file pragmas on exactly this false premise
+# and CI went red (49x C0413) — repo-wide here so per-file cleanup
+# passes cannot reintroduce the failure.
 disable = [
-    "protected-access",
+    "protected-access", "wrong-import-position",
 ]

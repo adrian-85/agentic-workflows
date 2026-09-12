@@ -58,8 +58,6 @@ CLI (inspect structure before editing)::
         # prints paragraphs 26-38 with FULL text (no truncation)
 """
 
-# flat-namespace sibling imports require the sys.path bootstrap; the
-# sibling import must precede use, which pylint flags as wrong position.
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
 # the specific rationale at each site where one is retained.
 
@@ -69,8 +67,6 @@ CLI (inspect structure before editing)::
 #   verbatim so template/spec greps stay obvious.
 # global-statement: _APPLIED/_SKIPS/_ELEMENT_FORM_DROPS are module drift
 #   counters read by tests; DriftBook refactor deferred (spec 2026-09-07).
-# wrong-import-position: flat-namespace sibling imports must follow the
-#   sys.path bootstrap (spec 2026-09-07-pylint-clean-refactor).
 
 
 import copy
