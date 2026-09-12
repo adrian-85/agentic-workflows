@@ -3,13 +3,18 @@
 #
 # A real session hand-typed two find_p prefixes that missed the master and
 # re-typed an AST-parse check before every run — a run-crash-fix cycle per
-# miss. This wrapper does both checks FIRST, then executes the script under
+# miss. This wrapper does all checks FIRST, then executes the script under
 # the strict edit gate (exit 2 on any skipped edit):
 #
 #   1. ast.parse the script            (syntax errors before any edit)
 #   2. docx_edit.py <docx> --lint-script <script>
 #        every find_p target must resolve against the master (exit 1 on miss)
-#   3. DOCX_EDIT_STRICT=1 python3 <script>   (env, incl. RESUME_VALIDATE_ARGS,
+#   3. docx_edit.py <docx> --lint-prune <script>
+#        every <master>.prune.json candidate (emitted by the Step-3 prune
+#        plan) must be addressed by an edit or a "# kept:" reason
+#        (exit 1 on uncovered — the motivating session skipped the plan's
+#        word/sentence-level trims and needed two user prompts)
+#   4. DOCX_EDIT_STRICT=1 python3 <script>   (env, incl. RESUME_VALIDATE_ARGS,
 #        passes through)
 #
 # usage:
@@ -38,5 +43,7 @@ python3 -c "import ast; ast.parse(open('$SCRIPT_PATH').read())" \
     || { echo "run_tailor: syntax error in $SCRIPT_PATH" >&2; exit 1; }
 
 python3 scripts/docx_edit.py "$DOCX" --lint-script "$SCRIPT_PATH"
+
+python3 scripts/docx_edit.py "$DOCX" --lint-prune "$SCRIPT_PATH"
 
 DOCX_EDIT_STRICT=1 exec python3 "$SCRIPT_PATH"

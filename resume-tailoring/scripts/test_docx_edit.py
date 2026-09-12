@@ -22,6 +22,7 @@ remove_empty, clone_after.
 #
 import contextlib
 import io
+import json
 import os
 import sys
 import tempfile
@@ -1287,6 +1288,224 @@ class MasterChangeGateTests(unittest.TestCase):
         _out, _err, cm = self._run(skip=True, strict=True)
         self.assertIsNotNone(cm)
         self.assertEqual(cm.code, 2)
+
+
+class PruneCoverageTests(unittest.TestCase):
+    """--lint-prune: every <master>.prune.json candidate (the PRUNE PLAN's
+    machine-readable twin) must be addressed by the tailor script — an
+    edit anchor (CUT/TRIM) or a recorded ``# kept:`` reason (KEEP) —
+    before the script may run. The motivating session skipped the plan's
+    word/sentence-level trims, asserted 'trims are in', and needed two
+    user prompts; this gate makes the coverage claim checked, not
+    asserted."""
+
+    def _docx_with(self, *texts):
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        doc = (
+            '<?xml version="1.0"?>'
+            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
+        )
+        for t in texts:
+            escaped = (t.replace("&", "&amp;").replace("<", "&lt;")
+                       .replace(">", "&gt;"))
+            doc += (
+                f'<w:p><w:r><w:t xml:space="preserve">{escaped}</w:t>'
+                f'</w:r></w:p>'
+            )
+        doc += '</w:body></w:document>'
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr("word/document.xml", doc)
+            z.writestr("[Content_Types].xml", "<Types/>")
+        return path
+
+    def _sidecar(self, docx, candidates):
+        path = docx + ".prune.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"jd": "jd_x.txt", "candidates": candidates}, f)
+        return path
+
+    def _script(self, *lines):
+        fd, path = tempfile.mkstemp(suffix=".py")
+        os.close(fd)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        return path
+
+    def _cand(self, **kw):
+        return dict({"kind": "bullet-cut", "role": "Acme",
+                     "prefix": "Led testing efforts",
+                     "text": "Led testing efforts for the API releases",
+                     "detail": "OFF-JD"}, **kw)
+
+    def test_missing_sidecar_is_a_usage_error(self):
+        docx = self._docx_with("Led testing efforts for the API releases")
+        script = self._script('ps = None\n')
+        try:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = dcli.lint_prune_coverage(docx, script)
+            self.assertEqual(rc, 2)
+            self.assertIn("run the PRUNE PLAN first", err.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_stale_sidecar_exits_2(self):
+        docx = self._docx_with("Led testing efforts for the API releases")
+        self._sidecar(docx, [self._cand(prefix="Championed the adoption")])
+        script = self._script('ps = None\n')
+        try:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = dcli.lint_prune_coverage(docx, script)
+            self.assertEqual(rc, 2)
+            self.assertIn("STALE", err.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_edit_anchor_covers_candidate(self):
+        # The plan's prefix is the SHORTEST unique one; the script may use
+        # a longer prefix of the same paragraph — both cover.
+        for prefix in ("Led testing", "Led testing efforts for the API"):
+            docx = self._docx_with(
+                "Led testing efforts for the API releases")
+            self._sidecar(docx, [self._cand(prefix=prefix)])
+            script = self._script(
+                'from docx_edit import drop, find_p\n',
+                'ps = None\n',
+                'ps = drop(ps, [find_p(ps, '
+                '"Led testing efforts for the API releases")])\n')
+            try:
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    rc = dcli.lint_prune_coverage(docx, script)
+                self.assertEqual(rc, 0, prefix)
+                self.assertIn("1 edit(s)", out.getvalue())
+            finally:
+                os.unlink(docx)
+                os.unlink(script)
+
+    def test_trim_anchor_counts_as_edit(self):
+        docx = self._docx_with(
+            "Configured the ASDLC integrations with Azure CLI and Grafana")
+        self._sidecar(docx, [self._cand(
+            kind="word-trim", prefix="Configured the ASD",
+            text="Configured the ASDLC integrations with Azure CLI and "
+                 "Grafana", detail="strip: grafana")])
+        script = self._script(
+            'from docx_edit import set_text, find_p\n',
+            'ps = None\n',
+            'set_text(find_p(ps, "Configured the ASDLC"), '
+            '"Configured the ASDLC integrations with Azure CLI.")\n')
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = dcli.lint_prune_coverage(docx, script)
+            self.assertEqual(rc, 0)
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_kept_reason_comment_covers_candidate(self):
+        docx = self._docx_with(
+            "Championed the adoption of Cypress across teams")
+        self._sidecar(docx, [self._cand(
+            kind="word-trim", prefix="Championed the adoption",
+            text="Championed the adoption of Cypress across teams",
+            detail="strip: cypress")])
+        script = self._script(
+            'ps = None\n',
+            '# kept: find_p(ps, "Championed the adoption") — JD names '
+            'Cypress\n')
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = dcli.lint_prune_coverage(docx, script)
+            self.assertEqual(rc, 0)
+            self.assertIn("1 recorded keep(s)", out.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_uncovered_candidate_fails_with_listing(self):
+        docx = self._docx_with(
+            "Led testing efforts for the API releases",
+            "Refactored the existing Go integration test framework")
+        self._sidecar(docx, [
+            self._cand(prefix="Led testing efforts"),
+            self._cand(kind="word-trim", prefix="Refactored the exist",
+                       text="Refactored the existing Go integration test "
+                            "framework", detail="strip: go")])
+        script = self._script(
+            'from docx_edit import drop, find_p\n',
+            'ps = None\n',
+            'ps = drop(ps, [find_p(ps, '
+            '"Led testing efforts for the API releases")])\n')
+        try:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = dcli.lint_prune_coverage(docx, script)
+            self.assertEqual(rc, 1)
+            text = err.getvalue()
+            self.assertIn("1 of 2", text)
+            self.assertIn("UNCOVERED", text)
+            self.assertIn("word-trim", text)
+            self.assertIn("strip: go", text)
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_curly_apostrophe_text_matches_straight_quote_keep(self):
+        docx = self._docx_with(
+            "Supported the company\u2019s goal of rapid growth")
+        self._sidecar(docx, [self._cand(
+            prefix="Supported the comp",
+            text="Supported the company\u2019s goal of rapid growth",
+            detail="strip: growth")])
+        script = self._script(
+            'ps = None\n',
+            '# kept: "Supported the comp" — soft-skill host, JD names '
+            'leadership\n')
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = dcli.lint_prune_coverage(docx, script)
+            self.assertEqual(rc, 0)
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_short_literals_cannot_cover(self):
+        # A 3-char string literal somewhere in the script must not count
+        # as coverage for a candidate it merely substring-matches.
+        docx = self._docx_with(
+            "Led testing efforts for the API releases")
+        self._sidecar(docx, [self._cand(prefix="Led testing efforts")])
+        script = self._script('x = ("led", "testing")\n')
+        try:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = dcli.lint_prune_coverage(docx, script)
+            self.assertEqual(rc, 1)
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_empty_sidecar_passes(self):
+        docx = self._docx_with("Led testing efforts")
+        self._sidecar(docx, [])
+        script = self._script('ps = None\n')
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = dcli.lint_prune_coverage(docx, script)
+            self.assertEqual(rc, 0)
+            self.assertIn("nothing to cover", out.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
 
 
 class LintScriptTests(unittest.TestCase):

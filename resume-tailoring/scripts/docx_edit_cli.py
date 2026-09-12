@@ -18,6 +18,7 @@ so `python3 scripts/docx_edit.py` keeps working unchanged.
 import ast
 import contextlib
 import io
+import json
 import os
 import sys
 
@@ -200,6 +201,149 @@ def lint_script(docx_path, script_path):
     return 0
 
 
+PRUNE_SIDECAR_SUFFIX = ".prune.json"
+
+
+def _norm_prune(text):
+    """Normalization for coverage matching: whitespace-collapsed, lower,
+    curly quotes unified — the same paragraph text appears in the prune
+    sidecar, the tailor script, and ``# kept:`` comments with varying
+    quoting, and matching must not hinge on a typographic apostrophe."""
+    for cur, straight in (("\u2019", "'"), ("\u2018", "'"),
+                          ("\u201c", '"'), ("\u201d", '"')):
+        text = text.replace(cur, straight)
+    return " ".join(text.lower().split())
+
+
+def _script_cover_strings(script_path):
+    """(literals, keep_lines) of a tailor script: every string literal
+    (the material an edit can anchor a candidate with — find_p targets,
+    drop-list entries, set_text targets) and every ``# kept:`` / ``#
+    KEEP:`` comment line (recorded keep reasons), normalized for
+    matching."""
+    with open(script_path, encoding="utf-8") as f:
+        source = f.read()
+    literals = set()
+    for node in ast.walk(ast.parse(source, script_path)):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            literals.add(_norm_prune(node.value))
+    keeps = []
+    for line in source.splitlines():
+        low = _norm_prune(line)
+        if "# kept:" in low or "# keep:" in low:
+            keeps.append(low)
+    return literals, keeps
+
+
+def _prune_covered(candidate, literals, keeps):
+    """Whether one sidecar candidate is addressed by the script: an edit
+    anchor (any string literal that shares the candidate's anchor prefix
+    — the plan's prefix is the shortest unique one, the script may use a
+    longer prefix of the same paragraph), or a keep-reason comment
+    quoting it. Returns 'EDIT', 'KEEP', or None."""
+    head = _norm_prune(candidate["prefix"] or candidate["text"][:24])
+    for lit in literals:
+        if len(lit) >= 6 and (lit.startswith(head) or head.startswith(lit)):
+            return "EDIT"
+    text_head = _norm_prune(candidate["text"][:24])
+    for keep in keeps:
+        if head in keep or text_head in keep:
+            return "KEEP"
+    return None
+
+
+def lint_prune_coverage(docx_path, script_path):
+    """Every PRUNE-PLAN candidate must be addressed by the tailor script.
+
+    Companion to :func:`lint_script` (run_tailor.sh runs both before the
+    strict exec). measure_resume.py --jd writes every cut candidate it
+    printed to the ``<docx>.prune.json`` sidecar; this lint reads it and
+    requires each candidate to be COVERED by the script — an edit anchor
+    (find_p/drop/set_text literal on the same paragraph: a CUT or TRIM)
+    or a recorded ``# kept: <JD reason>`` comment (a KEEP). A candidate
+    with neither is UNCOVERED and fails the run: the motivating session
+    skipped the plan's word/sentence-level trims entirely, asserted
+    'trims are in', and needed two user prompts — this turns 'they are
+    in' from an assertion into a checked claim.
+
+    The sidecar must exist (run the prune plan first — SKILL Step 3) and
+    every candidate anchor must still resolve against this docx: a master
+    edit between the plan and this lint makes the sidecar stale (exit 2 —
+    re-run the prune plan; the fold/user-edit flow re-runs it anyway).
+    Returns 0 clean, 1 uncovered candidates, 2 usage/sidecar errors.
+    """
+    if not os.path.exists(script_path):
+        print(f"error: script not found: {script_path}", file=sys.stderr)
+        return 2
+    sidecar = docx_path + PRUNE_SIDECAR_SUFFIX
+    if not os.path.exists(sidecar):
+        print(f"prune-coverage: no sidecar: {sidecar} — run the PRUNE PLAN "
+              "first (measure_resume.py <master> --jd <JD.txt>); it emits "
+              "the candidate list this gate enforces (SKILL Step 3)",
+              file=sys.stderr)
+        return 2
+    with open(sidecar, encoding="utf-8") as f:
+        candidates = json.load(f).get("candidates", [])
+    if not candidates:
+        print("prune-coverage: sidecar has no candidates — nothing to "
+              "cover (the plan flagged nothing against this JD)")
+        return 0
+    try:
+        literals, keeps = _script_cover_strings(script_path)
+    except SyntaxError as e:
+        print(f"error: {script_path} does not parse: {e}", file=sys.stderr)
+        return 1
+    _, body, _, _, _ = load(docx_path)
+    ps = paras(body)
+    stale = []
+    with contextlib.redirect_stderr(io.StringIO()):
+        for c in candidates:
+            if c["prefix"] is None:
+                continue
+            if find_p(ps, c["prefix"]) is None:
+                stale.append(c["prefix"])
+    if stale:
+        print(f"prune-coverage: {len(stale)} sidecar candidate(s) no longer "
+              "resolve against this docx — the sidecar is STALE (master "
+              "edited since the plan). Re-run the prune plan: "
+              "measure_resume.py <master> --jd <JD.txt>", file=sys.stderr)
+        return 2
+    uncovered, edits, keeps_n = [], 0, 0
+    for c in candidates:
+        state = _prune_covered(c, literals, keeps)
+        if state == "EDIT":
+            edits += 1
+        elif state == "KEEP":
+            keeps_n += 1
+        else:
+            uncovered.append(c)
+    if uncovered:
+        print(
+            f"prune-coverage: {len(uncovered)} of {len(candidates)} "
+            "PRUNE-PLAN candidate(s) UNCOVERED — no edit targets them and "
+            'no "# kept: <JD reason>" comment records them. Address each '
+            "(CUT: drop(); TRIM: set_text/replace_text on the flagged "
+            "sentence/clause/chunk) or record the keep — the plan is "
+            "final on WHICH, and a skipped trim is the motivating "
+            "session's two-prompt failure:",
+            file=sys.stderr)
+        for c in uncovered:
+            anchor = f'find_p(ps, "{c["prefix"]}")' if c["prefix"] \
+                else "(no unique prefix)"
+            print(f"  UNCOVERED  {c['kind']:<10s} {anchor}", file=sys.stderr)
+            print(f"      # {c['text'][:76]}", file=sys.stderr)
+            if c["detail"]:
+                print(f"      ({c['detail'][:76]})", file=sys.stderr)
+        print(
+            f"prune-coverage: {len(uncovered)} uncovered / "
+            f"{len(candidates)} candidate(s) — fix the tailor script "
+            "before running", file=sys.stderr)
+        return 1
+    print(f"prune-coverage: all {len(candidates)} PRUNE-PLAN candidate(s) "
+          f"covered ({edits} edit(s), {keeps_n} recorded keep(s))")
+    return 0
+
+
 def _cli_usage():
     """Print the docx_edit CLI usage message. Returns exit code 2."""
     print("usage: docx_edit.py <path.docx> [range] [--full] [--prefixes] [--style NAME]",
@@ -224,6 +368,11 @@ def _cli_usage():
           file=sys.stderr)
     print("              resolves against this docx BEFORE running it (exit 1 on miss)",
           file=sys.stderr)
+    print("  --lint-prune S:  verify the tailor script addresses every candidate of the",
+          file=sys.stderr)
+    print("              <docx>.prune.json sidecar (measure_resume.py --jd emits it) —",
+          file=sys.stderr)
+    print("              an edit per candidate or a # kept: reason; exit 1 on uncovered", file=sys.stderr)
     return 2
 
 
@@ -394,6 +543,11 @@ def cli(argv):
         if i + 1 >= len(args):
             return _cli_usage()
         return lint_script(path, args[i + 1])
+    if "--lint-prune" in args:
+        i = args.index("--lint-prune")
+        if i + 1 >= len(args):
+            return _cli_usage()
+        return lint_prune_coverage(path, args[i + 1])
     return _cli_inspect(path, args)
 
 
