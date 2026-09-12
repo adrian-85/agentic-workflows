@@ -510,8 +510,7 @@ def _print_reclaim_sections(ctx, state):
         if not ctx.jd_terms:
             print("  (no --jd given — review each against the JD before "
                   "cutting)")
-        for prefix, text in state.top:
-            print(f'    find_p(ps, "{prefix}")  # {text[:70]}')
+        _print_top_block_lines(state.top)
     all_texts = [de.text_of(p) for p in de.paras(ctx.body)]
     sections = _drop_sections(state.plan, ctx.roles, all_texts=all_texts,
                               protect=ctx.protect, jd_terms=ctx.jd_terms)
@@ -564,9 +563,7 @@ def _print_word_budget(body):
     blocks over MAX_WORDS (SKILL Step 8); this section surfaces the
     arithmetic BEFORE the gate does, so cuts are planned in one pass
     instead of hand-estimated across blocked re-run cycles. Prints only
-    near the cap (85%+) — under it the section is noise. On the master
-    (prune-plan mode) it never prints: word counts are decided AFTER the
-    prune pass, on the tailored copy."""
+    near the cap (85%+) — under it the section is noise."""
     ps = de.paras(body)
     total = sum(len(_word_tokens(de.text_of(p))) for p in ps)
     if total <= MAX_WORDS * 0.85:
@@ -632,11 +629,10 @@ def _print_coverage_lines(coverage, term_map):
             print(f"      {detail}")
 
 
-def _requirements_summary_line(coverage):
+def _requirements_summary_line(coverage, counts, hard_uncovered):
     """The compact one-line REQUIREMENTS SUMMARY signal for the agent —
     when unconfirmed_hard > 0, the three-state checklist (SKILL Step 2)
     MUST be presented to the user before claiming done."""
-    counts, hard_uncovered = _coverage_status_counts(coverage)
     summary = (f"REQUIREMENTS SUMMARY: {counts['covered']}/{len(coverage)} "
                f"quals covered, {counts['weak']} weak, "
                f"{counts['uncovered']} uncovered, "
@@ -663,7 +659,7 @@ def _print_jd_coverage(roles, body, jd_text, jd_terms):
     coverage = _jd_requirement_coverage(roles, body, jd_text)
     if not coverage:
         return
-    counts, _ = _coverage_status_counts(coverage)
+    counts, hard_uncovered = _coverage_status_counts(coverage)
     print()
     print("JD REQUIREMENT COVERAGE (each qualification line → "
           f"status; {len(coverage)} line(s)):")
@@ -676,7 +672,7 @@ def _print_jd_coverage(roles, body, jd_text, jd_terms):
         print(f"  {counts['weak']} requirement(s) [weak] — hosted only on "
               "proficiencies/Tools lines; weave into a bullet "
               "where used (SKILL Step 6).")
-    print(_requirements_summary_line(coverage))
+    print(_requirements_summary_line(coverage, counts, hard_uncovered))
     print()
 
 
@@ -700,6 +696,13 @@ def _print_jd_audit(roles, body, jd_terms, protect):
         print()
 
 
+def _print_top_block_lines(top):
+    """The copy-pasteable cut lines for TOP-BLOCK candidates (shared by
+    the prune-plan and reclaim-plan printers)."""
+    for prefix, text in top:
+        print(f'    find_p(ps, "{prefix}")  # {text[:70]}')
+
+
 def _print_top_block_prune(body, jd_terms):
     """TOP-BLOCK PRUNE CANDIDATES — off-JD proficiencies/cert lines.
 
@@ -712,8 +715,7 @@ def _print_top_block_prune(body, jd_terms):
     print()
     print("TOP-BLOCK PRUNE CANDIDATES (Technical Proficiencies / "
           "Certifications lines with no JD evidence; cut whole):")
-    for prefix, text in top:
-        print(f'    find_p(ps, "{prefix}")  # {text[:70]}')
+    _print_top_block_lines(top)
     print()
 
 

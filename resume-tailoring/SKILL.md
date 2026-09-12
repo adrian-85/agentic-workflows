@@ -306,27 +306,16 @@ python3 scripts/measure_resume.py "<userName> Master Resume.docx" --jd jd_<targe
 
 The PRUNE PLAN assesses EVERY paragraph against the JD — every bullet,
 every sentence inside a kept bullet, every clause and list chunk — and each
-cut candidate carries a copy-pasteable `find_p` anchor:
-
-- **JD-FIT AUDIT (every role, the most recent included)** — OFF-JD bullets
-  (no JD term, no practice phrase) and weak-match bullets (a term hitting
-  half the role's own bullets protects nothing) are cut in the first pass.
-  Cut these even when the resume would already be on target — there is no
-  page math to be on target FOR yet, and shorter is always better for
-  readability. Restores are cheap (host a term in a kept JD bullet: one
-  -line edit); late cuts are the 6-cycle loop.
-- **WORD-LEVEL TRIM CANDIDATES** — kept bullets and list lines still
-  carrying non-JD content: cut the flagged sentence ("Applied TDD
-  practices."), strip the flagged tool from its clause, remove the flagged
-  chunk from the list (TestNG, the sixth JavaScript framework nobody asked
-  about). A list line carrying no JD term at all is a whole-line cut, not
-  a token trim. See [docs/api.md](docs/api.md) for the chunk-parsing rules
-  and the concept/protect guards.
-- **TOP-BLOCK PRUNE CANDIDATES** — Technical Proficiencies / Certifications
-  lines with no JD evidence, cut whole.
-- **JD REQUIREMENT COVERAGE** — read the [UNCOVERED] and [weak] lists NOW
-  and plan the literal-phrase hosts for this same authoring pass (Step 2's
-  inference rule for soft skills; never fabricate hard skills).
+cut candidate carries a copy-pasteable `find_p` anchor (section-by-section
+output format: [docs/api.md](docs/api.md)). Cut everything it lists — the
+OFF-JD and weak-match bullets (the most recent role included), the dead
+sentences, the non-JD list chunks, the off-JD proficiencies/cert lines —
+with no page-math condition: there is no page math to be on target FOR yet,
+and shorter is always better for readability. Restores are cheap (host a
+term in a kept JD bullet: one-line edit); late cuts are the 6-cycle loop.
+Read the coverage report's [UNCOVERED] and [weak] lists in the same pass
+and plan the literal-phrase hosts for this same authoring pass (Step 2's
+inference rule for soft skills; never fabricate hard skills).
 
 **Never cut the LAST host of a hard skill the JD names** — check the term
 isn't the JD-named skill's only remaining host before any cut (Step 8's
@@ -599,7 +588,7 @@ the plan's math is a paragraph the tailor script deletes. When the
 oldest-first plan cannot close the gap, measure emits a TOP-ROLE TRIM
 BATCH (the most-recent role's weakest unprotected bullets, sized to the
 residual gap) and, when even that cannot close it, a NOTE saying so —
-paste its `find_p` lines into the script's first pass and take the NOTE
+paste its `find_p` lines into the tailor script and take the NOTE
 back to the user (whole-role drops / JD-matched tradeoffs). Kept
 bullets' text is final FOR PAGE MATH: hand-shortening a kept bullet from
 two rendered lines to one is not a cut and never closes a measured gap.
