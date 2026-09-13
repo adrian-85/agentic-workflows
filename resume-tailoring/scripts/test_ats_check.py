@@ -251,19 +251,18 @@ class PostingUrlTests(unittest.TestCase):
     def test_no_posting_url_returns_none(self):
         self.assertIsNone(ac._posting_url("Engineer\nbody text"))
 
-    def test_placeholder_posting_url_passes_through(self):
+    def test_placeholder_posting_url_is_dropped(self):
         # SKILL Step 1 says omit the line entirely when the URL is unknown;
-        # the function returns whatever is on the line. The caller skips
-        # the PATCH only when the line is absent (returns None). If someone
-        # writes a placeholder, it passes through — the doc rule is the
-        # guard, not a parser.
-        for placeholder, expected in (("(not provided)", "(not"),
-                                     ("(ask user)", "(ask"),
-                                     ("TBD", "TBD")):
+        # never write a placeholder. A real session's '(ask user — not
+        # provided)' leaked to the scan service as url=(ask ...) — the doc
+        # rule alone proved insufficient, so the guard now also drops any
+        # value that does not start with http(s):// (regression: the
+        # Humana PSE-IQS session, 2026).
+        for placeholder in ("(not provided)", "(ask user)", "TBD"):
             with self.subTest(placeholder=placeholder):
                 result = ac._posting_url(
                     f"Posting URL: {placeholder}\nEngineer")
-                self.assertEqual(result, expected)
+                self.assertIsNone(result)
 
 
 class KnownAtsTests(unittest.TestCase):
@@ -412,3 +411,26 @@ class ScanArgumentTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPostingUrlGuard(unittest.TestCase):
+    """_posting_url drops non-URL placeholders (SKILL Step 1: a real
+    session's '(ask user — not provided)' leaked to the scan service as
+    url=(ask ...). The line must carry a real URL or be absent."""
+
+    def test_real_url_returned(self):
+        self.assertEqual(
+            ac._posting_url("Posting URL: https://careers.humana.com/job/123\n"),
+            "https://careers.humana.com/job/123",
+        )
+
+    def test_placeholder_ask_dropped(self):
+        self.assertIsNone(
+            ac._posting_url("Posting URL: (ask user — not provided in session)\n"))
+
+    def test_placeholder_not_provided_dropped(self):
+        self.assertIsNone(
+            ac._posting_url("Posting URL: (not provided)\n"))
+
+    def test_missing_line_returns_none(self):
+        self.assertIsNone(ac._posting_url("Principal Software Engineer\n"))

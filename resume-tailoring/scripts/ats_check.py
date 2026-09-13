@@ -341,11 +341,17 @@ def _posting_url(jd_text):
     When the URL is unknown, SKILL Step 1 says omit the line entirely —
     never write a placeholder: a real session's '(not provided)' reached
     the scan service as 'url=(not)' in the report metadata. The caller
-    skips the PATCH when None, so no garbage is sent."""
+    skips the PATCH when None, so no garbage is sent. As a second guard,
+    anything on the line that does not LOOK like a URL (must start with
+    http:// or https://) is treated as a placeholder and dropped — a
+    hand-written '(ask user)' note on the line must never be PATCHed."""
     for line in jd_text.splitlines():
         m = re.match(r"\s*posting url:\s*(\S+)", line, re.I)
         if m:
-            return m.group(1)
+            url = m.group(1)
+            if not re.match(r"https?://", url, re.I):
+                return None
+            return url
     return None
 
 
