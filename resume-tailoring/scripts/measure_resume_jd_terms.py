@@ -469,5 +469,3 @@ def _is_protected(text, protect):
     """True if ``text`` contains any ``protect`` phrase (case-insensitive)."""
     low = text.lower()
     return any(p.lower() in low for p in protect)
-
-
