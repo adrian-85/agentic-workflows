@@ -1,0 +1,278 @@
+"""auto_prune (machine Phase A) tests.
+
+The machine dispositions every prune candidate with no agent judgment:
+cuts, word trims, list trims, whole-category cuts, stub keeps, and the
+per-role cap — then emits the first tailor script, which must pass
+run_tailor.sh's gates (ast + prefix lint + prune coverage + strict exec).
+"""
+
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access
+# unittest method names are self-documenting; tests white-box the plan
+# dict (that IS the contract) and reuse the shared docx scaffolding.
+
+import ast
+import os
+import sys
+import unittest
+
+sys.path.insert(0, __file__.rsplit("/", 1)[0])
+
+import test_helpers
+from test_helpers import _body, _para, _write_docx  # noqa: F401
+import docx_edit as de  # noqa: E402
+import docx_edit_cli  # noqa: E402
+import measure_resume as mr  # noqa: E402
+import measure_resume_drops as mrd  # noqa: E402
+import auto_prune  # noqa: E402
+
+JD = "Hands-on Cypress. CI/CD with Jenkins. Gatling performance." \
+     " Selenium regression. Python scripting. Kubernetes. Docker. AWS." \
+     " REST APIs. Playwright."
+
+
+def _date():
+    return mr._sample_date() if hasattr(mr, "_sample_date") else "01/2020"
+
+
+def _master_paras():
+    """A master-like fixture: proficiencies (JD + non-JD lines), a
+    Certifications section, three roles (one JD-flagship, one mixed, one
+    all-off-JD stub case), and Education."""
+    return _body([
+        _para("Adrian Alan", style="Title"),
+        _para("Staff Engineer", style="Title"),
+        _para("Summary of a career", style="SummaryBlock"),
+        _para(mr.SECTION_PROFICIENCIES, style="SectionHeading"),
+        _para("Programming Languages: Python, Java, COBOL"),
+        _para("Automation Testing Frameworks: Cypress, Playwright, "
+              "Karate"),
+        _para("Certifications", style="SectionHeading"),
+        _para("Rapid Software Testing, 2021"),
+        _para(mr.SECTION_CAREER, style="SectionHeading"),
+        _para("Company Alpha" + _date() + " – 08/2024",
+              style=mr.COMPANY_STYLE),
+        _para("Senior SDET", style="JobTitleBlock"),
+        _para("Championed the adoption of Cypress, co-architecting the "
+              "initial framework", numId=2),
+        _para("Automated checkout flows with Cypress. Organized team "
+              "offsites and holiday parties.", numId=2),
+        _para("Created performance tests using Gatling and reported "
+              "results", numId=2),
+        _para("Organized team offsites and holiday parties", numId=2),
+        _para("Tools & Technologies: Cypress, Jenkins, Kubernetes, "
+              "COBOL"),
+        _para("Company Beta" + _date() + " – 08/2022",
+              style=mr.COMPANY_STYLE),
+        _para("QA Engineer", style="JobTitleBlock"),
+        _para("Automated regression suites with Selenium and Playwright",
+              numId=2),
+        _para("Wrote Python scripting utilities for test data",
+              numId=2),
+        _para("Attended weekly planning meetings", numId=2),
+        _para("Company Gamma" + _date() + " – 08/2018",
+              style=mr.COMPANY_STYLE),
+        _para("Manual Tester", style="JobTitleBlock"),
+        _para("Logged bugs in a spreadsheet and filed paperwork",
+              numId=2),
+        _para("Answered the office phone", numId=2),
+        _para(mr.SECTION_EDUCATION, style="SectionHeading"),
+        _para("BA, General Studies"),
+    ])
+
+
+class _AutoPruneBase(unittest.TestCase):
+    """Shared: compute candidates + plan for the fixture master."""
+
+    def setUp(self):
+        self.body = _master_paras()
+        self.roles = mr._roles(self.body)
+        self.jd_terms = mr._jd_terms(JD, self.body)
+        self.candidates = mrd.prune_candidates(self.roles, self.jd_terms,
+                                               self.body, protect=())
+        self.plan = auto_prune.plan_phase_a(self.candidates, self.roles,
+                                            self.jd_terms, self.body)
+
+    def _cand(self, fragment, kind=None):
+        for c in self.candidates:
+            if fragment in c["text"] and (kind is None
+                                          or c["kind"] == kind):
+                return c
+        return None
+
+
+class TestPlanDispositions(_AutoPruneBase):
+
+    def test_off_jd_bullet_is_cut(self):
+        c = self._cand("Organized team offsites", "bullet-cut")
+        self.assertTrue(c)
+        self.assertTrue(any(c["prefix"] == p
+                            for p, _t in self.plan["drops"]))
+
+    def test_role_losing_every_bullet_keeps_a_stub(self):
+        # Company Gamma's both bullets are OFF-JD: one survives, and the
+        # keep comment records it. Whole-role drops never appear.
+        gamma = next(r for r in self.roles
+                     if any("Logged bugs" in b
+                            for b in r["bullet_texts"]))
+        self.assertTrue(gamma["bullet_texts"])
+        dropped = {t for _p, t in self.plan["drops"]}
+        kept = [b for b in gamma["bullet_texts"] if b not in dropped]
+        self.assertEqual(len(kept), 1)
+        self.assertTrue(self.plan["keeps"])
+
+    def test_no_whole_role_drops_anywhere(self):
+        script = auto_prune.emit_script(
+            self.plan, "m.docx", "out.docx", "T", "jd.txt", "tailor_t.py")
+        self.assertNotIn("drop_role", script)
+
+    def test_word_trim_removes_dead_sentence(self):
+        c = self._cand("Automated checkout flows", "word-trim")
+        self.assertTrue(c)
+        trim = [(a, new) for a, new in self.plan["trims"]
+                if a[1] == c["text"]]
+        self.assertEqual(len(trim), 1)
+        _anchor, new_text = trim[0]
+        self.assertIn("Cypress", new_text)
+        self.assertNotIn("offsites", new_text)  # dead sentence removed
+
+    def test_trimmed_bullet_meets_word_cap(self):
+        for _anchor, new in self.plan["trims"]:
+            self.assertLessEqual(len(new.split()), auto_prune.WORD_CAP)
+
+    def test_list_trim_strips_non_jd_chunks(self):
+        c = self._cand("Programming Languages:", "list-trim")
+        self.assertTrue(c)
+        entry = [e for e in self.plan["list_trims"] if e[0][1] == c["text"]]
+        self.assertEqual(len(entry), 1)
+        _a, label, value = entry[0]
+        self.assertEqual(label, "Programming Languages: ")
+        self.assertIn("Python", value)
+        self.assertNotIn("COBOL", value)
+        self.assertNotIn("Java", value)
+
+    def test_fully_non_jd_proficiency_line_is_cut(self):
+        # Automation line's Karate is not in the JD → only Cypress and
+        # Playwright survive; the line itself is trimmed, not cut.
+        c = self._cand("Automation Testing Frameworks:", "list-trim")
+        self.assertTrue(c)
+        entry = [e for e in self.plan["list_trims"] if e[0][1] == c["text"]]
+        self.assertTrue(entry)
+        self.assertNotIn("Karate", entry[0][2])
+
+    def test_emptied_cert_section_drops_whole(self):
+        c = self._cand("Rapid Software Testing", "top-block")
+        self.assertTrue(c)
+        self.assertTrue(any("Certifications" in h
+                            for _p, h in self.plan["section_drops"]))
+        # the line cut moved into the section drop — not in drop list
+        self.assertFalse(any(c["prefix"] == p
+                             for p, _t in self.plan["drops"]))
+        self.assertTrue(any("Certifications" in why or "emptied" in why
+                            for _h, why in self.plan["section_keeps"]))
+
+    def test_stats_summary(self):
+        s = self.plan["stats"]
+        self.assertGreater(s["cut"], 0)
+        self.assertGreater(s["trim"], 0)
+        self.assertGreaterEqual(s["stub"], 1)
+
+
+class TestEmittedScript(_AutoPruneBase):
+    """The emitted script must parse, cover every sidecar candidate, and
+    never drop a whole role."""
+
+    def _script(self):
+        return auto_prune.emit_script(
+            self.plan, "master.docx", "out.docx", "Target", "jd_x.txt",
+            "tailor_target.py")
+
+    def test_parses(self):
+        ast.parse(self._script())
+
+    def test_no_drop_role(self):
+        self.assertNotIn("drop_role", self._script())
+
+    def test_every_candidate_covered(self):
+        # docx_edit_cli reads from a path — write the script to disk
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".py",
+                                         delete=False) as f:
+            f.write(self._script())
+            path = f.name
+        try:
+            literals, keeps = docx_edit_cli._script_cover_strings(path)
+        finally:
+            os.unlink(path)
+        for c in self.candidates:
+            state = docx_edit_cli._prune_covered(c, literals, keeps)
+            self.assertIsNotNone(
+                state, f"uncovered candidate: {c['kind']} {c['text'][:60]}")
+
+
+class TestEmittedScriptRuns(_AutoPruneBase):
+    """End-to-end: the emitted script runs green under strict mode and
+    writes the base build."""
+
+    def test_script_runs_and_writes_build(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            master = os.path.join(td, "Test User Master Resume.docx")
+            _write_docx(master, _master_paras())
+            dst = os.path.join(td, "Test User Resume - Target.docx")
+            script = auto_prune.emit_script(
+                self.plan, master, dst, "Target", "jd_x.txt",
+                "tailor_target.py")
+            script_path = os.path.join(td, "tailor_target.py")
+            with open(script_path, "w", encoding="utf-8") as f:
+                f.write(script)
+            src_dir = __file__.rsplit("/", 1)[0]
+            env = dict(os.environ)
+            env["DOCX_EDIT_STRICT"] = "1"
+            env["PYTHONPATH"] = src_dir
+            code = (
+                "import sys; sys.path.insert(0, %r); "
+                "import runpy; runpy.run_path(%r, run_name='__main__')"
+                % (src_dir, script_path))
+            import subprocess
+            proc = subprocess.run([sys.executable, "-c", code], cwd=td,
+                                  env=env, capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0,
+                             f"stdout:\n{proc.stdout}\nstderr:\n"
+                             f"{proc.stderr}")
+            self.assertTrue(os.path.exists(dst))
+            _root, body, _n, _d, _w = de.load(dst)
+            texts = [de.text_of(p) for p in de.paras(body)]
+            self.assertNotIn(
+                "Organized team offsites and holiday parties", texts)
+            self.assertFalse(any("Certifications" == t for t in texts))
+            self.assertNotIn("Rapid Software Testing, 2021", texts)
+            # Gamma kept exactly one stub bullet
+            gamma_bullets = ["Logged bugs in a spreadsheet and filed "
+                             "paperwork", "Answered the office phone"]
+            kept_gamma = [t for t in gamma_bullets if t in texts]
+            self.assertEqual(len(kept_gamma), 1)
+
+
+class TestTrimHelpers(unittest.TestCase):
+
+    def test_trim_bullet_text_drops_dead_sentences_and_caps_words(self):
+        jd_terms = {"cypress"}
+        text = ("Automated the regression suite with Cypress across "
+                "browsers. Organized team offsites and holiday parties. "
+                "Filed weekly status paperwork for managers. Coached "
+                "interns on office tooling and onboarding paperwork. "
+                "Maintained the snack inventory spreadsheet every week.")
+        out = auto_prune._trim_bullet_text(text, jd_terms)
+        self.assertIn("Cypress", out)
+        self.assertNotIn("offsites", out)
+        self.assertLessEqual(len(out.split()), auto_prune.WORD_CAP)
+
+    def test_surviving_chunks_keeps_jd_named_chunk(self):
+        self.assertEqual(
+            auto_prune._surviving_chunks(
+                "Languages: Python, COBOL, Rust", {"python"}),
+            ["Python"])
+
+
+if __name__ == "__main__":
+    unittest.main()
