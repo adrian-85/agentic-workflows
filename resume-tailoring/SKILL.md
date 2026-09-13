@@ -13,19 +13,24 @@ styles, list/bullet numbering, and hyperlinks all survive.
 
 ## Core principle
 
-**The master resume is the comprehensive data pool; tailored resumes pull
-from it and cut everything that does not help get the job.** Copy the
-master, edit that copy's Word XML in place (so formatting survives), and
-never overwrite the master — every run writes a new file (e.g. `John Doe
-Resume - <Target>.docx`). Relevance assessment comes FIRST (Step 3): every
-bullet, sentence, clause, and list chunk in the master is assessed against
-the JD and everything irrelevant is cut — before any page target, role
-drop, seniority alignment, or word count is decided, and **the full master
-is never page/word-measured** (measure refuses it; SKILL Step 3). Only
-after the prune pass is the surviving content measured (Step 4) to decide
-length and seniority, under a hard per-role bullet cap of 8 kept bullets
-(Step 8). JD alignment is king, readability second; time-in-role and
-recency are only tiebreakers, never a cut signal and never an exemption.
+**The machine prunes; the agent tailors; nothing irrelevant ever reaches
+the build.** Copy the master, never overwrite it — every run writes a new
+file (e.g. `John Doe Resume - <Target>.docx`). Phase A (`auto_prune.py`,
+Step 2) machine-dispositions EVERY paragraph of the master against the JD
+— every bullet, dead sentence, list chunk, and Tools line — and emits and
+runs the first tailor script through the full gate chain. The agent never
+dispositions a prune candidate, never re-opens a cut by argument, never
+sees a cut report, and never page/word-measures the master. Its work
+starts on the resulting LEAN BASE BUILD: measure it and decide
+length/seniority (Steps 3–4), tailor title/Summary/flagship (Steps 5–7),
+and mine the master + LinkedIn ONLY when the ATS steps surface a gap to
+host (Step 8) — until then the agent does not even read them. Restores
+are add-driven and JD-evidenced; because the base build starts under
+every budget, the old cut-iterate-cut compression loop is structurally
+gone. Removing 25% relevant content beats leaving 25% irrelevant
+content: what the machine leaves is small enough to tailor freely. JD
+alignment is king, readability second; time-in-role and recency are only
+tiebreakers, never a cut signal and never an exemption.
 
 ## When to Use
 
@@ -39,14 +44,14 @@ recency are only tiebreakers, never a cut signal and never an exemption.
 
 | Step | Action | Tool |
 |---|---|---|
-| 1 | Read inputs (JD — persist to skill root, master, LinkedIn) | `read_profile.sh` |
-| 2 | Extract employer selling points | — |
-| 3 | PRUNE FIRST: assess ALL master content against the JD; cut every off-JD/weak bullet, dead sentence, non-JD clause, non-JD list chunk from every role and section — no page math, no budgets (the master is never page/word-measured). Fill the PRUNE DISPOSITION CHECKLIST (CUT/TRIM/KEEP per candidate) into the one-message plan | `measure_resume.py "<master>" --jd` (PRUNE PLAN: audit + trim candidates, each with `find_p` anchors; PRUNE DISPOSITION CHECKLIST) |
-| 4 | Measure the PRUNED copy → decide length + seniority alignment (whole-role drops) | `measure_resume.py` on the tailored copy (TIMELINE, `--simulate`) |
+| 1 | Read the JD (persist to skill root + posting URL). The master and LinkedIn export stay UNREAD | — |
+| 2 | PHASE A — the machine prune: dispositions every candidate, emits the first tailor script, runs it through the gates, writes the lean base build. No cut report | `auto_prune.py` (runs `run_tailor.sh`) |
+| 3 | Measure the BASE BUILD (never the master) — it is already under budget; verify, don't reclaim | `measure_resume.py` on the base copy |
+| 4 | Decide length + seniority alignment (whole-role drops, with the user) | `measure_resume.py --simulate` |
 | 5 | Align top title to JD title (less senior); rewrite Summary to lead with JD value | `set_text` |
 | 6 | No sections between Summary & Proficiencies | — |
 | 7 | Re-anchor senior role (merge, don't append); expand role adjacent to JD industry/stage | `set_text`, `merge_into` |
-| 8 | Residual compression: per-role 8-bullet cap, ≤1,000-word cap, reclaim plan on the build, squeeze residual gap, spacers | `measure_resume.py` (on the build); `squeeze_resume.py --protect`; `scripts/run_tailor.sh` (ast + find_p lint + PRUNE-COVERAGE gate + strict exec) |
+| 8 | RESTORE & HOST — audits surface gaps → mine master + LinkedIn for truthful hosts: in-bullet first (≤40-word cap), weakest same-role bullet traded when over budget; squeeze backstop | `ats_audit.py --jd`, `read_profile.sh`, `set_text`, `squeeze_resume.py --protect` |
 | 9 | Fix grammar, typos, punctuation | grep + `validate_resume.py` |
 | 10 | Save tailored copy (never overwrite master) | `save()` |
 | 11 | Render + verify PDF | `render_pdf.sh` |
@@ -56,30 +61,37 @@ recency are only tiebreakers, never a cut signal and never an exemption.
 
 User-supplied personal assets (`*.docx` / `*.pdf`, gitignored) live in the skill root:
 
-- `<userName> Master Resume.docx` — the comprehensive data pool. Targeted scripts read it
-  by name from the skill root and subtract from it. **Real experience belongs here** — if a
+- `<userName> Master Resume.docx` — the comprehensive data pool. **Phase A's
+  `auto_prune.py` is the only sanctioned master consumer at build time** — the
+  agent does not open the master (or the LinkedIn export) until Step 8's gap
+  mining unlocks it; re-running the machine command, not hand-pruning, refreshes
+  a stale base. **Real experience belongs here** — if a
   session authors a bullet the user confirms, fold it into the master (via `clone_after` or
   the `--set-text`/`--append-after` CLI) so every future tailored resume can pull from it.
   Fold AFTER the per-target script is finished: a fold rewrites master text, which can
   invalidate the script's `find_p` prefixes. This ordering is ENFORCED, not a habit —
   after any fold (or a user edit between sessions), the next tailor run detects the
   changed master (`MASTER CHANGED:`) and runs auto-strict: skipped edits exit 2 without
-  needing `DOCX_EDIT_STRICT=1`. If the master change was the USER's, respect it — re-dump
-  `--prefixes`, fix drifted prefixes in the tailor script, never re-fold over their text.
+  needing `DOCX_EDIT_STRICT=1`. If the master change was the USER's, respect it — re-run
+  `auto_prune.py` (Step 2), never re-fold over their text.
 - `Basic_LinkedInDataExport_*/` — the LinkedIn data export (CSVs), the richer source than
-  the resume for content to enrich/merge (Step 1).
+  the resume for content to enrich/merge — read ONLY in Step 8, when a surfaced gap
+  needs evidence (Step 1 does not touch it).
 
 `scripts/` (each tool's docstring / usage is the reference; the steps below point at them):
 `docx_edit.py` (Helper library) · `tailor_resume.py` (template) · `render_pdf.sh` (Steps 8, 11) ·
-`measure_resume.py` (Step 3 PRUNE PLAN on the master — the ONLY sanctioned master run, `--jd` required;
-Step 4/8 page math on the tailored copy; `--linkedin <dump>` feeds the INFERENCE MAP for no-host terms) ·
-`squeeze_resume.py` (Step 8;
+`auto_prune.py` (Step 2 PHASE A — the machine prune; the ONLY sanctioned master consumer;
+emits and runs the first tailor script through `run_tailor.sh`'s gates) ·
+`measure_resume.py` (Step 3/4 page math on the tailored copy; `--jd` on the MASTER is the
+machine pipeline's prune-plan mode — the agent never runs it; `--linkedin <dump>` feeds the
+INFERENCE MAP for no-host terms in Step 8) ·
+`squeeze_resume.py` (Step 8 backstop;
 auto-tightens to the page budget) · `validate_resume.py` (Steps 4, 11; `--master` auto-detects the
-`* Master Resume.docx` next to the input) · `diff_resume.py` (Token-spend) · `read_profile.sh` (Step 1) ·
+`* Master Resume.docx` next to the input) · `diff_resume.py` (Token-spend) · `read_profile.sh` (Step 8) ·
 `ats_audit.py` (Step 11; literal-phrase ATS audit of the rendered PDF + word cap) · `ats_check.py`
 (Step 11; runs the external ATS scan via the user's saved credentials, saves the report JSON) ·
-`test_*.py` unit tests (`python3 -m unittest test_docx_edit test_measure_resume test_validate_resume 
-test_squeeze_resume test_ats_audit test_ats_check`, from `scripts/`).
+`test_*.py` unit tests (`python3 -m unittest test_docx_edit test_auto_prune test_measure_resume \
+test_validate_resume test_squeeze_resume test_ats_audit test_ats_check`, from `scripts/`).
 
 Run scripts from the skill root so the relative `SRC` path resolves:
 
@@ -98,26 +110,22 @@ reference before authoring a tailor script; import only the helpers the planned 
 The loop is render-and-measure heavy. The deterministic parts are tool-enforced; the
 manual habits are:
 
-1. **Author scripts from `--prefixes` alone** (uniqueness-checked copy-paste; the paragraph
-   map adds style/numId — only for rare layout checks). For CUT decisions, take the PRUNE
-   PLAN's `find_p` lines directly (Step 3) — the prefixes are already emitted,
-   uniqueness-checked against the document. To read a paragraph's FULL text before
-   rewriting it (Summary, senior-role intro, a bullet), use
+1. **Author edits from `--prefixes` alone** (uniqueness-checked copy-paste; the paragraph
+   map adds style/numId — only for rare layout checks). Phase A hands you the base build
+   and its emitted `tailor_<target>.py`; your later edits (Steps 5–8) EXTEND that script —
+   dump `--prefixes` on the BASE BUILD, not the master. To read a paragraph's FULL text
+   before rewriting it (Summary, senior-role intro, a bullet), use
    `docx_edit.py "<docx>" <idx> --full` (or `<start>-<end> --full`) rather than ad-hoc
    inline python — it is one command and shows the exact string you are replacing.
-2. **Run `measure_resume.py "<master>" --jd <JD.txt>` at AUTHORING time** (Step 3), before
-   writing the tailor script, and paste its PRUNE PLAN `find_p` lines verbatim into the
-   script's `drop()`/`set_text` edits. This is the ONLY sanctioned measure run on the
-   master: it emits the relevance assessment alone (JD-FIT AUDIT with anchors, WORD-LEVEL
-   TRIM CANDIDATES, TOP-BLOCK PRUNE CANDIDATES) plus the PRUNE DISPOSITION CHECKLIST —
-   no page targets, role drops, or word counts, because those decisions belong AFTER
-   pruning, on the pruned copy (Step 4), and the tool refuses full-master measurement
-   outright. **The prune plan's WHICH is final;
-   nothing about HOW MANY exists yet** — how much survives is discovered by measuring
-   the tailored copy after pruning. Every checklist line is mirrored in the script by
-   the Step-3 disposition rule; `run_tailor.sh` enforces it. That build measure is also
-   the term-coverage drift check: its **JD terms with NO host** list catches an ask whose
-   only host died with a cut role or trimmed Tools line.
+2. **Never run the prune yourself.** `auto_prune.py` (Step 2) is the only sanctioned
+   master consumer: it machine-dispositions every candidate (cuts, word trims, list
+   trims, whole-category cuts, stub keeps), emits `tailor_<target>.py`, and runs it
+   through `run_tailor.sh`'s gate chain in one command. There is no disposition
+   checklist to fill and no cut report to read — the base build IS the disposition.
+   Re-running the command (after a master fold or user edit) refreshes the prune sidecar
+   the coverage gate enforces. That Step-3 measure run on the base build is also the
+   term-coverage drift check: its **JD terms with NO host** list is the mining queue
+   Step 8 works from.
 3. **Before reusing a tailor script after the user edited the .docx, run `diff_resume.py --tailor`**
    first — one command surfaces manual edits a blind re-run would wipe. (The drift sidecar
    is the tripwire; diff_resume is the review.)
@@ -155,22 +163,25 @@ manual habits are:
    non-matching oldText fails the entire call. When adding a new block,
    anchor it against a unique existing line.
 
-Tool-enforced (no instruction needed): `measure_resume.py` REFUSES full-master page/word
-measurement (exit 2 without `--jd`; `--jd` gives the PRUNE PLAN and suppresses page math)
-and, on a tailored copy, prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
+Tool-enforced (no instruction needed): `auto_prune.py` REFUSES non-master input (exit 2) —
+the tailored copy is its OUTPUT, never its input — and its emitted script runs under the
+full gate chain (`run_tailor.sh`: ast + find_p lint + prune-coverage + strict exec).
+`measure_resume.py` REFUSES full-master page/word
+measurement (exit 2 without `--jd`; on the master, `--jd` is the machine pipeline's
+prune-plan mode) and, on a tailored copy, prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
 with copy-pasteable `find_p` cut lines, the per-role **JD-FIT AUDIT** (off-JD/weak bullets in every
 role, even on target), **JD REQUIREMENT COVERAGE** (each qualification line → its kept hosts;
 [weak] = proficiencies/Tools-line host only, [UNCOVERED] = demonstrate it or raise the gap), **JD
-terms with NO host in the resume** (the never-fabricate flags), and flags page widows /
-underfilled pages + **SPACER OPPORTUNITIES** (Step 8); its **REQUIREMENTS SUMMARY** one-liner
-flags the count of unconfirmed hard skills — any count above 0 means present the three-state
-checklist (Step 2) before claiming done; `validate_resume.py` re-reports the
+terms with NO host in the resume** (the never-fabricate flags — Step 8's mining queue), and flags
+page widows / underfilled pages + **SPACER OPPORTUNITIES** (Step 8 backstop); its **REQUIREMENTS
+SUMMARY** one-liner flags the count of unconfirmed hard skills — any count above 0 means present
+the three-state checklist (Step 8) before claiming done; `validate_resume.py` re-reports the
 JD-FIT count at render/save time (the render gate is not skippable); `squeeze_resume.py` closes
 the residual page gap automatically.
 
 ## Workflow
 
-### 1. Read inputs
+### 1. Read the JD — nothing else
 - Read the **job description** (JD) **or the recruiter's message**. A
   recruiter's "top skills" list or screening email is a lighter-weight input
   than a full JD — treat the named skills/tools as the alignment target just
@@ -200,170 +211,60 @@ the residual page gap automatically.
   session or an earlier one) identified the ATS for the same company,
   `ats_check.py` reuses that known posting URL for the metadata PATCH
   and prints the reuse.
-- Read the **master resume**. If it is a `.docx`, use `docx_edit.py` to edit. If
-  only a PDF is available, ask for the `.docx` source — PDFs can be read but
-  not edited precisely.
-- **Read the LinkedIn source before editing — the WHOLE export, via the
-  script.** The resume is a compressed view; the LinkedIn data export has
-  the richer detail that lets you enrich and merge bullets. Run the dump
-  ONCE and read the file — never hand-`cat` individual CSVs (a session
-  read only Skills + Profile, missing Positions' role detail and
-  Certifications/Recommendations evidence, and judged regulated-industry
-  strength from skill keywords alone):
+- **The master resume and the LinkedIn export are NOT inputs here.**
+  Phase A's `auto_prune.py` (Step 2) is the only sanctioned master
+  consumer until Step 8's gap mining unlocks both — the agent that reads
+  the master early starts justifying keeps from it, which is how the
+  prune gets ignored. If the master exists only as a PDF, ask for the
+  `.docx` source (PDFs can be read but not edited precisely) — that
+  request is the one exception.
 
-  ```bash
-  ./scripts/read_profile.sh > /tmp/profile.txt   # the whole export, one stream
-  ```
-
-  What each section of the dump is for:
-  - `Positions.csv` — the full role history with description bullets: the
-    richest source for restoring sub-roles and extra bullets the resume
-    compressed away.
-  - `Profile.csv` — headline and career summary.
-  - `Skills.csv` — the candidate-tech vocabulary; keyword evidence only —
-    never a substitute for the role detail above it.
-  - `Certifications.csv` / `Education.csv` — certs and degrees (the
-    validator's education gate needs the degree line).
-  - `Recommendations_Received.csv` / `Endorsement_Received_Info.csv` —
-    third-party evidence for themes the resume claims (quotable support
-    for regulated/leadership claims a JD emphasizes).
-
-### 2. Extract the employer's selling points
-Ask the user (or infer from the JD) the handful of themes to sell on; these
-themes drive every later edit. **If the input is a recruiter's named-skills
-list rather than a JD, those skills/tools ARE the selling points** — every
-later edit shows where each was used. Cross-check measure's **JD terms with
-NO host in the resume** list (authoring-time PRUNE PLAN, Step 3), then its
-**INFERENCE MAP**: "no literal host" is not "no evidence" — the map
-deterministically searches the master (and the LinkedIn dump via
-`--linkedin <profile-dump.txt>`) for each no-host term's morphological
-variants and skill-family roots, and prints the evidence it finds (see
-[docs/api.md](docs/api.md) for the family table, variant logic, and output
-format). The map's evidence-gathering is mechanical; the JUDGMENT is yours:
-verify each CANDIDATE is experience the user actually has ("debugging" is
-intrinsic to every testing role; "test data management" hosts "data
-management"; AWS in a master Tools line hosts "aws services"), draft a
-truthful literal-phrase host for it, and present the whole map — candidates
-AND genuine gaps — to the user in ONE message. A term with NO deterministic
-evidence stays a never-fabricate flag: raise it instead of inventing evidence,
-and note where 'similar' tooling truthfully answers the ask (Postman/Karate
-for "SoapUI or REST API testing tools"). **A no-host term with NO
-deterministic evidence is an ASK, not a verdict** — the master and the
-LinkedIn dump understate real experience (the
-resume never says everything the user has done). Ask about it plainly and
-host only what is confirmed.
-
-**Every JD hard and soft skill ends in exactly one of three states, and
-the full list is presented to the user in ONE message:**
-1. **Hosted** — the literal phrase lives in a truthful bullet/Summary
-   line (hard skill: user-confirmed experience; soft skill: action-verb
-   evidence, safe to infer).
-2. **Confirmed absent** — the user stated they don't have it (record the
-   confirmation in the tailor script's docstring; the validator and the
-   honest-ceiling check below key on it).
-3. **Raised and unanswered** — put to the user, awaiting their answer.
-
-Never mark a skill "gap, closed" on tool output alone — extraction is
-heuristic (a real session's extractor missed macOS, stress testing,
-endpoint security, and reliability entirely; all four were real asks the
-user could speak to). The never-fabricate flag means "stop and ask", not
-"stop and declare".
-
-**Soft-skill asks are inferred from action-verb evidence, not keyword-matched.**
-A qual line like "Excellent communication, stakeholder management, and
-technical leadership skills" is demonstrated by the master's structural
-evidence — bullets about presenting, demoing, leading, mentoring, and
-training (the master is full of them). Treat such a line as covered when
-kept bullets carry that action evidence; one user confirmation ("my
-communication was excellent at every position") covers every role at once —
-do not re-ask per company.
-
-**Always infer soft skills — host the literal phrase by DEFAULT,
-in the authoring pass.** Unlike hard skills (never-fabricate), a
-soft-skill ask is almost always a re-wording of experience the kept
-bullets already demonstrate. When the action-verb evidence exists,
-host the JD's literal phrase ("Excellent written communication",
-"willingness to learn") in the bullet or Summary where that evidence
-lives — during the SAME authoring pass that prunes and rewrites
-(Step 3), not later: measure's REQUIREMENTS SUMMARY now carries a
-directive naming the `[by hand]` soft-skill line(s) for exactly this
-reason. Do not wait for the external scan to flag the absence or
-for the user to ask. External ATS tools score the literal phrase,
-not the concept. The literal adjective is the user's word to stand
-behind, and the action-verb evidence IS the user's record of it.
-The never-fabricate rule is for tools and employers (Appium,
-LoadRunner) — not for soft skills backed by the candidate's own
-demonstrated history.
-
-### 3. Prune first — cut everything that does not help get the job
-**Scope: relevance only.** This step decides WHAT survives the JD filter.
-It has no page math, no word counts, no squeeze, no reclaim plan — those
-are Step 4+ decisions, meaningless over content that is about to be cut
-(and every word/sentence/list trim this step prescribes is implemented
-HERE, in the authoring pass — never deferred). Every word in the master
-was written for SOME audience; almost none of it was written for THIS JD.
-Relevance is assessed against the JD before any
-measurement: **the full master is never page/word-measured** —
-`measure_resume.py` refuses it (exit 2 without `--jd`) and with `--jd` emits
-the PRUNE PLAN only:
+### 2. PHASE A — run the machine prune
+One command. No judgment, no dispositions, no cut report:
 
 ```bash
-python3 scripts/measure_resume.py "<userName> Master Resume.docx" --jd jd_<target>.txt
+python3 scripts/auto_prune.py "<userName> Master Resume.docx" jd_<target>.txt --target "<Target Name>"
 ```
 
-The PRUNE PLAN assesses EVERY paragraph against the JD — every bullet,
-every sentence inside a kept bullet, every clause and list chunk — and each
-cut candidate carries a copy-pasteable `find_p` anchor (section-by-section
-output format: [docs/api.md](docs/api.md)). Cut everything it lists — the
-OFF-JD and weak-match bullets (the most recent role included), the dead
-sentences, the non-JD list chunks, the off-JD proficiencies/cert lines —
-with no page-math condition: there is no page math to be on target FOR yet,
-and shorter is always better for readability. Restores are cheap (host a
-term in a kept JD bullet: one-line edit); late cuts are the 6-cycle loop.
-Read the coverage report's [UNCOVERED] and [weak] lists in the same pass
-and plan the literal-phrase hosts for this same authoring pass (Step 2's
-inference rule for soft skills; never fabricate hard skills).
+What the machine does (deterministic; the agent has no lever here):
+- **CUT** every OFF-JD/weak bullet (the most recent role included) and
+  every no-JD-evidence proficiencies/cert line; a section whose every
+  line is cut goes whole — an entire technical-proficiency category may
+  go.
+- **TRIM** kept bullets' dead sentences (≤40-word cap per bullet) and
+  strip the non-JD chunks from list lines.
+- **NEVER drops a whole role** — a role left with zero bullets keeps a
+  one-bullet stub (header/title + strongest bullet), so the timeline
+  stays gapless and the seniority gate (Step 4) sees every role.
+- **Enforces the per-role 8-bullet cap** on the survivors.
+- **Emits `scripts/tailor_<target>.py`** and runs it through
+  `run_tailor.sh` (ast + find_p lint + prune-coverage gate + strict
+  exec). A gate failure is a pipeline-input bug (JD file, master) —
+  never hand-edit the emitted cuts.
 
-**Every candidate gets a disposition in the plan; the checklist IS the
-plan.** The --jd run ends with the PRUNE DISPOSITION CHECKLIST — one fill-in
-line per candidate, each with its `find_p` anchor (output format and the
-plan.** The --jd run ends with the PRUNE DISPOSITION CHECKLIST — one
-fill-in line per candidate, each with its `find_p` anchor (output format
-and the machine-readable sidecar the coverage gate reads:
-[docs/api.md](docs/api.md)). Fill every line — `CUT` (drop whole), `TRIM`
-(word-level: exactly the flagged sentence/clause/chunk), or `KEEP` + JD
-reason — and copy the filled table into the ONE-message plan. 'Prune plan
-highlights' are not a plan. The default disposition for a WORD-LEVEL
-candidate is the trim itself; escalating to a whole-bullet drop is allowed
-only when the bullet's remaining content carries no JD host — record why
-in the drop-list comment under the `# kept:` override rule below.
-Over-cutting a trim candidate into a bullet drop
-is cheap to restore (re-add the text in a later edit); skipping the trim
-silently is not — `run_tailor.sh` refuses to run the script while any
-candidate lacks an edit or a recorded keep.
+Output is deliberately minimal — `WROTE scripts/tailor_<target>.py` and
+`BUILD: <dst>`. **There is no cut report.** Over-cutting is not corrected
+by argument or restore-from-report: a later phase that genuinely needs
+cut content gets it through Step 8's gap-driven mining, as a fresh,
+purpose-written host — which tailors better than preserved master prose
+anyway. Removing 25% relevant content beats leaving 25% irrelevant
+content.
 
-**Every flag you override gets a recorded one-line JD reason — in the plan,
-next to the keep.** The matcher is heuristic. Write `# kept: <one-line JD reason>` 
-beside every overridden flag, and Step 11's final review re-reads exactly 
-those lines: a keep whose reason no longer holds under the final content gets 
-cut. An overridden flag with neither a recorded reason nor a cut is a MISS — 
-treat it like the drop-list arithmetic: fix it, don't rationalize it.
+The machine protects hosts by construction: any chunk carrying a JD term
+or a practice-phrase concept survives every trim, so a JD-named hard
+skill's last host is never cut (Step 11's `ats_audit.py --jd` backstop
+still verifies post-build).
 
-**Never cut the LAST host of a hard skill the JD names** — check the term
-isn't the JD-named skill's only remaining host before any cut (Step 8's
-`ats_audit.py --jd` backstop catches it post-build; the external score
-DROPPED in a real session when a Tools-line trim killed the only host).
-
-**Mostly-irrelevant role: cut to a stub, don't carry it whole.** When most
-of a role's bullets are off-JD (the audit prints STUB CANDIDATE), cut them;
-if the role then carries no JD evidence at all, keep a 1-bullet stub
-(header/title + strongest bullet) ONLY to prevent an employment gap —
-timeline gaplessness is the one reason to keep irrelevant content. An
-interior role dropped to nothing is a `drop_role` (Step 4), not a stub.
-
-**Never lengthen the resume in this pass.** Every kept bullet, kept line,
-and spacer must trace to a JD requirement or to readability spacing
-(Step 8) — when content needs room, spacers go first.
+### 3. Measure the base build — verify, don't reclaim
+- Run `measure_resume.py` on the BASE BUILD (never the master — the tool
+  refuses it): page-fill table, TIMELINE, word budget. The machine prune
+  already removed everything without JD evidence, so the build lands
+  under every budget by construction. **If it does not, treat that as a
+  pipeline bug**: re-run Step 2, check the JD file is the raw posting —
+  do not start hand-cutting.
+- Read the coverage report's [UNCOVERED] and [weak] lists and the **JD
+  terms with NO host** list — that list is Step 8's mining queue. It is
+  not something to fix by keeping more content up front.
 
 ### 4. Decide length up front — on the PRUNED copy
 - **Target 2 pages; accept 3 for senior/Staff; 4 is too long.** The target
@@ -391,8 +292,8 @@ and spacer must trace to a JD requirement or to readability spacing
   mid-compression unless the note fires. (This prevents the 8-cycle
   waffle a 3-page senior build triggered when a 43% last page went
   unaddressed.)
-- Length is reclaimed by **pruning every role to its JD-relevant bullets**
-  (Step 3 — already done before this measurement), then by whole-role drops
+- Length is reclaimed by the machine prune (Step 2 — already done before
+  this measurement), then by whole-role drops
   at the bottom when seniority alignment calls for them. Recency and
   time-in-role are tiebreakers only — they decide which of two
   otherwise-equal bullets survives, never whether the most-recent role is
@@ -528,16 +429,18 @@ weave rule).
 That role carries the most weight. Rewrite its intro to emphasize
 **ownership** and the JD's selling points.
 
-**The most-recent role is NOT exempt from JD-fit pruning.** Weight is not
+**The most-recent role is NOT exempt from machine pruning.** Weight is not
 immunity: recency protects a role from whole-role elimination, never from
 bullet selection. A 1-year Staff role with heavy AI leverage can genuinely
 accomplish more than a 3-year one — time served is never a cut signal, and
 volume of accomplishment never justifies keeping a bullet. It was pruned
-under the same first-pass rule as every other role (Step 3).
+under the same machine rule as every other role (Step 2).
 
-Enrich its bullets with the strongest missing content from LinkedIn. Where new
-content overlaps an existing bullet, **merge** rather than append — appending
-blows the page budget; merging keeps the role tight.
+Enrichment is NOT part of this step — new content from the master/LinkedIn
+enters only through Step 8's gap-driven hosting, never a general pass.
+Where new content overlaps an existing bullet, **merge**
+rather than append — appending blows the page budget; merging keeps the
+role tight.
 
 When the recruiter or JD names specific tools, weave each into the role
 bullet where it was actually used, naming the tool in-bullet — that is
@@ -551,149 +454,106 @@ make the theme explicit. If the master is missing a theme the user confirms
 they have, fold that content into the master first (real experience lives in
 the master, not per-target scripts).
 
-### 8. Residual compression — size what survives to the budgets
-**Scope: length only.** This step only SIZES what survived: measure the
-TAILORED COPY (never the master — the tool refuses it): the page-fill table,
-TIMELINE, and BATCH RECLAIM PLAN are all computed on content that already
-passed the JD filter. **Cuts can still come from
-ANY section, not just job bullets — and from ANY role, including the most
-recent.** Technical Proficiencies lines, Certifications, Tools lines, blank
-spacers, and role bullets are all first-class cuts — the
-same rendered line cost. Priority order for every remaining cut/keep
-decision:
-(1) **JD alignment** — already enforced by the prune pass; what's left is
-choosing among JD-relevant bullets; (2) **readability** — concise, spaced,
-within the per-role bullet cap below; only then (3) time-in-role and
-recency as tiebreakers between otherwise-equal bullets. Compression order:
-(1) residual weak bullets via the build's DROP PLAN, (2) TOP-BLOCK CANDIDATES
-lines (off-JD proficiencies/certs), (3) Tools line wrap-budget trims
-(shorten a line that wraps), (4) blank spacers.
-Go in that order; don't hand-pick.
+### 8. Restore & host — close the gaps the audits surface
+**This step unlocks the master and the LinkedIn export.** Until here the
+agent has not read either. The trigger is a SURFACED GAP: the build
+measure's **JD terms with NO host** list, `ats_audit.py --jd`'s no-host
+report, or the external scan's missing-keyword list (Step 11). Mining is
+gap-driven ONLY — the surfaced-term list is the work order; the master
+and LinkedIn are evidence sources for those asks, never a general
+enrichment pool. The JD's selling-point themes come from the same
+surfaces: infer them from the JD, cross-check the no-host list, and
+present them with the checklist below.
 
-**Hard bullet cap per role: never more than 8 kept bullets.** Enforced by
-count, not by judgment, and independent of page target, tenure, or
-accomplishment — the master keeps everything, the tailored resume
-re-selects. The cap is a ceiling, not a quota: measure's page math and JD
-alignment decide actual counts below it. The most-recent role competes
-under the same cap — a 1-year role whose master block carries 20+ bullets
-selects its strongest JD-aligned ones like everyone else. A role at the
-cap while others sit far below it still crowds the page; a reviewer who
-hits a wall of text skips bullets they needed to read.
+- Run the LinkedIn dump ONCE and read the file — never hand-`cat`
+  individual CSVs (a session read only Skills + Profile, missing
+  Positions' role detail and Certifications/Recommendations evidence):
 
-**Reconcile the arithmetic before running the tailor script.** Per role:
-intended keep + number of `drop()` entries must equal the role's master
-bullet count (measure's table shows it as `b/cap`; intros are not bullets
-and not cap fillers). **Bullets are counted by numId, not by position or
-look:** a role's first paragraph reads like an intro but IS a bullet when
-the dump shows `num=<N>` on it — the validator counts every numbered
-paragraph. Check the `num` column of the `--prefixes` dump before
-classifying a paragraph as the intro (a real run lost two gate cycles to
-"keeps 9 bullets" because a numId'd leadership paragraph was treated as
-an exempt intro). A real failure: 23 master bullets, "keep the 8
-strongest", 16 drops — 7 kept, one bullet more cut than intended, and the
-post-build table that showed 7 got rationalized as "the intro" instead of
-flagged as a miss. When a built role's count differs from the intent,
-fix the drop list.
+  ```bash
+  ./scripts/read_profile.sh > /tmp/profile.txt   # the whole export, one stream
+  ```
 
-**Re-read the JD-FIT AUDIT after the build** — a clean render is not a
-JD-tight resume. The prune pass (Step 3) already cut every OFF-JD/weak
-bullet; the build's audit exists to catch a cut that reintroduced one or
-a host that died — give each still-flagged bullet a one-line JD reason or
-cut it.
+  `Positions.csv` is the richest source (role detail the resume
+  compressed away); `Skills.csv` is keyword evidence only;
+  `Certifications.csv`/`Education.csv` back the credential asks;
+  `Recommendations_Received.csv` is quotable support for
+  regulated/leadership claims a JD emphasizes.
 
-**Whole-resume word cap: ≤1,000 words — second in precedence, never
-bypassed.** Page count runs FIRST: the page target is a max, and page
-cuts are placed before any word-count consideration (a page-max build is
-almost always under the cap already — the Step-3 prune pass does most of
-the word work). Only once the pages are satisfied is the word
-cap measured: a padded resume reads as a wall to the screener and scores
-worse with ATS tools. Enforced as a blocking gate by `validate_resume.py`
-(save + render) and re-measured on the RENDERED PDF by `ats_audit.py`
-(Step 11). There is no bypass — never reach for `--max-words 0` (or any
-override) to get a build on disk: if the gate blocks on words
-mid-page-work, the cut set is simply incomplete. Extend it from the build
-measure's weakest-first plan (its page cuts usually bring the word count
-under on their own), re-run, and only then measure pages. Cut content;
-never shrink fonts or margins to dodge the cap.
+**Every surfaced JD hard and soft skill ends in exactly one of three
+states, and the full list is presented to the user in ONE message:**
+1. **Hosted** — the literal phrase lives in a truthful bullet/Summary
+   line (hard skill: user-confirmed experience; soft skill: action-verb
+   evidence, safe to infer).
+2. **Confirmed absent** — the user stated they don't have it (record the
+   confirmation in the tailor script's docstring; the validator and the
+   honest-ceiling check below key on it).
+3. **Raised and unanswered** — put to the user, awaiting their answer.
 
-**The plan is a sum of REMOVALS, and measure emits it.** Every line in
-the plan's math is a paragraph the tailor script deletes. When the
-oldest-first plan cannot close the gap, measure emits a TOP-ROLE TRIM
-BATCH (the most-recent role's weakest unprotected bullets, sized to the
-residual gap) and, when even that cannot close it, a NOTE saying so —
-paste its `find_p` lines into the tailor script and take the NOTE
-back to the user (whole-role drops / JD-matched tradeoffs). Kept
-bullets' text is final FOR PAGE MATH: hand-shortening a kept bullet from
-two rendered lines to one is not a cut and never closes a measured gap.
+Never mark a skill "gap, closed" on tool output alone — extraction is
+heuristic (a real session's extractor missed macOS, stress testing,
+endpoint security, and reliability entirely; all four were real asks the
+user could speak to). The never-fabricate flag means "stop and ask", not
+"stop and declare". A no-host term with NO deterministic evidence is an
+ASK, not a verdict — read measure's **INFERENCE MAP**
+(`--linkedin <profile-dump.txt>`): "no literal host" is not "no
+evidence" — the map deterministically searches the master and the
+LinkedIn dump for each term's morphological variants and skill-family
+roots and prints the evidence it finds (see [docs/api.md](docs/api.md)).
+The map's evidence-gathering is mechanical; the JUDGMENT is yours:
+verify each CANDIDATE is experience the user actually has ("debugging"
+is intrinsic to every testing role; AWS in a master Tools line hosts
+"aws services"), draft a truthful literal-phrase host for it, and note
+where 'similar' tooling truthfully answers the ask (Postman/Karate for
+"SoapUI or REST API testing tools"). Host only what is confirmed.
 
-**Measure before cutting.** After the content edits (Steps 5–7), run
-`measure_resume.py` on the tailored copy with the agreed Step-4 target —
-it renders once and
-reports the exact reclaim gap, the BATCH RECLAIM PLAN (oldest roles first),
-and the DROP PLAN (which bullets to cut, ranked weakest-first). See
-[docs/api.md](docs/api.md) for the full command reference, `--jd`/`--protect`
-flags, squeeze harvesting (`--plan-only`, `--protect`), and spacing procedures.
+**Soft-skill asks are inferred from action-verb evidence, not
+keyword-matched — host the literal phrase by DEFAULT.** A qual line like
+"Excellent communication, stakeholder management, and technical
+leadership skills" is demonstrated by the kept bullets' structural
+evidence — presenting, demoing, leading, mentoring, training (the master
+is full of them). When the action-verb evidence exists, host the JD's
+literal phrase in the bullet or Summary where that evidence lives, in
+this same hosting pass. One user confirmation ("my communication was
+excellent at every position") covers every role at once — do not re-ask
+per company. External ATS tools score the literal phrase, not the
+concept; the never-fabricate rule is for tools and employers (Appium,
+LoadRunner) — not for soft skills backed by the candidate's own
+demonstrated history.
 
-**Apply the DROP PLAN, not your own instinct.** The plan names *which*
-bullets, weakest-first. The prune pass already removed everything
-off-JD; what this step sizes is the page budget — the DROP PLAN's sizing
-matters only if the pages are still over after the prune pass. DEAD-END
-PLANS and weak-match `(cuttable)` listings are in the measure output —
-read them; don't guess.
+**Host in-bullet first.** A mined host lands as a rewrite or extension
+of the kept bullet where the evidence lives — mirroring the JD's literal
+phrase — never as resurrected master prose and never as a keyword list
+(Step 6). Every bullet stays under the 40-word cap. When no kept bullet
+can truthfully host the ask, author a fresh bullet in the role where the
+experience lives (merge, don't append). **If a host pushes the build
+over the page or word budget, trade: drop the weakest surviving bullet
+of the SAME role in the same edit** — a one-term, one-edit trade, never
+a reclaim plan. That keeps the hosting loop O(1); the old
+cut-iterate-cut compression cycle is gone by construction, because the
+base build (Step 2) starts under every budget.
 
-**Check DEAD-END PLANS before cutting anything.** A role whose DROP PLAN
-budget exceeds its unprotected bullets cannot meet the budget without
-cutting JD-matched content — the honest fix is TOP-BLOCK candidates, a
-Tools-line trim, or a whole-role drop — NOT slicing kept bullets.
-
-**"No unprotected bullet to give" is not "no bullet to cut."** JD-matching
-has false positives on generic terms. A term hitting MORE THAN HALF a
-role's own bullets is weak evidence and does NOT protect. Specific
-technology nouns (API, SQL, Playwright, ...) are exempt.
-
-**Also check the TOP-BLOCK RECLAIM CANDIDATES** — off-JD proficiencies/cert
-lines, copy-pasteable `find_p` cuts. Cut those before touching any
-JD-matched bullet.
-
-**Human rule still applies on top:** keep (or protect) the 2–3 bullets with hard
-numbers or framework-ownership signal; drop generic process bullets
-("established meetings", "enhanced documentation", "coordinated across teams")
-before quantified ones. The scorer only ranks — you confirm against the JD.
-And JD alignment outranks recency: when a most-recent-role bullet and an
-older-role bullet are equally JD-aligned, the hard cap and readability
-decide — not which role is newer.
-
-The reclaim plan may also suggest **dropping a whole oldest role** (cleanest
-page math). That is Step 4 seniority-alignment territory: confirm with the
-user and record `--seniority-approved` at render time — only with the user's
-authority (Step 4.5); in a single-turn session, defer the render to the user
-instead. The plan annotates
-any interior whole-role drop with a **gap warning** (the employment gap its
-removal opens between surviving neighbors) — an interior drop that opens a
-gap is a sign to cut from the oldest role instead, or restore a lean stub of
-the removed role (header/title + strongest bullet) to keep the timeline
-gapless.
-
-Still a few lines over? Trim the oldest roles' Tools lines and drop blank
-spacers — see [docs/api.md](docs/api.md) for TOOLS LINES THAT WRAP
-budgets, `squeeze_resume.py`, and the `render_pdf.sh` verification render.
-When squeeze's `--plan-only` output is harvested, **JD-judge every line
-before folding it back** — squeeze is page-math-only (same scorer as
-measure's plan, sized to the page budget) and cannot see concept-level
-asks: a real session's squeeze plan cut an ETL data-layer bullet, a
-security-posture bullet, and a test-data bullet, all JD responsibilities
-no JD term named. Pass `--protect "<phrase>"` (same flag as measure) for
-concept-level asks, and drop any fold-back line that carries such
-evidence — the fold-back block is a suggestion sized to pages, not a
-JD-fit verdict.
+**Backstop length math** — rarely needed on a machine-pruned build, but
+the caps still bind. **Hard bullet cap per role: never more than 8 kept
+bullets** (the machine enforces it on survivors; hosting can push a role
+back over — a trade above fixes it). **Whole-resume word cap: ≤1,000
+words**, validator-enforced, second in precedence to the page target and
+never bypassed — and keep the .docx count at ~990 or below, because
+`ats_audit.py`'s rendered-PDF counter (the authoritative one) drifts
++1–2%. If drift accumulates beyond single trades: run `measure_resume.py`
+on the build with the agreed Step-4 target and take its weakest-first
+DROP PLAN and TOP-BLOCK candidates (they name exact bullets — don't
+hand-pick; "no unprotected bullet to give" is not "no bullet to cut": a
+term hitting half a role's bullets is weak evidence and protects
+nothing); then `squeeze_resume.py --protect "<JD-critical phrase>"` for
+the residual gap — and JD-judge every squeeze fold-back line before
+applying it (squeeze is page-math-only: a real session's squeeze plan
+cut an ETL bullet, a security-posture bullet, and a test-data bullet,
+all JD responsibilities no JD term named).
 
 **Readability spacing — lowest priority, only when there is room.** After
-every cut is placed and the measure shows the last page at/below target
+every host lands and the measure shows the last page at/below target
 with slack, add one blank spacer paragraph between roles — measure prints
 **SPACER OPPORTUNITIES** with the boundaries that lack the pause. Fixed
-priority order: (1) JD-aligned work experience, (2) the page target,
-(3) this spacing — when content or pages need room, the spacers go first.
-
 ### 9. Fix grammar and typos in the same pass
 Common catches: `to improving` → `improving` (infinitive),
 `companies goal` → `company's goal`, `HIPPA` → `HIPAA`, `evangalist` →
@@ -770,15 +630,16 @@ python3 scripts/ats_audit.py "<Name> Resume - <Target>.pdf" --jd jd_<target>.txt
 It checks the whole-resume word cap and every JD qualification phrase
 literally (host the exact phrase truthfully or raise the gap — never
 fabricate). JD-named terms with no host mean a cut killed the last host
-(Step 3's cut-protection rule) or the phrase was never mirrored — fix or
+(the machine protects JD-named chunks, but a hosting rewrite can kill
+one — Step 8's in-bullet rule) or the phrase was never mirrored — fix or
 raise. **Before raising a no-host term as a genuine gap, grep the MASTER
-for it — including the bullets the first pass cut.** Cut-first means the
+for it — including the content Phase A cut.** Cut-first means the
 master still hosts what the deliverable lost: a real session kept
 `cybersecurity` on the FAIL list for two scan rounds while the only
 truthful host — a CareMetx security bullet cut during compression — sat
 in the master; the user had to point at it, and folding the term into a
 kept JD bullet (Snyk is a cybersecurity tool) cleared it in one edit.
-The report's soft-skill no-hosts are ACTIONABLE (Step 2's inference rule;
+The report's soft-skill no-hosts are ACTIONABLE (Step 8's inference rule;
 soft skills are safe to infer) — not advisory. Its findings summary
 auto-IGNOREs the by-rule noise (contactEmail, specialCharacters,
 education findings on an Education-free PDF — see below), so the
@@ -812,7 +673,7 @@ hosting literal phrases truthfully. See
 
 **The honest ceiling — declared only WITH the user, never alone.** When
 the match rate stays below target and every remaining no-host is (per
-Step 2's three-state rule) user-confirmed absent or unanswered, STOP
+Step 8's three-state rule) user-confirmed absent or unanswered, STOP
 hosting — do not loop, and do not self-declare the score final. Present
 the remaining hard AND soft skill checklist to the user (every JD ask,
 each marked hosted / confirmed-absent / unanswered) and get their
@@ -869,11 +730,12 @@ automated (`validate_resume.py`); JD-fit judgment of kept bullets is not — tha
 stays human. The post-build measure run's **JD-FIT AUDIT** narrows where to
 look: any OFF-JD or weak-match bullet it lists gets cut or shortened even
 when the page target is met, or kept with a one-line reason tied to the JD.
-**Re-read the Step-3 override reasons first** — they are the keeps the
-matcher disagreed with, the deliverable's least-verified content: a keep
-whose recorded reason no longer holds under the final content (the
-hosting loop rewrote it, the page math squeezed its section) gets cut
-here, not handed to the user as a trim.
+**Re-read the machine's `# kept:` stub lines first** — the only keeps in
+the build, recorded where a role would otherwise have lost every bullet
+(Step 2's stub rule). They are the deliverable's least-verified content:
+at final review a stub whose bullet no longer reads as the role's
+strongest — or that a hosting edit superseded — gets cut, and the role
+with it if no JD evidence remains (seniority gate permitting).
 
 If it overshoots the target, **compress one more older-role bullet** and
 re-render until the last page is full (the `.pdf` is the deliverable; the `.docx` is
@@ -927,10 +789,10 @@ to catch.
 **Soft-skill claims are the user's word, evidenced by their history.** The
 never-fabricate rule governs tools and employers. Communication,
 leadership, and stakeholder management are different: the master's
-presented/demoed/led/mentored/trained bullets ARE the evidence (Step 2's
+presented/demoed/led/mentored/trained bullets ARE the evidence (Step 8's
 inference rule), and that action-verb evidence itself authorizes hosting
 the JD's literal phrase — by default, no explicit statement required
-(soft skills are safe to infer; Step 2). Declining to state a skill the
+(soft skills are safe to infer; Step 8). Declining to state a skill the
 user has confirmed — or re-asking after they confirmed it — is
 over-caution that costs round-trips and leaves JD lines flagged for no
 reason.
@@ -949,18 +811,17 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Hand-rolling whole-role removal in the tailor script | Use `drop_role(body, "<company prefix>")` / `drop_section(body, "Education")` — the library owns the block grammar. A hand-rolled helper that appends before checking the boundary (or only treats Heading1/2 as boundaries) swallows the next `SectionHeading` (Education) and strands later edits as "not found" skips |
 | Verifying the PDF by rendering pages to images | Never works — this harness reads no images. Use `render_pdf.sh --verbose` (page map, last-page tail), `measure_resume.py`'s page-fill table, and `pdftotext` |
 | Chasing a skip warning as a library bug | Re-dump `--prefixes` on the master FIRST — it may have been edited since your dump (the `MASTER CHANGED:` sidecar warning fires on this); a prefix can also match a paragraph an earlier `drop` already removed if you thread a stale `ps` list — use `ps = drop(body, [...])` |
-| Guessing WHICH bullets to cut | Run the PRUNE PLAN on the master (`measure_resume.py "<master>" --jd`) with `--protect "<fact>"` and fill its disposition checklist (Step 3); the build-time residual gap is squeeze_resume.py's job (Step 8) |
+| Guessing WHICH bullets to cut | Never — `auto_prune.py` (Step 2) machine-dispositions every candidate; the base build IS the disposition. Post-build weak bullets come from the build measure's DROP PLAN (Step 8 backstop) |
 | Reading "no unprotected bullet to give" as a dead end while the most-recent role carries off-JD content | JD-matching false-positives on generic terms — read the TOP-ROLE PROTECTED BULLETS list (matched term per bullet) and override weak matches deliberately; that is the sanctioned top-role trim, not hand-picking (Step 8) |
 | Running squeeze in apply mode on the tailored .docx and then folding cuts back into the script by hand | Harvest with `--plan-only` BEFORE the script's first run — same loop, same fold-back block, file untouched (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
-| Pruning only the oldest roles while the most-recent role keeps 15+ bullets | The first-pass prune (Step 3) and the hard per-role cap (8, Step 8) apply to EVERY role — check the PRUNE PLAN's weak-match (cuttable) listing for the top role |
+| Pruning only the oldest roles while the most-recent role keeps 15+ bullets | The machine prune and the hard per-role cap (8) apply to EVERY role (Step 2) — check the build's JD-FIT AUDIT for the top role's weak-match listing (Step 8 backstop) |
 | Treating a proficiencies/Tools-line host as proof of a JD ask | JD REQUIREMENT COVERAGE prints [weak] for non-bullet hosts — weave the skill into the bullet where it was used (Step 7); [UNCOVERED] means demonstrate it or raise the gap, never fabricate |
 | "Keep N" with a drop list that doesn't add up | intended keep + len(drop list) == the role's master bullet count (23 − 16 = 7, not 8); a built role whose count differs from intent is a MISS to fix, not a counting convention (Step 8) |
-| Measuring the full master for page/word budgets | Refused by the tool — the master is only prune-planned (Step 3); length/word decisions run on the PRUNED copy (Step 4) |
-| Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 3, 8) |
+| Measuring the full master for page/word budgets | Refused by the tool — the master is machine-pruned only (Step 2); length/word decisions run on the BASE BUILD (Steps 3–4) |
+| Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 2, 8) |
 | Trusting a JD-matched (kept) listing that protected everything | A term matching half a role's bullets is shown as `[weak: term]` and protects nothing; specific tech nouns stay strong — read the weak-match (cuttable) listing before calling a role a dead end (Step 8) |
-| Overriding PRUNE flags by judgment without recording the reason | Sanctioned (the matcher is heuristic) but an override with no recorded `# kept: <JD reason>` is invisible at final review — the user hand-trimmed a real deliverable because of it. Record beside the keep (quote the anchor — the coverage gate reads it); Step 11 re-reads exactly those lines (Step 3) |
-| Deferring the prune plan's word/sentence trims to compression, or summarizing the plan as 'highlights' | The plan's WHICH is final (Step 3): fill every disposition-checklist line into the one-message plan and mirror it in the script — run_tailor.sh exits 2 while any candidate is uncovered; Step 8 only sizes what survives, it never finishes the prune pass |
+| Re-litigating Phase A cuts by argument, or hand-pruning the master | The machine's disposition stands; there is no `# kept:` negotiation. `auto_prune.py` is the only sanctioned master consumer — re-run the command rather than editing its output cuts. Content the JD genuinely needs returns via Step 8 mining as a fresh, purpose-written host |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
 | Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (`save()` prints one summary line if element-form was used). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form (Helper library) |
 | Iterating Tools-line trims because a trimmed line still wraps | Rare now: TOOLS LINES THAT WRAP reports the MEASURED budget per line ("value is N chars, wraps after ~M — cut ~N-M chars"), so the first trim lands. Trim to the reported budget, not a tool count — the proportional font makes "~8 tools" unreliable (Step 8) |
@@ -975,11 +836,11 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Reading a clean render (no `--jd`) as education-clause clearance | The education gate runs only with `--jd`; the seniority gate always — render_pdf.sh NOTEs when the education gate did not run (Step 11) |
 | Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 9) |
 | Trusting the internal JD matchers as the ATS score | Internal matching is term/concept-based; ATS tools match literal phrases — run `ats_audit.py` on the rendered PDF before declaring done (Step 11) |
-| Cutting the last host of a JD-named hard skill for page math | Step 3 cut-protection: check the term's remaining hosts before any cut; `ats_audit.py --jd` catches it post-build |
+| Cutting the last host of a JD-named hard skill | The machine protects JD-named/concept chunks through every trim (Step 2); a hosting rewrite can still kill one — `ats_audit.py --jd` catches it post-build (Step 11) |
 | Widening the contact block or rewriting link text for ATS parsers | IGNORED by rule — the compact hyperlinked contact block is deliberate design; `contactEmail` searchability findings are noise (Step 11) |
 | Reformatting typography to clear the scan's Special Characters finding | IGNORED by rule — Wingdings bullets, en-dash dates, curly quotes are the user's deliberate formatting; never reformat to satisfy a text parser (Step 11) |
 | Restoring Education because the scan wants an Education section | IGNORED by rule when Education was dropped per Step 4.4 — the render gate sanctioned the drop; the scan's generic advice does not re-open it (Step 11) |
-| Treating "no literal host" as "no evidence" and declaring honest gaps | Read measure's INFERENCE MAP (Step 2): it deterministically surfaces master/LinkedIn evidence for no-host terms — judge each candidate, host the literal phrase truthfully, present the whole map in one message; debugging/UI/data-management asks are usually demonstrated, just lexically invisible (Step 2) |
+| Treating "no literal host" as "no evidence" and declaring honest gaps | Read measure's INFERENCE MAP (Step 8): it deterministically surfaces master/LinkedIn evidence for no-host terms — judge each candidate, host the literal phrase truthfully, present the whole map in one message; debugging/UI/data-management asks are usually demonstrated, just lexically invisible (Step 8) |
 | Treating the external report's wordCount as the cap | The service's PDF parser inflates counts — the cap is `ats_audit.py`'s own count; the report's number is a cross-check only (Step 11) |
 | Storing scan-service credentials in the repo | They live in the skill root's `.ats-check/` dot-directory (user's saved cURL exports; gitignored, 0600, invisible to `git add *`); refresh from a logged-in browser when scans 401 (Step 11) |
 | Punctuation in prose (em dash, semicolon, colon, ellipsis) | Periods and commas ONLY — no em dashes, double hyphens, semicolons, colons, or ellipses (`...`); split into a new sentence or use a comma. The Tools line's `Label: values` colon is the one exempt structural colon (Step 9) |

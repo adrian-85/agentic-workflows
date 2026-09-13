@@ -320,12 +320,13 @@ python3 scripts/measure_resume.py "<userName> Master Resume.docx" --jd jd_<targe
 ```
 
 The master without `--jd` exits 2; `--simulate` on the master exits 2
-(seniority what-ifs run on the pruned copy, Step 4). An explicit page target
-is ignored with a note. Prune everything the plan lists (SKILL Step 3), THEN
-measure the tailored copy for length/seniority (Step 4). A plan flag you
-override by judgment gets a recorded `# kept: <one-line JD reason>` beside
-the keep — Step 11's final review re-reads exactly those lines (SKILL
-Step 3's override rule).
+(seniority what-ifs run on the base build, Step 4). An explicit page target
+is ignored with a note. **The agent does not run this mode** — Phase A's
+`auto_prune.py` (SKILL Step 2) is the machine prune's only consumer: it
+machine-dispositions every candidate (no agent keeps, no overrides, no cut
+report), emits the first tailor script, and runs it through `run_tailor.sh`.
+The only `# kept:` lines in an emitted script are the machine's stub keeps
+(a role would otherwise lose every bullet; timeline gaplessness).
 
 **PRUNE DISPOSITION CHECKLIST + sidecar.** Every --jd run ends with a flat
 checklist — one line per candidate (bullet-cut / word-trim / list-trim /
@@ -349,16 +350,15 @@ script: run_tailor.sh exits 2 while any line is uncovered (--lint-prune).
 
 and writes the machine-readable
 twin to `<master>.prune.json` (the drift-sidecar pattern; refreshed on every
-run). Fill every line in the one-message plan — the dispositions themselves
-(`CUT` / `TRIM` / `KEEP` and when a whole-bullet drop is allowed) are SKILL
-Step 3's decision rule; this section documents what the tools emit and
+run). The machine dispositions every line (`CUT` / `TRIM`, plus stub keeps
+per the SKILL Step 2 rules); this section documents what the tools emit and
 enforce.
 
 **Enforced, not a habit:** `run_tailor.sh` runs `docx_edit.py
 <master> --lint-prune <script>` before executing the tailor script. It
 exits 2 while any candidate has neither an edit nor a recorded keep, and 2
 on a STALE sidecar (a candidate anchor no longer resolves — the master
-changed since the plan; re-run the prune plan). A `# kept:` comment must
+changed since the plan; re-run `auto_prune.py`). A `# kept:` comment must
 quote the candidate's anchor prefix or text head (whitespace/quote
 normalization is applied, so curly apostrophes match) — the comment IS the
 record the final review re-reads.
@@ -377,7 +377,7 @@ WORD-LEVEL TRIM CANDIDATES (kept bullets and list lines still
 carrying non-JD content — prune to the word: cut the flagged
 sentence, strip the flagged tool from its clause, remove the
 flagged chunk from the list; never strip a term the JD names or
-one that hosts a [weak]/covered ask; SKILL Step 3):
+one that hosts a [weak]/covered ask; the machine's trim rule, SKILL Step 2):
   Acme, City:
     find_p(ps, "Built ")  # Built Selenium suites with Java, TestNG.
       - JD does not name: testng
@@ -419,7 +419,7 @@ tool. So when a qual you know is demonstrated still prints `[UNCOVERED]`,
 the fix is to host the JD's literal phrase in a truthful bullet — at
 AUTHORING time, from the master-measure's list — not to debug the matcher. Self-assessment-adjective qual lines ("Excellent communication, ...")
 extract no skill terms and print `[by hand]` with the soft-skill inference
-rule — judge them on kept action-verb evidence (SKILL Step 2), never by
+rule — judge them on kept action-verb evidence (SKILL Step 8), never by
 chasing the adjective.
 
 ### INFERENCE MAP — evidence for no-host JD terms
@@ -481,7 +481,7 @@ INFERENCE MAP for no-host terms (deterministic evidence search over the
     user, do not fabricate
     CANDIDATE = evidence exists; host the JD's literal phrase in the
     truthful bullet and present the whole map — candidates AND gaps — to
-    the user in ONE message (SKILL Step 2).
+    the user in ONE message (SKILL Step 8).
 ```
 
 **LinkedIn evidence.** Pass `--linkedin <profile-dump.txt>` (the
@@ -604,7 +604,7 @@ JD qualification lines' skill phrases (cue-tail mining: phrases are
 extracted only from the text following skill-introducing cues like
 "experience in" and "proficiency in", avoiding surrounding prose —
 see `_jd_literal_terms` for the full precision rules); zero-host terms mean a
-cut killed the last host (Step 3 cut-protection) or the phrase was never
+cut killed the last host (the machine protects JD-named chunks, Step 2) or the phrase was never
 mirrored — host the exact phrase truthfully or raise the gap, never fabricate;
 and before raising a no-host term as a genuine gap, grep the MASTER for it
 (including bullets the first pass cut — see SKILL Step 11 for the
@@ -612,7 +612,7 @@ rationale and an example); (3) with `--phrases-file` (one phrase per line) or `-
 scan report, below), literal checks of externally supplied phrases — a
 skill's `resumeCount` from the report is the authoritative host signal, the
 literal check is the fallback. Report soft-skill no-hosts warn as
-ACTIONABLE (SKILL Steps 2/11: soft skills are safe to infer — host each
+ACTIONABLE (SKILL Steps 8/11: soft skills are safe to infer — host each
 literal phrase where the action-verb evidence lives). With `--report-json`,
 also prints the **match-rate target** (default 75, `--match-target N` to
 change, `0` disables). The target is a **hard stop** (2026-09-11):
