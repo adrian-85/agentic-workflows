@@ -215,9 +215,7 @@ the residual page gap automatically.
   Phase A's `auto_prune.py` (Step 2) is the only sanctioned master
   consumer until Step 8's gap mining unlocks both — the agent that reads
   the master early starts justifying keeps from it, which is how the
-  prune gets ignored. If the master exists only as a PDF, ask for the
-  `.docx` source (PDFs can be read but not edited precisely) — that
-  request is the one exception.
+  prune gets ignored.
 
 ### 2. PHASE A — run the machine prune
 One command. No judgment, no dispositions, no cut report:
@@ -466,8 +464,7 @@ surfaces: infer them from the JD, cross-check the no-host list, and
 present them with the checklist below.
 
 - Run the LinkedIn dump ONCE and read the file — never hand-`cat`
-  individual CSVs (a session read only Skills + Profile, missing
-  Positions' role detail and Certifications/Recommendations evidence):
+  individual CSVs:
 
   ```bash
   ./scripts/read_profile.sh > /tmp/profile.txt   # the whole export, one stream
@@ -484,15 +481,10 @@ states, and the full list is presented to the user in ONE message:**
 1. **Hosted** — the literal phrase lives in a truthful bullet/Summary
    line (hard skill: user-confirmed experience; soft skill: action-verb
    evidence, safe to infer).
-2. **Confirmed absent** — the user stated they don't have it (record the
-   confirmation in the tailor script's docstring; the validator and the
-   honest-ceiling check below key on it).
-3. **Raised and unanswered** — put to the user, awaiting their answer.
+2. **Raised and unanswered** — put to the user, awaiting their answer.
 
 Never mark a skill "gap, closed" on tool output alone — extraction is
-heuristic (a real session's extractor missed macOS, stress testing,
-endpoint security, and reliability entirely; all four were real asks the
-user could speak to). The never-fabricate flag means "stop and ask", not
+heuristic. The never-fabricate flag means "stop and ask", not
 "stop and declare". A no-host term with NO deterministic evidence is an
 ASK, not a verdict — read measure's **INFERENCE MAP**
 (`--linkedin <profile-dump.txt>`): "no literal host" is not "no
@@ -546,9 +538,7 @@ hand-pick; "no unprotected bullet to give" is not "no bullet to cut": a
 term hitting half a role's bullets is weak evidence and protects
 nothing); then `squeeze_resume.py --protect "<JD-critical phrase>"` for
 the residual gap — and JD-judge every squeeze fold-back line before
-applying it (squeeze is page-math-only: a real session's squeeze plan
-cut an ETL bullet, a security-posture bullet, and a test-data bullet,
-all JD responsibilities no JD term named).
+applying it (squeeze is page-math-only).
 
 **Readability spacing — lowest priority, only when there is room.** After
 every host lands and the measure shows the last page at/below target
