@@ -56,6 +56,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import measure_resume as mr  # noqa: E402
+import jd_asks  # noqa: E402
 from script_args import (MAX_WORDS, MATCH_RATE_TARGET, flag_value,
                          maybe_help, match_target_met)  # noqa: E402
 
@@ -166,172 +167,17 @@ def _audit_word_count(text, max_words):
 
 
 def _hosted(text_low, phrase_low):
-    """Literal phrase host, ATS-style: word-boundary substring, with a
-    punctuation-stripped fallback for MULTI-TOKEN phrases (a phrase
-    wrapped across a pdftotext line break still parses as one token in
-    most ATS, standard spellings split with a slash — the JD says
-    "CI/CD pipelines", the resume legitimately renders "CI/CD" — and
-    parentheticals inside the JD's own phrasing: "test automation
-    frameworks (Java)" renders as "frameworks (Java" in the resume and
-    must still host the mined "frameworks java" n-gram) and an optional
-    trailing plural on the last word — external scorers match stemmed
-    ("triage" hosts "triages"). The fallback never applies to single
-    words — "api" must not host inside "rapid"."""
-    suffix = "" if phrase_low.endswith("s") else "(?:e?s)?"
-    if re.search(rf"(?<![a-z0-9]){re.escape(phrase_low)}{suffix}(?![a-z0-9])",
-                 text_low):
-        return True
-    if not re.search(r"[\s\-]", phrase_low):
-        return False
-    return re.sub(r"[^a-z0-9]+", "", phrase_low) in re.sub(r"[^a-z0-9]+", "",
-                                                           text_low)
-
-
-# Function words: an n-gram containing one is not a phrase. Unlike
-# measure_resume's single-word JD_STOP, "quality" must stay usable here —
-# "data quality" and "quality assurance" were a real session's top
-# literal misses. A vague-content word only cannot carry a gram ALONE.
-_STRUCTURE_STOP = frozenset({
-    "and", "the", "for", "a", "an", "or", "of", "in", "to", "on",
-    "with", "from", "into", "them", "they", "their", "each", "when",
-    "while", "where", "which", "through", "throughout", "than", "then",
-    "also", "both", "over", "more", "most", "other", "others", "some",
-    "such", "only", "well", "using", "used", "uses", "across",
-    "against", "within", "without", "via", "per", "plus", "near",
-    "among", "along", "since", "until", "upon", "about", "after",
-    "before", "during", "another", "related", "any", "all", "as",
-})
-# Vague qualification nouns: never evidence alone, but fine inside a
-# phrase ("quality assurance", "test automation").
-_VAGUE_STOP = frozenset({
-    "experience", "minimum", "years", "proficiency", "proficient",
-    "ability", "abilities", "skill", "skills", "skilled", "knowledge",
-    "understanding", "degree", "bachelor", "education", "relevant",
-    "strong", "solid", "proven", "excellent", "required", "preferred",
-    "demonstrated", "working", "field", "areas", "area", "role",
-    "roles", "team", "teams", "environment", "candidate", "candidates",
-    "master",  # 'a Master's degree' — education, not a skill ask
-})
-# QA/tech anchor words: a phrase must contain one to be a skill ask —
-# the qualification section of a real JD also carries prose fragments
-# ("assess whether code", "make sense") that literal-matching them
-# would bury the signal in.
-_TECH_ANCHORS = frozenset({
-    "quality", "assurance", "test", "testing", "tests", "automation",
-    "automated", "data", "database", "databases", "pipeline",
-    "pipelines", "analytics", "framework", "frameworks", "regression",
-    "integration", "hipaa", "phi", "sql", "python", "api", "apis",
-    "agile", "validation", "software", "engineering", "developer",
-    "development", "ci", "cd", "sdlc", "etl", "dashboard", "dashboards",
-    "scripting", "backend", "frontend", "unit", "functional", "qa",
-})
-
-# Skill-introducing cues: literal skill asks follow these. Phrases are
-# mined ONLY from the tails they introduce.
-_CUE_RE = re.compile(
-    r"\b(?:experience|proficiency|knowledge|familiarity)\s+"
-    r"(?:of|in|with|testing|performing|designing|establishing|building)?"
-    r"|\b(?:including|such as|used for|with)\b", re.I)
-_TAIL_STRIP_RE = re.compile(r"^(?:a|an|the|their|and|or|like)\s+", re.I)
-
-
-def _cue_tails(line):
-    """Tokenized windows (max 5 words, first 3 comma segments) after each
-    skill-introducing cue."""
-    tails = []
-    for m in _CUE_RE.finditer(line):
-        tail = line[m.end():].lstrip()
-        for segment in tail.split(",")[:3]:
-            segment = _TAIL_STRIP_RE.sub("", segment.lstrip())
-            words = [w.lower()
-                     for w in re.split(r"[^A-Za-z0-9+#\-]+", segment)
-                     if len(w) > 1][:5]
-            if words:
-                tails.append(words)
-    return tails
-
-
-def _single_token_terms(line, stop_vague):
-    """Capitalized/tech single tokens in a JD requirement line."""
-    terms = set()
-    for m in mr.JD_SEQ_TERM_RE.finditer(line):
-        terms.add(m.group(0).lower())
-    for m in mr.JD_WORD_TERM_RE.finditer(line):
-        if m.start() == 0:
-            continue
-        low = m.group(1).lower()
-        if low in stop_vague or low in mr.JD_STOP:
-            continue
-        if re.search(r"[.!?]\s*$", line[:m.start()].strip()):
-            continue
-        terms.add(low)
-    for tok in re.findall(r"[A-Za-z][A-Za-z0-9+#\-]*", line):
-        low = tok.lower()
-        if low in mr.CORE_TECH_NOUNS or re.search(r"[#+]", low) or (
-                len(low) >= 2 and low.isupper()):
-            terms.add(low)
-    return terms
-
-
-def _phrase_terms(line, stop_vague):
-    """2-3 word skill phrases in the tails of skill-introducing cues."""
-    terms = set()
-    for tail in _cue_tails(line):
-        for size in (3, 2):
-            for i in range(len(tail) - size + 1):
-                gram = tail[i:i + size]
-                if any(w in _STRUCTURE_STOP for w in gram):
-                    continue
-                if all(w in mr.JD_STOP or w in stop_vague
-                       for w in gram):
-                    continue
-                if not any(w in _TECH_ANCHORS or w in mr.CORE_TECH_NOUNS
-                           for w in gram):
-                    continue
-                first = gram[0]
-                if (first.endswith("ing")
-                        and first not in _TECH_ANCHORS
-                        and first not in mr.CORE_TECH_NOUNS
-                        and first not in mr.JD_STOP
-                        and first not in stop_vague):
-                    continue
-                if len(set(gram)) < size:
-                    continue
-                terms.add(" ".join(gram))
-    return terms
+    """Literal phrase host — THE engine matcher (jd_asks.hosted). Kept
+    as a wrapper: the audit's output IS the engine's positive-direction
+    determination on the rendered text."""
+    return jd_asks.hosted(text_low, phrase_low)
 
 
 def _jd_literal_terms(jd_text):
-    """Literal hard-skill PHRASES the JD's qualification lines name.
-
-    ATS keyword matching is phrase-literal ("regression testing" does not
-    match "regression frameworks"), so this mines 2–3-word n-grams — but
-    ONLY from the tails of skill-introducing cues ("experience in",
-    "proficiency in", "used for", …). Mining every anchored n-gram buried
-    the signal in the qualification section's prose ("broader software
-    engineering responsibilities", "including testing data"). Single
-    tokens: measure's capitalized/tech-token regexes minus vague
-    qualification nouns, minus sentence-initial capitals (a line-initial
-    capital is prose, not a product name — "Assess whether…" must not
-    mine "assess"), plus CORE_TECH_NOUNS/markers they might miss.
-
-    Tokens are stripped of trailing punctuation BEFORE the set is built
-    ("gitlab ci." from a sentence-final period and "gitlab ci" from an
-    n-gram then collapse to one term instead of printing twice), and a
-    term that is a word-prefix of a longer term is subsumed by it (the
-    overlapping cue windows mined "selenium driving" beside "selenium
-    driving parallelized"; the longest literal phrase subsumes its
-    prefix — hosting it hosts the shorter too).
-    """
-    stop_vague = _VAGUE_STOP | mr.JD_SELF_ASSESSMENT
-    terms = set()
-    for line in mr._jd_requirement_lines(jd_text):
-        terms.update(_single_token_terms(line, stop_vague))
-        terms.update(_phrase_terms(line, stop_vague))
-    stripped = {t.rstrip(".,;:!?\"'") for t in terms}
-    out = {t for t in stripped
-           if not any(o != t and o.startswith(t + " ") for o in stripped)}
-    return sorted(out)
+    """Literal hard-skill phrases the JD asks for — the engine's ask
+    list (one extraction shared with the prune side; the audit applies
+    it to the rendered text)."""
+    return jd_asks.hard_phrases(jd_text)
 
 
 def _audit_jd(text_low, jd_text):

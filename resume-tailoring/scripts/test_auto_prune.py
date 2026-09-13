@@ -26,9 +26,11 @@ import measure_resume as mr  # noqa: E402
 import measure_resume_drops as mrd  # noqa: E402
 import auto_prune  # noqa: E402
 
-JD = "Hands-on Cypress. CI/CD with Jenkins. Gatling performance." \
-     " Selenium regression. Python scripting. Kubernetes. Docker. AWS." \
-     " REST APIs. Playwright."
+# Real-JD shape: a qualification section (the engine's ask source).
+JD = ("Required Qualifications\n"
+      "Experience with Cypress, Jenkins, Gatling, Selenium, Playwright, "
+      "Kubernetes, Docker, AWS, REST APIs, and Python scripting.\n"
+      "CI/CD pipeline ownership and test automation depth.")
 
 
 def _date():
@@ -143,15 +145,28 @@ class TestPlanDispositions(_AutoPruneBase):
             self.assertLessEqual(len(new.split()), auto_prune.WORD_CAP)
 
     def test_list_trim_strips_non_jd_chunks(self):
+        c = self._cand("Automation Testing Frameworks:", "list-trim")
+        self.assertTrue(c)
+        entry = [e for e in self.plan["list_trims"] if e[0][1] == c["text"]]
+        self.assertEqual(len(entry), 1)
+        _a, label, value = entry[0]
+        self.assertEqual(label, "Automation Testing Frameworks: ")
+        self.assertIn("Cypress", value)
+        self.assertNotIn("Karate", value)
+
+    def test_languages_line_list_trims_to_the_ask(self):
+        # 'Python' (a capitalized mention) and 'python scripting' (the
+        # cue-tail phrase) are BOTH asks under the engine; the Languages
+        # line evidences 'python', so it list-trims (Java/COBOL stripped)
+        # instead of dying whole.
         c = self._cand("Programming Languages:", "list-trim")
         self.assertTrue(c)
         entry = [e for e in self.plan["list_trims"] if e[0][1] == c["text"]]
         self.assertEqual(len(entry), 1)
         _a, label, value = entry[0]
-        self.assertEqual(label, "Programming Languages: ")
         self.assertIn("Python", value)
-        self.assertNotIn("COBOL", value)
         self.assertNotIn("Java", value)
+        self.assertNotIn("COBOL", value)
 
     def test_fully_non_jd_proficiency_line_is_cut(self):
         # Automation line's Karate is not in the JD → only Cypress and

@@ -14,12 +14,22 @@ import sys
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
+import jd_asks  # noqa: E402
 from docx_edit_gate import tmp_jd_note  # noqa: E402
 from measure_resume_format import COMPANY_STYLE, SECTION_PROFICIENCIES  # noqa: E402
 from measure_resume_jd_terms import (JD_CONCEPTS, JD_STOP,  # noqa: E402
                                      _acronym_terms, _adjacent_bigrams,
                                      _concept_hits, _jd_capitalized,
-                                     _jd_hits, _jd_term_freq, _norm_text)
+                                     _jd_hits, _norm_text)
+# The engine owns JD parsing — these names re-export for the shim's
+# callers (ats_audit historically used mr._jd_requirement_lines).
+from jd_asks import (JD_COMPANY_VOICE_RE, JD_NEGATED_HEADING_RE,  # noqa: E402,F401
+                     JD_QUAL_HEADING_RE, JD_SEQ_TERM_RE,  # noqa: E402,F401
+                     JD_WORD_TERM_RE,  # noqa: E402,F401
+                     _phrase_terms, _single_token_terms)  # noqa: E402,F401
+JD_SHORT_WORDS = jd_asks.JD_SHORT_WORDS
+
+MISSING_REPORT_CAP = 24  # bounded no-host list (signal-ranked)
 
 W = de.W
 
@@ -27,70 +37,6 @@ SECTION_STYLE = "SectionHeading"  # career/education/proficiencies headings
 
 
 HEADLINE_STYLE = "Title"  # top-of-resume headline: 2nd 'Title' paragraph after the name
-
-
-JD_SHORT_WORDS = 100  # below this, a --jd file is likely a summary, not the posting
-
-MISSING_REPORT_CAP = 24  # bounded no-host list (signal-ranked); narrative JDs flag 100+ otherwise
-
-
-JD_SEQ_TERM_RE = re.compile(
-    r"(?<![A-Za-z0-9+#])[A-Z][A-Za-z0-9+#.]+(?:[\s-]+[A-Z][A-Za-z0-9+#.]+)+")
-
-
-JD_WORD_TERM_RE = re.compile(r"(?<![A-Za-z0-9+#])([A-Z][A-Za-z0-9+#.]+)")
-
-
-JD_COMPANY_VOICE_RE = re.compile(r"\b(we|our|us|you|your)\b", re.I)
-
-
-JD_QUAL_HEADING_RE = re.compile(
-    r"^\s*#{0,6}\s*(?:required\s+|preferred\s+|minimum\s+)?"
-    r"(?:qualifications|requirements|skills|experience)\b\s*:?\s*$"
-    # Conversational heading forms ("Who you are", "What you'll do") —
-    # common startup-style JD headings whose bullet lines are still asks.
-    r"|^\s*(?:who\s+you\s+are|about\s+you|your\s+profile"
-    r"|what\s+you.?ll\s+(?:do|bring))\s*:?\s*$"
-    # A bare "Required:" / "Preferred:" / "Minimum:" heading line — a
-    # common short-form JD format where the qualifier IS the whole heading.
-    # Without this, such a line (which ends in ':') is read by the
-    # collector as a section TERMINATOR instead of a heading, killing the
-    # requirement-coverage map (and its never-fabricate guard) for the
-    # entire posting.
-    r"|^\s*#{0,6}\s*(?:required|preferred|minimum)\s*:?\s*$"
-    # "You Bring" / "What You'll Bring" headings — a common modern JD
-    # label for the qualification section (e.g. OnePay's QE Platform
-    # posting). Without it the requirement-coverage map (and its
-    # never-fabricate guard) silently stays silent for the whole posting.
-    r"|^\s*#{0,6}\s*(?:what\s+)?you(?:'ll)?\s+bring\s*:?\s*$"
-    # "What makes you a fit" — HubSync-style fit heading; its lines ARE
-    # asks ("Strong engineering fundamentals...", "Comfortable being
-    # measured on adoption..."). Without it the collector ran straight
-    # through it and mined the NEGATED section below as qualification
-    # lines (a real session's coverage map reported "Not a research
-    # position" and the bare heading "Level" as uncovered asks).
-    r"|^\s*what\s+makes\s+you\s+(?:a\s+)?fit\s*:?\s*$"
-    # A bare section word heading ("Level") — terminates the section;
-    # without it the heading itself mined as a one-word qualification
-    # line (extracted term: 'level' — an UNCOVERED-ask false alarm).
-    r"|^\s*#{0,6}\s*level\s*:?\s*$"
-    # Workday-style sections whose lines are asks (six-session calibration:
-    # Zoll/Motorola/Voya postings carried NO 'Qualifications' heading, so
-    # the whole coverage map and the never-fabricate flags stayed silent
-    # while kotlin/swift/wpf/finops sat unflagged).
-    r"|^\s*#{0,6}\s*(?:essential\s+functions|basic\s+requirements"
-    r"|minimum\s+requirements|key\s+requirements"
-    r"|knowledge,?\s+skills,?(?:\s+and|\s*&)?\s+abilities?)\s*:?\s*$"
-    r"|^\s*#{0,6}\s*craft\s*(?:&|and)\s*technical\s+requirements\s*:?\s*$",
-    re.I,
-)
-
-# Negative JD sections ("What this role is not") — they TERMINATE
-# qualification collection but never contribute lines: their bullets are
-# definitionally non-asks ("Not a research position..." mined as an
-# uncovered qualification with the extracted term 'not').
-JD_NEGATED_HEADING_RE = re.compile(
-    r"^\s*what\s+this\s+role\s+is\s+(?:not|n[o']t)\s*:?\s*$", re.I)
 
 
 # JD_SELF_ASSESSMENT and JD_SOFT_SKILL_RE live in measure_resume_jd_terms
@@ -205,7 +151,7 @@ def _top_block_candidates(body, jd_terms=()):
             break  # career region begins
         if style == "SectionHeading" or not t.strip():
             continue
-        if _jd_hits(t, jd_terms) or _concept_hits(t):
+        if jd_asks.evidence_set(t.lower(), jd_terms):
             continue
         prefix = de.shortest_unique_prefix(texts, i, min_len=6)
         if prefix is not None:
@@ -214,34 +160,8 @@ def _top_block_candidates(body, jd_terms=()):
 
 
 def _jd_requirement_lines(jd_text):
-    """The JD's qualification lines — where skill asks live.
-
-    Everything between a 'Required/Preferred Qualifications'-style
-    heading and the next heading-like line. The title line, mission
-    prose, and benefits are excluded by construction, so company and
-    program names cannot surface as 'missing skills'. Returns [] when no
-    qualification heading exists (a recruiter's message) — mining it
-    would be unbounded prose, so the missing-terms check stays silent.
-    """
-    lines = jd_text.splitlines()
-    out, collecting = [], False
-    for line in lines:
-        s = line.strip()
-        if JD_NEGATED_HEADING_RE.match(s):
-            collecting = False
-            continue
-        if JD_QUAL_HEADING_RE.match(s):
-            collecting = True
-            continue
-        if not s:
-            continue
-        if collecting:
-            if s.endswith(":") or JD_QUAL_HEADING_RE.match(s):
-                collecting = False
-                continue
-            if not JD_COMPANY_VOICE_RE.search(s):
-                out.append(s)
-    return out
+    """The JD's qualification lines — engine-owned (jd_asks)."""
+    return jd_asks.requirement_lines(jd_text)
 
 
 def _jd_line_terms_map(jd_text):
@@ -256,156 +176,26 @@ def _jd_line_terms_map(jd_text):
 
 
 def _jd_line_terms(line):
-    """Tech-term candidates on one qualification line (lowercase): the
-    capitalized sequences plus single capitalized tokens — the extraction
-    :func:`_jd_missing_terms` mines for missing terms and
-    :func:`_jd_requirement_coverage` matches against kept bullets. A
-    single token is skipped when a sentence continuation precedes it
-    (prose) or the JD's own 'or similar' hedge does (a stand-in for a
-    CLASS of tools — reporting it invites fabrication).
-    """
-    seqs = [m.group(0).rstrip(".") for m in JD_SEQ_TERM_RE.finditer(line)]
-    terms = {s.lower() for s in seqs if len(s.rstrip(".")) >= 2
-             and re.search(r"[A-Za-z]", s)}
-    seq_words = {w for s in seqs
-                 for w in re.split(r"[\s-]+", s.lower())}
-
-    def _admit(low, raw_pos):
-        if (len(low) < 3 and not re.fullmatch(r"[A-Z]{2,}", low)) \
-                or low in JD_STOP or low in JD_SELF_ASSESSMENT \
-                or low in seq_words:
-            return False
-        prev = line[:raw_pos]
-        if re.search(r"[.!?]\s*$", prev.strip()) \
-                or re.search(r"\bsimilar\s+$", prev, re.I):
-            return False
-        return True
-
-    for m in JD_WORD_TERM_RE.finditer(line):
-        if _admit(m.group(1).lower(), m.start(1)):
-            terms.add(m.group(1).lower().rstrip("."))
-    # camelCase/mixed-case tokens (macOS, iOS, PyAutoGUI) start lowercase
-    # — invisible to the Capitalized-token regex (a real session's
-    # no-host list missed 'macOS' for exactly this reason).
-    for m in re.finditer(
-            r"(?<![A-Za-z0-9+#])([A-Za-z][a-z0-9+#]*[A-Z][A-Za-z0-9+#]*)",
-            line):
-        low = m.group(1).lower().rstrip(".")
-        if _admit(low, m.start(1)):
-            terms.add(low)
-    # Lowercase compound asks: ADJACENT non-stop-word bigrams ("cycle
-    # time", "review latency", "escaped defects"), adjacency preserved
-    # from the raw line (see _adjacent_bigrams — 'measured on adoption'
-    # must NOT yield 'measured adoption'). The HubSync coverage map
-    # extracted 'own' from "Own the measurement. Cycle time, review
-    # latency..." — the actual asks were the bigrams, invisible to the
-    # capitalized-token scan, so the line read UNCOVERED while the RCA
-    # bullet literally hosted "review latency".
-    terms |= _adjacent_bigrams(line)
-    return terms
+    """Engine asks on one qualification line: anchored/capitalized
+    tokens, cue-tail phrases, and the calibrated adjacent bigrams —
+    the same extraction parse_asks applies to the whole JD."""
+    return (_single_token_terms(line) | _phrase_terms(line)
+            | _adjacent_bigrams(line))
 
 
-def _jd_side_signals(jd_text):
-    """JD-side skill-ask tokens mined over the WHOLE posting (not just the
-    qualification section): mid-sentence Capitalized tokens, ALL-CAPS
-    acronyms, lowercase tokens the JD names twice or more (frequency-summed
-    over morphological variants), and bigrams the JD names twice or more.
-    Qualification-line mining alone misses the asks that live in the
-    responsibilities prose — six-session calibration: kotlin/swift/wpf/
-    css/html/finops were named in responsibilities sections and never
-    surfaced in the never-fabricate checklist (the external ATS found
-    every one). Adverb-shaped tokens are dropped: Workday competency
-    boilerplate ('communicates openly', 'adapts easily') otherwise floods
-    the advisory checklist with behavior phrases.
-    """
-    jd_low = jd_text.lower()
-    out = set()
-    # Mine only from the first recognized heading onward — the same trust
-    # boundary _jd_requirement_lines uses. Pre-heading prose is the title
-    # and the company's mission statement ('At AcmeCo, we build things.'
-    # mined 'AcmeCo' as a missing skill); real sections start at headings.
-    # The heading pattern is ^-anchored per LINE (the collector splits
-    # lines) — find the first matching line's offset instead of searching
-    # the whole text (``^`` without MULTILINE only matches at string start).
-    heading_offset = None
-    pos = 0
-    for ln in jd_text.splitlines(keepends=True):
-        if JD_QUAL_HEADING_RE.match(ln.strip()):
-            heading_offset = pos
-            break
-        pos += len(ln)
-    body_text = jd_text[heading_offset:] if heading_offset is not None else jd_text
-    jd_lines = [ln.strip() for ln in body_text.splitlines() if ln.strip()]
-    # Line-initial words are imperative verbs ('Take ownership of...',
-    # 'Provide guidance...') — instructions, not skills.
-    line_first_words = {ln.split()[0].lower().rstrip(".,;:!?'")
-                        for ln in jd_lines if ln.split()}
-    for w in re.findall(r"[a-z0-9][a-z0-9#+]*", body_text.lower()):
-        w = w.rstrip(".,;:!?'")
-        if w in JD_STOP or len(w) < 3 or re.fullmatch(r"[0-9.]+\w*", w):
-            continue
-        if w in line_first_words:
-            continue
-        if w.endswith("ly") or JD_SOFT_SKILL_RE.search(w):
-            continue
-        if _jd_capitalized(jd_text, w) or _jd_term_freq(w, jd_low) >= 2:
-            out.add(w)
-    out |= {a for a in _acronym_terms(jd_text)
-            if not a.endswith("ly")}
-    jd_norm = _norm_text(jd_text)
-    for bg in _adjacent_bigrams(jd_text):
-        a, b = bg.split()
-        if a.endswith("ly") or b.endswith("ly"):
-            continue
-        # Phrase frequency >= 2 IN THE JD: a one-off two-word fragment is
-        # prose ('wrong way', 'are caught'); a repeated compound is an ask
-        # ('drift controls', 'acute care'). Count on the NORMALIZED text —
-        # the raw count double-counts when the phrase contains a normalized
-        # hyphen/slash.
-        if jd_norm.count(bg) >= 2:
-            out.add(bg)
-    return out
+def _jd_missing_terms(jd_text, body, jd_terms=None):
+    """The engine's positive direction: asks with NO host in the whole
+    document — the mining queue and the never-fabricate flags.
 
-
-def _jd_missing_terms(jd_text, body, jd_terms):
-    """JD-side skill terms the resume does not host anywhere.
-
-    ``jd_terms`` is the intersection (JD ask ∩ resume vocabulary), so a
-    required skill the resume cannot host — REST Assured against a
-    Postman/Karate history — never appears in any JD-aware section: the
-    omission surfaces only if the agent re-reads the JD, and a preferred
-    qual can be missed entirely (one was, until a final-review grep).
-    This mines the qualification lines for capitalized tech-term
-    candidates PLUS the whole posting for signal-bearing tokens
-    (_jd_side_signals) and returns those with no host in the document, so
-    the 'never fabricate' flags are mechanical. Heuristic and advisory:
-    review each against the posting before acting.
-    """
-    qual_lines = _jd_requirement_lines(jd_text)
-    if not qual_lines:
-        return []
+    ``jd_terms`` is accepted for signature compatibility and ignored:
+    the engine's ask list IS the determination (the old
+    vocabulary-intersection + side-signal mining it parameterized is
+    retired — prose the stop lists miss never becomes an ask, so it
+    never surfaces as a missing hard skill)."""
+    asks = jd_asks.parse_asks(jd_text)
     doc_low = re.sub(r"\s+", " ", " ".join(
         de.text_of(p) for p in de.paras(body))).lower()
-    doc_flat = re.sub(r"[\s-]+", "", doc_low)
-
-    def hosted(term_low):
-        if re.search(rf"(?<![a-z0-9]){re.escape(term_low)}(?![a-z0-9])",
-                     doc_low):
-            return True
-        return re.sub(r"[\s-]+", "", term_low) in doc_flat
-
-    candidates = set()
-    for line in qual_lines:
-        candidates |= _jd_line_terms(line)
-    candidates |= _jd_side_signals(jd_text)
-    missing = set()
-    for t in candidates:
-        if t in jd_terms or hosted(t):
-            continue
-        if all(hosted(w) for w in re.split(r"[\s-]+", t)):
-            continue
-        missing.add(t)
-    return sorted(missing)
+    return sorted(a.phrase for a in jd_asks.unhosted(doc_low, asks))
 
 
 def _jd_requirement_coverage(roles, body, jd_text):
@@ -453,18 +243,20 @@ def _jd_requirement_coverage(roles, body, jd_text):
                             "soft-skill ask — covered by kept action-verb "
                             "evidence (presented, demoed, led, mentored, "
                             "trained); never the literal adjective "
-                            "(SKILL Step 2)"))
+                            "(SKILL Step 8)"))
             else:
                 out.append((label, "by_hand", ""))
             continue
-        hits = [(k, b) for k, b in bullet_hosts if _jd_hits(b, terms)]
+        hits = [(k, b) for k, b in bullet_hosts
+                if jd_asks.evidence_set(b.lower(), terms)]
         if hits:
             detail = f"{hits[0][0]}: {hits[0][1][:48]}"
             if len(hits) > 1:
                 detail += f" (+{len(hits) - 1} more)"
             out.append((label, "covered", detail))
             continue
-        if any(_jd_hits(t, terms) for t in non_bullet_texts):
+        if any(jd_asks.evidence_set(t.lower(), terms)
+               for t in non_bullet_texts):
             out.append((label, "weak",
                         "proficiency/Tools line only — weave into a "
                         "bullet where used (SKILL Step 6)"))

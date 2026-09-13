@@ -50,7 +50,7 @@ from measure_resume_drops import _sentence_clauses, _weakness_key, \
     prune_candidates  # noqa: E402
 from measure_resume_format import (COMPANY_STYLE, SECTION_PROFICIENCIES,  # noqa: E402
                                    _roles)
-from measure_resume_jd_terms import _concept_hits, _jd_hits, _jd_terms  # noqa: E402
+import jd_asks  # noqa: E402
 from script_args import maybe_help, read_jd_text  # noqa: E402
 
 WORD_CAP = 40      # a trimmed bullet carries at most this many words
@@ -92,8 +92,10 @@ def _anchor_for(all_texts, text):
 # Machine dispositions
 # --------------------------------------------------------------------- #
 def _strength(text, jd_terms):
-    """Stub-strength: JD evidence first, then the tool's weakness rank."""
-    return (len(_jd_hits(text, jd_terms)), _weakness_key(text))
+    """Stub-strength: the engine's ask-evidence count first, then the
+    tool's weakness rank."""
+    return (len(jd_asks.evidence_set(text.lower(), jd_terms)),
+            _weakness_key(text))
 
 
 def _trim_bullet_text(text, jd_terms):
@@ -107,7 +109,7 @@ def _trim_bullet_text(text, jd_terms):
     survives (caller cuts the bullet instead).
     """
     keep = [s for s in _sentence_clauses(text)
-            if _jd_hits(s, jd_terms) or _concept_hits(s)]
+            if jd_asks.evidence_set(s.lower(), jd_terms)]
     if not keep:
         return None
 
@@ -116,8 +118,8 @@ def _trim_bullet_text(text, jd_terms):
 
     while _words(keep) > WORD_CAP and len(keep) > 1:
         victim = min(range(len(keep)),
-                     key=lambda i: (len(_jd_hits(keep[i], jd_terms)),
-                                    -len(keep[i])))
+                     key=lambda i: (-len(jd_asks.evidence_set(
+                         keep[i].lower(), jd_terms)), -len(keep[i])))
         keep.pop(victim)
     return " ".join(keep)
 
@@ -131,7 +133,7 @@ def _surviving_chunks(text, jd_terms):
     out = []
     for chunk in re.split(r"[,;]", value):
         c = chunk.strip().rstrip(".,;:!?'\"")
-        if c and (_jd_hits(c, jd_terms) or _concept_hits(c)):
+        if c and jd_asks.evidence_set(c.lower(), jd_terms):
             out.append(c)
     return out
 
@@ -541,7 +543,7 @@ def _load_candidates(docx, jd_text):
     yields no prune candidates (nothing to machine-prune)."""
     _, body, _, _, _ = de.load(docx)
     roles = _roles(body)
-    jd_terms = _jd_terms(jd_text, body)
+    jd_terms = {a.phrase for a in jd_asks.parse_asks(jd_text)}
     if not jd_terms:
         print("error: no candidate-tech terms intersect the resume's "
               "vocabulary — check the JD file is the raw posting text",

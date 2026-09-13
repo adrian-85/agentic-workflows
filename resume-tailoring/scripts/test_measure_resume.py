@@ -611,42 +611,23 @@ class JDAwareTests(unittest.TestCase):
         # makes them JD terms (whole-word, capitalized), so bullets using
         # them stop falling to the cut list. They only stay excluded when
         # the generic-hit-rate guard fires (term hits >50% of bullets).
-        jd = "Java, Python, C# programming. SQL and REST APIs."
+        jd = "Required Qualifications:\n" \
+             "Java, Python, C# programming. SQL and REST APIs."
         terms = mr._jd_terms(jd, self._prof_body())
         for want in ("java", "python", "c#", "sql", "rest"):
-            self.assertIn(want, terms, f"{want!r} must be a JD-matched term")
+            self.assertIn(want, terms, f"{want!r} must be a JD ask")
 
-    def test_jd_terms_generic_hit_rate_guard(self):
-        # A term that hits more than half the bullets is prose, not
-        # technology: it must be dropped even though the JD names it,
-        # otherwise the DROP PLAN floods and stalls. (Own fixture: label
-        # vocabulary now makes 'automation' a real term, so the bullets
-        # must genuinely repeat it for the guard to fire.)
-        body = _body([
-            _para("Technical Proficiencies", style="SectionHeading"),
-            _para("Automation Tooling: Selenium, Postman"),
-            _para(mr.SECTION_CAREER, style="SectionHeading"),
-            _para("Company ABC, City" + _sample_date() + " – 08/2016",
-                  style=mr.COMPANY_STYLE),
-            _para("Senior SDET", style="JobTitleBlock"),
-            _para("Championed the adoption of Cypress automation", numId=2),
-            _para("Created automation using Gatling", numId=2),
-            _para("Established weekly automation meetings", numId=2),
-            _para(mr.SECTION_EDUCATION, style="SectionHeading"),
-        ])
-        for extra in ("Ran automation suites nightly",
-                      "Reviewed automation coverage reports",
-                      "Trained peers on automation tooling",
-                      "Logged automation defects in Jira"):
-            body.append(_para(extra, numId=2))
-        jd = "Testing, automation, and framework ownership required. " \
+    def test_repeated_anchor_terms_mine_without_vocabulary(self):
+        # The vocabulary intersection is retired: asks are JD-side truth.
+        # A repeated anchor term mines even when the resume never claims
+        # it (that is exactly the case the add side must surface).
+        body = self._prof_body()
+        jd = "Required Qualifications:\n" \
+             "Automation ownership required. Automation of deployments. " \
              "Cypress experience a plus."
         terms = mr._jd_terms(jd, body)
-        # 'cypress' hits 1 of 7 bullets — survives.
+        self.assertIn("automation", terms)
         self.assertIn("cypress", terms)
-        # 'automation' hits 7 of 7 bullets — guard-dropped.
-        self.assertNotIn("automation", terms,
-                         "hits most bullets — must be guard-dropped")
 
     def test_jd_terms_include_title_vocab(self):
         # 'sdet' comes from the job title line, not the proficiency block.
@@ -672,7 +653,8 @@ class JDAwareTests(unittest.TestCase):
             _para("Tools & Technologies: Java, SQL"),
             _para(mr.SECTION_EDUCATION, style="SectionHeading"),
         ])
-        jd = "Exposure to security testing tools (OWASP ZAP, Burp Suite, " \
+        jd = "Required Qualifications:\n" \
+             "Exposure to security testing tools (OWASP ZAP, Burp Suite, " \
              "Snyk)."
         terms = mr._jd_terms(jd, body)
         self.assertIn("snyk", terms)
@@ -727,14 +709,15 @@ class JDAwareTests(unittest.TestCase):
 
     def test_concept_mentorship_bullet_kept(self):
         # The motivating miss: a 'Mentored junior team member' bullet
-        # was cut, but the JD requires mentoring. A JD practice phrase in
-        # JD_CONCEPTS must keep it out of the cut list.
+        # was cut, but the JD requires mentoring. The engine's concept
+        # rule (stem-aware: 'Mentored' hosts 'mentorship') keeps it out
+        # of the cut list.
         bullets = [
             "Mentored junior team member resulting in their successful "
             "transition to an automation role",
             "Established weekly cross-team meetings",
         ]
-        drops = mr._suggest_drops(bullets, 1)
+        drops = mr._suggest_drops(bullets, 1, jd_terms={"mentorship"})
         self.assertEqual(drops, [bullets[1]])
 
     def test_concept_hits_lists_matches(self):
@@ -753,7 +736,7 @@ class JDAwareTests(unittest.TestCase):
             plan, roles, jd_terms={"cypress"},
         )
         self.assertEqual(len(sections), 1)
-        self.assertIn("JD-matched (kept)", sections[0])
+        self.assertIn("JD-evidenced (kept)", sections[0])
         self.assertIn("Cypress frameworks", sections[0])
         dropped = [l for l in sections[0].splitlines() if "find_p(ps," in l]
         self.assertEqual(len(dropped), 1)
@@ -765,24 +748,18 @@ class JDAwareTests(unittest.TestCase):
         self.assertEqual(len(lines), 1)
         self.assertIn("Some generic bullet", lines[0])
 
-    def test_weak_match_does_not_protect(self):
-        # A term matching MORE than half a role's own bullets is weak
-        # evidence (it cannot arbitrate between the role's bullets), so
-        # bullets matched only by it stay cuttable. Motivating failure
-        # (session 01a06fab): a testing JD's 'test' protected every bullet
-        # of a tester role, the DROP PLAN dead-ended, and a 1-year top role
-        # kept 16+ bullets while JD-relevant older-role bullets died.
-        bullets = [
-            "Primary test engineer for the NextGen platform.",
-            "Coordinated test release images with internal IT.",
-            "Proposed a continuous test plan to the department.",
-            "Served as one of the first test engineers on the FDA product.",
-        ]
-        # 4 of 4 bullets contain the whole word 'test' -> weak -> unprotected.
-        self.assertEqual(mr._protected_count(bullets, jd_terms={"test"}), 0)
-        drops = mr._suggest_drops(bullets, 2, jd_terms={"test"})
-        self.assertEqual(len(drops), 2)
-        self.assertTrue(all(d in bullets for d in drops))
+    def test_prose_terms_never_mined_even_when_repeated(self):
+        # The weak class is retired; its job is done at EXTRACTION time:
+        # generic prose the JD repeats ('help', 'improved') never becomes
+        # an ask, so it cannot protect anything. The old motivating
+        # failure (a testing JD's 'test' protecting every bullet of a
+        # tester role) is impossible when the JD asks for something
+        # specific — and a pathological JD that asks only 'test' now
+        # protects honestly (one rule, no negotiation).
+        jd = "You will help the team. Help improve and help deliver."
+        terms = mr._jd_terms(jd, self._prof_body())
+        for banned in ("help", "improve", "deliver", "team"):
+            self.assertNotIn(banned, terms)
 
     def test_core_tech_noun_stays_strong_when_it_hits_all_bullets(self):
         # The weak rule must never weaken a specific technology noun:
@@ -797,7 +774,11 @@ class JDAwareTests(unittest.TestCase):
         drops = mr._suggest_drops(bullets, 1, jd_terms={"playwright"})
         self.assertEqual(drops, [])
 
-    def test_drop_sections_lists_weak_matches_as_cuttable(self):
+    def test_drop_sections_all_evidenced_role_is_protected(self):
+        # One rule, no weak class: bullets hosting an ask are evidenced
+        # and the DROP PLAN cannot meet its budget from them — the
+        # dead-end note says so instead of pretending the bullets are
+        # cuttable.
         plan = [("Company ABC, City", "drop 2 bullet(s) (saves ~4 lines)", 4.0)]
         bullets = [
             "Primary test engineer for the NextGen platform.",
@@ -807,10 +788,9 @@ class JDAwareTests(unittest.TestCase):
             plan, [{"key": "Company ABC, City", "bullet_texts": bullets}],
             jd_terms={"test"},
         )
-        self.assertIn("weak-match (cuttable", sections[0])
-        self.assertIn("[weak: test]", sections[0])
+        self.assertIn("ALL 2 bullet(s) protected", sections[0])
         dropped = [l for l in sections[0].splitlines() if "find_p(ps," in l]
-        self.assertEqual(len(dropped), 2)  # both weak-match bullets cuttable
+        self.assertEqual(len(dropped), 0)
 
     def test_drop_sections_strong_match_still_listed_as_kept(self):
         plan = [("Company ABC, City", "drop 1 bullet(s) (saves ~2 lines)", 2.0)]
@@ -822,13 +802,12 @@ class JDAwareTests(unittest.TestCase):
         ]
         sections = mr._drop_sections(
             plan, [{"key": "Company ABC, City", "bullet_texts": bullets}],
-            jd_terms={"playwright", "test"},
+            jd_terms={"playwright"},
         )
-        self.assertIn("JD-matched (kept)", sections[0])
+        self.assertIn("JD-evidenced (kept)", sections[0])
         self.assertIn("Landed Playwright", sections[0])
-        self.assertIn("[weak: test]", sections[0])
         dropped = [l for l in sections[0].splitlines() if "find_p(ps," in l]
-        self.assertEqual(len(dropped), 1)  # only the strong bullet protected
+        self.assertEqual(len(dropped), 1)  # the evidenced bullet protected
 
 
 class JdHitsTests(unittest.TestCase):
@@ -949,12 +928,13 @@ class CoreTechNounTests(unittest.TestCase):
         partner_bullet = ("Tested partner integrations against "
                 "their sandbox, coordinating with vendor engineers on "
                 "unexpected response codes")
-        self.assertTrue(mr._jd_kept(partner_bullet, terms),
+        self.assertTrue(mrd._evidenced(partner_bullet, terms),
                         "integration bullet must be JD-protected")
 
-    def test_generic_hit_rate_guard_still_applies(self):
-        # The exemption cannot flood: a core noun hitting most bullets is
-        # still guard-dropped.
+    def test_repeated_core_noun_mines(self):
+        # A CORE noun the JD names mines as an ask regardless of how many
+        # resume bullets host it — the engine has no hit-rate guard; the
+        # one rule (host or cut) needs no per-role negotiation.
         body = _body([
             _para("Technical Proficiencies", style="SectionHeading"),
             _para("Databases: SQL Server"),
@@ -964,18 +944,14 @@ class CoreTechNounTests(unittest.TestCase):
             _para("SDET", style="JobTitleBlock"),
             _para("Validated database one", numId=2),
             _para("Validated database two", numId=2),
-            _para("Validated database three", numId=2),
-            _para("Unrelated meeting notes here", numId=2),
             _para(mr.SECTION_EDUCATION, style="SectionHeading"),
         ])
-        for extra in ("Validated database four", "Validated database five",
-                      "Validated database six"):
-            body.append(_para(extra, numId=2))
         terms = mr._jd_terms("SQL and database validation required.", body)
-        # 'sql' hits 0 of 7 bullets — survives; 'database' hits 6 of 7 —
-        # the CORE_TECH_NOUNS exemption does not bypass the guard.
         self.assertIn("sql", terms)
-        self.assertNotIn("database", terms, "hits >50% of bullets — guard")
+        # The ask is the compound the JD names; a bare word under a phrase
+        # ask stays matchable but the phrase is what must be hosted.
+        self.assertIn("database validation", terms)
+        self.assertIn("database", terms)
 
     def test_prose_words_still_gated(self):
         # 'closely' is not a core tech noun: lowercase in the JD stays
@@ -1547,12 +1523,13 @@ class ResolvedJdTermsTests(unittest.TestCase):
             os.unlink(path)
 
     def test_without_simulate_terms_computed_from_body(self):
-        # "Software Test Engineer I" is JobTitleBlock vocab; a JD naming
-        # it must yield that term even with no --simulate passed.
+        # A JD naming asks must yield those asks with no --simulate
+        # passed (regression: main computed jd_terms only inside the
+        # --simulate block and silently fell back to JD-blind ranking).
         terms = mr._resolved_jd_terms(
-            "Senior software role; testing required.", self._body(),
-            False, None)
-        self.assertIn("software", terms)
+            "Required: Python and SQL.", self._body(), False, None)
+        self.assertIn("python", terms)
+        self.assertIn("sql", terms)
 
     def test_with_simulate_uses_pre_drop_terms(self):
         # The simulate block pre-computes terms from the PRE-DROP body;
@@ -2043,7 +2020,9 @@ class JdMissingTermsTests(unittest.TestCase):
                    mr._jd_missing_terms(self.JD, self._body(), set())}
         self.assertIn("rest assured", missing)
         self.assertIn("soapui", missing)
-        self.assertIn("agile", missing)
+        # The JD asks for the 'Agile development' process — the ask is the
+        # phrase; hosting bare 'Agile' does not satisfy it.
+        self.assertIn("agile development", missing)
 
     def test_hosted_skills_not_reported(self):
         missing = {t.lower() for t in
@@ -2060,15 +2039,18 @@ class JdMissingTermsTests(unittest.TestCase):
         self.assertNotIn("qualifications",
                          [t.lower() for t in missing])
 
-    def test_no_qualification_section_is_silent(self):
-        # Without a qualifications/requirements heading (a recruiter's
-        # message), mining would be unbounded prose — stay silent.
-        self.assertEqual(
-            mr._jd_missing_terms(
-                "Hi there, I'm recruiting for a Senior QA Engineer role. "
-                "REST Assured and SoapUI experience would be great.",
-                self._body(), set()),
-            [])
+    def test_recruiter_message_mines_named_skills(self):
+        # A recruiter's message has no qualification heading, but its
+        # named skills ARE the alignment target (SKILL Step 1) — the
+        # engine's repetition/mention mining still surfaces them.
+        missing = {t.lower() for t in
+                   mr._jd_missing_terms(
+                       "Hi there, I'm recruiting for a Senior QA Engineer "
+                       "role. REST Assured and SoapUI experience would be "
+                       "great.",
+                       self._body(), set())}
+        self.assertIn("rest assured", missing)
+        self.assertIn("soapui", missing)
 
     def test_line_terms(self):
         terms = mr._jd_line_terms(
@@ -2078,7 +2060,9 @@ class JdMissingTermsTests(unittest.TestCase):
         self.assertIn("java", terms)
         self.assertIn("testng", terms)
         self.assertIn("selenium web driver", terms)
-        self.assertNotIn("ide", terms)
+        # 'IDE' is named as the ask it is (a stand-in the JD itself uses):
+        # the engine mines it; hosting judgment stays with the agent.
+        self.assertIn("ide", terms)
 
     def test_camelcase_tokens_mine(self):
         # 'macOS' starts lowercase, so the Capitalized-token regex never
@@ -2185,10 +2169,10 @@ class JdTermRecallTests(unittest.TestCase):
 
     def test_hyphen_compounds_host_phrase_terms(self):
         # The resume hosts 'pull-request'; the JD asks for 'pull request' —
-        # same evidence, one hyphen apart. Without the normalized fallback
-        # the ASDLC bullet landed in the weak-match cut list.
-        terms = mr._jd_terms(self.JD, self._body())
-        self.assertIn("pull request", terms)
+        # same evidence, one hyphen apart. The engine's matcher flattens
+        # punctuation for multi-token phrases, so the hyphenated form
+        # hosts the ask (a real prune read the ASDLC bullet as
+        # evidence-free without it).
         hits = mr._jd_hits(
             "engineered an asdlc from ticket creation through "
             "pull-request comment resolution.", {"pull request"})
@@ -2200,21 +2184,15 @@ class JdTermRecallTests(unittest.TestCase):
         self.assertEqual(mr._jd_hits("workflows using sub-agents in parallel",
                                      {"agents"}), ["agents"])
 
-    def test_ambient_terms_cannot_protect(self):
-        # Junk bullets survived the prune only on 'automation'/'test'/'
-        # 'frameworks' hits — ambient words that cannot arbitrate between
-        # bullets. A bullet whose ONLY hits are ambient must classify as
-        # cuttable (weak), not JD-evidence (kept).
+    def test_unevidenced_bullet_is_not_protected(self):
+        # One rule, no ambient negotiation: a bullet hosting none of the
+        # JD's asks is cuttable, whatever words it shares with the JD's
+        # prose.
         bullet = ("Served as a subject matter expert for Karate framework, "
                   "hosting training sessions.")
-        corpus = [bullet, "Built REST API test suites with Selenium",
-                  "Created SQL queries for validation",
-                  "Led SDLC process improvements on an Agile team",
-                  "Wrote scripts for image storage in JFrog",
-                  "Established bi-monthly QA meetings"]
         terms = mr._jd_terms(self.JD, self._body())
-        self.assertFalse(mr._jd_kept(bullet, terms, corpus=corpus),
-                         "ambient-only hits must not protect a bullet")
+        self.assertFalse(mrd._evidenced(bullet, terms),
+                         "unevidenced bullet must not be protected")
 
     def test_paragraph_initial_verbs_not_freq_admitted(self):
         # 'Triaged'/'Developed'/'Reviewed' open bullets — they are the
@@ -2305,7 +2283,8 @@ class JdTermRecallTests(unittest.TestCase):
         # run flagged 173) is an unusable checklist — the agent stops
         # reading it. The report shows the strongest signals first.
         jd = "Required Qualifications:\n" + \
-             ". ".join(f"Tool{i} expertise required" for i in range(40))
+             ", ".join(f"Tool{i}" for i in range(40)) + \
+             " expertise required."
         body = self._body()
         lines = mr._jd_report("jd.txt", jd, {"selenium"}, body=body)
         missing_block = re.sub(r"\s+", " ", "\n".join(lines))
@@ -2397,24 +2376,28 @@ class KeepTrimCandidatesTests(unittest.TestCase):
         self.assertIn("no JD term on this line — whole-line "
                       "cut (TOP-BLOCK rule), not token trimming", section)
 
-    def test_concept_carrying_list_line_skipped(self):
-        # A list line carrying a JD practice phrase is skipped entirely —
-        # its chunks may host the concept.
-        jd = "Required Qualifications:\nExperience with Selenium\n"
+    def test_concept_ask_kept_line_chunks_still_trimmed(self):
+        # A list line carrying a JD practice phrase is EVIDENCED (the
+        # concept hosts it), but only the concept survives: its non-JD
+        # chunks still trim, per the one rule.
+        jd = "Required Qualifications:\n" \
+             "Experience with Selenium and code review rigor\n"
         body = _body([
             _para("Technical Proficiencies", style="SectionHeading"),
             _para("Code Review Standards: Gerrit, GitHub"),
         ])
         section = mr._keep_trim_section(mr._roles(body),
                                         mr._jd_terms(jd, body), body)
-        self.assertNotIn("Gerrit", section or "")
+        self.assertIn("Code Review Standards", section or "")
+        self.assertIn("gerrit, github", section or "")
 
     def test_spares_concept_sentence_tokens_and_dead_flag(self):
         # A sentence carrying a JD practice phrase is skipped entirely —
         # its tokens may be the concept's only host (Kafka hosting
         # "root-cause" analysis tooling), so neither the token nor the
         # sentence flags while a sibling dead sentence still does.
-        jd = "Required Qualifications:\nExperience with Selenium\n"
+        jd = "Required Qualifications:\n" \
+             "Experience with Selenium and root-cause analysis of flaky builds\n"
         body = self._body_with_bullet(
             "Built Selenium suites for regression coverage. "
             "Ran root-cause triage on flaky builds with Kafka. "
@@ -2658,9 +2641,9 @@ class JdFitAuditTests(unittest.TestCase):
         self.assertIn("Coordinated across teams", sections[0])
         self.assertIn("even when on target", sections[0])
 
-    def test_weak_only_match_is_cuttable_not_kept(self):
-        # A term hitting half the role's own bullets is weak: the bullet
-        # shows as weak-match, and the role's kept count excludes it.
+    def test_all_evidenced_role_is_silent(self):
+        # One rule, no weak class: both bullets host an ask, so the audit
+        # stays silent about this role.
         roles = self._roles([
             "Configured CI pipelines to trigger tests based on cross "
             "dependency changes.",
@@ -2668,10 +2651,7 @@ class JdFitAuditTests(unittest.TestCase):
             "best practices.",
         ])
         sections = mr._jd_fit_audit(roles, {"test", "playwright"})
-        self.assertEqual(len(sections), 1)
-        self.assertIn("1 of 2 bullet(s) carry JD evidence", sections[0])
-        self.assertIn("weak-match", sections[0])
-        self.assertIn("Configured CI pipelines", sections[0])
+        self.assertEqual(len(sections), 0)
 
     def test_mostly_irrelevant_role_is_stub_candidate(self):
         # 2 of 3 bullets carry no JD evidence: stub guidance fires — cut

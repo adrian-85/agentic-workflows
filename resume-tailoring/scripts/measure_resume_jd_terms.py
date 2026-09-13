@@ -154,15 +154,6 @@ JD_SOFT_SKILL_RE = re.compile(
 # distinctive terms (CORE_TECH_NOUNS, mined compounds, acronyms, anything
 # JD-frequent) still protect. Deliberately NOT here: github/aws — for a
 # GitHub-platform or cloud JD those ARE the ask.
-AMBIENT_TECH_NOUNS = frozenset({
-    "automation", "test", "testing", "framework", "frameworks",
-    "code", "coding", "software", "platform", "platforms",
-    "tool", "tools", "service", "services", "server", "servers",
-    "management", "engineering", "build", "building",
-    "development", "developer", "deployment", "deploying",
-})
-
-
 def _line_terms(line):
     """Tech terms from one labeled line ("Label: values"): each comma/;
     chunk verbatim (so multi-word "GitHub Actions" stays a phrase) plus
@@ -302,11 +293,6 @@ def _jd_variants(term):
     return out
 
 
-def _in_jd(term, jd_low):
-    """True if ``term`` (or a morphological variant) occurs in the JD."""
-    return any(v in jd_low for v in _jd_variants(term))
-
-
 def _jd_term_freq(term, jd_low):
     """WHOLE-WORD occurrences of ``term`` across its non-stop variants,
     summed — 'harness layer' + 'harnesses and playbooks' is the JD asking
@@ -399,119 +385,6 @@ def _adjacent_bigrams(text):
     return out
 
 
-def _doc_tokens(body):
-    """Candidate term pool over ALL paragraphs, in three classes:
-    single-word tokens (len>=4, not stops/numeric), ALL-CAPS acronym
-    tokens (len>=2 — RCA, MCP, PR, V1; the same rule _line_terms applies
-    to labeled lines), and adjacent non-stop WORD BIGRAMS. Bigrams catch
-    the JD's compound asks the single-token scan cannot see ("cycle
-    time", "review latency") — each was a real HubSync hosting miss when
-    only single tokens were mined.
-    """
-    tokens, acronyms, bigrams = set(), set(), set()
-    for text in _all_paragraph_texts(body):
-        for w in re.findall(r"[a-z0-9][a-z0-9#.+-]*", text.lower()):
-            w = w.rstrip(".,;:!?'")
-            if not _is_content_token(w):
-                continue
-            tokens.add(w)
-            # Hyphen compounds contribute their parts: 'sub-agents' hosts
-            # the JD's 'agents' ask — the compound token itself never
-            # intersects the JD's single word.
-            for part in w.split("-"):
-                if _is_content_token(part, 3):
-                    tokens.add(part)
-        for a in _acronym_terms(text):
-            acronyms.add(a)
-        bigrams |= _adjacent_bigrams(text)
-    return tokens, acronyms, bigrams
-
-
-def _admit_doc_token(t, jd_text, jd_low, first_words):
-    """Admission gates for one doc token (bullets + prose): a proper noun
-    (_jd_capitalized), a CORE_TECH_NOUN, or JD frequency >= 2. Freq
-    admission EXCLUDES each paragraph's first word: bullet-initial tokens
-    are the candidate's ACTION VERBS ("Triaged", "Developed", "Led") —
-    morphological variant matching would otherwise admit the verb
-    ("reviewed"→"review") as a JD ask. Claimed tools legitimately start
-    bullets too ("Playwright cross-browser...") but pass the
-    capitalization gate instead."""
-    if not _is_content_token(t) or not _in_jd(t, jd_low):
-        return False
-    return (_jd_capitalized(jd_text, t) or t in CORE_TECH_NOUNS
-            or (t not in first_words and _jd_term_freq(t, jd_low) >= 2))
-
-
-def _guard_drops(terms, body):
-    """The GENERIC-HIT-RATE GUARD's drop set: surviving terms that match
-    more than half of the document's bullets are prose the stop list
-    missed, not technology — keeping them would "protect" half the
-    resume and stall the DROP PLAN (the consulting-JD flood this guard
-    exists for)."""
-    bullets = _all_bullet_texts(body)
-    if len(bullets) < 6:
-        return set()
-    texts_low = [b.lower() for b in bullets]
-    return {t for t in terms
-            if sum(1 for b in texts_low if _jd_hits(b, {t}))
-            > 0.5 * len(texts_low)}
-
-
-def _jd_terms(jd_text, body):
-    """Candidate-technical terms the JD actually asks for: vocabulary,
-    bullet/prose tokens, acronyms, and word bigrams the JD also names,
-    minus generic stopwords. Empty when jd_text is empty/garbage —
-    callers fall back to the JD-blind ranking.
-
-    Admission gates for single tokens (recall-oriented; the HubSync
-    session's prune plan missed "agents", "context", "triage" — core
-    asks — because lowercase mid-sentence nouns were rejected outright):
-      - vocab-derived terms (proficiencies, Tools lines, titles — the
-        candidate's CLAIMED tech) match anywhere in the JD;
-      - doc tokens (bullets + prose) pass _jd_capitalized (proper
-        nouns), CORE_TECH_NOUNS, or JD frequency >= 2. Freq admission
-        EXCLUDES each paragraph's first word: bullet-initial tokens are
-        the candidate's ACTION VERBS ("Triaged", "Developed", "Led") —
-        morphological variant matching would otherwise admit the verb
-        ("reviewed"→"review") as a JD ask. Claimed tools legitimately
-        start bullets too ("Playwright cross-browser...") but pass the
-        capitalization gate instead.
-    Bigrams admit when the JD contains the phrase (hyphen/slash-normalized
-    on both sides).
-
-    A GENERIC-HIT-RATE GUARD discards any surviving term that matches more
-    than half of the document's bullets: such a term is prose the stop list
-    missed, not technology — keeping it would "protect" half the resume and
-    stall the DROP PLAN (the consulting-JD flood this guard exists for).
-    """
-    jd_low = jd_text.lower()
-    terms = set()
-    for t in _vocab_terms(body):
-        # "c#"/"c++"/"f#" are length-2 but unambiguous tech terms.
-        if (len(t) < 3 and not re.search(r"[#+]", t)) or t in JD_STOP \
-                or re.fullmatch(r"[0-9.]+\w*", t):
-            continue
-        if _in_jd(t, jd_low):
-            terms.add(t)
-    tokens, acronyms, bigrams = _doc_tokens(body)
-    first_words = {t.split()[0].lower() for t in _all_paragraph_texts(body)
-                   if t.split()}
-    terms |= {t for t in tokens
-              if _admit_doc_token(t, jd_text, jd_low, first_words)}
-    # Acronyms admit on WHOLE-WORD JD presence, never substring: the doc
-    # side mines 'CA' (state codes), 'OS', 'IT' from headers/addresses, and
-    # a 2-char substring check matches 'ca' inside 'candidate' — noise that
-    # flooded the term list (the first probe's 123-term list was two-thirds
-    # 'ca'/'os'/'it'/'ms' artifacts).
-    terms |= {a for a in acronyms
-              if a not in JD_STOP and len(a) >= 2
-              and re.search(rf"(?<![a-z0-9#+]){re.escape(a)}(?![a-z0-9#+])",
-                            jd_low)}
-    jd_norm = _norm_text(jd_text)
-    terms |= {bg for bg in bigrams if bg in jd_low or bg in jd_norm}
-    return terms - _guard_drops(terms, body)
-
-
 def _jd_hits(text, jd_terms):
     """Sorted list of JD terms present in ``text`` (WHOLE-WORD match,
     lowercase).
@@ -598,71 +471,3 @@ def _is_protected(text, protect):
     return any(p.lower() in low for p in protect)
 
 
-def _weak_jd_terms(bullets, jd_terms):
-    """JD terms whose whole-word match hits MORE than half of ``bullets``.
-
-    Inside that corpus the term cannot arbitrate between bullets — every
-    "test engineer" bullet matches a testing JD's ``test`` — so a hit on a
-    weak term is weak protection evidence (SKILL Step 3): it is displayed
-    as ``[weak: term]`` and does NOT make a bullet immune to the DROP
-    PLAN. Per-role, not global: ``test`` stays strong evidence in a role
-    where it discriminates and is weak in a role where every bullet
-    carries it. The global >50% guard in ``_jd_terms`` still removes
-    resume-wide flood terms before this runs.
-
-    CORE_TECH_NOUNS (api, sql, playwright, ...) are exempt — a specific
-    technology noun matching every bullet of a role is genuine evidence,
-    exactly what a whole-role drop must not remove (SKILL Step 3). The
-    weak class is for generic single words (test, code, new, build, ...)
-    whose resume-wide match rate is what made two real sessions shield a
-    1-year role's 16+ bullets while JD-relevant older-role bullets died.
-    """
-    if not jd_terms or not bullets:
-        return set()
-    low = [b.lower() for b in bullets]
-    weak = set()
-    for t in jd_terms:
-        if t in CORE_TECH_NOUNS:
-            continue
-        hits = sum(1 for b in low if _jd_hits(b, {t}))
-        if hits > 0.5 * len(low):
-            weak.add(t)
-    return weak
-
-
-def _jd_hits_classified(text, jd_terms, corpus):
-    """(strong_hits, weak_hits) for ``text`` against ``jd_terms``.
-
-    A hit is weak when its term matches >50% of ``corpus`` (the role's own
-    bullets — see :func:`_weak_jd_terms`) or when the term is AMBIENT tech
-    vocabulary (AMBIENT_TECH_NOUNS — see that constant; ambient words
-    cannot arbitrate between bullets, so they display as evidence but
-    never protect). Strong hits protect; weak hits are display-only
-    evidence that the human rule may override.
-    """
-    hits = _jd_hits(text, jd_terms)
-    if not hits:
-        return [], []
-    weak = _weak_jd_terms(corpus, jd_terms)
-    strong = [h for h in hits if h not in weak
-              and h not in AMBIENT_TECH_NOUNS]
-    return strong, [h for h in hits
-                    if h in weak or h in AMBIENT_TECH_NOUNS]
-
-
-def _jd_kept(text, jd_terms, corpus=None):
-    """True if STRONG JD evidence (a non-weak matched term or a JD practice
-    phrase).
-
-    ``corpus`` (the role's own bullet list) makes a matched term weak when
-    it hits >half the role's bullets: such a match protects nothing (every
-    bullet in the role matches it), so a bullet whose ONLY matches are
-    weak is NOT kept — it stays cuttable and the plan names it directly
-    instead of dead-ending on nominal protection.
-    """
-    if corpus is None:
-        strong = [h for h in _jd_hits(text, jd_terms)
-                  if h not in AMBIENT_TECH_NOUNS]
-    else:
-        strong, _ = _jd_hits_classified(text, jd_terms, corpus)
-    return bool(strong) or bool(_concept_hits(text))

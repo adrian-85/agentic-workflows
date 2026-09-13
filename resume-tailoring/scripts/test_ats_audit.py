@@ -185,14 +185,19 @@ class JdLiteralTermsTests(unittest.TestCase):
         self.assertNotIn("locust.", terms, terms)
 
     def test_period_form_and_gram_form_collapse(self):
+        # The period form and the gram form collapse to ONE ask; the bare
+        # product name ('gitlab') stays matchable — hosting it does not
+        # satisfy the 'gitlab ci' ask, so the engine keeps both and the
+        # ask list says exactly what must be hosted.
         # "...Jenkins or GitLab CI." mined BOTH 'gitlab ci.' (seq token,
         # sentence-final period) and 'gitlab ci' (cue-tail n-gram) — the
         # FAIL list printed the term twice (a real audit did). The
         # punctuation strip happens BEFORE the set is built.
         jd = "Requirements\n\nCI experience with Jenkins or GitLab CI.\n"
         terms = aa._jd_literal_terms(jd)
-        self.assertEqual(
-            [t for t in terms if t.startswith("gitlab")], ["gitlab ci"])
+        self.assertIn("gitlab ci", terms)
+        self.assertNotIn("gitlab ci.", terms)  # period form collapsed
+        self.assertIn("gitlab", terms)  # matchable ask under the engine
 
     def test_structure_word_as_never_in_a_gram(self):
         # 'as' is a structure word: a cue tail '...such as Jenkins, ...'

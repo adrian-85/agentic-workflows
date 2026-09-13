@@ -140,14 +140,23 @@ from measure_resume_jd_terms import (
     _is_protected,
     _jd_capitalized,
     _jd_hits,
-    _jd_hits_classified,
-    _jd_kept,
-    _jd_terms,
     _adjacent_bigrams,
     _line_terms,
     _vocab_terms,
-    _weak_jd_terms,
     _weakness_key)
+
+import jd_asks  # noqa: E402
+
+
+def _jd_terms(jd_text, body=None):
+    """The engine's ask phrases as a set (one extraction shared with
+    ats_audit and auto_prune).
+
+    ``body`` is accepted for signature compatibility and unused — asks
+    are JD-side truth, never resume-intersected (the old
+    vocabulary-intersection engine protected exactly the content this
+    workflow exists to cut)."""  # pylint: disable=unused-argument
+    return {a.phrase for a in jd_asks.parse_asks(jd_text)}
 
 from measure_resume_jd import (
     HEADLINE_STYLE,

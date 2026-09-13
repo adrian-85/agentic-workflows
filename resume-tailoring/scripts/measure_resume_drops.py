@@ -18,7 +18,14 @@ import docx_edit as de  # noqa: E402
 from measure_resume_jd import _top_block_candidates  # noqa: E402
 from measure_resume_jd_terms import (CORE_TECH_NOUNS, JD_STOP,  # noqa: E402
     _concept_hits, _is_protected, _jd_capitalized, _jd_hits,
-    _jd_hits_classified, _jd_kept, _vocab_terms, _weakness_key)
+    _vocab_terms, _weakness_key)
+import jd_asks  # noqa: E402
+
+def _evidenced(text, jd_terms):
+    """The engine's negative-direction determination for one content
+    unit: True when it hosts at least one ask. THE keep/cut rule — no
+    strong/weak negotiation exists any more."""
+    return bool(jd_asks.evidence_set(text.lower(), jd_terms))
 from measure_resume_format import (_norm, _page_fill, _page_lines,  # noqa: E402
     _preceding_role_key, _proficiency_block, _role_header_flat)
 
@@ -46,7 +53,7 @@ def _suggest_drops(bullet_texts, budget, protect=(), jd_terms=()):
         return []
     cuttable = [t for t in bullet_texts
                 if not _is_protected(t, protect)
-                and not _jd_kept(t, jd_terms, corpus=bullet_texts)]
+                and not _evidenced(t, jd_terms)]
     ranked = sorted(cuttable, key=_weakness_key)
     return ranked[:budget]
 
@@ -103,7 +110,7 @@ def _protected_count(bullets, protect=(), jd_terms=()):
     died instead)."""
     return sum(1 for b in bullets
                if _is_protected(b, protect)
-               or _jd_kept(b, jd_terms, corpus=bullets))
+               or _evidenced(b, jd_terms))
 
 
 def _iter_plan_roles(plan, roles):
@@ -265,8 +272,7 @@ def _role_jd_evidence_lines(roles, header_text, jd_terms):
     role = next((r for r in roles if r["raw"] == header_text), None)
     if role is None or not jd_terms:
         return []
-    kept = [b for b in role["bullet_texts"]
-            if _jd_kept(b, jd_terms, corpus=role["bullet_texts"])]
+    kept = [b for b in role["bullet_texts"] if _evidenced(b, jd_terms)]
     if not kept:
         return [f"JD evidence: none of this role's "
                 f"{len(role['bullet_texts'])} bullet(s) match the JD — "
@@ -328,16 +334,13 @@ def _keep_trim_candidates(role, jd_terms, vocab):
     nonjd_pool = sorted(vocab - jd_terms)
     out = []
     for b in bullets:
-        strong, _ = _jd_hits_classified(b, jd_terms, bullets)
-        if not strong and not _concept_hits(b):
+        if not _evidenced(b, jd_terms):
             continue
         nonjd, dead = [], []
-        for s in _sentence_clauses(b):
-            if _concept_hits(s):
-                continue
-            nonjd.extend(_nonjd_terms_in(s, nonjd_pool))
-            if not _jd_hits(s, jd_terms):
-                dead.append(s)
+        for sentence in _sentence_clauses(b):
+            nonjd.extend(_nonjd_terms_in(sentence, nonjd_pool))
+            if not _evidenced(sentence, jd_terms):
+                dead.append(sentence)
         if nonjd or dead:
             out.append((b, sorted(set(nonjd)), dead))
     return out
@@ -355,7 +358,7 @@ def _list_nonjd_chunks(text, jd_terms):
     out = []
     for chunk in re.split(r"[,;]", value):
         c = chunk.strip().rstrip(".,;:!?'\"").lower()
-        if not c or _jd_hits(c, jd_terms) or _concept_hits(c):
+        if not c or jd_asks.evidence_set(c, jd_terms):
             continue
         out.append(c)
     return out
@@ -380,7 +383,7 @@ def _list_trim_candidates(body, jd_terms, all_texts):
         is_prof = ts in prof
         is_tools = (t.lower().startswith("tools")
                     and "technolog" in t.lower())
-        if not (is_prof or is_tools) or _concept_hits(ts):
+        if not (is_prof or is_tools):
             continue
         seen.add(ts)
         chunks = _list_nonjd_chunks(t, jd_terms)
@@ -391,8 +394,7 @@ def _list_trim_candidates(body, jd_terms, all_texts):
             prefix = de.shortest_unique_prefix(all_texts, idx, min_len=6)
         except ValueError:
             prefix = None
-        out.append((prefix, ts, chunks,
-                    bool(_jd_hits(ts, jd_terms))))
+        out.append((prefix, ts, chunks, _evidenced(ts, jd_terms)))
     return out
 
 
@@ -494,11 +496,9 @@ def _cand(kind, role, text, detail, prefix):
 def _role_prune_candidates(role, jd_terms, protect, all_texts, vocab):
     """The bullet-cut and word-trim candidates of one role."""
     key = role["key"]
-    off, weak, _kept = _classify_role_bullets(role, jd_terms, protect)
+    off, _kept = _classify_role_bullets(role, jd_terms, protect)
     cuts = [_cand("bullet-cut", key, b, "OFF-JD",
                   _anchor_prefix(b, all_texts)) for b in off]
-    cuts += [_cand("bullet-cut", key, b, "weak: " + ", ".join(hits),
-                   _anchor_prefix(b, all_texts)) for b, hits in weak]
     for b, nonjd, dead in _keep_trim_candidates(role, jd_terms, vocab):
         if _is_protected(b, protect):
             continue
@@ -593,25 +593,20 @@ def _audit_anchor_line(b, all_texts):
 
 
 def _classify_role_bullets(role, jd_terms, protect):
-    """(off, weak, kept) classification for one role's bullets — the
-    single source for both the JD-FIT AUDIT printer and the
+    """(off, kept) classification for one role's bullets — the single
+    source for both the JD-FIT AUDIT printer and the
     :func:`prune_candidates` sidecar collector, so the printed plan and
     the machine-readable twin can never disagree about which bullets are
-    cut candidates."""
+    cut candidates. One rule, no weak class: a bullet hosts an ask or it
+    does not (the engine's evidence determination)."""
     bullets = role.get("bullet_texts") or []
-    off, weak, kept = [], [], 0
+    off, kept = [], 0
     for b in bullets:
-        if _is_protected(b, protect):
+        if _is_protected(b, protect) or _evidenced(b, jd_terms):
             kept += 1
-            continue
-        strong, weak_hits = _jd_hits_classified(b, jd_terms, bullets)
-        if strong or _concept_hits(b):
-            kept += 1
-        elif weak_hits:
-            weak.append((b, weak_hits))
         else:
             off.append(b)
-    return off, weak, kept
+    return off, kept
 
 
 def _jd_fit_section(role, jd_terms, protect, all_texts=None):
@@ -620,18 +615,13 @@ def _jd_fit_section(role, jd_terms, protect, all_texts=None):
     bullets = role.get("bullet_texts") or []
     if not bullets:
         return None
-    off, weak, kept = _classify_role_bullets(role, jd_terms, protect)
-    if not off and not weak:
+    off, kept = _classify_role_bullets(role, jd_terms, protect)
+    if not off:
         return None
     lines = [f"JD-FIT AUDIT ({role['key']}): {kept} of {len(bullets)} "
              f"bullet(s) carry JD evidence"]
     for b in off:
-        lines.append("  OFF-JD (no JD term, no practice phrase) — cut "
-                     "in the first pass:")
-        lines.append(_audit_anchor_line(b, all_texts))
-    for b, hits in weak:
-        lines.append("  weak-match (cuttable) — cut in the first pass "
-                     f"[weak: {' , '.join(hits)}]:")
+        lines.append("  OFF-JD (hosts no JD ask) — cut in the first pass:")
         lines.append(_audit_anchor_line(b, all_texts))
     if len(off) * 2 >= len(bullets):
         lines.append(
@@ -648,41 +638,20 @@ def _jd_fit_section(role, jd_terms, protect, all_texts=None):
 
 
 def _jd_listing_lines(bullets, jd_terms):
-    """Display lines for a role's JD-evidence bullets.
-
-    'JD-matched (kept)' lists STRONG matches — they protect the bullet
-    from the DROP PLAN. 'weak-match (cuttable)' lists bullets whose ONLY
-    term hits are weak (each term hits >half the role's own bullets, so
-    the match discriminates nothing — see :func:`_weak_jd_terms`): they
-    stay cuttable, and the listing makes that visible instead of nominal
-    protection. JD practice-phrase matches (mentorship, traceability, ...)
-    are always strong.
-    """
+    """Display lines for a role's JD-evidence bullets — the matched ask
+    phrases each carries. Evidenced bullets are never suggested by the
+    DROP PLAN; there is no weak class (one rule: hosts an ask or not)."""
     if not jd_terms:
         return []
-    strong_kept, weak_only, concept_kept = [], [], []
-    for b in bullets:
-        strong, weak_hits = _jd_hits_classified(b, jd_terms, bullets)
-        if strong:
-            strong_kept.append((b, strong))
-        elif weak_hits:
-            weak_only.append((b, weak_hits))
-        elif _concept_hits(b):
-            concept_kept.append((b, _concept_hits(b)))
     lines = []
-    if strong_kept or concept_kept:
-        lines.append("  JD-matched (kept) — never suggested while weaker "
-                     "bullets remain:")
-        for b, hits in strong_kept:
-            lines.append(f"    - {b[:68]}  [{' , '.join(hits)}]")
-        for b, hits in concept_kept:
-            lines.append(f"    - {b[:68]}  [practice: {', '.join(hits)}]")
-    if weak_only:
-        lines.append("  weak-match (cuttable — each term below hits half "
-                     "this role's bullets, so it protects nothing; the "
-                     "human rule may still keep specific bullets):")
-        for b, hits in weak_only:
-            lines.append(f"    - {b[:68]}  [weak: {' , '.join(hits)}]")
+    evidenced = [(b, sorted(jd_asks.evidence_set(b.lower(), jd_terms)))
+                 for b in bullets]
+    if any(h for _b, h in evidenced):
+        lines.append("  JD-evidenced (kept) — never suggested while "
+                     "unevidenced bullets remain:")
+        for b, hits in evidenced:
+            if hits:
+                lines.append(f"    - {b[:68]}  [{' , '.join(hits)}]")
     return lines
 
 

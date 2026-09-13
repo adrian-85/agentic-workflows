@@ -169,7 +169,7 @@ full gate chain (`run_tailor.sh`: ast + find_p lint + prune-coverage + strict ex
 `measure_resume.py` REFUSES full-master page/word
 measurement (exit 2 without `--jd`; on the master, `--jd` is the machine pipeline's
 prune-plan mode) and, on a tailored copy, prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
-with copy-pasteable `find_p` cut lines, the per-role **JD-FIT AUDIT** (off-JD/weak bullets in every
+with copy-pasteable `find_p` cut lines, the per-role **JD-FIT AUDIT** (unevidenced bullets in every
 role, even on target), **JD REQUIREMENT COVERAGE** (each qualification line → its kept hosts;
 [weak] = proficiencies/Tools-line host only, [UNCOVERED] = demonstrate it or raise the gap), **JD
 terms with NO host in the resume** (the never-fabricate flags — Step 8's mining queue), and flags
@@ -225,7 +225,7 @@ python3 scripts/auto_prune.py "<userName> Master Resume.docx" jd_<target>.txt --
 ```
 
 What the machine does (deterministic; the agent has no lever here):
-- **CUT** every OFF-JD/weak bullet (the most recent role included) and
+- **CUT** every unevidenced bullet (the most recent role included) and
   every no-JD-evidence proficiencies/cert line; a section whose every
   line is cut goes whole — an entire technical-proficiency category may
   go.
@@ -534,9 +534,9 @@ never bypassed — and keep the .docx count at ~990 or below, because
 +1–2%. If drift accumulates beyond single trades: run `measure_resume.py`
 on the build with the agreed Step-4 target and take its weakest-first
 DROP PLAN and TOP-BLOCK candidates (they name exact bullets — don't
-hand-pick; "no unprotected bullet to give" is not "no bullet to cut": a
-term hitting half a role's bullets is weak evidence and protects
-nothing); then `squeeze_resume.py --protect "<JD-critical phrase>"` for
+hand-pick; the engine's one rule leaves nothing to negotiate — unevidenced
+bullets are the cuttable supply); then `squeeze_resume.py --protect
+"<JD-critical phrase>"` for
 the residual gap — and JD-judge every squeeze fold-back line before
 applying it (squeeze is page-math-only).
 
@@ -718,7 +718,7 @@ title's level matches the JD's title (Step 5), and the Summary's claims still
 match what the reader sees. Years-vs-timeline is
 automated (`validate_resume.py`); JD-fit judgment of kept bullets is not — that
 stays human. The post-build measure run's **JD-FIT AUDIT** narrows where to
-look: any OFF-JD or weak-match bullet it lists gets cut or shortened even
+look: any OFF-JD bullet it lists gets cut or shortened even
 when the page target is met, or kept with a one-line reason tied to the JD.
 **Re-read the machine's `# kept:` stub lines first** — the only keeps in
 the build, recorded where a role would otherwise have lost every bullet
@@ -801,16 +801,16 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Hand-rolling whole-role removal in the tailor script | Use `drop_role(body, "<company prefix>")` / `drop_section(body, "Education")` — the library owns the block grammar. A hand-rolled helper that appends before checking the boundary (or only treats Heading1/2 as boundaries) swallows the next `SectionHeading` (Education) and strands later edits as "not found" skips |
 | Verifying the PDF by rendering pages to images | Never works — this harness reads no images. Use `render_pdf.sh --verbose` (page map, last-page tail), `measure_resume.py`'s page-fill table, and `pdftotext` |
 | Chasing a skip warning as a library bug | Re-dump `--prefixes` on the master FIRST — it may have been edited since your dump (the `MASTER CHANGED:` sidecar warning fires on this); a prefix can also match a paragraph an earlier `drop` already removed if you thread a stale `ps` list — use `ps = drop(body, [...])` |
-| Guessing WHICH bullets to cut | Never — `auto_prune.py` (Step 2) machine-dispositions every candidate; the base build IS the disposition. Post-build weak bullets come from the build measure's DROP PLAN (Step 8 backstop) |
-| Reading "no unprotected bullet to give" as a dead end while the most-recent role carries off-JD content | JD-matching false-positives on generic terms — read the TOP-ROLE PROTECTED BULLETS list (matched term per bullet) and override weak matches deliberately; that is the sanctioned top-role trim, not hand-picking (Step 8) |
+| Guessing WHICH bullets to cut | Never — `auto_prune.py` (Step 2) machine-dispositions every candidate; the base build IS the disposition. Post-build unevidenced bullets come from the build measure's DROP PLAN (Step 8 backstop) |
+| Reading "no unprotected bullet to give" as a dead end | The engine has one rule (hosts an ask or not) — no weak class to override; the dead-end fix is a TOP-BLOCK cut, a Tools-line trim, or a user-approved whole-role drop (Step 8 backstop) |
 | Running squeeze in apply mode on the tailored .docx and then folding cuts back into the script by hand | Harvest with `--plan-only` BEFORE the script's first run — same loop, same fold-back block, file untouched (Step 8) |
 | Cutting only job bullets — leaving off-JD proficiencies/certs while JD-matched bullets die | Cuts span the WHOLE resume: check measure's TOP-BLOCK RECLAIM CANDIDATES and the Tools lines before cutting another JD-matched bullet (Step 8) |
-| Pruning only the oldest roles while the most-recent role keeps 15+ bullets | The machine prune and the hard per-role cap (8) apply to EVERY role (Step 2) — check the build's JD-FIT AUDIT for the top role's weak-match listing (Step 8 backstop) |
+| Pruning only the oldest roles while the most-recent role keeps 15+ bullets | The machine prune and the hard per-role cap (8) apply to EVERY role (Step 2) — check the build's JD-FIT AUDIT for the top role's unevidenced bullets (Step 8 backstop) |
 | Treating a proficiencies/Tools-line host as proof of a JD ask | JD REQUIREMENT COVERAGE prints [weak] for non-bullet hosts — weave the skill into the bullet where it was used (Step 7); [UNCOVERED] means demonstrate it or raise the gap, never fabricate |
 | "Keep N" with a drop list that doesn't add up | intended keep + len(drop list) == the role's master bullet count (23 − 16 = 7, not 8); a built role whose count differs from intent is a MISS to fix, not a counting convention (Step 8) |
 | Measuring the full master for page/word budgets | Refused by the tool — the master is machine-pruned only (Step 2); length/word decisions run on the BASE BUILD (Steps 3–4) |
 | Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 2, 8) |
-| Trusting a JD-matched (kept) listing that protected everything | A term matching half a role's bullets is shown as `[weak: term]` and protects nothing; specific tech nouns stay strong — read the weak-match (cuttable) listing before calling a role a dead end (Step 8) |
+| Treating a proficiencies/Tools line as permanent ATS-host real estate | The machine strips every non-JD chunk from list lines and cuts lines with no ask (Step 2); hosting comes from purpose-written bullet text, not preserved lines |
 | Re-litigating Phase A cuts by argument, or hand-pruning the master | The machine's disposition stands; there is no `# kept:` negotiation. `auto_prune.py` is the only sanctioned master consumer — re-run the command rather than editing its output cuts. Content the JD genuinely needs returns via Step 8 mining as a fresh, purpose-written host |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
 | Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (`save()` prints one summary line if element-form was used). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form (Helper library) |
