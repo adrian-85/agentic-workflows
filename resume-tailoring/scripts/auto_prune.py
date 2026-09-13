@@ -40,11 +40,11 @@ import os
 import re
 import subprocess
 import sys
+from typing import NamedTuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import docx_edit as de  # noqa: E402
-from docx_edit import (SECTION_STYLE, drop_section, find_p, paras, remove,  # noqa: E402
-                       set_labeled, set_text, shortest_unique_prefix,
+from docx_edit import (SECTION_STYLE, paras, shortest_unique_prefix,  # noqa: E402
                        text_of)
 from measure_resume_drops import _sentence_clauses, _weakness_key, \
     prune_candidates  # noqa: E402
@@ -142,46 +142,35 @@ def _top_sections(body):
     whole-category cut scope (a section whose every line is cut goes
     entirely)."""
     out = []
-    cur = None
+    heading, contents = None, []
     started = False
     for p in paras(body):
         style, _ = de.style_and_numid(p)
         t = text_of(p)
         if style == SECTION_STYLE:
-            if started and cur:
-                out.append(cur)
-            cur = (t.strip(), []) if t.strip() else None
+            if started and heading is not None:
+                out.append((heading, contents))
+            heading, contents = (t.strip(), []) if t.strip() else (None, [])
             started = started or t.strip() == SECTION_PROFICIENCIES
             continue
         if not started:
             continue
         if style == COMPANY_STYLE and t.strip():
             break  # career region begins
-        if cur is not None and t.strip():
-            cur[1].append(t.strip())
-    if started and cur:
-        out.append(cur)
+        if heading is not None and t.strip():
+            contents.append(t.strip())
+    if started and heading is not None:
+        out.append((heading, contents))
     return out
 
 
-def plan_phase_a(candidates, roles, jd_terms, body):
-    """Machine-disposition every candidate; return the emitted-edit plan.
+def _role_cuts(candidates, roles, jd_terms):
+    """Per-role machine dispositions.
 
-    Returns a dict:
-      drops        [(prefix, text)]       — drop()-list entries
-      removes      [(text, nth)]          — nth-disambiguated cuts
-      keeps        [(anchor_head, why)]   — '# kept:' comment lines
-      trims        [(anchor, new_text)]   — set_text rewrites
-      list_trims   [(anchor, label, value)]
-      section_drops [heading_prefix]      — drop_section calls
-      stats        {cut, trim, stub, section}
+    Returns a _RoleState: the bullet-cut text set per role (stub keeps
+    removed), the stub texts, the per-role cap excess texts, and the
+    cap excess (role key, text) pairs.
     """
-    all_texts = [text_of(p) for p in paras(body)]
-    anchors = {}  # candidate text -> (prefix, nth), computed once
-    for c in candidates:
-        if c["text"] not in anchors:
-            anchors[c["text"]] = _anchor_for(all_texts, c["text"])
-
     cut_texts_by_role = {}
     for c in candidates:
         if c["kind"] == "bullet-cut":
@@ -194,25 +183,74 @@ def plan_phase_a(candidates, roles, jd_terms, body):
         if not bullets:
             continue
         cuts = cut_texts_by_role.get(role["key"], set())
-        if bullets and all(b in cuts for b in bullets):
+        if all(b in cuts for b in bullets):
             stub = max(bullets, key=lambda b: _strength(b, jd_terms))
             stub_texts[role["key"]] = stub
             cut_texts_by_role[role["key"]] -= {stub}
 
     # --- per-role cap on the SURVIVING kept bullets ------------------- #
     cap_drops = []  # (role key, text)
-    kept_by_role = {}
     for role in roles:
         cuts = cut_texts_by_role.get(role["key"], set())
         kept = [b for b in (role.get("bullet_texts") or []) if b not in cuts]
-        kept_by_role[role["key"]] = kept
         if len(kept) > PER_ROLE_CAP:
             excess = sorted(kept, key=_weakness_key)[:len(kept) - PER_ROLE_CAP]
             cap_drops.extend((role["key"], t) for t in excess)
     cap_texts = {t for _r, t in cap_drops}
+    return _RoleState(cut_texts_by_role, stub_texts, cap_texts, cap_drops)
 
-    # --- walk candidates ---------------------------------------------- #
-    drops, removes, keeps, trims, list_trims = [], [], [], [], []
+
+class _RoleState(NamedTuple):
+    """Per-role dispositions shared by the walk and the cap pass."""
+
+    cut_texts: dict  # role key -> set of bullet texts to cut
+    stubs: dict      # role key -> stub bullet text (kept for gaplessness)
+    cap_texts: set   # texts dropped only by the per-role cap
+    cap_drops: list  # (role key, text) excess pairs
+
+
+def _disposition(c, anchors, role_state, jd_terms):
+    """(action, payload) for one candidate.
+
+    Actions: 'cut', 'keep' ((anchor_head, reason) — the stub rule),
+    'trim' (((prefix, text), new_text)), and 'list'
+    (((prefix, text), label, value))."""
+    kind, role, text = c["kind"], c["role"], c["text"]
+    prefix, _nth = anchors[text]
+    if kind == "bullet-cut" and \
+            text not in role_state.cut_texts.get(role, set()):
+        return "keep", (prefix if prefix else text[:24],
+                        "stub: role keeps its strongest bullet "
+                        "(timeline gaplessness; auto-prune)")
+    payload = None
+    if kind == "word-trim":
+        trimmed = None
+        if text not in role_state.cut_texts.get(role, set()) and \
+                text not in role_state.cap_texts:
+            trimmed = _trim_bullet_text(text, jd_terms)
+        if trimmed is not None:
+            payload = "trim", ((prefix, text), trimmed)
+    elif kind == "list-trim":
+        keep = _surviving_chunks(text, jd_terms)
+        if keep:
+            payload = "list", ((prefix, text),
+                               text.split(":", 1)[0] + ": ", ", ".join(keep))
+    if payload is None:
+        # bullet-cut, a trim that cut whole, a list line with no JD chunk,
+        # and top-block all collapse to CUT — the drop covers the candidate
+        return "cut", None
+    return payload
+
+
+def _walk_candidates(candidates, anchors, role_state, jd_terms):
+    """Disposition every candidate into emitted edits.
+
+    Returns the plan's edit lists (drops, removes, keeps, trims,
+    list_trims, and empty section lists) as a dict.
+    """
+    edits = {"drops": [], "removes": [], "keeps": [], "trims": [],
+             "list_trims": [], "section_drops": [], "section_keeps": []}
+    drops, removes = edits["drops"], edits["removes"]
     drop_keys = set()
 
     def _add_cut(c):
@@ -229,48 +267,37 @@ def plan_phase_a(candidates, roles, jd_terms, body):
             removes.append((c["text"], 1))
 
     for c in candidates:
-        kind, role, text = c["kind"], c["role"], c["text"]
-        prefix, _nth = anchors[text]
-        anchor_head = prefix if prefix else text[:24]
-        if kind == "bullet-cut":
-            if text not in cut_texts_by_role.get(role, set()):
-                keeps.append((anchor_head,
-                              "stub: role keeps its strongest bullet "
-                              "(timeline gaplessness; auto-prune)"))
-                continue
+        action, payload = _disposition(c, anchors, role_state, jd_terms)
+        if action == "cut":
             _add_cut(c)
-        elif kind == "word-trim":
-            if text in cut_texts_by_role.get(role, set()) or \
-                    text in cap_texts:
-                _add_cut(c)  # cut here; the drop covers the candidate
-                continue
-            new = _trim_bullet_text(text, jd_terms)
-            if new is None:
-                _add_cut(c)
-                continue
-            trims.append(((prefix, text), new))
-        elif kind == "list-trim":
-            keep = _surviving_chunks(text, jd_terms)
-            if not keep:
-                _add_cut(c)
-                continue
-            label = text.split(":", 1)[0] + ": "
-            list_trims.append(((prefix, text), label, ", ".join(keep)))
-        elif kind == "top-block":
-            _add_cut(c)
+        elif action == "keep":
+            edits["keeps"].append(payload)
+        elif action == "trim":
+            edits["trims"].append(payload)
+        elif action == "list":
+            edits["list_trims"].append(payload)
+    return edits
 
-    # --- cap drops (non-candidate bullets included) -------------------- #
+
+def _add_cap_drops(cap_drops, anchors, all_texts, edits):
+    """Add the per-role cap excess (candidate and non-candidate bullets)
+    to the plan's cut lists."""
+    drop_keys = set(edits["drops"])
     for _role_key, text in cap_drops:
         prefix, nth = anchors.get(text) or _anchor_for(all_texts, text)
         if prefix is not None:
             if (prefix, text) not in drop_keys:
                 drop_keys.add((prefix, text))
-                drops.append((prefix, text))
-        elif not any(t == text and n == nth for t, n in removes):
-            removes.append((text, nth))
+                edits["drops"].append((prefix, text))
+        elif not any(t == text and n == nth for t, n in edits["removes"]):
+            edits["removes"].append((text, nth))
 
-    # --- whole-category cuts: a section whose every line is cut -------- #
-    section_drops, section_keeps = [], []
+
+def _apply_section_cuts(body, all_texts, edits):
+    """Whole-category cuts: a top section whose EVERY line is cut goes
+    whole (drop_section); its line cuts move into keep comments so the
+    coverage gate still sees them addressed. Mutates ``edits``."""
+    drops, removes = edits["drops"], edits["removes"]
     cut_line_texts = {t for _p, t in drops} | {t for t, _n in removes}
     for heading, contents in _top_sections(body):
         if not contents or not all(t in cut_line_texts for t in contents):
@@ -278,28 +305,52 @@ def plan_phase_a(candidates, roles, jd_terms, body):
         hprefix, _hn = _anchor_for(all_texts, heading)
         if hprefix is None:
             continue  # duplicate heading text: leave the line cuts as-is
-        section_drops.append((hprefix, heading))
-        # the line cuts move into the section drop — emit keep comments
-        # so the coverage gate sees them addressed
+        edits["section_drops"].append((hprefix, heading))
         for t in contents:
             p2, _n2 = _anchor_for(all_texts, t)
             if p2:
-                drops = [d for d in drops if d[0] != p2]
-                drop_keys -= {(p2, t)}
+                drops[:] = [d for d in drops if d[0] != p2]
             else:
-                removes = [r for r in removes if r[0] != t]
-            section_keeps.append((p2 if p2 else t[:24],
-                                  f"removed with the emptied "
-                                  f"'{heading}' section "
-                                  f"(drop_section; auto-prune)"))
-    return {"drops": drops, "removes": removes, "keeps": keeps,
-            "trims": trims, "list_trims": list_trims,
-            "section_drops": section_drops,
-            "section_keeps": section_keeps,
-            "stats": {"cut": len(drops) + len(removes),
-                      "trim": len(trims) + len(list_trims),
-                      "stub": len(stub_texts),
-                      "section": len(section_drops)}}
+                removes[:] = [r for r in removes if r[0] != t]
+            edits["section_keeps"].append(
+                (p2 if p2 else t[:24],
+                 f"removed with the emptied '{heading}' section "
+                 f"(drop_section; auto-prune)"))
+
+
+def _anchor_map(candidates, all_texts):
+    """candidate text -> (prefix, nth), computed once per distinct text."""
+    anchors = {}
+    for c in candidates:
+        if c["text"] not in anchors:
+            anchors[c["text"]] = _anchor_for(all_texts, c["text"])
+    return anchors
+
+
+def plan_phase_a(candidates, roles, jd_terms, body):
+    """Machine-disposition every candidate; return the emitted-edit plan.
+
+    Returns a dict:
+      drops        [(prefix, text)]       — drop()-list entries
+      removes      [(text, nth)]          — nth-disambiguated cuts
+      keeps        [(anchor_head, why)]   — '# kept:' comment lines
+      trims        [(anchor, new_text)]   — set_text rewrites
+      list_trims   [(anchor, label, value)]
+      section_drops [(heading_prefix, heading)] — drop_section calls
+      stats        {cut, trim, stub, section}
+    """
+    all_texts = [text_of(p) for p in paras(body)]
+    anchors = _anchor_map(candidates, all_texts)
+    role_state = _role_cuts(candidates, roles, jd_terms)
+    edits = _walk_candidates(candidates, anchors, role_state, jd_terms)
+    _add_cap_drops(role_state.cap_drops, anchors, all_texts, edits)
+    _apply_section_cuts(body, all_texts, edits)
+    edits["stats"] = {
+        "cut": len(edits["drops"]) + len(edits["removes"]),
+        "trim": len(edits["trims"]) + len(edits["list_trims"]),
+        "stub": len(role_state.stubs),
+        "section": len(edits["section_drops"])}
+    return edits
 
 
 # --------------------------------------------------------------------- #
@@ -320,24 +371,33 @@ def _py(s):
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def emit_script(plan, src, dst, target, jd_name, script_name):
-    """The first tailor script: machine cuts/trims + gate comments."""
+def emit_script(plan, src, dst, meta):
+    # too-many-locals: the function is one linear list-literal build of the
+    # emitted script (docstring, cuts, trims, sections); splitting it would
+    # interleave the emission order across helpers for no gain.
+    # pylint: disable=too-many-locals
+    """The first tailor script: machine cuts/trims + gate comments.
+
+    ``meta`` carries the docstring fields: target, jd_name, script_name.
+    """
     stats = plan["stats"]
     lines = [
-        f'"""Auto-pruned base build for {target} — machine Phase A '
-        f'(auto_prune.py).',
+        f'"""Auto-pruned base build for {meta["target"]} — machine '
+        f'Phase A (auto_prune.py).',
         "",
-        f"JD: {jd_name}. Every PRUNE-PLAN candidate is addressed here by "
-        f"the machine:",
+        f"JD: {meta['jd_name']}. Every PRUNE-PLAN candidate is addressed "
+        f"here by the machine:",
         f"CUT {stats['cut']}, TRIM {stats['trim']}, stubs {stats['stub']}, "
         f"emptied sections {stats['section']}.",
         "No agent judgment and no cut report — the agent's work starts at "
         "SKILL Phase B",
         "on this build. Re-run:",
         "",
-        f'    cd "$(dirname "$0")/.." && python3 scripts/{script_name}',
+        f'    cd "$(dirname "$0")/.." && python3 '
+        f'scripts/{meta["script_name"]}',
         "",
-        f'Gates: scripts/run_tailor.sh "{src}" scripts/{script_name}',
+        f'Gates: scripts/run_tailor.sh "{src}" '
+        f'scripts/{meta["script_name"]}',
         '"""',
         "",
         _EMITTED_IMPORTS,
@@ -435,17 +495,50 @@ def _parse_args(argv):
     return docx, jd_file, target
 
 
-def main():
-    """CLI entry: machine-prune, emit the tailor script, run the gates."""
-    docx, jd_file, target = _parse_args(sys.argv[1:])
-    skill_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    jd_text = read_jd_text(jd_file)
+def _emit_and_run(plan, meta):
+    """Write the prune sidecar, emit the tailor script, run the gates.
+
+    ``meta`` carries docx, jd_file, dst, skill_root, and the emitted
+    docstring fields. Exits with the gate's return code when
+    run_tailor.sh fails.
+    """
+    docx, skill_root = meta["docx"], meta["skill_root"]
+    script_name = meta["script_name"]
+    sidecar = docx + ".prune.json"
+    with open(sidecar, "w", encoding="utf-8") as f:
+        json.dump({"jd": os.path.basename(meta["jd_file"]),
+                   "candidates": plan["candidates"]}, f, indent=1)
+    script_path = os.path.join(skill_root, "scripts", script_name)
+    with open(script_path, "w", encoding="utf-8") as f:
+        f.write(emit_script(plan, os.path.basename(docx), meta["dst"],
+                            meta))
+    runner = os.path.join(skill_root, "scripts", "run_tailor.sh")
+    proc = subprocess.run(["bash", runner, os.path.basename(docx),
+                           f"scripts/{script_name}"],
+                          cwd=skill_root, check=False)
+    if proc.returncode != 0:
+        print(f"error: run_tailor.sh gates failed (exit {proc.returncode})",
+              file=sys.stderr)
+        sys.exit(proc.returncode)
+
+
+def _build_meta(docx, jd_file, target, skill_root):
+    """(dst, meta): the deliverable name and the emit/run bundle."""
     user = re.sub(r"\s*Master Resume\.docx$", "",
                   os.path.basename(docx))
     dst = f"{user} Resume - {target}.docx"
-    slug = re.sub(r"[^a-z0-9]+", "_", target.lower()).strip("_")
-    script_name = f"tailor_{slug}.py"
+    meta = {"target": target, "jd_name": os.path.basename(jd_file),
+            "jd_file": jd_file, "docx": docx, "dst": dst,
+            "skill_root": skill_root}
+    meta["script_name"] = "tailor_" + re.sub(
+        r"[^a-z0-9]+", "_", target.lower()).strip("_") + ".py"
+    return dst, meta
 
+
+def _load_candidates(docx, jd_text):
+    """(body, roles, jd_terms, candidates) for a master + JD; exits 2
+    when the JD has no intersection with the resume's vocabulary or
+    yields no prune candidates (nothing to machine-prune)."""
     _, body, _, _, _ = de.load(docx)
     roles = _roles(body)
     jd_terms = _jd_terms(jd_text, body)
@@ -459,32 +552,24 @@ def main():
         print("error: no prune candidates — the JD matches everything in "
               "the master; nothing to machine-prune", file=sys.stderr)
         sys.exit(2)
+    return body, roles, jd_terms, candidates
 
+
+def main():
+    """CLI entry: machine-prune, emit the tailor script, run the gates."""
+    docx, jd_file, target = _parse_args(sys.argv[1:])
+    skill_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    jd_text = read_jd_text(jd_file)
+    dst, meta = _build_meta(docx, jd_file, target, skill_root)
+    body, roles, jd_terms, candidates = _load_candidates(docx, jd_text)
     plan = plan_phase_a(candidates, roles, jd_terms, body)
-
-    sidecar = docx + ".prune.json"
-    with open(sidecar, "w", encoding="utf-8") as f:
-        json.dump({"jd": os.path.basename(jd_file),
-                   "candidates": candidates}, f, indent=1)
-
-    script_path = os.path.join(skill_root, "scripts", script_name)
-    with open(script_path, "w", encoding="utf-8") as f:
-        f.write(emit_script(plan, os.path.basename(docx), dst, target,
-                            os.path.basename(jd_file), script_name))
-
-    runner = os.path.join(skill_root, "scripts", "run_tailor.sh")
-    proc = subprocess.run(["bash", runner, os.path.basename(docx),
-                           f"scripts/{script_name}"],
-                          cwd=skill_root)
-    if proc.returncode != 0:
-        print(f"error: run_tailor.sh gates failed (exit {proc.returncode})",
-              file=sys.stderr)
-        sys.exit(proc.returncode)
+    plan["candidates"] = candidates
+    _emit_and_run(plan, meta)
     stats = plan["stats"]
     print(f"AUTO-PRUNE: {stats['cut']} cut, {stats['trim']} trimmed, "
           f"{stats['stub']} stub(s), {stats['section']} section(s) "
           f"emptied — no cut report (SKILL Phase A)")
-    print(f"WROTE scripts/{script_name}")
+    print(f"WROTE scripts/{meta['script_name']}")
     print(f"BUILD: {dst} — Phase B measures this copy (never the master)")
 
 

@@ -12,13 +12,14 @@ run_tailor.sh's gates (ast + prefix lint + prune coverage + strict exec).
 
 import ast
 import os
+import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
-import test_helpers
-from test_helpers import _body, _para, _write_docx  # noqa: F401
+from test_helpers import _body, _para, _write_docx
 import docx_edit as de  # noqa: E402
 import docx_edit_cli  # noqa: E402
 import measure_resume as mr  # noqa: E402
@@ -122,7 +123,9 @@ class TestPlanDispositions(_AutoPruneBase):
 
     def test_no_whole_role_drops_anywhere(self):
         script = auto_prune.emit_script(
-            self.plan, "m.docx", "out.docx", "T", "jd.txt", "tailor_t.py")
+            self.plan, "m.docx", "out.docx",
+            {"target": "T", "jd_name": "jd.txt",
+             "script_name": "tailor_t.py"})
         self.assertNotIn("drop_role", script)
 
     def test_word_trim_removes_dead_sentence(self):
@@ -178,13 +181,18 @@ class TestPlanDispositions(_AutoPruneBase):
 
 
 class TestEmittedScript(_AutoPruneBase):
+    # too-many-locals: the fixture-heavy test classes build the plan + script
+# in setUp-adjacent helpers; splitting them harms the test narrative.
+
     """The emitted script must parse, cover every sidecar candidate, and
     never drop a whole role."""
 
+    _META = {"target": "Target", "jd_name": "jd_x.txt",
+             "script_name": "tailor_target.py"}
+
     def _script(self):
         return auto_prune.emit_script(
-            self.plan, "master.docx", "out.docx", "Target", "jd_x.txt",
-            "tailor_target.py")
+            self.plan, "master.docx", "out.docx", self._META)
 
     def test_parses(self):
         ast.parse(self._script())
@@ -194,7 +202,6 @@ class TestEmittedScript(_AutoPruneBase):
 
     def test_every_candidate_covered(self):
         # docx_edit_cli reads from a path — write the script to disk
-        import tempfile
         with tempfile.NamedTemporaryFile("w", suffix=".py",
                                          delete=False) as f:
             f.write(self._script())
@@ -214,14 +221,17 @@ class TestEmittedScriptRuns(_AutoPruneBase):
     writes the base build."""
 
     def test_script_runs_and_writes_build(self):
-        import tempfile
+        # too-many-locals: the end-to-end fixture assembles master, JD,
+        # plan, emitted script, and the subprocess env in one flow.
+        # pylint: disable=too-many-locals
         with tempfile.TemporaryDirectory() as td:
             master = os.path.join(td, "Test User Master Resume.docx")
             _write_docx(master, _master_paras())
             dst = os.path.join(td, "Test User Resume - Target.docx")
             script = auto_prune.emit_script(
-                self.plan, master, dst, "Target", "jd_x.txt",
-                "tailor_target.py")
+                self.plan, master, dst,
+                {"target": "Target", "jd_name": "jd_x.txt",
+                 "script_name": "tailor_target.py"})
             script_path = os.path.join(td, "tailor_target.py")
             with open(script_path, "w", encoding="utf-8") as f:
                 f.write(script)
@@ -229,16 +239,15 @@ class TestEmittedScriptRuns(_AutoPruneBase):
             env = dict(os.environ)
             env["DOCX_EDIT_STRICT"] = "1"
             env["PYTHONPATH"] = src_dir
-            code = (
-                "import sys; sys.path.insert(0, %r); "
-                "import runpy; runpy.run_path(%r, run_name='__main__')"
-                % (src_dir, script_path))
-            import subprocess
+            code = (f"import sys; sys.path.insert(0, {src_dir!r}); "
+                    "import runpy; "
+                    f"runpy.run_path({script_path!r}, run_name='__main__')")
             proc = subprocess.run([sys.executable, "-c", code], cwd=td,
-                                  env=env, capture_output=True, text=True)
-            self.assertEqual(proc.returncode, 0,
-                             f"stdout:\n{proc.stdout}\nstderr:\n"
-                             f"{proc.stderr}")
+                                  env=env, capture_output=True, text=True,
+                                  check=False)
+            self.assertEqual(
+                proc.returncode, 0,
+                "stdout:\n" + proc.stdout + "\nstderr:\n" + proc.stderr)
             self.assertTrue(os.path.exists(dst))
             _root, body, _n, _d, _w = de.load(dst)
             texts = [de.text_of(p) for p in de.paras(body)]
