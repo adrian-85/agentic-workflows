@@ -17,7 +17,7 @@ sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 from measure_resume_jd import _top_block_candidates  # noqa: E402
 from measure_resume_jd_terms import (CORE_TECH_NOUNS, JD_STOP,  # noqa: E402
-    _concept_hits, _is_protected, _jd_capitalized, _jd_hits,
+    _is_protected, _jd_capitalized, _jd_hits,
     _vocab_terms, _weakness_key)
 import jd_asks  # noqa: E402
 

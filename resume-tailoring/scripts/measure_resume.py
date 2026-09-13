@@ -131,6 +131,7 @@ from measure_resume_jd_terms import (
     CORE_TECH_NOUNS,
     GENERIC_PHRASES,
     JD_CONCEPTS,
+    JD_SELF_ASSESSMENT,
     JD_STOP,
     VOCAB_STYLE,
     _NUMBER,
@@ -158,16 +159,18 @@ def _jd_terms(jd_text, body=None):
     workflow exists to cut)."""  # pylint: disable=unused-argument
     return {a.phrase for a in jd_asks.parse_asks(jd_text)}
 
+from jd_asks import (  # engine home: JD parsing names live here now
+    JD_COMPANY_VOICE_RE,
+    JD_QUAL_HEADING_RE,
+    JD_SEQ_TERM_RE,
+    JD_WORD_TERM_RE,
+)
+
 from measure_resume_jd import (
     HEADLINE_STYLE,
     INFERENCE_FAMILIES,
-    JD_COMPANY_VOICE_RE,
-    JD_QUAL_HEADING_RE,
-    JD_SELF_ASSESSMENT,
-    JD_SEQ_TERM_RE,
     JD_SHORT_WORDS,
     JD_SOFT_SKILL_RE,
-    JD_WORD_TERM_RE,
     SECTION_STYLE,
     TITLE_LABEL_RE,
     TITLE_MAX_WORDS,

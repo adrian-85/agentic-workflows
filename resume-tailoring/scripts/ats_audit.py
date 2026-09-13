@@ -55,7 +55,6 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import measure_resume as mr  # noqa: E402
 import jd_asks  # noqa: E402
 from script_args import (MAX_WORDS, MATCH_RATE_TARGET, flag_value,
                          maybe_help, match_target_met)  # noqa: E402

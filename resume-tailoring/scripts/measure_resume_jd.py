@@ -17,16 +17,12 @@ import docx_edit as de  # noqa: E402
 import jd_asks  # noqa: E402
 from docx_edit_gate import tmp_jd_note  # noqa: E402
 from measure_resume_format import COMPANY_STYLE, SECTION_PROFICIENCIES  # noqa: E402
-from measure_resume_jd_terms import (JD_CONCEPTS, JD_STOP,  # noqa: E402
-                                     _acronym_terms, _adjacent_bigrams,
-                                     _concept_hits, _jd_capitalized,
-                                     _jd_hits, _norm_text)
-# The engine owns JD parsing — these names re-export for the shim's
-# callers (ats_audit historically used mr._jd_requirement_lines).
-from jd_asks import (JD_COMPANY_VOICE_RE, JD_NEGATED_HEADING_RE,  # noqa: E402,F401
-                     JD_QUAL_HEADING_RE, JD_SEQ_TERM_RE,  # noqa: E402,F401
-                     JD_WORD_TERM_RE,  # noqa: E402,F401
-                     _phrase_terms, _single_token_terms)  # noqa: E402,F401
+# The engine (jd_asks) owns JD parsing; this module consumes it and
+# keeps only the names it uses.
+from jd_asks import _phrase_terms, _single_token_terms  # noqa: E402
+from measure_resume_jd_terms import (  # noqa: E402
+    JD_CONCEPTS, _acronym_terms, _adjacent_bigrams, _jd_capitalized,
+    JD_SOFT_SKILL_RE)
 JD_SHORT_WORDS = jd_asks.JD_SHORT_WORDS
 
 MISSING_REPORT_CAP = 24  # bounded no-host list (signal-ranked)
@@ -39,11 +35,6 @@ SECTION_STYLE = "SectionHeading"  # career/education/proficiencies headings
 HEADLINE_STYLE = "Title"  # top-of-resume headline: 2nd 'Title' paragraph after the name
 
 
-# JD_SELF_ASSESSMENT and JD_SOFT_SKILL_RE live in measure_resume_jd_terms
-# (the bigram extractor shares both filters); re-exported for the
-# qual-line scanner.
-from measure_resume_jd_terms import JD_SELF_ASSESSMENT  # noqa: E402,F401
-from measure_resume_jd_terms import JD_SOFT_SKILL_RE  # noqa: E402,F401
 
 
 INFERENCE_FAMILIES = (
@@ -192,6 +183,7 @@ def _jd_missing_terms(jd_text, body, jd_terms=None):
     vocabulary-intersection + side-signal mining it parameterized is
     retired — prose the stop lists miss never becomes an ask, so it
     never surfaces as a missing hard skill)."""
+    # pylint: disable=unused-argument
     asks = jd_asks.parse_asks(jd_text)
     doc_low = re.sub(r"\s+", " ", " ".join(
         de.text_of(p) for p in de.paras(body))).lower()

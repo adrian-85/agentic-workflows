@@ -285,7 +285,21 @@ def _capitalized_mention(jd_text, term):
     return False
 
 
+def _first_heading_offset(jd_text):
+    """Character offset of the first recognized qualification heading
+    (None when the posting has none — a recruiter message)."""
+    pos = 0
+    for ln in jd_text.splitlines(keepends=True):
+        if JD_QUAL_HEADING_RE.match(ln.strip()):
+            return pos
+        pos += len(ln)
+    return None
+
+
 def _repeated_terms(jd_text):
+    # too-many-locals/branches: the admission gates are the engine's
+    # calibrated rules; splitting them hides the ask decision from review.
+    # pylint: disable=too-many-locals,too-many-branches
     """Whole-posting asks.
 
     A capitalized mid-sentence mention is an ask at any frequency after
@@ -298,13 +312,7 @@ def _repeated_terms(jd_text):
     sentence starts capitalized."""
     jd_low = jd_text.lower()
     out = set()
-    heading_offset = None
-    pos = 0
-    for ln in jd_text.splitlines(keepends=True):
-        if JD_QUAL_HEADING_RE.match(ln.strip()):
-            heading_offset = pos
-            break
-        pos += len(ln)
+    heading_offset = _first_heading_offset(jd_text)
 
     def _post_heading(term):
         if heading_offset is None:

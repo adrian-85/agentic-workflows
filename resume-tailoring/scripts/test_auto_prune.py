@@ -149,10 +149,9 @@ class TestPlanDispositions(_AutoPruneBase):
         self.assertTrue(c)
         entry = [e for e in self.plan["list_trims"] if e[0][1] == c["text"]]
         self.assertEqual(len(entry), 1)
-        _a, label, value = entry[0]
-        self.assertEqual(label, "Automation Testing Frameworks: ")
-        self.assertIn("Cypress", value)
-        self.assertNotIn("Karate", value)
+        self.assertEqual(entry[0][1], "Automation Testing Frameworks: ")
+        self.assertIn("Cypress", entry[0][2])
+        self.assertNotIn("Karate", entry[0][2])
 
     def test_languages_line_list_trims_to_the_ask(self):
         # 'Python' (a capitalized mention) and 'python scripting' (the
@@ -163,10 +162,9 @@ class TestPlanDispositions(_AutoPruneBase):
         self.assertTrue(c)
         entry = [e for e in self.plan["list_trims"] if e[0][1] == c["text"]]
         self.assertEqual(len(entry), 1)
-        _a, label, value = entry[0]
-        self.assertIn("Python", value)
-        self.assertNotIn("Java", value)
-        self.assertNotIn("COBOL", value)
+        self.assertIn("Python", entry[0][2])
+        self.assertNotIn("Java", entry[0][2])
+        self.assertNotIn("COBOL", entry[0][2])
 
     def test_fully_non_jd_proficiency_line_is_cut(self):
         # Automation line's Karate is not in the JD → only Cypress and
