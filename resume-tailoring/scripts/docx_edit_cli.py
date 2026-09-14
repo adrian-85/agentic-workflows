@@ -251,6 +251,9 @@ def _script_cover_strings(script_path):
 def _prune_covered(candidate, literals, keeps, dropped_roles):
     """Whether one sidecar candidate is addressed by the script.
 
+    Matching is one-directional: the plan's prefix is the shortest unique
+    one and the script pastes its extensions verbatim, so a script literal
+    starting with the prefix covers it; the reverse would be ambiguous.
     Returns ``EDIT`` for an edit anchor, ``DROP`` for a candidate inside a
     role explicitly passed to ``drop_role``, ``KEEP`` for a keep comment, or
     ``None`` when the plan item is unaddressed.

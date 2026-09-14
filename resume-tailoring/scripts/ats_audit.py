@@ -173,14 +173,11 @@ def _hosted(text_low, phrase_low):
 
 
 def _jd_literal_terms(jd_text):
-    """Actionable literal skill phrases from qualification lines.
+    """Actionable literal skill phrases the JD asks for.
 
-    The audit checks the same ask engine as pruning, but excludes posting
-    metadata and company-introduction prose when the JD has recognizable
-    qualification headings. Those lines can contain URLs, company names,
-    and mission language that are not resume skills and should never create
-    a hard audit failure. Recruiter messages without a qualification section
-    retain the whole-message behavior.
+    Mined from recognized qualification lines when the JD has them (a
+    recruiter message keeps the whole-message behavior), so posting
+    metadata and company-introduction prose never create audit failures.
     """
     qualification_lines = jd_asks.requirement_lines(jd_text)
     source = "\n".join(qualification_lines) if qualification_lines \

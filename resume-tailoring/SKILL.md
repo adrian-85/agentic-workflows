@@ -27,10 +27,10 @@ and mine the master + LinkedIn ONLY when the ATS steps surface a gap to
 host (Step 8) — until then the agent does not even read them. Restores
 are add-driven and JD-evidenced; because the base build starts
 relevance-pruned, the old cut-iterate-cut compression loop is structurally
-gone. The base build is not necessarily under the final page or whole-resume
-word cap. Those budgets belong to Phase 2, after the initial positioning edits. Removing 25% relevant content beats leaving 25% irrelevant
+gone. Removing 25% relevant content beats leaving 25% irrelevant
 content: what the machine leaves is small enough to tailor freely. Page
-and whole-resume word budgets belong to Phase 2, not Phase 1. JD alignment
+and whole-resume word budgets are Phase 2 work — closed after the initial
+positioning edits — never Phase 1. JD alignment
 is king, readability second; time-in-role and recency are only tiebreakers,
 never a cut signal and never an exemption.
 
@@ -344,12 +344,10 @@ not discovered mid-compression when the page budget forces it:
    what a screener sees. The structural validator catches any orphaned
    title/bullets after each whole-role removal.
 
-   When a whole-role drop is approved, its machine-generated per-bullet
-   trims are disposed of by the same `drop_role()` call. Do not leave
-   `set_text()` or `set_labeled()` edits targeting the removed role, and do
-   not record those candidates as `# kept:`. `run_tailor.sh`'s prune gate
-   recognizes an enclosing `drop_role()` as a whole-role disposition and
-   reports it separately.
+   The approved `drop_role()` calls also dispose of the dropped roles'
+   per-bullet prune candidates — keep no `set_text`/`set_labeled` edits or
+   `# kept:` comments for them; the prune gate counts an enclosing
+   `drop_role()` as a whole-role disposition (docs/api.md).
 
    **Compute the resulting span BEFORE editing.** Pass each whole-role drop
    to measure as a what-if — it drops the roles in a temp copy, renders
@@ -405,12 +403,11 @@ not discovered mid-compression when the page budget forces it:
 
 ### 5. Align the top title to the JD's, then rewrite the Summary to lead with JD-aligned value
 The name/title line is what a screener compares against the posting's level
-first. After the user approves any whole-role drops, apply this title/Summary
-pass, the Step 7 senior-role re-anchor, and the Education decision before the
-first post-drop execution of the tailor script. Do not budget-trim the base
-or bypass the save gate to make an incomplete post-drop build fit. The initial
-positioning pass comes first, then measure and perform the final page/word
-budget pass. **When the JD names a title LESS SENIOR than the headline** (a
+first. The positioning pass (this step, the Step 7 senior-role re-anchor,
+and the Education decision) is applied immediately after the user approves
+whole-role drops, before the first post-drop run; measure and close the
+page/word budgets only after it. **When the JD names a title LESS SENIOR
+than the headline** (a
 mid-level "Software Test Engineer" posting against "Staff Engineer"), set the
 `[Title]` paragraph under the name to the JD's exact title
 (`set_text(find_p(ps, "<title prefix>"), "<JD title>")`); same-level retitles
@@ -574,12 +571,12 @@ cut-iterate-cut compression cycle is gone by construction, because the
 base build (Step 2) starts with relevance pruning complete; page and whole-resume
 word budgets are handled in Phase 2.
 
-**Backstop length math** — after the initial title, Summary, senior-role, and
-Education edits, measure the build and close the final page/word budgets.
-The machine-pruned build may still exceed the whole-resume cap before that
-positioning pass, but the caps still bind before rendering. **Hard bullet cap
-per role: never more than 8 kept bullets** (the machine enforces it on survivors; hosting can push a role
-back over — a trade above fixes it). **Whole-resume word cap: ≤1,000
+**Backstop length math** — the caps bind before rendering, after the initial
+positioning pass (title, Summary, senior role, Education decision); a build
+over cap before that pass is expected, not a signal to trim early.
+**Hard bullet cap per role: never more than 8 kept bullets** (the machine
+enforces it on survivors; hosting can push a role back over — a trade above
+fixes it). **Whole-resume word cap: ≤1,000
 words**, validator-enforced, second in precedence to the page target and
 never bypassed — and keep the .docx count at ~990 or below, because
 `ats_audit.py`'s rendered-PDF counter (the authoritative one) drifts
