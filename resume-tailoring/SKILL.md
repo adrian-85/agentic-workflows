@@ -503,26 +503,35 @@ present them with the checklist below.
   regulated/leadership claims a JD emphasizes.
 
 **Every surfaced JD hard and soft skill ends in exactly one of two
-states, and the full list is presented to the user in ONE message:**
+states:**
 1. **Hosted** — the literal phrase lives in a truthful bullet/Summary
    line (hard skill: user-confirmed experience; soft skill: action-verb
    evidence, safe to infer).
 2. **Raised and unanswered** — put to the user, awaiting their answer.
 
-Never mark a skill "gap, closed" on tool output alone — extraction is
-heuristic. The never-fabricate flag means "stop and ask", not
-"stop and declare". A no-host term with NO deterministic evidence is an
-ASK, not a verdict — read measure's **INFERENCE MAP**
-(`--linkedin <profile-dump.txt>`): "no literal host" is not "no
-evidence" — the map deterministically searches the master and the
-LinkedIn dump for each term's morphological variants and skill-family
-roots and prints the evidence it finds (see [docs/api.md](docs/api.md)).
-The map's evidence-gathering is mechanical; the JUDGMENT is yours:
-verify each CANDIDATE is experience the user actually has ("debugging"
-is intrinsic to every testing role; AWS in a master Tools line hosts
-"aws services"), draft a truthful literal-phrase host for it, and note
-where 'similar' tooling truthfully answers the ask (Postman/Karate for
-"SoapUI or REST API testing tools"). Host only what is confirmed.
+The INFERENCE MAP decides which terms land in which state — follow its
+verdicts; do not re-ask what the map already answered. Read measure's
+**INFERENCE MAP** (`--linkedin <profile-dump.txt>`): "no literal host"
+may not be "no evidence" — the map deterministically searches the master
+and the LinkedIn dump for each term's morphological variants and
+skill-family roots and prints the evidence it finds (see
+[docs/api.md](docs/api.md)), then prints a mechanical verdict per term:
+
+- **AUTO-HOST** — evidence found in the user's own material. Host the
+  literal phrase in the bullet/role where the evidence lives (merge,
+  don't append) **without asking the user** — the master and LinkedIn
+  ARE the user's confirmed experience, so hosting from them is never
+  fabrication ("debugging" is intrinsic to every testing role; AWS in a
+  master Tools line hosts "aws services"; SQL in a Tools line hosts
+  "SQL queries"). Note where 'similar' tooling truthfully answers the
+  ask (Postman/Karate for "SoapUI or REST API testing tools").
+- **RAISE** — no deterministic evidence anywhere. The only terms that
+  reach the user's checklist: never mark them "gap, closed" and never
+  fabricate — real experience is often lexically invisible, so ask and
+  host only what the user confirms.
+
+Present the RAISE checklist to the user in ONE message, after the
+AUTO-HOST hosts have landed.
 
 **Soft-skill asks are inferred from action-verb evidence, not
 keyword-matched — host the literal phrase by DEFAULT.** A qual line like
@@ -865,7 +874,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Widening the contact block or rewriting link text for ATS parsers | IGNORED by rule — the compact hyperlinked contact block is deliberate design; `contactEmail` searchability findings are noise (Step 11) |
 | Reformatting typography to clear the scan's Special Characters finding | IGNORED by rule — Wingdings bullets, en-dash dates, curly quotes are the user's deliberate formatting; never reformat to satisfy a text parser (Step 11) |
 | Restoring Education because the scan wants an Education section | IGNORED by rule when Education was dropped per Step 4.4 — the render gate sanctioned the drop; the scan's generic advice does not re-open it (Step 11) |
-| Treating "no literal host" as "no evidence" and declaring honest gaps | Read measure's INFERENCE MAP (Step 8): it deterministically surfaces master/LinkedIn evidence for no-host terms — judge each candidate, host the literal phrase truthfully, present the whole map in one message; debugging/UI/data-management asks are usually demonstrated, just lexically invisible (Step 8) |
+| Treating "no literal host" as "no evidence" and declaring honest gaps, or re-asking the user about evidence-backed terms | Follow the INFERENCE MAP's verdicts (Step 8): AUTO-HOST terms are hosted without asking — debugging/UI/data-management asks are usually demonstrated, just lexically invisible; the user's checklist contains exactly the RAISE terms |
 | Treating the external report's wordCount as the cap | The service's PDF parser inflates counts — the cap is `ats_audit.py`'s own count; the report's number is a cross-check only (Step 11) |
 | Storing scan-service credentials in the repo | They live in the skill root's `.ats-check/` dot-directory (user's saved cURL exports; gitignored, 0600, invisible to `git add *`); refresh from a logged-in browser when scans 401 (Step 11) |
 | Punctuation in prose (em dash, semicolon, colon, ellipsis) | Periods and commas ONLY — no em dashes, double hyphens, semicolons, colons, or ellipses (`...`); split into a new sentence or use a comma. The Tools line's `Label: values` colon is the one exempt structural colon (Step 9) |
