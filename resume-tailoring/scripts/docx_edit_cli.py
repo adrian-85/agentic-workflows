@@ -243,7 +243,11 @@ def _prune_covered(candidate, literals, keeps):
     keep-reason comment quoting it. Returns 'EDIT', 'KEEP', or None."""
     head = _norm_prune(candidate["prefix"] or candidate["text"][:24])
     for lit in literals:
-        if len(lit) >= 6 and lit.startswith(head):
+        # An exact match of the candidate's own (normalized) prefix cannot
+        # be a spurious substring match, so it is covered even when the
+        # normalization-stripped literal is under the 6-char guard (a real
+        # case: prefix "Moved " normalizes to "moved", len 5).
+        if lit == head or (len(lit) >= 6 and lit.startswith(head)):
             return "EDIT"
     text_head = _norm_prune(candidate["text"][:24])
     for keep in keeps:

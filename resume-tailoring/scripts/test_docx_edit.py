@@ -1470,6 +1470,24 @@ class PruneCoverageTests(unittest.TestCase):
             os.unlink(docx)
             os.unlink(script)
 
+    def test_exact_short_prefix_match_covers(self):
+        # A candidate whose normalized prefix is under the 6-char guard
+        # (trailing space stripped by normalization, e.g. "Moved " ->
+        # "moved") is still covered when a script literal EXACTLY equals
+        # that prefix — exact match cannot be a spurious substring hit.
+        docx = self._docx_with(
+            "Moved teams to a weekly release cadence for safety")
+        self._sidecar(docx, [self._cand(prefix="Moved ")])
+        script = self._script('ps = drop(body, ["Moved "])\n')
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = dcli.lint_prune_coverage(docx, script)
+            self.assertEqual(rc, 0)
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
     def test_short_literals_cannot_cover(self):
         # A 3-char string literal somewhere in the script must not count
         # as coverage for a candidate it merely substring-matches.
