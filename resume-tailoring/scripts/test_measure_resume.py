@@ -2883,7 +2883,7 @@ if __name__ == "__main__":
 class RequirementsSummaryTests(unittest.TestCase):
     """REQUIREMENTS SUMMARY: a compact one-line signal after the per-qual
     coverage list. Gives the agent a machine-readable hook for the
-    three-state rule (SKILL Step 2) — when unconfirmed_hard > 0 the
+    two-state rule (SKILL Step 8) — when unanswered_hard > 0 the
     checklist MUST be presented before claiming the honest ceiling."""
 
     def _ctx_with(self, jd, body):
@@ -2914,7 +2914,7 @@ class RequirementsSummaryTests(unittest.TestCase):
             mr._print_jd_coverage(roles, body, jd, jd_terms)
         buf = out.getvalue()
         self.assertIn("REQUIREMENTS SUMMARY", buf)
-        self.assertIn("unconfirmed hard skill", buf)
+        self.assertIn("unanswered hard skill", buf)
 
     def test_no_unconfirmed_no_call_to_action(self):
         # A fully-covered run must NOT tell the agent to present a
@@ -2935,7 +2935,7 @@ class RequirementsSummaryTests(unittest.TestCase):
             mr._print_jd_coverage(roles, body, jd, jd_terms)
         buf = out.getvalue()
         self.assertIn("REQUIREMENTS SUMMARY", buf)
-        self.assertNotIn("unconfirmed hard skill", buf)
+        self.assertNotIn("unanswered hard skill", buf)
         self.assertIn("1/1 quals covered", buf)
 
     def test_by_hand_soft_lines_get_hosting_directive(self):

@@ -9,15 +9,17 @@ directions over the same content:
   negative — content unit (bullet/sentence/line) evidencing no ask is CUT.
 
 One extraction (parse_asks), one matcher (hosted), one evidence rule
-(evidence). Ask classes are RULES of the engine, not per-consumer lenses:
+(evidence). The engine has two Ask classes:
   hard    — literal tech phrases/tokens; matched by hosted() everywhere
             (word-boundary + trailing plural + punctuation-stripped
             fallback — the external ATS ground truth);
   concept — JD practice phrases (shift-left, root cause, mentorship...)
-            matched by substring, identically on both sides;
-  soft    — soft-skill asks; never evidence for keeping content (remove
-            side ignores them), only the literal-phrase hosting queue
-            (add side reports them).
+            matched by stem-aware concept evidence on both sides.
+
+Soft-skill lines are intentionally a separate qualification-line
+classification (`soft_lines`), not Ask records: soft skills never protect
+content during Phase 1, while Phase 2 hosts their literal phrases from
+action-verb evidence.
 
 Extraction sources: qualification lines (cue-tail n-grams + anchored
 tokens — the strict form) and whole-posting repetition (a token/bigram
@@ -388,8 +390,8 @@ def _bigram_gate(bg):
 
 
 def parse_asks(jd_text):
-    """The ONE ask extraction. Returns a list of Ask records (hard +
-    concept; soft asks are line-classified, see soft_lines).
+    """The ONE ask extraction. Returns hard and concept Ask records;
+    soft skills are line-classified separately by soft_lines().
 
     Sources: qualification lines are EXPLICIT asks (anchored tokens,
     cue-tail phrases, ask-worthy bigrams); the whole posting adds
@@ -418,18 +420,17 @@ def parse_asks(jd_text):
                  if _bigram_gate(bg) and jd_norm.count(bg) >= 2}
     hard = tokens | phrases | repeated
     hard = {t.rstrip(".,;:!\"'") for t in hard}
-    asks = [Ask(t, "hard", "jd") for t in sorted(hard)]
+    asks = [Ask(t, "hard") for t in sorted(hard)]
     jd_low = jd_text.lower()
-    asks.extend(Ask(c, "concept", "jd") for c in JD_CONCEPTS if c in jd_low)
+    asks.extend(Ask(c, "concept") for c in JD_CONCEPTS if c in jd_low)
     return asks
 
 
 class Ask(NamedTuple):
-    """One JD ask: its match phrase, its class rule, its source."""
+    """One JD ask and its matching rule. Soft lines are separate."""
 
     phrase: str
     kind: str    # "hard" | "concept"
-    source: str
 
 
 def soft_lines(jd_text):
@@ -492,19 +493,19 @@ def _concept_hosted(text_low, phrase_low):
     return False
 
 
+def _phrase_evidence(text_low, phrase, kind):
+    """Apply the engine's matcher for one ask phrase."""
+    if kind == "concept":
+        return _concept_hosted(text_low, phrase)
+    return hosted(text_low, phrase)
+
+
 def evidence(text_low, asks):
     """The set of ask phrases one content unit evidences.
 
-    hard ask → hosted(); concept ask → substring. Soft asks never
-    evidence content (they are hosting-queue items only)."""
-    matched = set()
-    for ask in asks:
-        if ask.kind == "concept":
-            if _concept_hosted(text_low, ask.phrase):
-                matched.add(ask.phrase)
-        elif hosted(text_low, ask.phrase):
-            matched.add(ask.phrase)
-    return matched
+    Soft asks never enter this list; they are handled by soft_lines()."""
+    return {ask.phrase for ask in asks
+            if _phrase_evidence(text_low, ask.phrase, ask.kind)}
 
 
 def evidence_set(text_low, phrases):
@@ -513,14 +514,9 @@ def evidence_set(text_low, phrases):
     Kind resolves by JD_CONCEPTS membership — the same rule parse_asks
     applies — so callers that pass ask phrases as a plain set (the shim's
     ``jd_terms``) get exactly the engine's determination."""
-    matched = set()
-    for p in phrases:
-        if p in JD_CONCEPTS:
-            if _concept_hosted(text_low, p):
-                matched.add(p)
-        elif hosted(text_low, p):
-            matched.add(p)
-    return matched
+    return {p for p in phrases
+            if _phrase_evidence(text_low, p,
+                                "concept" if p in JD_CONCEPTS else "hard")}
 
 
 def unhosted(doc_text_low, asks):

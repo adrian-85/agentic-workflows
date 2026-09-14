@@ -143,17 +143,9 @@ JD_SOFT_SKILL_RE = re.compile(
     r"patience|credibility)\b",
     re.I)
 
-# Ambient tech vocabulary: words every software resume carries regardless
-# of the JD. A hit on one of these is DISPLAY-ONLY evidence — it never
-# protects a bullet (SKILL Step 3's weak class). The HubSync session's
-# kept-off-JD junk ("Mentored a junior quality engineer... transition to
-# an automation role", "Served as SME for Karate framework") survived the
-# prune only because "automation"/"frameworks"/"test" counted as strong
-# JD evidence — ambient words cannot arbitrate between bullets. A bullet
-# whose ONLY hits are ambient lands in the weak-match (cuttable) listing;
-# distinctive terms (CORE_TECH_NOUNS, mined compounds, acronyms, anything
-# JD-frequent) still protect. Deliberately NOT here: github/aws — for a
-# GitHub-platform or cloud JD those ARE the ask.
+# Resume-token vocabulary helpers used for structured list trimming and
+# legacy presence checks. JD ask determination lives in jd_asks.py; this
+# module no longer has an ambient/weak protection class.
 def _line_terms(line):
     """Tech terms from one labeled line ("Label: values"): each comma/;
     chunk verbatim (so multi-word "GitHub Actions" stays a phrase) plus
@@ -257,19 +249,12 @@ def _all_bullet_texts(body):
 def _jd_variants(term):
     """Morphological variants of ``term`` for JD-presence checking.
 
-    Mining intersects the resume's tokens with the JD text, but the two
-    inflect differently: the resume says "Triaged"/"RCAs"/"reviewed",
-    the JD asks for "triage"/"RCA"/"review". The raw substring check
-    (``t in jd_low``) misses every one of those — a real session's prune
-    plan flagged the folded "Triaged production incidents" bullet as
-    OFF-JD while "triage" was literally a JD ask. Bidirectional
-    light-stemming: plural strip/add, ``-ed``/``-ing`` strip (both
-    lengths, "triaged"→"triage" and "reviewed"→"review"), and the
-    y/ies pair. Substring (not whole-word) on purpose — lenient recall;
-    precision is downstream's (JD_STOP, the generic-rate guard, the
-    ambient/weak classes). The strict whole-word sibling is
-    _jd_term_freq; _in_jd is the lenient prefilter over the same
-    variants.
+    JD frequency checks compare inflected forms: the JD may say
+    "triage" while its prose uses "triaged", or ask for "RCA" while
+    the text says "RCAs". Bidirectional light-stemming handles plural,
+    ``-ed``/``-ing``, and y/ies variants. This helper supports the
+    unified ask engine's repeated-token recall; it is not a keep/cut
+    decision and does not replace `jd_asks.hosted()`.
     """
     out = {term}
     # Plural EXPANSION: 'harness' → 'harnesses' is a real plural; 'harness'
@@ -423,9 +408,8 @@ def _jd_hits(text, jd_terms):
     for t in jd_terms:
         if " " in t:
             # Hyphen/slash-normalized fallback: a resume hosts 'pull-request'
-            # where the JD asks for 'pull request' — same evidence, one
-            # hyphen apart (the ASDLC bullet read as evidence-free without
-            # this and landed in the weak-match cut list).
+            # where the JD asks for 'pull request' — the same literal ask
+            # under the unified matcher.
             if t in low or _norm_text(t) in low_norm:
                 out.append(t)
             continue

@@ -186,9 +186,8 @@ def main():
     #    Priority order: JD alignment, then readability; time-in-role and
     #    recency are tiebreakers only. The most-recent role is NOT exempt
     #    — recency protects it from whole-role elimination, never from
-    #    bullet selection. Use measure's DROP PLAN find_p lines (its
-    #    weak-match (cuttable) listing names generic-term matches that no
-    #    longer protect).
+    #    bullet selection. Use measure's DROP PLAN find_p lines (it lists
+    #    bullets that evidence no unified JD ask).
     # ------------------------------------------------------------------ #
     # ps = drop(body, [
     #     "<off-JD bullet to drop, weakest first — any role>",

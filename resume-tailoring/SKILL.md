@@ -191,7 +191,7 @@ role, even on target), **JD REQUIREMENT COVERAGE** (each qualification line → 
 [weak] = proficiencies/Tools-line host only, [UNCOVERED] = demonstrate it or raise the gap), **JD
 terms with NO host in the resume** (the never-fabricate flags — Step 8's mining queue), and flags
 page widows / underfilled pages + **SPACER OPPORTUNITIES** (Step 8 backstop); its **REQUIREMENTS
-SUMMARY** one-liner flags the count of unconfirmed hard skills — any count above 0 means present
+SUMMARY** one-liner flags the count of unanswered hard skills — any count above 0 means present
 the two-state checklist (Step 8) before claiming done; `validate_resume.py` re-reports the
 JD-FIT count at render/save time (the render gate is not skippable); `squeeze_resume.py` closes
 the residual page gap automatically.

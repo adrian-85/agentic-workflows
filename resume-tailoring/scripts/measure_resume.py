@@ -16,15 +16,12 @@ sanctioned measure run on the master::
 
 It prints ONLY the JD assessment — requirement coverage, the per-role
 JD-FIT AUDIT (with copy-pasteable ``find_p`` anchors), WORD-LEVEL TRIM
-CANDIDATES, and TOP-BLOCK PRUNE CANDIDATES — plus the PRUNE DISPOSITION
-CHECKLIST (one fill-in CUT/TRIM/KEEP line per candidate, for the
-one-message plan) and writes the machine-readable twin to the
-``<master>.prune.json`` sidecar (enforced by ``docx_edit.py --lint-prune``
-at tailor-run time). It suppresses every
-page/word/role-drop metric. Relevance assessment and page math are
-different decisions: all the irrelevant content is cut FIRST (SKILL
-Step 3), before pages, seniority, or word counts are decided, and a
-master's page math describes content that is about to be deleted. The
+CANDIDATES, and TOP-BLOCK PRUNE CANDIDATES — and writes the
+machine-readable twin to the ``<master>.prune.json`` sidecar (enforced by
+``docx_edit.py --lint-prune`` at tailor-run time). It suppresses every
+page/word/role-drop metric. The agent does not run this mode;
+``auto_prune.py`` owns the machine disposition. Phase 1 cuts irrelevant
+content first; Phase 2 owns page, seniority, and word-budget decisions. The
 master without ``--jd`` (or with ``--simulate``) is refused with exit 2.
 
 A tailored copy (non-master input) measures the full page math::
@@ -34,13 +31,12 @@ A tailored copy (non-master input) measures the full page math::
         --jd <raw-JD.txt> [--protect "<phrase>"]
     TARGET_PAGES=2 python3 scripts/measure_resume.py <resume.docx>
 
-``--jd`` makes the DROP PLAN JD-aware (see JD_CONCEPTS / JD_STOP below):
-candidate-tech terms that the raw JD also asks for — and JD practice
-phrases like mentorship — are excluded from the cut suggestions and listed
-as "JD-matched (kept)", so the plan never fights the JD. It also compares
+``--jd`` makes the DROP PLAN use the unified ask engine: evidenced bullets
+are excluded from cut suggestions and listed as "JD-evidenced (kept)",
+so the plan never fights an explicit JD ask. It also compares
 the JD's title against the resume headline and flags a headline that is
 MORE SENIOR (SKILL Step 5 title alignment) — advisory only. And it prints
-a per-role JD-FIT AUDIT for EVERY role — OFF-JD and weak-match bullets —
+a per-role JD-FIT AUDIT for EVERY role — unevidenced bullets —
 because the DROP PLAN only fires under page pressure and JD alignment is
 the first priority: weak bullets get cut even when the resume is already
 on target.
@@ -619,7 +615,7 @@ def _print_word_budget(body):
 
 def _coverage_status_counts(coverage):
     """Status histogram + the hard-skill subset of the UNCOVERED lines
-    (the three-state call-to-action count for REQUIREMENTS SUMMARY)."""
+    (the two-state call-to-action count for REQUIREMENTS SUMMARY)."""
     counts = {s: sum(1 for _, st, _ in coverage if st == s)
               for s in ("covered", "weak", "uncovered", "by_hand")}
     hard_uncovered = sum(
@@ -648,15 +644,15 @@ def _print_coverage_lines(coverage, term_map):
 
 def _requirements_summary_line(coverage, counts, hard_uncovered):
     """The compact one-line REQUIREMENTS SUMMARY signal for the agent —
-    when unconfirmed_hard > 0, the three-state checklist (SKILL Step 2)
+    when unanswered_hard > 0, the two-state checklist (SKILL Step 8)
     MUST be presented to the user before claiming done."""
     summary = (f"REQUIREMENTS SUMMARY: {counts['covered']}/{len(coverage)} "
                f"quals covered, {counts['weak']} weak, "
                f"{counts['uncovered']} uncovered, "
                f"{counts['by_hand']} by-hand")
     if hard_uncovered:
-        summary += (f" ({hard_uncovered} unconfirmed hard skill(s) — "
-                    "present three-state checklist to user, SKILL Step 2)")
+        summary += (f" ({hard_uncovered} unanswered hard skill(s) — "
+                    "present two-state checklist to user, SKILL Step 8)")
     if counts["by_hand"]:
         # Soft-skill asks extract no terms ([by hand]) — without a
         # directive they sat unhosted until the Step-11 scan flagged the
@@ -665,7 +661,7 @@ def _requirements_summary_line(coverage, counts, hard_uncovered):
         # bullet are both in hand (SKILL Step 2's default-inference rule).
         summary += (f" ({counts['by_hand']} soft-skill line(s) [by hand] — "
                     "host the literal phrases in THIS pass; soft skills are "
-                    "safe to infer from action-verb evidence, SKILL Step 2)")
+                    "safe to infer from action-verb evidence, SKILL Step 8)")
     return summary
 
 

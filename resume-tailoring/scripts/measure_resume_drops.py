@@ -323,11 +323,9 @@ def _nonjd_terms_in(sentence, nonjd_pool):
 def _keep_trim_candidates(role, jd_terms, vocab):
     """[(bullet, nonjd_terms, dead_sentences)] for one role.
 
-    Only KEPT bullets (strong JD term or practice-phrase evidence) are
-    scanned — OFF-JD/weak bullets are whole-cut candidates (JD-FIT AUDIT),
-    not trim candidates. Within a kept bullet, sentences carrying a JD
-    practice phrase are skipped entirely: their tokens may be the concept's
-    only host (Kafka hosting "event-driven"), so they are never trim
+    Only evidenced bullets are scanned — unevidenced bullets are whole-cut
+    candidates (JD-FIT AUDIT), not trim candidates. Within an evidenced
+    bullet, sentences with no unified ask evidence are dead-sentence
     candidates.
     """
     bullets = role.get("bullet_texts") or []
@@ -537,7 +535,7 @@ def prune_candidates(roles, jd_terms, body, protect=()):
     exits 2.
 
     Kinds mirror the printed plan's sections: ``bullet-cut`` (JD-FIT
-    AUDIT: OFF-JD or weak-match bullets — the detail carries which),
+    AUDIT: unevidenced bullets — the detail carries which),
     ``word-trim`` (kept bullets whose sentences/clauses carry non-JD
     content), ``list-trim`` (proficiencies/Tools list lines), and
     ``top-block`` (whole-line cuts — emitted once even when both the

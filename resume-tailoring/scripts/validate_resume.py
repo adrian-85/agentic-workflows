@@ -578,21 +578,19 @@ def _jd_checks(jd_path, body, span, opts, ctx):
         # headline MORE SENIOR than the JD's title warns — never blocks.
         claim_notes.append(mr.title_alignment_notes(body, jd_text))
 
-        # SKILL Step 8 render-path check: the JD-FIT AUDIT lives in measure
-        # (planning); the deliverable gate runs HERE, so bullets with weak
-        # or no JD evidence surface at render time too — a clean render is
-        # not a JD-tight resume. Advisory: the human rule may keep one,
-        # with a one-line reason tied to the JD.
+        # SKILL Phase 2 render-path check: the JD-FIT AUDIT lives in
+        # measure (planning); the deliverable gate runs HERE, so bullets
+        # with no unified ask evidence surface at render time too — a
+        # clean render is not automatically a JD-tight resume.
         jd_fit = mr._jd_fit_audit(mr._roles(body), mr._jd_terms(jd_text, body),
                                   protect=opts.protect)
         if jd_fit:
             flagged = sum(1 for s in jd_fit for l in s.splitlines()
-                          if l.lstrip().startswith(("OFF-JD", "weak-match")))
+                          if l.lstrip().startswith("OFF-JD"))
             guidance_notes.append(("warn",
                 f"JD-FIT: {flagged} bullet(s) across {len(jd_fit)} role(s) "
-                f"carry weak or no JD evidence (measure's JD-FIT AUDIT "
-                f"names them) — cut or shorten even when on target, or "
-                f"keep with a one-line reason tied to the JD"))
+                f"carry no unified JD-ask evidence (measure's JD-FIT "
+                f"AUDIT names them) — cut or rewrite even when on target"))
         else:
             guidance_notes.append(("ok",
                 "JD-FIT: every bullet carries JD evidence"))

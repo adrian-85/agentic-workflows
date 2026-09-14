@@ -9,7 +9,7 @@ through run_tailor.sh's full gate chain (ast + find_p lint + prune-coverage
 checklist, and never page/word-measures the master.
 
 Machine disposition rules (deterministic, no judgment):
-  - bullet-cut (OFF-JD / weak-match): CUT every one.
+  - bullet-cut (unevidenced by the unified ask engine): CUT every one.
   - word-trim (kept bullet with dead sentences/structured chunks):
     rewrite without dead sentences and safely removable comma/semicolon/
     parenthetical chunks, capped at WORD_CAP words.
