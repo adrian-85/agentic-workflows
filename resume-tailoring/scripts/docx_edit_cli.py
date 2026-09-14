@@ -216,31 +216,48 @@ def _norm_prune(text):
 
 
 def _script_cover_strings(script_path):
-    """(literals, keep_lines) of a tailor script: every string literal
-    (the material an edit can anchor a candidate with — find_p targets,
-    drop-list entries, set_text targets) and every ``# kept:`` / ``#
-    KEEP:`` comment line (recorded keep reasons), normalized for
-    matching."""
+    """(literals, keep_lines, dropped_roles) from a tailor script.
+
+    Literals are edit anchors and keep_lines are recorded keep reasons.
+    ``dropped_roles`` contains literal arguments to ``drop_role`` so a
+    candidate inside an explicitly removed role is covered by that stronger
+    disposition instead of being misreported as an uncovered trim.
+    """
     with open(script_path, encoding="utf-8") as f:
         source = f.read()
+    tree = ast.parse(source, script_path)
     literals = set()
-    for node in ast.walk(ast.parse(source, script_path)):
+    dropped_roles = set()
+    for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             literals.add(_norm_prune(node.value))
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(
+            func, "id", None)
+        if name == "drop_role" and len(node.args) >= 2 \
+                and isinstance(node.args[1], ast.Constant) \
+                and isinstance(node.args[1].value, str):
+            dropped_roles.add(_norm_prune(node.args[1].value))
     keeps = []
     for line in source.splitlines():
         low = _norm_prune(line)
         if "# kept:" in low or "# keep:" in low:
             keeps.append(low)
-    return literals, keeps
+    return literals, keeps, dropped_roles
 
 
-def _prune_covered(candidate, literals, keeps):
-    """Whether one sidecar candidate is addressed by the script: an edit
-    anchor (a string literal that extends the candidate's anchor prefix —
-    the plan's prefix is the shortest unique one, and the only session
-    using this flow always pasted its extensions verbatim) or a
-    keep-reason comment quoting it. Returns 'EDIT', 'KEEP', or None."""
+def _prune_covered(candidate, literals, keeps, dropped_roles):
+    """Whether one sidecar candidate is addressed by the script.
+
+    Returns ``EDIT`` for an edit anchor, ``DROP`` for a candidate inside a
+    role explicitly passed to ``drop_role``, ``KEEP`` for a keep comment, or
+    ``None`` when the plan item is unaddressed.
+    """
+    role = _norm_prune(candidate.get("role", ""))
+    if role and role in dropped_roles:
+        return "DROP"
     head = _norm_prune(candidate["prefix"] or candidate["text"][:24])
     for lit in literals:
         # An exact match of the candidate's own (normalized) prefix cannot
@@ -279,18 +296,20 @@ def _prune_stale_prefixes(candidates, ps):
     return stale
 
 
-def _prune_coverage_counts(candidates, literals, keeps):
-    """(uncovered, edit_count, keep_count) over the sidecar candidates."""
-    uncovered, edits, keeps_n = [], 0, 0
+def _prune_coverage_counts(candidates, literals, keeps, dropped_roles):
+    """Coverage counts over sidecar candidates."""
+    uncovered, edits, drops, keeps_n = [], 0, 0, 0
     for c in candidates:
-        state = _prune_covered(c, literals, keeps)
+        state = _prune_covered(c, literals, keeps, dropped_roles)
         if state == "EDIT":
             edits += 1
+        elif state == "DROP":
+            drops += 1
         elif state == "KEEP":
             keeps_n += 1
         else:
             uncovered.append(c)
-    return uncovered, edits, keeps_n
+    return uncovered, edits, drops, keeps_n
 
 
 def _report_uncovered(uncovered, total):
@@ -323,12 +342,13 @@ def lint_prune_coverage(docx_path, script_path):
     strict exec). measure_resume.py --jd writes every cut candidate it
     printed to the ``<docx>.prune.json`` sidecar; this lint reads it and
     requires each candidate to be COVERED by the script — an edit anchor
-    (find_p/drop/set_text literal on the same paragraph: a CUT or TRIM)
-    or a recorded ``# kept: <JD reason>`` comment (a KEEP). A candidate
-    with neither is UNCOVERED and fails the run: the motivating session
-    skipped the plan's word/sentence-level trims entirely, asserted
-    'trims are in', and needed two user prompts — this turns 'they are
-    in' from an assertion into a checked claim.
+    (find_p/drop/set_text literal on the same paragraph: a CUT or TRIM),
+    an enclosing ``drop_role()`` (a whole-role DROP), or a recorded
+    ``# kept: <JD reason>`` comment (a KEEP). A candidate with none is
+    UNCOVERED and fails the run: the motivating session skipped the plan's
+    word/sentence-level trims entirely, asserted 'trims are in', and needed
+    two user prompts — this turns 'they are in' from an assertion into a
+    checked claim.
 
     The sidecar must exist (run the prune plan first — SKILL Step 3) and
     every candidate anchor must still resolve against this docx: a master
@@ -337,7 +357,7 @@ def lint_prune_coverage(docx_path, script_path):
     Returns 0 clean, 1 uncovered candidates, 2 usage/sidecar errors.
     """
     try:
-        literals, keeps = _script_cover_strings(script_path)
+        literals, keeps, dropped_roles = _script_cover_strings(script_path)
     except (OSError, SyntaxError) as e:
         print(f"error: {script_path}: {e}", file=sys.stderr)
         return 2
@@ -358,13 +378,14 @@ def lint_prune_coverage(docx_path, script_path):
               "edited since the plan). Re-run the prune plan: "
               "measure_resume.py <master> --jd <JD.txt>", file=sys.stderr)
         return 2
-    uncovered, edits, keeps_n = _prune_coverage_counts(
-        candidates, literals, keeps)
+    uncovered, edits, drops, keeps_n = _prune_coverage_counts(
+        candidates, literals, keeps, dropped_roles)
     if uncovered:
         _report_uncovered(uncovered, len(candidates))
         return 1
     print(f"prune-coverage: all {len(candidates)} PRUNE-PLAN candidate(s) "
-          f"covered ({edits} edit(s), {keeps_n} recorded keep(s))")
+          f"covered ({edits} edit(s), {drops} role-drop(s), "
+          f"{keeps_n} recorded keep(s))")
     return 0
 
 

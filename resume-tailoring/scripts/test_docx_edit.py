@@ -1422,6 +1422,24 @@ class PruneCoverageTests(unittest.TestCase):
             os.unlink(docx)
             os.unlink(script)
 
+    def test_role_drop_covers_candidates_inside_removed_role(self):
+        docx = self._docx_with(
+            "Led testing efforts for the API releases")
+        self._sidecar(docx, [self._cand(
+            role="Acme", prefix="Led testing efforts")])
+        script = self._script(
+            'from docx_edit import drop_role\n',
+            'ps = drop_role(body, "Acme")\n')
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = dcli.lint_prune_coverage(docx, script)
+            self.assertEqual(rc, 0)
+            self.assertIn("1 role-drop(s)", out.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
     def test_uncovered_candidate_fails_with_listing(self):
         docx = self._docx_with(
             "Led testing efforts for the API releases",
@@ -1474,19 +1492,22 @@ class PruneCoverageTests(unittest.TestCase):
         # A candidate whose normalized prefix is under the 6-char guard
         # (trailing space stripped by normalization, e.g. "Moved " ->
         # "moved") is still covered when a script literal EXACTLY equals
-        # that prefix — exact match cannot be a spurious substring hit.
-        docx = self._docx_with(
-            "Moved teams to a weekly release cadence for safety")
-        self._sidecar(docx, [self._cand(prefix="Moved ")])
-        script = self._script('ps = drop(body, ["Moved "])\n')
-        try:
-            out = io.StringIO()
-            with contextlib.redirect_stdout(out):
-                rc = dcli.lint_prune_coverage(docx, script)
-            self.assertEqual(rc, 0)
-        finally:
-            os.unlink(docx)
-            os.unlink(script)
+        # that prefix. Exact matches cannot be spurious substring hits.
+        for text, prefix in (
+                ("Moved teams to a weekly release cadence for safety", "Moved "),
+                ("ASDLC integrations included Azure CLI and Grafana", "ASDLC ")):
+            docx = self._docx_with(text)
+            self._sidecar(docx, [self._cand(prefix=prefix, text=text)])
+            script = self._script(
+                f'ps = drop(body, ["{prefix}"])\n')
+            try:
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    rc = dcli.lint_prune_coverage(docx, script)
+                self.assertEqual(rc, 0, prefix)
+            finally:
+                os.unlink(docx)
+                os.unlink(script)
 
     def test_short_literals_cannot_cover(self):
         # A 3-char string literal somewhere in the script must not count
