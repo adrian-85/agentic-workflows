@@ -471,6 +471,10 @@ def set_text(p, text):
 
     Keeps the first run (with its rPr: font, size, bold) and discards the rest,
     so the paragraph keeps its visual style. Used for rewriting bullets/intros.
+    This REPLACES the paragraph's content — it cannot insert: a "set_text to
+    add" silently rewrites the anchor instead (a real session lost a
+    custom-testing-utilities line this way and had to restore it). To ADD a
+    new bullet/paragraph, use `clone_after`.
 
     No-op with a stderr warning if ``p`` is ``None`` (target paragraph not
     found in the master) so a script still runs when the master changed.

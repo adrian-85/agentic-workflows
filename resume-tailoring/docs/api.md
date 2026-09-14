@@ -14,6 +14,9 @@ reference. The non-obvious rules while authoring:
   (bold) run — never use it on "Label: values" proficiency lines (e.g.
   `Programming Languages: Java, Python`). Use `set_labeled` to preserve the
   bold-label / non-bold-value split.
+- **`set_text` replaces, never inserts**: calling it to "add" content rewrites
+  the anchor paragraph instead — the original line is gone. To ADD a new
+  bullet/paragraph, anchor on a unique neighbor and use `clone_after`.
 - **`find_p` resolves by original text**: prefixes match each paragraph's text
   as of `load()` time, so a script's own earlier edits can't collide mid-run.
   Smart punctuation is collapsed (curly quotes/dashes match ASCII). For
