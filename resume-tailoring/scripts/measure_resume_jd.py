@@ -198,8 +198,9 @@ def _jd_requirement_coverage(roles, body, jd_text):
 
     Status values:
       covered  – a kept bullet hosts the ask (detail: up to 2 hosts)
-      weak     – only a non-bullet line hosts it (detail: weave-in
-                 guidance, SKILL Step 6)
+      weak     – only a non-bullet line hosts it (detail: the ask is
+                 demonstrably the user's — weave the literal phrase
+                 into a bullet, no user confirmation needed)
       uncovered – no host at all (detail: restore/raise, never fabricate)
       by_hand  – no extractable terms on the line (judge manually); a
                  soft-skill ask (communication, leadership, ...) gets a
@@ -250,8 +251,10 @@ def _jd_requirement_coverage(roles, body, jd_text):
         if any(jd_asks.evidence_set(t.lower(), terms)
                for t in non_bullet_texts):
             out.append((label, "weak",
-                        "proficiency/Tools line only — weave into a "
-                        "bullet where used (SKILL Step 6)"))
+                        "proficiency/Tools line only — the ask is "
+                        "demonstrably the user's: weave the literal "
+                        "phrase into a bullet where used (SKILL Step 6); "
+                        "hosting needs no user confirmation"))
             continue
         out.append((label, "uncovered",
                     "no host — restore from the master or raise to "
@@ -332,8 +335,10 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, evidence_text=None):
     host anywhere (_jd_missing_terms) — the 'never fabricate' flags made
     mechanical instead of an agent re-reading the posting — followed by
     the deterministic INFERENCE MAP over those terms (master + LinkedIn
-    evidence search; ``evidence_text``). "No literal host" is a flag to
-    infer from, not a verdict.
+    evidence search; ``evidence_text``). Each no-host term gets a
+    mechanical verdict: AUTO-HOST (evidence found — host it) or RAISE
+    (no evidence — ask the user). "No literal host" is a flag to infer
+    from, not a verdict.
     """
     tmp_note = tmp_jd_note(jd_file)
     words = len(jd_text.split())
@@ -403,9 +408,13 @@ def _inference_map(missing_terms, body, evidence_text=None):
     For each term: search the master paragraphs (and the LinkedIn dump
     when provided) for the term's morphological variants and its
     skill-family roots; print up to _INFERENCE_MATCH_CAP evidence lines
-    per source. A term with any hit is a CANDIDATE (the agent verifies
-    and hosts truthfully); one with none is a genuine gap to raise, not
-    fabricate. Returns [] when nothing is missing.
+    per source. The verdict is mechanical, not a judgment call:
+    AUTO-HOST when evidence was found (host the JD's literal phrase in
+    the bullet/role where the evidence lives — the master and LinkedIn
+    ARE the user's material, so hosting from them is never fabrication
+    and needs no user confirmation); RAISE when none was found (ask the
+    user — real experience is often lexically invisible — and host only
+    what they confirm). Returns [] when nothing is missing.
     """
     if not missing_terms:
         return []
@@ -418,8 +427,9 @@ def _inference_map(missing_terms, body, evidence_text=None):
                ("linkedin", evidence_lines))
     out = [textwrap.fill(
         "INFERENCE MAP for no-host terms (deterministic evidence search "
-        "over the master + LinkedIn; judge each candidate against the "
-        "user's real experience before hosting — never fabricate):",
+        "over the master + LinkedIn): follow the verdicts. AUTO-HOST "
+        "terms are hosted without asking the user; the checklist "
+        "presented to the user contains exactly the RAISE terms:",
         width=76, initial_indent="  ", subsequent_indent="    ")]
     for term in missing_terms:
         _variants = _inference_variants(term)
@@ -441,20 +451,23 @@ def _inference_map(missing_terms, body, evidence_text=None):
         for label, texts in sources:
             ev.extend(f'{label}: "{m[:70]}"' for m in _hits(texts))
         if ev:
-            out.append(f"  - {term}: CANDIDATE")
+            out.append(f"  - {term}: AUTO-HOST — host the JD's literal "
+                       "phrase in the bullet/role where this evidence "
+                       "lives (merge, don't append); no user "
+                       "confirmation needed")
             out.extend(f"      {e}" for e in ev)
         else:
             out.append(
-                f"  - {term}: NO deterministic evidence — do NOT treat as "
-                "a closed gap: ASK the user (real experience is often "
-                "lexically invisible in the master/LinkedIn — macOS, "
-                "stress testing, and a user's 'Linux home lab' evidence "
-                "were, in a real session); host only what the user "
-                "confirms")
+                f"  - {term}: RAISE — no deterministic evidence — ASK "
+                "the user (real experience is often lexically invisible "
+                "in the master/LinkedIn — macOS, stress testing, and a "
+                "user's 'Linux home lab' evidence were, in a real "
+                "session); host only what the user confirms")
     out.append(textwrap.fill(
-        "CANDIDATE = evidence exists; host the JD's literal phrase in the "
-        "truthful bullet and present the whole map — candidates AND gaps — "
-        "to the user in ONE message (SKILL Step 2).",
+        "AUTO-HOST = evidence exists in the user's own material — the "
+        "literal phrase is hostable without a round-trip; RAISE = ask. "
+        "Host AUTO-HOST terms first, then present the RAISE checklist "
+        "(SKILL Step 8).",
         width=76, initial_indent="    ", subsequent_indent="    "))
     return out
 

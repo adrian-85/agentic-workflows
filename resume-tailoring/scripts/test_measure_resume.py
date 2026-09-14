@@ -1184,15 +1184,17 @@ class SessionGapFamilyTests(unittest.TestCase):
 
     def test_performance_family(self):
         out = mr._inference_map(["stress testing"], self._body())
-        self.assertIn("stress testing: CANDIDATE", "\n".join(out))
+        self.assertIn("stress testing: AUTO-HOST", "\n".join(out))
 
     def test_os_platform_family(self):
         out = mr._inference_map(["macos"], self._body())
-        self.assertIn("macos: CANDIDATE", "\n".join(out))
+        self.assertIn("macos: AUTO-HOST", "\n".join(out))
 
-    def test_gap_message_asks_the_user(self):
+        # RAISE terms are the only ones that reach the user's checklist:
+        # the verdict line must say to ask, never to fabricate.
         out = mr._inference_map(["ontology"], self._body())
         joined = "\n".join(out)
+        self.assertIn("ontology: RAISE", joined)
         self.assertIn("ASK the user", joined)
 
 
@@ -1776,10 +1778,13 @@ class JdReportTests(unittest.TestCase):
 class InferenceMapTests(unittest.TestCase):
     """The INFERENCE MAP for no-host JD terms: deterministic evidence
     search over the master (and an optional LinkedIn dump) via term
-    variants and skill-family roots. 'No literal host' is a flag to
-    infer from, not a verdict — a real session left six demonstrated
-    skills (debugging, data management, aws services, UI, LLMs, Solving
-    Problems) at zero because absence was read as absence of evidence."""
+    variants and skill-family roots. Each no-host term gets a verdict:
+    AUTO-HOST (evidence found — host it, no user confirmation needed) or
+    RAISE (no evidence — ask the user). A real session left six
+    demonstrated skills (debugging, data management, aws services, UI,
+    LLMs, Solving Problems) at zero because absence was read as absence
+    of evidence, and re-asked the user about three evidence-backed terms
+    (SQL queries, defects, advanced) the map had already answered."""
 
     def _body(self):
         return _body([
@@ -1794,10 +1799,11 @@ class InferenceMapTests(unittest.TestCase):
 
     def test_family_root_candidate_found(self):
         # 'aws services' has no literal host, but its family root (aws,
-        # cloud) hits a master paragraph — a CANDIDATE with the evidence.
+        # cloud) hits a master paragraph — an AUTO-HOST verdict with the
+        # evidence (host it, no user confirmation needed).
         out = mr._inference_map(["aws services"], self._body())
         joined = "\n".join(out)
-        self.assertIn("aws services: CANDIDATE", joined)
+        self.assertIn("aws services: AUTO-HOST", joined)
         self.assertIn("AWS cloud infrastructure", joined)
 
     def test_variant_hit_singular_and_hyphen(self):
@@ -1810,17 +1816,17 @@ class InferenceMapTests(unittest.TestCase):
                   numId=2),
         ])
         joined = "\n".join(mr._inference_map(["llms"], body))
-        self.assertIn("llms: CANDIDATE", joined)
+        self.assertIn("llms: AUTO-HOST", joined)
         self.assertIn("LLM evaluation", joined)
         joined = "\n".join(mr._inference_map(["customer facing"], body))
-        self.assertIn("customer facing: CANDIDATE", joined)
+        self.assertIn("customer facing: AUTO-HOST", joined)
         self.assertIn("customer-facing production", joined)
 
-    def test_no_evidence_term_is_a_gap_not_a_candidate(self):
+    def test_no_evidence_term_is_raised_not_auto_hosted(self):
         out = mr._inference_map(["ontology"], self._body())
         joined = "\n".join(out)
-        self.assertIn("ontology: NO deterministic evidence", joined)
-        self.assertNotIn("ontology: CANDIDATE", joined)
+        self.assertIn("ontology: RAISE", joined)
+        self.assertNotIn("ontology: AUTO-HOST", joined)
 
     def test_linkedin_dump_searched_as_second_source(self):
         # The LinkedIn export is the richer evidence source (a real

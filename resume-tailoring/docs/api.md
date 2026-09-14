@@ -398,7 +398,11 @@ not flip it — "Kafka and MSMQ in a Tools line" does not cover
 "event-driven architecture", and adjacent tooling does not cover a named
 tool. So when a qual you know is demonstrated still prints `[UNCOVERED]`,
 the fix is to host the JD's literal phrase in a truthful bullet — at
-AUTHORING time, from the master-measure's list — not to debug the matcher. Self-assessment-adjective qual lines ("Excellent communication, ...")
+AUTHORING time, from the master-measure's list — not to debug the matcher.
+A `[weak]` line means the ask is demonstrably the user's (a proficiencies
+or Tools line hosts it): weave the literal phrase into a bullet where
+used — hosting from that evidence needs no user confirmation.
+Self-assessment-adjective qual lines ("Excellent communication, ...")
 extract no skill terms and print `[by hand]` with the soft-skill inference
 rule — judge them on kept action-verb evidence (SKILL Step 8), never by
 chasing the adjective.
@@ -408,9 +412,11 @@ chasing the adjective.
 "No literal host" is not "no evidence": a real session reported six JD
 skills as honest gaps (debugging, data management, aws services, UI, LLMs,
 Solving Problems) that the user's experience clearly demonstrated — the terms
-were lexically invisible, not absent. The INFERENCE MAP is the deterministic
-half of the fix: it mechanically gathers candidate evidence so the agent can
-judge, rather than declaring gaps prematurely.
+were lexically invisible, not absent — and re-asked the user about three
+evidence-backed terms (SQL queries, defects, advanced) the map had already
+answered. The INFERENCE MAP is the deterministic fix: it gathers the
+evidence and prints a per-term verdict the agent follows, rather than
+declaring gaps or re-asking the user.
 
 **How it works.** For each term in the "JD terms with NO host" list,
 `measure_resume.py` searches the master paragraphs (and an optional LinkedIn
@@ -444,8 +450,8 @@ dump) via two mechanisms:
 | `secure software development`, `secure development`, `secure sdlc`, `secure coding` | security, compliance, fda, hipaa, mitigation, snyk, guardrails |
 
 Roots are substring-matched (loose) — `sql` matches `SQL Server`, `index`
-matches `indexed` — because these are evidence LEADS, not proof. The agent
-judges each candidate's truthfulness before hosting.
+matches `indexed` — because the corpus is the user's own material: a hit
+IS the evidence, so the verdict is mechanical.
 
 **Per-source cap:** up to `_INFERENCE_MATCH_CAP` (2) evidence lines are
 printed per source (master, LinkedIn) to keep output scannable.
@@ -453,16 +459,20 @@ printed per source (master, LinkedIn) to keep output scannable.
 **Output format:**
 ```
 INFERENCE MAP for no-host terms (deterministic evidence search over the
-  master + LinkedIn; judge each candidate against the user's real
-  experience before hosting — never fabricate):
-  - aws services: CANDIDATE
+  master + LinkedIn): follow the verdicts. AUTO-HOST terms are hosted
+  without asking the user; the checklist presented to the user contains
+  exactly the RAISE terms:
+  - aws services: AUTO-HOST — host the JD's literal phrase in the
+    bullet/role where this evidence lives (merge, don't append); no
+    user confirmation needed
       master: "Cloud & Containers: AWS, GCP, Azure, Docker, Kubernetes"
       linkedin: "AWS"
-  - ontology: NO deterministic evidence — a genuine gap: raise to the
-    user, do not fabricate
-    CANDIDATE = evidence exists; host the JD's literal phrase in the
-    truthful bullet and present the whole map — candidates AND gaps — to
-    the user in ONE message (SKILL Step 8).
+  - ontology: RAISE — no deterministic evidence — ASK the user (real
+    experience is often lexically invisible in the master/LinkedIn);
+    host only what the user confirms
+    AUTO-HOST = evidence exists in the user's own material — the literal
+    phrase is hostable without a round-trip; RAISE = ask. Host AUTO-HOST
+    terms first, then present the RAISE checklist (SKILL Step 8).
 ```
 
 **LinkedIn evidence.** Pass `--linkedin <profile-dump.txt>` (the
