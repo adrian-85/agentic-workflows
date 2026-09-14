@@ -171,6 +171,18 @@ class JdLiteralTermsTests(unittest.TestCase):
               "customer-facing teams.\n")
         self.assertEqual(aa._jd_literal_terms(jd), [])
 
+    def test_metadata_and_company_terms_are_not_literal_asks(self):
+        # Posting metadata and company names are not resume skills. They
+        # must not turn an otherwise useful audit into a false failure.
+        jd = ("Posting URL: https://example.com/job\n"
+              "STAR Autism Support\n\nRequirements\n"
+              "Ability to set your own priorities without an existing "
+              "playbook.\nExperience with Playwright.\n")
+        terms = aa._jd_literal_terms(jd)
+        self.assertIn("playwright", terms)
+        for noise in ("url", "star", "autism"):
+            self.assertNotIn(noise, terms, terms)
+
     def test_trailing_punctuation_stripped(self):
         # Sentence-final punctuation rides along in the token regexes:
         # "...REST APIs." mined "apis.", "...C#." mined "c#." — no resume
