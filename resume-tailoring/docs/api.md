@@ -412,14 +412,11 @@ chasing the adjective.
 
 ### INFERENCE MAP — evidence for no-host JD terms
 
-"No literal host" is not "no evidence": a real session reported six JD
-skills as honest gaps (debugging, data management, aws services, UI, LLMs,
-Solving Problems) that the user's experience clearly demonstrated — the terms
-were lexically invisible, not absent — and re-asked the user about three
-evidence-backed terms (SQL queries, defects, advanced) the map had already
-answered. The INFERENCE MAP is the deterministic fix: it gathers the
-evidence and prints a per-term verdict the agent follows, rather than
-declaring gaps or re-asking the user.
+"No literal host" is not "no evidence": the master and LinkedIn may contain
+experience that the tailored copy no longer shows. The INFERENCE MAP is the
+deterministic fix: it searches those approved sources and prints a per-term
+verdict the agent follows, rather than declaring gaps or re-asking about
+obvious lexical variants.
 
 **How it works.** For each term in the "JD terms with NO host" list,
 `measure_resume.py` searches the master paragraphs (and an optional LinkedIn
@@ -453,8 +450,9 @@ dump) via two mechanisms:
 | `secure software development`, `secure development`, `secure sdlc`, `secure coding` | security, compliance, fda, hipaa, mitigation, snyk, guardrails |
 
 Roots are substring-matched (loose) — `sql` matches `SQL Server`, `index`
-matches `indexed` — because the corpus is the user's own material: a hit
-IS the evidence, so the verdict is mechanical.
+matches `indexed` — so weak lexical/family matches remain hostable evidence.
+The verdict is mechanical; role placement can still require a placement
+question when the source does not identify a role.
 
 **Per-source cap:** up to `_INFERENCE_MATCH_CAP` (2) evidence lines are
 printed per source (master, LinkedIn) to keep output scannable.
@@ -463,19 +461,18 @@ printed per source (master, LinkedIn) to keep output scannable.
 ```
 INFERENCE MAP for no-host terms (deterministic evidence search over the
   master + LinkedIn): follow the verdicts. AUTO-HOST terms are hosted
-  without asking the user; the checklist presented to the user contains
+  without asking whether the user has the skill; the checklist contains
   exactly the RAISE terms:
   - aws services: AUTO-HOST — host the JD's literal phrase in the
-    bullet/role where this evidence lives (merge, don't append); no
-    user confirmation needed
+    bullet/role where this evidence lives (merge, don't append)
       master: "Cloud & Containers: AWS, GCP, Azure, Docker, Kubernetes"
       linkedin: "AWS"
   - ontology: RAISE — no deterministic evidence — ASK the user (real
     experience is often lexically invisible in the master/LinkedIn);
     host only what the user confirms
-    AUTO-HOST = evidence exists in the user's own material — the literal
-    phrase is hostable without a round-trip; RAISE = ask. Host AUTO-HOST
-    terms first, then present the RAISE checklist (SKILL Step 8).
+    AUTO-HOST = evidence exists in an approved source. If the source
+    does not identify a role, use Summary/Technical Proficiencies or ask
+    only about role placement. RAISE = ask about the skill itself.
 ```
 
 **LinkedIn evidence.** Pass `--linkedin <profile-dump.txt>` (the

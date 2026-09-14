@@ -347,17 +347,17 @@ not discovered mid-compression when the page budget forces it:
    to measure as a what-if — it drops the roles in a temp copy, renders
    THAT, and prints the resulting TIMELINE, so the year math is the tool's,
    not hand-derived in chat. One `--simulate` flag PER dropped role (not
-   positional), and the new page target as a positional before `--jd`:
+   positional), and the agreed page target as a positional before `--jd`:
 
    ```bash
-   python3 scripts/measure_resume.py "<Target>.docx" 3 --jd jd_<target>.txt \
-       --jd-years <N> --simulate "Acme Corp, Austin, TX" \
+   python3 scripts/measure_resume.py "<Target>.docx" <TARGET_PAGES> \
+       --jd "jd_<target>.txt" --simulate "Acme Corp, Austin, TX" \
        --simulate "Globex, Chicago, IL"
    ```
 
-   [docs/api.md](docs/api.md) has the full simulation reference:
-   `--jd-years`, `JD EVIDENCE LOST` interpretation,
-   and `drop_role`/`drop_section` usage.
+   Add `--jd-years <N>` only when the JD states a years requirement. See
+   [docs/api.md](docs/api.md) for the full simulation reference,
+   `JD EVIDENCE LOST` interpretation, and `drop_role`/`drop_section` usage.
 3. **Reduce number-of-years statements** to match the visible span ("15 years"
    → "7+ years" in the Summary; any other "N years" claim). The validator
    enforces this mechanically for the Summary and every paragraph.
@@ -517,14 +517,15 @@ and the LinkedIn dump for each term's morphological variants and
 skill-family roots and prints the evidence it finds (see
 [docs/api.md](docs/api.md)), then prints a mechanical verdict per term:
 
-- **AUTO-HOST** — evidence found in the user's own material. Host the
-  literal phrase in the bullet/role where the evidence lives (merge,
-  don't append) **without asking the user** — the master and LinkedIn
-  ARE the user's confirmed experience, so hosting from them is never
-  fabrication ("debugging" is intrinsic to every testing role; AWS in a
-  master Tools line hosts "aws services"; SQL in a Tools line hosts
-  "SQL queries"). Note where 'similar' tooling truthfully answers the
-  ask (Postman/Karate for "SoapUI or REST API testing tools").
+- **AUTO-HOST** — evidence found in the master or LinkedIn material.
+  Host the literal phrase in the bullet/role where the evidence lives
+  (merge, don't append) **without asking whether the user has the skill**.
+  Weak lexical/family matches are still hostable, so do not ask about
+  plural forms such as `defects` or obvious evidence such as SQL. If the
+  evidence does not identify a role, use the Summary or Technical
+  Proficiencies section. Ask about placement only when a role-specific
+  claim truly requires it. Note where 'similar' tooling truthfully
+  answers the ask (Postman/Karate for "SoapUI or REST API testing tools").
 - **RAISE** — no deterministic evidence anywhere. The only terms that
   reach the user's checklist: never mark them "gap, closed" and never
   fabricate — real experience is often lexically invisible, so ask and
@@ -626,14 +627,14 @@ verify with `render_pdf.sh`:
 
 ```bash
 RESUME_VALIDATE_ARGS="--seniority-approved --jd jd_<target>.txt" \
-    TARGET_PAGES=2 ./scripts/render_pdf.sh "<Name> Resume - <Target>.docx"
+    TARGET_PAGES=<TARGET_PAGES> ./scripts/render_pdf.sh \
+    "<Name> Resume - <Target>.docx"
 ```
 
-The page target and JD go in as env vars — `TARGET_PAGES` for the page
-target, `--jd`/`--seniority-approved` inside `RESUME_VALIDATE_ARGS` (the
-save-time gate reads the same env). [docs/api.md](docs/api.md) has the
-full render reference: `--verbose`, `--target-pages`, the approval-token
-rules, and what each gate NOTE means.
+Use the agreed page target for `TARGET_PAGES`. The JD and approval token go
+inside `RESUME_VALIDATE_ARGS` (the save-time gate reads the same env).
+[docs/api.md](docs/api.md) has the full render reference: `--verbose`,
+`--target-pages`, the approval-token rules, and what each gate NOTE means.
 
 `render_pdf.sh` **validates first** (runs `validate_resume.py`): it refuses to
 render on blocking errors — orphan content, unapproved whole-role elimination,
