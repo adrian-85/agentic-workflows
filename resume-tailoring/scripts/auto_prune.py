@@ -1,11 +1,11 @@
-"""auto_prune — the MACHINE Phase A of the resume-tailoring workflow.
+"""auto_prune — the MACHINE Phase 1 of the resume-tailoring workflow.
 
 One command replaces the agent-driven prune pass end to end: it reads the
 master + JD, machine-dispositions EVERY prune candidate (no agent keeps,
 no overrides, no cut report), EMITS the first tailor script, and runs it
 through run_tailor.sh's full gate chain (ast + find_p lint + prune-coverage
 + strict exec). The agent's work starts on the resulting lean base build
-(SKILL Phase B) — it never negotiates a cut, never sees a disposition
+(SKILL Phase 2) — it never negotiates a cut, never sees a disposition
 checklist, and never page/word-measures the master.
 
 Machine disposition rules (deterministic, no judgment):
@@ -30,7 +30,7 @@ usage:
 
 Output (deliberately minimal — no cut report):
     WROTE scripts/tailor_<target>.py
-    BUILD: <userName> Resume - <Target>.docx  (Phase B measures this copy)
+    BUILD: <userName> Resume - <Target>.docx  (Phase 2 tailors this copy)
 
 The agent should not read this file's plan internals — the SKILL contract
 is: run the command, then work from the base build.
@@ -60,7 +60,7 @@ PER_ROLE_CAP = 8   # hard per-role kept-bullet cap (SKILL Step 8)
 USAGE = """usage: auto_prune.py "<userName> Master Resume.docx" jd_<target>.txt \\
         [--target "<Target Name>"]
 
-Machine Phase A: machine-prunes the master against the JD, emits
+Machine Phase 1: machine-prunes the master against the JD, emits
 scripts/tailor_<target>.py, and runs it through run_tailor.sh's gates.
 --target names the deliverable (default: derived from the JD filename).
 """
@@ -104,8 +104,9 @@ def _unhosted_keyword_tokens(sentence, jd_terms):
     grammatical span (coordination, preposition, or comma list).
 
     Returns (text, changed). If no safe span exists, the token stays for
-    Phase 2 rewriting rather than being deleted in broken prose.
-    """
+    Phase 2 rewriting rather than being deleted in broken prose. The
+    sentence's first token is never a removal candidate: bullets open
+    with their action verb ("Built", "Led"), never with the ask."""
     token_re = re.compile(
         r"(?<![A-Za-z0-9])([A-Z][A-Za-z0-9+#.-]*|"
         r"[A-Za-z]+[A-Z][A-Za-z0-9+#.-]*)(?![A-Za-z0-9])")
@@ -138,12 +139,14 @@ def _unhosted_keyword_tokens(sentence, jd_terms):
 
 
 def _trim_structured_chunks(sentence, jd_terms):
-    """Remove unevidenced parentheticals and grammatical structured
-    clauses/chunks from an otherwise evidenced sentence.
+    """Remove non-JD keywords and phrases from an evidenced sentence,
+    wherever they sit, keeping the sentence grammatical.
 
-    Only structured chunks are removed. An ordinary prose token is left
-    intact when deleting it would require grammar generation; Phase 2 can
-    rewrite that sentence safely.
+    Safe spans: parentheticals, coordinated/prepositional keyword spans
+    (``with Java``, ``using Java``, ``Java and Selenium``), and
+    comma/semicolon list chunks. An ordinary prose word with no such
+    span stays intact — Phase 2 rewrites that sentence rather than the
+    machine emitting broken prose.
     """
     changed = False
 
@@ -484,14 +487,14 @@ def emit_script(plan, src, dst, meta):
     stats = plan["stats"]
     lines = [
         f'"""Auto-pruned base build for {meta["target"]} — machine '
-        f'Phase A (auto_prune.py).',
+        f'Phase 1 (auto_prune.py).',
         "",
         f"JD: {meta['jd_name']}. Every PRUNE-PLAN candidate is addressed "
         f"here by the machine:",
         f"CUT {stats['cut']}, TRIM {stats['trim']}, stubs {stats['stub']}, "
         f"emptied sections {stats['section']}.",
         "No agent judgment and no cut report — the agent's work starts at "
-        "SKILL Phase B",
+        "SKILL Phase 2",
         "on this build. Re-run:",
         "",
         f'    cd "$(dirname "$0")/.." && python3 '
@@ -512,7 +515,7 @@ def emit_script(plan, src, dst, meta):
         "    root, body, names, data, _ = load(DST)",
         "    ps = paras(body)",
         "",
-        "    # ---- Phase A cuts (machine dispositions) ----------------- #",
+        "    # ---- Phase 1 cuts (machine dispositions) ---------------- #",
     ]
     if plan["drops"]:
         lines.append("    ps = drop(body, [")
@@ -668,9 +671,9 @@ def main():
     stats = plan["stats"]
     print(f"AUTO-PRUNE: {stats['cut']} cut, {stats['trim']} trimmed, "
           f"{stats['stub']} stub(s), {stats['section']} section(s) "
-          f"emptied — no cut report (SKILL Phase A)")
+          f"emptied — no cut report (SKILL Phase 1)")
     print(f"WROTE scripts/{meta['script_name']}")
-    print(f"BUILD: {dst} — Phase B measures this copy (never the master)")
+    print(f"BUILD: {dst} — Phase 2 tailors this copy (never the master)")
 
 
 if __name__ == "__main__":

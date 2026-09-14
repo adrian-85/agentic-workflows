@@ -500,14 +500,6 @@ def _phrase_evidence(text_low, phrase, kind):
     return hosted(text_low, phrase)
 
 
-def evidence(text_low, asks):
-    """The set of ask phrases one content unit evidences.
-
-    Soft asks never enter this list; they are handled by soft_lines()."""
-    return {ask.phrase for ask in asks
-            if _phrase_evidence(text_low, ask.phrase, ask.kind)}
-
-
 def evidence_set(text_low, phrases):
     """String-based evidence: the subset of ``phrases`` the text hosts.
 
@@ -522,7 +514,8 @@ def evidence_set(text_low, phrases):
 def unhosted(doc_text_low, asks):
     """The positive direction: asks with NO host in the whole document —
     the mining queue (add side) and the never-fabricate flags."""
-    return [a for a in asks if a.phrase not in evidence(doc_text_low, asks)]
+    hosted_phrases = evidence_set(doc_text_low, {a.phrase for a in asks})
+    return [a for a in asks if a.phrase not in hosted_phrases]
 
 
 def hard_phrases(jd_text):

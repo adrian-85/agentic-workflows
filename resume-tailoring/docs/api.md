@@ -321,7 +321,7 @@ python3 scripts/measure_resume.py "<userName> Master Resume.docx" --jd jd_<targe
 
 The master without `--jd` exits 2; `--simulate` on the master exits 2
 (seniority what-ifs run on the base build, Step 4). An explicit page target
-is ignored with a note. **The agent does not run this mode** — Phase A's
+is ignored with a note. **The agent does not run this mode** — Phase 1's
 `auto_prune.py` (SKILL Step 2) is the machine prune's only consumer: it
 machine-dispositions every candidate (no agent keeps, no overrides, no cut
 report), emits the first tailor script, and runs it through `run_tailor.sh`.
@@ -341,7 +341,7 @@ exits 2 while any candidate has neither an edit nor a machine-generated
 keep explanation, and 2 on a STALE sidecar (a candidate anchor no longer
 resolves — the master changed since the plan; re-run `auto_prune.py`).
 The sidecar is an internal gate artifact, not an agent-facing planning
- deliverable.
+deliverable.
 
 ### WORD-LEVEL TRIM CANDIDATES
 

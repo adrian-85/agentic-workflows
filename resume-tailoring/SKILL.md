@@ -15,7 +15,7 @@ styles, list/bullet numbering, and hyperlinks all survive.
 
 **The machine prunes; the agent tailors; nothing irrelevant ever reaches
 the build.** Copy the master, never overwrite it — every run writes a new
-file (e.g. `John Doe Resume - <Target>.docx`). Phase A (`auto_prune.py`,
+file (e.g. `John Doe Resume - <Target>.docx`). Phase 1 (`auto_prune.py`,
 Step 2) machine-dispositions EVERY paragraph of the master against the JD
 — every bullet, dead sentence, list chunk, and Tools line — and emits and
 runs the first tailor script through the full gate chain. The agent never
@@ -79,7 +79,7 @@ User-supplied personal assets (`*.docx` / `*.pdf`, gitignored) live in the skill
 - `<userName> Master Resume.docx` — the comprehensive data pool and the
   formatting/structure source. No separate per-target template is needed:
   Phase 1 copies and edits this document in place while preserving its XML
-  styles. **Phase A's `auto_prune.py` is the only sanctioned master consumer
+  styles. **Phase 1's `auto_prune.py` is the only sanctioned master consumer
   at build time** — the agent does not open the master (or the LinkedIn
   export) until Phase 2's gap mining unlocks it; re-running the machine
   command, not hand-pruning, refreshes a stale base. **Real experience belongs here** — if a
@@ -128,7 +128,7 @@ The loop is render-and-measure heavy. The deterministic parts are tool-enforced;
 manual habits are:
 
 1. **Author edits from `--prefixes` alone** (uniqueness-checked copy-paste; the paragraph
-   map adds style/numId — only for rare layout checks). Phase A hands you the base build
+   map adds style/numId — only for rare layout checks). Phase 1 hands you the base build
    and its emitted `tailor_<target>.py`; your later edits (Steps 5–8) EXTEND that script —
    dump `--prefixes` on the BASE BUILD, not the master. To read a paragraph's FULL text
    before rewriting it (Summary, senior-role intro, a bullet), use
@@ -229,7 +229,7 @@ the residual page gap automatically.
   `ats_check.py` reuses that known posting URL for the metadata PATCH
   and prints the reuse.
 - **The master resume and the LinkedIn export are NOT inputs here.**
-  Phase A's `auto_prune.py` (Step 2) is the only sanctioned master
+  Phase 1's `auto_prune.py` (Step 2) is the only sanctioned master
   consumer until Step 8's gap mining unlocks both — the agent that reads
   the master early starts justifying keeps from it, which is how the
   prune gets ignored.
@@ -263,8 +263,7 @@ Output is deliberately minimal — `WROTE scripts/tailor_<target>.py` and
 by argument or restore-from-report: a later phase that genuinely needs
 cut content gets it through Step 8's gap-driven mining, as a fresh,
 purpose-written host — which tailors better than preserved master prose
-anyway. Removing 25% relevant content beats leaving 25% irrelevant
-content.
+anyway.
 
 The machine protects hosts by construction: any chunk carrying a JD term
 or a practice-phrase concept survives every trim, so a JD-named hard
@@ -275,7 +274,7 @@ still verifies post-build).
 - Run `measure_resume.py` on the BASE BUILD (never the master — the tool
   refuses it): page-fill table, TIMELINE, word budget. The machine prune
   already removed everything without JD evidence, so the build lands
-  under the relevance burden by construction, but Phase 1 does not enforce
+  JD-evidenced content only by construction, but Phase 1 does not enforce
   page or whole-resume word budgets. Measure the result for diagnosis;
   perform all budget iteration in Phase 2.
 - Read the coverage report's [UNCOVERED] and [weak] lists and the **JD
@@ -642,7 +641,7 @@ fabricate). JD-named terms with no host mean a cut killed the last host
 (the machine protects JD-named chunks, but a hosting rewrite can kill
 one — Step 8's in-bullet rule) or the phrase was never mirrored — fix or
 raise. **Before raising a no-host term as a genuine gap, grep the MASTER
-for it — including the content Phase A cut.** Cut-first means the
+for it — including the content Phase 1 cut.** Cut-first means the
 master still hosts what the deliverable lost: a real session kept
 `cybersecurity` on the FAIL list for two scan rounds while the only
 truthful host — a CareMetx security bullet cut during compression — sat
@@ -829,7 +828,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Measuring the full master for page/word budgets | Refused by the tool — the master is machine-pruned only (Step 2); length/word decisions run on the BASE BUILD (Steps 3–4) |
 | Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 2, 8) |
 | Treating a proficiencies/Tools line as permanent ATS-host real estate | The machine strips every non-JD chunk from list lines and cuts lines with no ask (Step 2); hosting comes from purpose-written bullet text, not preserved lines |
-| Re-litigating Phase A cuts by argument, or hand-pruning the master | The machine's disposition stands; there is no `# kept:` negotiation. `auto_prune.py` is the only sanctioned master consumer — re-run the command rather than editing its output cuts. Content the JD genuinely needs returns via Step 8 mining as a fresh, purpose-written host |
+| Re-litigating Phase 1 cuts by argument, or hand-pruning the master | The machine's disposition stands; there is no `# kept:` negotiation. `auto_prune.py` is the only sanctioned master consumer — re-run the command rather than editing its output cuts. Content the JD genuinely needs returns via Step 8 mining as a fresh, purpose-written host |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
 | Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (`save()` prints one summary line if element-form was used). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form (Helper library) |
 | Iterating Tools-line trims because a trimmed line still wraps | Rare now: TOOLS LINES THAT WRAP reports the MEASURED budget per line ("value is N chars, wraps after ~M — cut ~N-M chars"), so the first trim lands. Trim to the reported budget, not a tool count — the proportional font makes "~8 tools" unreliable (Step 8) |

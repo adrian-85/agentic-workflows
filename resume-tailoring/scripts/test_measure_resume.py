@@ -2886,16 +2886,6 @@ class RequirementsSummaryTests(unittest.TestCase):
     two-state rule (SKILL Step 8) — when unanswered_hard > 0 the
     checklist MUST be presented before claiming the honest ceiling."""
 
-    def _ctx_with(self, jd, body):
-        roles = mr._roles(body)
-        jd_terms = mr._jd_terms(jd, body)
-        return mr._ReportCtx(
-            target=2, default_target=True, jd_text=jd, jd_terms=jd_terms,
-            protect=[], body=body, roles=roles,
-            matched=[], pages_text=[], total_pages=2, over=0,
-            overflow_lines=0, capacity=44, fixed_top=20,
-            role_lines=30, edu=3, wrapped=[])
-
     def test_summary_line_printed(self):
         jd = ("Required Qualifications:\n"
               "Selenium and Java experience\n"
@@ -2916,7 +2906,7 @@ class RequirementsSummaryTests(unittest.TestCase):
         self.assertIn("REQUIREMENTS SUMMARY", buf)
         self.assertIn("unanswered hard skill", buf)
 
-    def test_no_unconfirmed_no_call_to_action(self):
+    def test_fully_covered_run_has_no_checklist_call_to_action(self):
         # A fully-covered run must NOT tell the agent to present a
         # checklist that is empty — the call-to-action is conditional.
         jd = ("Required Qualifications:\n"
