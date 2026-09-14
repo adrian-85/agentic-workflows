@@ -328,48 +328,29 @@ report), emits the first tailor script, and runs it through `run_tailor.sh`.
 The only `# kept:` lines in an emitted script are the machine's stub keeps
 (a role would otherwise lose every bullet; timeline gaplessness).
 
-**PRUNE DISPOSITION CHECKLIST + sidecar.** Every --jd run ends with a flat
-checklist — one line per candidate (bullet-cut / word-trim / list-trim /
-top-block, each with its `find_p` anchor):
-
-```
-PRUNE COVERAGE SIDECAR: <skill root>/Adrian Master Resume.docx.prune.json
-PRUNE DISPOSITION CHECKLIST — EVERY candidate needs exactly one
-disposition: CUT (drop whole), TRIM (word-level per the plan: cut the
-flagged sentence, strip the flagged clause/chunk), or KEEP (# kept:
-<one-line JD reason>). Copy this table into the ONE-message plan filled
-in — 'highlights' are not a plan — and mirror every row in the tailor
-script: run_tailor.sh exits 2 while any line is uncovered (--lint-prune).
-   1. bullet-cut find_p(ps, "Pushed")
-      # Pushed for and obtained a weekly release cadence enabling…
-      (OFF-JD)
-   2. word-trim find_p(ps, "Champi")
-      # Championed the adoption of Cypress, co-architecting…
-      (strip: cypress)
-```
-
-and writes the machine-readable
-twin to `<master>.prune.json` (the drift-sidecar pattern; refreshed on every
-run). The machine dispositions every line (`CUT` / `TRIM`, plus stub keeps
-per the SKILL Step 2 rules); this section documents what the tools emit and
-enforce.
+**Machine prune sidecar + coverage gate.** The internal `--jd` machinery
+writes `<master>.prune.json`, one candidate record per bullet/list/section
+candidate. `auto_prune.py` consumes that data and generates all CUT/TRIM
+edits itself. The agent does not run the master mode, fill a disposition
+checklist, or negotiate `# kept:` reasons. A `# kept:` line in a generated
+script is only a machine-created timeline-stub or whole-section explanation.
 
 **Enforced, not a habit:** `run_tailor.sh` runs `docx_edit.py
 <master> --lint-prune <script>` before executing the tailor script. It
-exits 2 while any candidate has neither an edit nor a recorded keep, and 2
-on a STALE sidecar (a candidate anchor no longer resolves — the master
-changed since the plan; re-run `auto_prune.py`). A `# kept:` comment must
-quote the candidate's anchor prefix or text head (whitespace/quote
-normalization is applied, so curly apostrophes match) — the comment IS the
-record the final review re-reads.
+exits 2 while any candidate has neither an edit nor a machine-generated
+keep explanation, and 2 on a STALE sidecar (a candidate anchor no longer
+resolves — the master changed since the plan; re-run `auto_prune.py`).
+The sidecar is an internal gate artifact, not an agent-facing planning
+ deliverable.
 
 ### WORD-LEVEL TRIM CANDIDATES
 
 `measure_resume.py --jd` emits this section after the JD-FIT AUDIT.
-It names non-JD content inside KEPT bullets (bullets carrying strong
-JD evidence) and list lines (Technical Proficiencies, role Tools
-lines) that survived bullet-granular cutting but still carry
-irrelevant tool mentions or dead sentences.
+It names non-JD content inside kept bullets and list lines (Technical
+Proficiencies, role Tools lines) that survived bullet-level cutting but
+still carry irrelevant tool mentions, structured chunks, or dead
+sentences. Phase 1 applies safe structured trims automatically; ordinary
+prose that cannot be safely shortened remains for Phase 2 rewriting.
 
 **Bullet-level output:**
 ```

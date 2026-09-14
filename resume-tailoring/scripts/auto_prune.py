@@ -10,8 +10,9 @@ checklist, and never page/word-measures the master.
 
 Machine disposition rules (deterministic, no judgment):
   - bullet-cut (OFF-JD / weak-match): CUT every one.
-  - word-trim (kept bullet with dead sentences): rewrite the bullet
-    without the dead sentences, capped at WORD_CAP words.
+  - word-trim (kept bullet with dead sentences/structured chunks):
+    rewrite without dead sentences and safely removable comma/semicolon/
+    parenthetical chunks, capped at WORD_CAP words.
   - list-trim (proficiencies/Tools line): strip the non-JD chunks; a line
     with NO surviving chunk is cut whole.
   - top-block (no-JD-evidence proficiencies/cert line): CUT. A section
@@ -98,6 +99,103 @@ def _strength(text, jd_terms):
             _weakness_key(text))
 
 
+def _unhosted_keyword_tokens(sentence, jd_terms):
+    """Remove a non-JD proper/technology token only through a common
+    grammatical span (coordination, preposition, or comma list).
+
+    Returns (text, changed). If no safe span exists, the token stays for
+    Phase 2 rewriting rather than being deleted in broken prose.
+    """
+    token_re = re.compile(
+        r"(?<![A-Za-z0-9])([A-Z][A-Za-z0-9+#.-]*|"
+        r"[A-Za-z]+[A-Z][A-Za-z0-9+#.-]*)(?![A-Za-z0-9])")
+    matches = list(token_re.finditer(sentence))
+    tokens = [m.group(1) for m in matches[1:]]
+    value = sentence
+    changed = False
+    for token in tokens:
+        if jd_asks.evidence_set(token.lower(), jd_terms):
+            continue
+        escaped = re.escape(token)
+        patterns = (
+            rf"\b{escaped}\s+and\s+",
+            rf"\band\s+{escaped}\b",
+            rf"\s+(?:with|using|via|in|on|from|to)\s+{escaped}\b",
+            rf"\s*,\s*{escaped}\b",
+            rf"\b{escaped}\s*,\s*",
+        )
+        for pattern in patterns:
+            candidate = re.sub(pattern, " ", value, count=1,
+                               flags=re.I)
+            candidate = re.sub(r"\s+([,.])", r"\1", candidate)
+            candidate = re.sub(r" {2,}", " ", candidate).strip()
+            if (candidate != value
+                    and jd_asks.evidence_set(candidate.lower(), jd_terms)):
+                value = candidate
+                changed = True
+                break
+    return value, changed
+
+
+def _trim_structured_chunks(sentence, jd_terms):
+    """Remove unevidenced parentheticals and grammatical structured
+    clauses/chunks from an otherwise evidenced sentence.
+
+    Only structured chunks are removed. An ordinary prose token is left
+    intact when deleting it would require grammar generation; Phase 2 can
+    rewrite that sentence safely.
+    """
+    changed = False
+
+    def drop_unhosted_parenthetical(match):
+        nonlocal changed
+        if jd_asks.evidence_set(match.group(1).lower(), jd_terms):
+            return match.group(0)
+        changed = True
+        return ""
+
+    value = re.sub(r"\s*\(([^()]*)\)",
+                   drop_unhosted_parenthetical, sentence).strip()
+    value, keyword_changed = _unhosted_keyword_tokens(value, jd_terms)
+    changed |= keyword_changed
+
+    def strip_unhosted_tail_clause(value):
+        tail = re.search(
+            r"\s+(?:with|using|via|through|and)\s+([^,;.!?]+)([.!?])?$",
+            value, re.I)
+        if not tail:
+            return value, False
+        prefix = value[:tail.start()].rstrip()
+        clause = tail.group(0).strip()
+        if (jd_asks.evidence_set(prefix.lower(), jd_terms)
+                and not jd_asks.evidence_set(clause.lower(), jd_terms)):
+            return prefix + (tail.group(2) or ""), True
+        return value, False
+
+    parts = re.split(r"([,;])", value)
+    if len(parts) >= 3:
+        content = []
+        for index in range(0, len(parts), 2):
+            chunk, removed = strip_unhosted_tail_clause(parts[index].strip())
+            changed |= removed
+            content.append(chunk)
+        if jd_asks.evidence_set(content[0].lower(), jd_terms):
+            kept = [content[0].rstrip(".,;:!?\"")]
+            for chunk in content[1:]:
+                chunk = chunk.strip().rstrip(".,;:!?\"")
+                if jd_asks.evidence_set(chunk.lower(), jd_terms):
+                    kept.append(chunk)
+                else:
+                    changed = True
+            if changed:
+                terminal = value.rstrip()[-1] if value.rstrip()[-1:] in ".!?" else ""
+                return ", ".join(kept).rstrip(".,;:!?\"") + terminal
+    else:
+        value, removed = strip_unhosted_tail_clause(value)
+        changed |= removed
+    return value
+
+
 def _trim_bullet_text(text, jd_terms):
     """The bullet rewritten without dead sentences, capped at WORD_CAP.
 
@@ -112,6 +210,7 @@ def _trim_bullet_text(text, jd_terms):
             if jd_asks.evidence_set(s.lower(), jd_terms)]
     if not keep:
         return None
+    keep = [_trim_structured_chunks(s, jd_terms) for s in keep]
 
     def _words(sents):
         return len(" ".join(sents).split())
@@ -545,9 +644,8 @@ def _load_candidates(docx, jd_text):
     roles = _roles(body)
     jd_terms = {a.phrase for a in jd_asks.parse_asks(jd_text)}
     if not jd_terms:
-        print("error: no candidate-tech terms intersect the resume's "
-              "vocabulary — check the JD file is the raw posting text",
-              file=sys.stderr)
+        print("error: no JD asks were extracted — check the JD file is the "
+              "raw posting text", file=sys.stderr)
         sys.exit(2)
     candidates = prune_candidates(roles, jd_terms, body, protect=())
     if not candidates:

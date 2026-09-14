@@ -277,6 +277,37 @@ class TestEmittedScriptRuns(_AutoPruneBase):
 
 class TestTrimHelpers(unittest.TestCase):
 
+    def test_trim_bullet_text_removes_unhosted_word_clause(self):
+        text = "Built Selenium suites with Java."
+        trimmed = auto_prune._trim_bullet_text(text, {"selenium"})
+        self.assertEqual(trimmed, "Built Selenium suites.")
+
+    def test_trim_bullet_text_removes_unhosted_comma_chunk(self):
+        text = "Built Selenium suites with Java, TestNG and Playwright."
+        trimmed = auto_prune._trim_bullet_text(
+            text, {"selenium", "java"})
+        self.assertEqual(trimmed, "Built Selenium suites with Java.")
+
+    def test_trim_bullet_text_removes_unhosted_parenthetical(self):
+        text = "Built Selenium suites with Java (TestNG and Playwright)."
+        trimmed = auto_prune._trim_bullet_text(
+            text, {"selenium", "java"})
+        self.assertEqual(trimmed, "Built Selenium suites with Java.")
+
+    def test_trim_bullet_text_removes_unhosted_middle_clause_word(self):
+        text = ("Built Selenium tests using Java, creating a unified UI "
+                "test approach.")
+        trimmed = auto_prune._trim_bullet_text(
+            text, {"selenium", "unified ui test approach"})
+        self.assertEqual(
+            trimmed, "Built Selenium tests, creating a unified UI test approach.")
+
+    def test_trim_bullet_text_removes_unhosted_keyword_before_relevant_word(self):
+        text = "Built Java and Selenium tests for the API."
+        trimmed = auto_prune._trim_bullet_text(
+            text, {"selenium", "api"})
+        self.assertEqual(trimmed, "Built Selenium tests for the API.")
+
     def test_trim_bullet_text_drops_dead_sentences_and_caps_words(self):
         jd_terms = {"cypress"}
         text = ("Automated the regression suite with Cypress across "
