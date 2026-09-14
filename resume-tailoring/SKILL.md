@@ -346,8 +346,17 @@ not discovered mid-compression when the page budget forces it:
    **Compute the resulting span BEFORE editing.** Pass each whole-role drop
    to measure as a what-if — it drops the roles in a temp copy, renders
    THAT, and prints the resulting TIMELINE, so the year math is the tool's,
-   not hand-derived in chat. See [docs/api.md](docs/api.md) for the full
-   simulation command, `--jd-years`, `JD EVIDENCE LOST` interpretation,
+   not hand-derived in chat. One `--simulate` flag PER dropped role (not
+   positional), and the new page target as a positional before `--jd`:
+
+   ```bash
+   python3 scripts/measure_resume.py "<Target>.docx" 3 --jd jd_<target>.txt \
+       --jd-years <N> --simulate "Acme Corp, Austin, TX" \
+       --simulate "Globex, Chicago, IL"
+   ```
+
+   [docs/api.md](docs/api.md) has the full simulation reference:
+   `--jd-years`, `JD EVIDENCE LOST` interpretation,
    and `drop_role`/`drop_section` usage.
 3. **Reduce number-of-years statements** to match the visible span ("15 years"
    → "7+ years" in the Summary; any other "N years" claim). The validator
@@ -604,9 +613,18 @@ session that created them.
 
 ### 11. Render the final PDF and verify
 The `.docx` is the editing format; **the `.pdf` is the deliverable** — render and
-verify with `render_pdf.sh`. See [docs/api.md](docs/api.md) for the full
-render command, `--target-pages`, `RESUME_VALIDATE_ARGS`, and approval-token
-rules.
+verify with `render_pdf.sh`:
+
+```bash
+RESUME_VALIDATE_ARGS="--seniority-approved --jd jd_<target>.txt" \
+    TARGET_PAGES=2 ./scripts/render_pdf.sh "<Name> Resume - <Target>.docx"
+```
+
+The page target and JD go in as env vars — `TARGET_PAGES` for the page
+target, `--jd`/`--seniority-approved` inside `RESUME_VALIDATE_ARGS` (the
+save-time gate reads the same env). [docs/api.md](docs/api.md) has the
+full render reference: `--verbose`, `--target-pages`, the approval-token
+rules, and what each gate NOTE means.
 
 `render_pdf.sh` **validates first** (runs `validate_resume.py`): it refuses to
 render on blocking errors — orphan content, unapproved whole-role elimination,
