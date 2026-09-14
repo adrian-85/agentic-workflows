@@ -25,9 +25,10 @@ starts on the resulting LEAN BASE BUILD: measure it and decide
 length/seniority (Steps 3–4), tailor title/Summary/flagship (Steps 5–7),
 and mine the master + LinkedIn ONLY when the ATS steps surface a gap to
 host (Step 8) — until then the agent does not even read them. Restores
-are add-driven and JD-evidenced; because the base build starts under
-every budget, the old cut-iterate-cut compression loop is structurally
-gone. Removing 25% relevant content beats leaving 25% irrelevant
+are add-driven and JD-evidenced; because the base build starts
+relevance-pruned, the old cut-iterate-cut compression loop is structurally
+gone. The base build is not necessarily under the final page or whole-resume
+word cap. Those budgets belong to Phase 2, after the initial positioning edits. Removing 25% relevant content beats leaving 25% irrelevant
 content: what the machine leaves is small enough to tailor freely. Page
 and whole-resume word budgets belong to Phase 2, not Phase 1. JD alignment
 is king, readability second; time-in-role and recency are only tiebreakers,
@@ -63,10 +64,10 @@ restore phase.
 | 2 | PHASE A — the machine prune: dispositions every candidate, emits the first tailor script, runs it through the gates, writes the lean base build. No cut report | `auto_prune.py` (runs `run_tailor.sh`) |
 | 3 | Measure the BASE BUILD (never the master) — diagnose relevance output; do not budget-prune in Phase 1 | `measure_resume.py` on the base copy |
 | 4 | Decide length + seniority alignment (whole-role drops, with the user) | `measure_resume.py --simulate` |
-| 5 | Align top title to JD title (less senior); rewrite Summary to lead with JD value | `set_text` |
+| 5 | Align top title to JD title (less senior); rewrite Summary to lead with JD value — do this before the first post-drop run | `set_text` |
 | 6 | No sections between Summary & Proficiencies | — |
-| 7 | Re-anchor senior role (merge, don't append); expand role adjacent to JD industry/stage | `set_text`, `merge_into` |
-| 8 | PHASE 2 — final tailoring: mine master + LinkedIn for less-obvious hosts, weave tone/focus/word choice, and close page/word/ATS budgets | `ats_audit.py --jd`, `read_profile.sh`, `set_text`, `squeeze_resume.py --protect` |
+| 7 | Re-anchor senior role (merge, don't append); expand role adjacent to JD industry/stage — do this before the first post-drop run | `set_text`, `merge_into` |
+| 8 | PHASE 2 — final tailoring: mine master + LinkedIn for less-obvious hosts, weave tone/focus/word choice, then close page/word/ATS budgets | `ats_audit.py --jd`, `read_profile.sh`, `set_text`, `squeeze_resume.py --protect` |
 | 9 | Fix grammar, typos, punctuation | grep + `validate_resume.py` |
 | 10 | Save tailored copy (never overwrite master) | `save()` |
 | 11 | Render + verify PDF | `render_pdf.sh` |
@@ -343,6 +344,13 @@ not discovered mid-compression when the page budget forces it:
    what a screener sees. The structural validator catches any orphaned
    title/bullets after each whole-role removal.
 
+   When a whole-role drop is approved, its machine-generated per-bullet
+   trims are disposed of by the same `drop_role()` call. Do not leave
+   `set_text()` or `set_labeled()` edits targeting the removed role, and do
+   not record those candidates as `# kept:`. `run_tailor.sh`'s prune gate
+   recognizes an enclosing `drop_role()` as a whole-role disposition and
+   reports it separately.
+
    **Compute the resulting span BEFORE editing.** Pass each whole-role drop
    to measure as a what-if — it drops the roles in a temp copy, renders
    THAT, and prints the resulting TIMELINE, so the year math is the tool's,
@@ -397,7 +405,12 @@ not discovered mid-compression when the page budget forces it:
 
 ### 5. Align the top title to the JD's, then rewrite the Summary to lead with JD-aligned value
 The name/title line is what a screener compares against the posting's level
-first. **When the JD names a title LESS SENIOR than the headline** (a
+first. After the user approves any whole-role drops, apply this title/Summary
+pass, the Step 7 senior-role re-anchor, and the Education decision before the
+first post-drop execution of the tailor script. Do not budget-trim the base
+or bypass the save gate to make an incomplete post-drop build fit. The initial
+positioning pass comes first, then measure and perform the final page/word
+budget pass. **When the JD names a title LESS SENIOR than the headline** (a
 mid-level "Software Test Engineer" posting against "Staff Engineer"), set the
 `[Title]` paragraph under the name to the JD's exact title
 (`set_text(find_p(ps, "<title prefix>"), "<JD title>")`); same-level retitles
@@ -561,9 +574,11 @@ cut-iterate-cut compression cycle is gone by construction, because the
 base build (Step 2) starts with relevance pruning complete; page and whole-resume
 word budgets are handled in Phase 2.
 
-**Backstop length math** — rarely needed on a machine-pruned build, but
-the caps still bind. **Hard bullet cap per role: never more than 8 kept
-bullets** (the machine enforces it on survivors; hosting can push a role
+**Backstop length math** — after the initial title, Summary, senior-role, and
+Education edits, measure the build and close the final page/word budgets.
+The machine-pruned build may still exceed the whole-resume cap before that
+positioning pass, but the caps still bind before rendering. **Hard bullet cap
+per role: never more than 8 kept bullets** (the machine enforces it on survivors; hosting can push a role
 back over — a trade above fixes it). **Whole-resume word cap: ≤1,000
 words**, validator-enforced, second in precedence to the page target and
 never bypassed — and keep the .docx count at ~990 or below, because
@@ -663,9 +678,11 @@ literal-phrase audit on the PDF a screener parses:
 python3 scripts/ats_audit.py "<Name> Resume - <Target>.pdf" --jd jd_<target>.txt
 ```
 
-It checks the whole-resume word cap and every JD qualification phrase
-literally (host the exact phrase truthfully or raise the gap — never
-fabricate). JD-named terms with no host mean a cut killed the last host
+It checks the whole-resume word cap and actionable qualification-line
+phrases literally (host the exact phrase truthfully or raise the gap — never
+fabricate). Posting metadata, company-introduction prose, and generic
+fragments are excluded from the normal phrase list and cannot affect the
+exit status. JD-named terms with no host mean a cut killed the last host
 (the machine protects JD-named chunks, but a hosting rewrite can kill
 one — Step 8's in-bullet rule) or the phrase was never mirrored — fix or
 raise. **Before raising a no-host term as a genuine gap, grep the MASTER
@@ -702,8 +719,8 @@ scan already identified without checking that reuse.
 
 **The match-rate target is 75.** `ats_audit.py` and `ats_check.py`
 enforce the stop: at or above it, the hosting loop closes and
-score-driven edits halt — the residual no-host list at that point is
-genuine never-fabricate gaps and parser artifacts. Below 75, keep
+score-driven edits halt — the residual actionable no-host list at that point
+contains genuine never-fabricate gaps. Below 75, keep
 hosting literal phrases truthfully. See
 [docs/api.md](docs/api.md) for `--match-target` overrides.
 

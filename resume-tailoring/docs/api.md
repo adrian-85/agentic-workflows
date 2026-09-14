@@ -329,7 +329,10 @@ is ignored with a note. **The agent does not run this mode** — Phase 1's
 machine-dispositions every candidate (no agent keeps, no overrides, no cut
 report), emits the first tailor script, and runs it through `run_tailor.sh`.
 The only `# kept:` lines in an emitted script are the machine's stub keeps
-(a role would otherwise lose every bullet; timeline gaplessness).
+(a role would otherwise lose every bullet; timeline gaplessness). A user-
+approved whole-role drop is represented by `drop_role()` itself, never by a
+fake `# kept:` comment; per-bullet edits inside that role must not remain in
+the script.
 
 **Machine prune sidecar + coverage gate.** The internal `--jd` machinery
 writes `<master>.prune.json`, one candidate record per bullet/list/section
@@ -340,11 +343,12 @@ script is only a machine-created timeline-stub or whole-section explanation.
 
 **Enforced, not a habit:** `run_tailor.sh` runs `docx_edit.py
 <master> --lint-prune <script>` before executing the tailor script. It
-exits 2 while any candidate has neither an edit nor a machine-generated
-keep explanation, and 2 on a STALE sidecar (a candidate anchor no longer
-resolves — the master changed since the plan; re-run `auto_prune.py`).
-The sidecar is an internal gate artifact, not an agent-facing planning
-deliverable.
+exits 2 while any candidate has neither an edit, an enclosing `drop_role()`,
+nor a machine-generated keep explanation, and 2 on a STALE sidecar (a
+candidate anchor no longer resolves — the master changed since the plan;
+re-run `auto_prune.py`). Whole-role dispositions are reported separately
+from keeps. The sidecar is an internal gate artifact, not an agent-facing
+planning deliverable.
 
 ### WORD-LEVEL TRIM CANDIDATES
 
