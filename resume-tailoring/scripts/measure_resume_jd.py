@@ -11,6 +11,7 @@ Split from measure_resume.py; term vocabulary/mining lives in measure_resume_jd_
 import re
 import textwrap
 import sys
+from typing import NamedTuple
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
@@ -30,6 +31,12 @@ MISSING_REPORT_CAP = 24  # bounded no-host list (signal-ranked)
 W = de.W
 
 SECTION_STYLE = "SectionHeading"  # career/education/proficiencies headings
+
+
+class InferenceSources(NamedTuple):
+    """Evidence sources used for no-host JD terms."""
+    linkedin_text: str | None = None
+    master_body: object | None = None
 
 
 HEADLINE_STYLE = "Title"  # top-of-resume headline: 2nd 'Title' paragraph after the name
@@ -323,7 +330,7 @@ def _missing_report_block(jd_text, missing):
     return lines, shown
 
 
-def _jd_report(jd_file, jd_text, jd_terms, body=None, evidence_text=None):
+def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None):
     """Lines describing the --jd ranking (printed before the page math).
 
     Prints the full extracted term list (not just the first 8) plus the JD's
@@ -334,11 +341,11 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, evidence_text=None):
     With ``body``, also lists JD qualification terms the resume does not
     host anywhere (_jd_missing_terms) — the 'never fabricate' flags made
     mechanical instead of an agent re-reading the posting — followed by
-    the deterministic INFERENCE MAP over those terms (master + LinkedIn
-    evidence search; ``evidence_text``). Each no-host term gets a
-    mechanical verdict: AUTO-HOST (evidence found — host it) or RAISE
-    (no evidence — ask the user). "No literal host" is a flag to infer
-    from, not a verdict.
+    the deterministic INFERENCE MAP over those terms. ``sources`` carries
+    the adjacent master body and optional LinkedIn dump. Each no-host term
+    gets a mechanical verdict: AUTO-HOST (evidence found — host it) or
+    RAISE (no evidence — ask the user). "No literal host" is a flag to
+    infer from, not a verdict.
     """
     tmp_note = tmp_jd_note(jd_file)
     words = len(jd_text.split())
@@ -374,7 +381,8 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, evidence_text=None):
         if missing:
             block, shown = _missing_report_block(jd_text, missing)
             lines.extend(block)
-            lines.extend(_inference_map(shown, body, evidence_text))
+            sources = sources or InferenceSources()
+            lines.extend(_inference_map(shown, body, sources))
     return lines
 
 
@@ -402,29 +410,31 @@ def _family_roots(term):
     return ()
 
 
-def _inference_map(missing_terms, body, evidence_text=None):
+def _inference_map(missing_terms, body, sources=None):
     """Lines of the INFERENCE MAP for the no-host JD terms.
 
     For each term: search the master paragraphs (and the LinkedIn dump
     when provided) for the term's morphological variants and its
     skill-family roots; print up to _INFERENCE_MATCH_CAP evidence lines
     per source. The verdict is mechanical, not a judgment call:
-    AUTO-HOST when evidence was found (host the JD's literal phrase in
-    the bullet/role where the evidence lives — the master and LinkedIn
-    ARE the user's material, so hosting from them is never fabrication
-    and needs no user confirmation); RAISE when none was found (ask the
+    AUTO-HOST when evidence was found in the master or LinkedIn material
+    (host the JD's literal phrase without asking whether the user has the
+    skill; choose the evidence's role, or Summary/Technical Proficiencies
+    when no role is identifiable); RAISE when none was found (ask the
     user — real experience is often lexically invisible — and host only
     what they confirm). Returns [] when nothing is missing.
     """
     if not missing_terms:
         return []
-    ps = de.paras(body)
+    sources = sources or InferenceSources()
+    ps = de.paras(sources.master_body if sources.master_body is not None
+                  else body)
     master_texts = [de.text_of(p).strip() for p in ps
                     if de.text_of(p).strip()]
-    evidence_lines = ([ln.strip() for ln in evidence_text.splitlines()
-                       if ln.strip()] if evidence_text else [])
-    sources = (("master", master_texts),
-               ("linkedin", evidence_lines))
+    evidence_lines = ([ln.strip() for ln in sources.linkedin_text.splitlines()
+                       if ln.strip()] if sources.linkedin_text else [])
+    source_lines = (("master", master_texts),
+                    ("linkedin", evidence_lines))
     out = [textwrap.fill(
         "INFERENCE MAP for no-host terms (deterministic evidence search "
         "over the master + LinkedIn): follow the verdicts. AUTO-HOST "
@@ -448,12 +458,12 @@ def _inference_map(missing_terms, body, evidence_text=None):
             return matched
 
         ev = []
-        for label, texts in sources:
+        for label, texts in source_lines:
             ev.extend(f'{label}: "{m[:70]}"' for m in _hits(texts))
         if ev:
             out.append(f"  - {term}: AUTO-HOST — host the JD's literal "
                        "phrase in the bullet/role where this evidence "
-                       "lives (merge, don't append); no user "
+                       "lives (merge, don't append); no skill "
                        "confirmation needed")
             out.extend(f"      {e}" for e in ev)
         else:
@@ -464,10 +474,11 @@ def _inference_map(missing_terms, body, evidence_text=None):
                 "user's 'Linux home lab' evidence were, in a real "
                 "session); host only what the user confirms")
     out.append(textwrap.fill(
-        "AUTO-HOST = evidence exists in the user's own material — the "
-        "literal phrase is hostable without a round-trip; RAISE = ask. "
-        "Host AUTO-HOST terms first, then present the RAISE checklist "
-        "(SKILL Step 8).",
+        "AUTO-HOST = evidence exists in master or LinkedIn material — "
+        "host without asking about the skill; RAISE = ask about the "
+        "skill itself. If no role is identifiable, use Summary/Technical "
+        "Proficiencies or ask only about role placement. Host AUTO-HOST "
+        "terms first, then present the RAISE checklist (SKILL Step 8).",
         width=76, initial_indent="    ", subsequent_indent="    "))
     return out
 

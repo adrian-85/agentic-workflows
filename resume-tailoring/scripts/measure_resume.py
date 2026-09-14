@@ -164,6 +164,7 @@ from jd_asks import (  # engine home: JD parsing names live here now
 
 from measure_resume_jd import (
     HEADLINE_STYLE,
+    InferenceSources,
     INFERENCE_FAMILIES,
     JD_SHORT_WORDS,
     JD_SOFT_SKILL_RE,
@@ -220,6 +221,20 @@ def _is_master_input(docx):
     cuts from master page math, and the user then hand-cut four more
     non-JD sentences the delivered copy kept)."""
     return os.path.basename(docx).endswith(" Master Resume.docx")
+
+
+def _adjacent_master_body(docx):
+    """Load the sole adjacent master as evidence for a tailored copy."""
+    directory = os.path.dirname(os.path.abspath(docx))
+    candidates = [name for name in os.listdir(directory)
+                  if name.endswith(" Master Resume.docx")]
+    if len(candidates) != 1:
+        return None
+    try:
+        _, body, _, _, _ = de.load(os.path.join(directory, candidates[0]))
+    except (OSError, ValueError):
+        return None
+    return body
 
 
 def _target_from_args(kept):
@@ -357,9 +372,9 @@ def _print_simulate(docx, simulate, jd_file, jd_text, td):
     return docx, sim_jd_terms
 
 
-def _print_jd_report(jd_file, jd_text, jd_terms, body, evidence_text):
+def _print_jd_report(jd_file, jd_text, jd_terms, body, sources=None):
     """Print the JD report + title-alignment check."""
-    for line in _jd_report(jd_file, jd_text, jd_terms, body, evidence_text):
+    for line in _jd_report(jd_file, jd_text, jd_terms, body, sources):
         print(line)
     print("JD TITLE vs HEADLINE:")
     lvl, msg = title_alignment_notes(body, jd_text)
@@ -770,7 +785,7 @@ def _main_prune_plan(args):
           "(SKILL Step 4).")
     print()
     _print_jd_report(args.jd_file, args.jd_text, jd_terms, body,
-                     args.evidence_text)
+                     InferenceSources(linkedin_text=args.evidence_text))
     _print_jd_coverage(roles, body, args.jd_text, jd_terms)
     _print_jd_audit(roles, body, jd_terms, args.protect)
     _print_top_block_prune(body, jd_terms)
@@ -846,6 +861,7 @@ def _load_and_render(docx, simulate, jd_file, jd_text, evidence_text):
     """Simulate (if requested), load the docx, resolve JD terms, print the
     JD report, and render the PDF. Returns (body, roles, jd_terms,
     pages_text, total_pages)."""
+    master_body = _adjacent_master_body(docx)
     with tempfile.TemporaryDirectory() as td:
         docx, sim_jd_terms = _print_simulate(docx, simulate, jd_file,
                                              jd_text, td)
@@ -853,7 +869,10 @@ def _load_and_render(docx, simulate, jd_file, jd_text, evidence_text):
         roles = _roles(body)
         jd_terms = _resolved_jd_terms(jd_text, body, simulate, sim_jd_terms)
         if jd_file:
-            _print_jd_report(jd_file, jd_text, jd_terms, body, evidence_text)
+            _print_jd_report(
+                jd_file, jd_text, jd_terms, body,
+                InferenceSources(linkedin_text=evidence_text,
+                                 master_body=master_body))
         pdf = _render_pdf(docx, td)
         pages_text = _pdf_pages_text(pdf)
         total_pages = len(pages_text)

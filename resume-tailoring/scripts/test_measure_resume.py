@@ -1182,20 +1182,33 @@ class SessionGapFamilyTests(unittest.TestCase):
                   "team's desktop fleet.", numId=2),
         ])
 
-    def test_performance_family(self):
+    def test_performance_family_auto_hosts(self):
         out = mr._inference_map(["stress testing"], self._body())
         self.assertIn("stress testing: AUTO-HOST", "\n".join(out))
 
-    def test_os_platform_family(self):
+    def test_os_platform_family_auto_hosts(self):
         out = mr._inference_map(["macos"], self._body())
         self.assertIn("macos: AUTO-HOST", "\n".join(out))
 
+    def test_raise_verdict_asks_the_user(self):
         # RAISE terms are the only ones that reach the user's checklist:
         # the verdict line must say to ask, never to fabricate.
         out = mr._inference_map(["ontology"], self._body())
         joined = "\n".join(out)
         self.assertIn("ontology: RAISE", joined)
         self.assertIn("ASK the user", joined)
+
+    def test_master_evidence_is_used_for_tailored_copy(self):
+        tailored = _body([_para("Career Experience", style="SectionHeading")])
+        master = _body([_para("Career Experience", style="SectionHeading"),
+                        _para("Wrote SQL queries for database validation.",
+                              numId=2)])
+        out = mr._inference_map(
+            ["sql queries"], tailored,
+            mr.InferenceSources(master_body=master))
+        joined = "\n".join(out)
+        self.assertIn("sql queries: AUTO-HOST", joined)
+        self.assertIn("Wrote SQL queries", joined)
 
 
 class TopBlockCandidatesTests(unittest.TestCase):
@@ -1832,7 +1845,9 @@ class InferenceMapTests(unittest.TestCase):
         # The LinkedIn export is the richer evidence source (a real
         # session justified the Elasticsearch fold from Skills.csv).
         dump = "===== Skills.csv =====\nElasticsearch\nAWS\n"
-        out = mr._inference_map(["aws services"], self._body(), dump)
+        out = mr._inference_map(
+            ["aws services"], self._body(),
+            mr.InferenceSources(linkedin_text=dump))
         joined = "\n".join(out)
         self.assertIn("linkedin: \"AWS\"", joined)
 
@@ -2487,6 +2502,9 @@ class JdRequirementCoverageTests(unittest.TestCase):
         self.assertTrue(any(s == "weak" and "Kubernetes" in label
                             for label, s, _ in result), result)
         self.assertTrue(any("weave" in detail
+                            for _, s, detail in result if s == "weak"),
+                        result)
+        self.assertTrue(any("no user confirmation" in detail
                             for _, s, detail in result if s == "weak"),
                         result)
 
