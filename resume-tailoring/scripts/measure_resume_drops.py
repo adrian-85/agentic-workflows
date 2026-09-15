@@ -445,24 +445,24 @@ def _list_trim_lines(lists):
                          "cut (TOP-BLOCK rule), not token trimming")
         else:
             lines.append("      - JD does not name: "
-                         f"{', '.join(chunks)}")
+                         f"{', '.join(chunks)} — line kept whole; reword "
+                         "only when adding a host here (SKILL Step 8)")
     return lines
 
 
 def _keep_trim_section(roles, jd_terms, body, protect=()):
-    """WORD-LEVEL TRIM CANDIDATES — word-level pruning, deterministic.
+    """WORD-LEVEL TRIM CANDIDATES — sentence-level backstop, deterministic.
 
-    Compression was bullet-granular: a kept bullet carried its non-JD
-    tools and dead sentences to the deliverable untouched (the user's
-    TestNG/Playwright examples), and proficiencies/Tools lists carried
-    their non-JD chunks. This section names them per kept bullet AND per
-    list line (Technical Proficiencies, role Tools lines): the non-JD
-    tech the JD never asks for (strip from its clause, remove the chunk
-    from the list) and the sentences with no JD evidence at all (cut
-    whole). Copy-pasteable ``find_p`` anchors match the DROP PLAN's form.
-    Skipped entirely: protected bullets (--protect), sentences and list
-    lines carrying a JD practice phrase (their tokens may host the
-    concept).
+    Phase 1 prunes rows, whole sentences, and whole categories; this
+    section names what still carries non-JD content after that prune:
+    per kept bullet the sentences with no JD evidence (cut whole) and per
+    list line (Technical Proficiencies, role Tools lines) the non-JD
+    items riding along — the line itself stays whole, and a sub-sentence
+    reword is Phase 2 agent work done only when adding a host there
+    (SKILL Step 8). Copy-pasteable ``find_p`` anchors match the DROP
+    PLAN's form. Skipped entirely: protected bullets (--protect),
+    sentences and list lines carrying a JD practice phrase (their tokens
+    may host the concept).
     """
     if not jd_terms:
         return None
@@ -478,11 +478,13 @@ def _keep_trim_section(roles, jd_terms, body, protect=()):
     if not lines:
         return None
     return ("WORD-LEVEL TRIM CANDIDATES (kept bullets and list lines "
-            "still carrying non-JD content — prune to the word: cut the "
-            "flagged sentence, strip the flagged tool from its clause, "
-            "remove the flagged chunk from the list; never strip a term "
-            "the JD names or one that hosts a [weak]/covered ask; SKILL "
-            "Step 3):\n" + "\n".join(lines))
+            "still carrying non-JD content after the row/sentence prune — "
+            "cut the flagged sentence WHOLE; a list line hosting any JD "
+            "evidence stays whole, never reduced to a subset. Sub-sentence "
+            "wording changes are Phase 2 agent work (SKILL Step 8), done "
+            "only when already adding a host to that line — never strip a "
+            "term the JD names or one that hosts a [weak]/covered ask):\n"
+            + "\n".join(lines))
 
 
 def _anchor_prefix(text, all_texts):

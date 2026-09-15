@@ -377,10 +377,12 @@ the machine already did.
 **Bullet-level output:**
 ```
 WORD-LEVEL TRIM CANDIDATES (kept bullets and list lines still
-carrying non-JD content — prune to the word: cut the flagged
-sentence, strip the flagged tool from its clause, remove the
-flagged chunk from the list; never strip a term the JD names or
-one that hosts a [weak]/covered ask; the machine's trim rule, SKILL Step 2):
+carrying non-JD content after the row/sentence prune — cut the
+flagged sentence WHOLE; a list line hosting any JD evidence stays
+whole, never reduced to a subset. Sub-sentence wording changes are
+Phase 2 agent work (SKILL Step 8), done only when already adding a
+host to that line — never strip a term the JD names or one that
+hosts a [weak]/covered ask):
   Acme, City:
     find_p(ps, "Built ")  # Built Selenium suites with Java, TestNG.
       - JD does not name: testng
@@ -391,7 +393,8 @@ one that hosts a [weak]/covered ask; the machine's trim rule, SKILL Step 2):
 ```
   list lines (Technical Proficiencies / Tools & Technologies):
     find_p(ps, "Tools ")  # Tools & Technologies: Selenium, Java, TestNG
-      - JD does not name: testng
+      - JD does not name: testng — line kept whole; reword only when
+        adding a host here (SKILL Step 8)
 ```
 
 A list line with NO JD term at all prints a whole-line cut note
