@@ -378,9 +378,16 @@ def _print_simulate(docx, simulate, jd_file, jd_text, td):
     return docx, sim_jd_terms
 
 
-def _print_jd_report(jd_file, jd_text, jd_terms, body, sources=None):
-    """Print the JD report + title-alignment check."""
-    for line in _jd_report(jd_file, jd_text, jd_terms, body, sources):
+def _print_jd_report(jd_file, jd_text, jd_terms, body, sources=None,
+                     *, extra_missing=()):
+    """Print the JD report + title-alignment check.
+
+    too-many-arguments: the report needs the merged gap list alongside the
+    five inputs it already takes — a keyword-only extra beats smuggling it
+    through the evidence-sources tuple.
+    """  # pylint: disable=too-many-arguments
+    for line in _jd_report(jd_file, jd_text, jd_terms, body, sources,
+                           extra_missing=extra_missing):
         print(line)
     print("JD TITLE vs HEADLINE:")
     lvl, msg = title_alignment_notes(body, jd_text)
@@ -864,22 +871,20 @@ def _print_layout_summary(ctx):
 
 
 def _external_gap_terms(report_path, resume_path, internal_missing):
-    """Normalize external gaps, persist the fingerprinted queue, return terms."""
+    """Persist the fingerprinted gap queue; return its merged term list."""
     if not report_path:
         return list(internal_missing)
+    artifact_path = resume_path + ".gap.json"
     try:
-        with open(report_path, encoding="utf-8") as source:
-            report = json.load(source)
-        gaps = gap_queue.normalize_gaps(report, internal_missing)
-        artifact = resume_path + ".gap.json"
-        gap_queue.write_artifact(
-            report_path, resume_path, internal_missing, artifact)
-        print(f"ATS GAP QUEUE: {len(gaps)} normalized gap(s) -> {artifact}")
-        return [gap["term"] for gap in gaps]
+        artifact = gap_queue.write_artifact(
+            report_path, resume_path, internal_missing, artifact_path)
     except (OSError, ValueError) as exc:
         print(f"error: cannot read --ats-report {report_path}: {exc}",
               file=sys.stderr)
         sys.exit(2)
+    print(f"ATS GAP QUEUE: {len(artifact['gaps'])} normalized gap(s) "
+          f"-> {artifact_path}")
+    return [gap["term"] for gap in artifact["gaps"]]
 
 
 def _load_and_render(args):
@@ -901,8 +906,8 @@ def _load_and_render(args):
             _print_jd_report(
                 args.jd_file, args.jd_text, jd_terms, body,
                 InferenceSources(linkedin_text=args.evidence_text,
-                                 master_body=master_body,
-                                 extra_missing=tuple(extra_missing)))
+                                 master_body=master_body),
+                extra_missing=tuple(extra_missing))
         pdf = _render_pdf(docx, td)
         pages_text = _pdf_pages_text(pdf)
         total_pages = len(pages_text)

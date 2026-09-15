@@ -37,7 +37,6 @@ class InferenceSources(NamedTuple):
     """Evidence sources used for no-host JD terms."""
     linkedin_text: str | None = None
     master_body: object | None = None
-    extra_missing: tuple = ()
 
 
 HEADLINE_STYLE = "Title"  # top-of-resume headline: 2nd 'Title' paragraph after the name
@@ -331,7 +330,8 @@ def _missing_report_block(jd_text, missing):
     return lines, shown
 
 
-def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None):
+def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None,
+               *, extra_missing=()):
     """Lines describing the --jd ranking (printed before the page math).
 
     Prints the full extracted term list (not just the first 8) plus the JD's
@@ -346,8 +346,11 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None):
     the adjacent master body and optional LinkedIn dump. Each no-host term
     gets a mechanical verdict: AUTO-HOST (evidence found — host it) or
     RAISE (no evidence — ask the user). "No literal host" is a flag to
-    infer from, not a verdict.
-    """
+    infer from, not a verdict. ``extra_missing`` carries external gap
+    terms (the ATS gap queue) merged into that internal list before the
+    map runs, so the map's verdicts cover the combined queue. Keyword-only
+    to keep the positional signature at the lint cap.
+    """  # pylint: disable=too-many-arguments
     tmp_note = tmp_jd_note(jd_file)
     words = len(jd_text.split())
     if not jd_terms:
@@ -379,7 +382,7 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None):
         )
     if body is not None:
         missing = list(_jd_missing_terms(jd_text, body, jd_terms))
-        for term in (sources.extra_missing if sources else ()):
+        for term in extra_missing:
             if term not in missing:
                 missing.append(term)
         if missing:

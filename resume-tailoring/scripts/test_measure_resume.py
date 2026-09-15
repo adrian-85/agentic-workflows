@@ -1787,9 +1787,7 @@ class JdReportTests(unittest.TestCase):
         body = _body([_para("Used a unit testing framework for components.")])
         lines = mr._jd_report(
             "jd.txt", "word " * 400, {"component-level testing"},
-            body=body,
-            sources=mr.InferenceSources(
-                extra_missing=("component-level testing",)))
+            body=body, extra_missing=("component-level testing",))
         joined = "\n".join(lines)
         self.assertIn("component-level testing", joined)
         self.assertIn("AUTO-HOST", joined)
