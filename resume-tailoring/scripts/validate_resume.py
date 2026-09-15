@@ -140,7 +140,6 @@ from validate_resume_checks import (
     _editable_word_cap_errors,
     _claim_years,
     _is_bullet,
-    _is_tools,
     _near_duplicates,
     _prose_paragraphs,
     _punctuation_errors,
@@ -376,7 +375,7 @@ def validate_tree(path, body, opts=None):
     ctx["paragraph_errors"] = [] if ctx["is_master_input"] else \
         _editable_word_cap_errors(region, summary)
     ctx["guidance_notes"] = _readability_guidance(
-        body, summary, region=region, master_input=ctx["is_master_input"])
+        body, summary, region=region)
     try:
         ctx["education_errors"], ctx["education_notes"] = _jd_checks(
             opts.jd_path, body, span, opts, ctx)

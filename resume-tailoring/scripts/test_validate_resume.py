@@ -364,7 +364,8 @@ class WordCapTests(unittest.TestCase):
             (140, {}, "Resume - T.docx", None,
              ["exceeds the 1000-word cap", "editable paragraph"], []),
             (140, {}, "Sample Master Resume.docx", None,
-             ["input is a master"], ["exceeds the 1000-word cap"]),
+             ["input is a master"],
+             ["exceeds the 1000-word cap", "editable paragraph"]),
             (20, {"max_words": None}, "Resume - T.docx", 0,
              ["word cap disabled"], ["exceeds the 1000-word cap"]),
         ]
@@ -386,11 +387,12 @@ class WordCapTests(unittest.TestCase):
     def test_editable_paragraph_cap_blocks_validation(self):
         path = os.path.join(tempfile.mkdtemp(), "Resume - T.docx")
         try:
-            self._docx(path, bullet_words=41, bullets=1)
+            self._docx(path, bullet_words=40, bullets=1)
             result = vr.validate_tree(path, self._body(path))
             report = "\n".join(result["lines"])
             self.assertGreater(result["blocking"], 0, report)
-            self.assertIn("editable paragraph", report)
+            self.assertIn("editable paragraph has 41 words (cap 40)", report)
+            self.assertIn("split or trim to 40 words", report)
         finally:
             os.unlink(path)
 
@@ -986,27 +988,6 @@ class GuidanceTests(unittest.TestCase):
         b, s = self._body_with(exactly)
         notes = vr._readability_guidance(b, s)
         self.assertFalse(any("word cap" in c for _lvl, c in notes), notes)
-
-    def test_over_cap_bullet_warns(self):
-        summary = mk("Clean summary.", style=vr.SUMMARY_STYLE)
-        ps = [
-            mk(mr.SECTION_PROFICIENCIES, style="SectionHeading"),
-            mk("Programming Languages: Java", style="BodyText"),
-            mk(mr.SECTION_CAREER, style="SectionHeading"),
-            mk("Acme, MA (Remote)01/2024 – 12/2026", style=mr.COMPANY_STYLE),
-            mk("Engineer", style=vr.TITLE_STYLE),
-            mk(" ".join(f"w{i}" for i in range(43)) + ".", numId=4),
-        ]
-        b = mkbody([summary, *ps])
-        notes = vr._readability_guidance(b, summary)
-        warns = [c for lvl, c in notes if lvl == "warn"]
-        self.assertTrue(any("Bullet has 43 words" in w for w in warns), warns)
-
-    def test_master_input_exempt_from_word_cap(self):
-        over = " ".join(f"w{i}" for i in range(45)) + "."
-        b, s = self._body_with(over)
-        notes = vr._readability_guidance(b, s, master_input=True)
-        self.assertFalse(any(lvl == "warn" for lvl, _ in notes), notes)
 
     def test_brief_summary_ok(self):
         b, s = self._body_with(

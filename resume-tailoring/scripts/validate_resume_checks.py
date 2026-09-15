@@ -416,33 +416,22 @@ def _editable_word_cap_errors(region, summary):
         if words > PARA_WORD_CAP:
             errors.append(
                 f"editable paragraph has {words} words (cap "
-                f"{PARA_WORD_CAP})")
+                f"{PARA_WORD_CAP}): "
+                f"{' '.join(text.split())[:60]!r}... — split or trim to "
+                f"{PARA_WORD_CAP} words")
     return errors
 
 
-def _readability_guidance(body, summary, *, region=None, master_input=False):
+def _readability_guidance(body, summary, *, region=None):
     """Advisory readability checks (SKILL Step 5 word cap + Step 6).
 
-    Word count, not sentence count — the master input and immutable Summary
-    are exempt; see PARA_WORD_CAP above.
-
-    Returns [(severity, message)] — severity in warn|ok.
-    These are NOT blocking (the agent may have a good reason to exceed
-    the cap); they surface when the agent writes an editable paragraph or
-    bullet without applying the SKILL's readability guidance.
+    Word count, not sentence count. The per-paragraph cap itself is BLOCKING
+    (_editable_word_cap_errors, PARAGRAPH CAPS section — master input exempt
+    there); this guidance carries only the signals that stay advisory: word
+    repetition (Step 9's re-read catches it by eye; this makes it mechanical)
+    and the Step 6 no-sections-between rule.
     """
     notes = []
-    if not master_input:
-        for p, text in _prose_paragraphs(region or _region(body), summary):
-            if p is summary or _is_tools(p):
-                continue
-            n = len(text.split())
-            if n <= PARA_WORD_CAP:
-                continue
-            notes.append(("warn",
-                f"{'Bullet' if _is_bullet(p) else 'Paragraph'}"
-                f" has {n} words (cap {PARA_WORD_CAP}, SKILL Step 5): "
-                f"{' '.join(text.split())[:60]!r}... — split or trim to {PARA_WORD_CAP} words"))
 
     # Same word twice within a window of the same paragraph reads as
     # repetition (Step 9's re-read catches this by eye; this makes it
