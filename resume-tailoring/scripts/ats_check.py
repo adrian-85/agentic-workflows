@@ -634,6 +634,40 @@ def _resolve_posting(jd_path, company_flag=None):
     return jd_text, company, posting_url
 
 
+def missing_skill_names(report):
+    """Return external-scan hard/soft skills with zero resume hits.
+
+    Findings are not the complete keyword report. When the score is below
+    the hosting target, these lists are the required source for the next
+    mining pass; returning both categories keeps soft-skill omissions from
+    being silently ignored.
+    """
+    result = {"hard": [], "soft": []}
+    skills = report.get("skills") if isinstance(report, dict) else None
+    if not isinstance(skills, dict):
+        return result
+    for category in result:
+        entries = skills.get(category, [])
+        if not isinstance(entries, list):
+            continue
+        result[category] = [entry["name"] for entry in entries
+                            if isinstance(entry, dict)
+                            and entry.get("name")
+                            and entry.get("resumeCount") == 0]
+    return result
+
+
+def _print_missing_skills(report, score):
+    """Print actionable external skill lists below the hosting target."""
+    if score is None or score >= MATCH_RATE_TARGET:
+        return
+    missing = missing_skill_names(report)
+    for category in ("hard", "soft"):
+        names = missing[category]
+        print(f"    missing {category} skills (read before asking): "
+              + (", ".join(names) if names else "none"))
+
+
 def _save_report(report, company, posting_url, out):
     """Persist the report JSON, record the company→ATS knowledge, and
     print the human summary (match target, word cross-check, target ATS)."""
@@ -646,7 +680,9 @@ def _save_report(report, company, posting_url, out):
     if ats and company and posting_url:
         known_ats_record(company, posting_url, ats)
     print(f"[4] report ready -> saved {out}")
-    _print_match_target((report.get("matchRate") or {}).get("score"))
+    score = (report.get("matchRate") or {}).get("score")
+    _print_match_target(score)
+    _print_missing_skills(report, score)
     print(f"    wordCount: {wc} (cross-check only — the cap uses "
           "ats_audit's own count)")
     if ats:

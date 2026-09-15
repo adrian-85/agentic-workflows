@@ -363,6 +363,23 @@ class ResponseTests(unittest.TestCase):
         self.assertFalse(ac.report_ready({"data": {"stage": "saved"}}))
         self.assertFalse(ac.report_ready({"error": "x"}))
 
+    def test_missing_skill_names_reads_hard_and_soft_lists(self):
+        report = {
+            "skills": {
+                "hard": [
+                    {"name": "Python", "resumeCount": 2},
+                    {"name": "Storybook", "resumeCount": 0},
+                ],
+                "soft": [
+                    {"name": "Stakeholder Management", "resumeCount": 0},
+                ],
+            }
+        }
+        self.assertEqual(
+            ac.missing_skill_names(report),
+            {"hard": ["Storybook"],
+             "soft": ["Stakeholder Management"]})
+
 
 class BrowserHeaderTests(unittest.TestCase):
     def test_per_request_headers_dropped(self):
