@@ -62,8 +62,9 @@ JD_QUAL_HEADING_RE = re.compile(
     # A bare "Required:" / "Preferred:" / "Minimum:" heading line — a
     # common short-form JD format where the qualifier IS the whole heading.
     r"|^\s*#{0,6}\s*(?:required|preferred|minimum)\s*:?\s*$"
-    # "You Bring" / "What You'll Bring" headings.
-    r"|^\s*#{0,6}\s*(?:what\s+)?you(?:'ll)?\s+bring\s*:?\s*$"
+    # "You Bring" / "What You'll Bring" / "You Have" headings — the
+    # "You Have:" form is Workday/agency-common (Merkle QA Lead JD).
+    r"|^\s*#{0,6}\s*(?:what\s+)?you(?:'ll)?\s+(?:bring|have)\s*:?\s*$"
     # "What makes you a fit" — HubSync-style fit heading; its lines ARE asks.
     r"|^\s*what\s+makes\s+you\s+(?:a\s+)?fit\s*:?\s*$"
     # A bare section word heading ("Level") — terminates the section.

@@ -46,7 +46,7 @@ from typing import NamedTuple
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import docx_edit as de  # noqa: E402
 from docx_edit import (SECTION_STYLE, paras, shortest_unique_prefix,  # noqa: E402
-                       text_of)
+                       text_of, prune_sidecar_path)
 from measure_resume_drops import _sentence_clauses, _weakness_key, \
     prune_candidates  # noqa: E402
 from measure_resume_format import (COMPANY_STYLE, SECTION_PROFICIENCIES,  # noqa: E402
@@ -608,7 +608,7 @@ def _emit_and_run(plan, meta):
     """
     docx, skill_root = meta["docx"], meta["skill_root"]
     script_name = meta["script_name"]
-    sidecar = docx + ".prune.json"
+    sidecar = prune_sidecar_path(docx, meta["jd_file"])
     with open(sidecar, "w", encoding="utf-8") as f:
         json.dump({"jd": os.path.basename(meta["jd_file"]),
                    "candidates": plan["candidates"]}, f, indent=1)

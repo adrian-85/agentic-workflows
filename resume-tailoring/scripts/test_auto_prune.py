@@ -220,11 +220,12 @@ class TestEmittedScript(_AutoPruneBase):
             f.write(self._script())
             path = f.name
         try:
-            literals, keeps = docx_edit_cli._script_cover_strings(path)
+            literals, keeps, _dropped_roles = \
+                docx_edit_cli._script_cover_strings(path)
         finally:
             os.unlink(path)
         for c in self.candidates:
-            state = docx_edit_cli._prune_covered(c, literals, keeps)
+            state = docx_edit_cli._prune_covered(c, literals, keeps, _dropped_roles)
             self.assertIsNotNone(
                 state, f"uncovered candidate: {c['kind']} {c['text'][:60]}")
 

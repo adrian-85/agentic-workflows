@@ -20,9 +20,10 @@ import contextlib
 import io
 import json
 import os
+import re
 import sys
 
-from docx_edit import (TITLE_STYLE, clone_after, find_p, load, paras, save,
+from docx_edit import (TITLE_STYLE, clone_after, find_p, load, paras, prune_sidecar_path, save,
                        set_text, style_and_numid, text_of)
 
 
@@ -204,6 +205,27 @@ def lint_script(docx_path, script_path):
 PRUNE_SIDECAR_SUFFIX = ".prune.json"
 
 
+def _script_jd_name(script_path):
+    """The JD filename recorded in the tailor script's docstring.
+
+    auto_prune emits ``JD: jd_<target>.txt.`` as the docstring's first
+    body line; the prune-plan sidecar is keyed by that JD (see
+    docx_edit.prune_sidecar_path), so the coverage lint can find the
+    plan for THIS run instead of a shared file another parallel session
+    may have overwritten. Returns None when the docstring records no JD
+    (hand-written scripts) — the caller falls back to the legacy path.
+    """
+    try:
+        with open(script_path, encoding="utf-8") as f:
+            src = f.read()
+    except OSError:
+        return None
+    m = re.search(r"^JD:\s+(\S+)", src, re.M)
+    if not m:
+        return None
+    return m.group(1).rstrip(".")
+
+
 def _norm_prune(text):
     """Normalization for coverage matching: whitespace-collapsed, lower,
     curly quotes unified — the same paragraph text appears in the prune
@@ -258,7 +280,7 @@ def _prune_covered(candidate, literals, keeps, dropped_roles):
     role explicitly passed to ``drop_role``, ``KEEP`` for a keep comment, or
     ``None`` when the plan item is unaddressed.
     """
-    role = _norm_prune(candidate.get("role", ""))
+    role = _norm_prune(candidate.get("role") or "")
     if role and role in dropped_roles:
         return "DROP"
     head = _norm_prune(candidate["prefix"] or candidate["text"][:24])
@@ -364,7 +386,12 @@ def lint_prune_coverage(docx_path, script_path):
     except (OSError, SyntaxError) as e:
         print(f"error: {script_path}: {e}", file=sys.stderr)
         return 2
-    sidecar = docx_path + PRUNE_SIDECAR_SUFFIX
+    jd_name = _script_jd_name(script_path)
+    sidecar = prune_sidecar_path(docx_path, jd_name)
+    if jd_name and not os.path.exists(sidecar):
+        legacy = docx_path + PRUNE_SIDECAR_SUFFIX
+        if os.path.exists(legacy):
+            sidecar = legacy
     candidates, err = _prune_sidecar_candidates(sidecar)
     if err:
         print(err, file=sys.stderr)

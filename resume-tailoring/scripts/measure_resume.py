@@ -804,7 +804,7 @@ def _write_prune_sidecar(docx_path, jd_file, candidates):
     the prune plan also refreshes it after a master fold or a user edit.
     Returns the sidecar path.
     """
-    path = docx_path + ".prune.json"
+    path = de.prune_sidecar_path(docx_path, jd_file)
     with open(path, "w", encoding="utf-8") as f:
         json.dump({"jd": os.path.basename(jd_file) if jd_file else None,
                    "candidates": candidates}, f, indent=1)

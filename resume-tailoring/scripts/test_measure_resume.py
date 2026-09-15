@@ -1354,7 +1354,7 @@ class PruneCandidatesTests(unittest.TestCase):
         cands = self._cands()
         sidecar = mr._write_prune_sidecar("/tmp/x Master Resume.docx",
                                           "jd_acme.txt", cands)
-        self.assertEqual(sidecar, "/tmp/x Master Resume.docx.prune.json")
+        self.assertEqual(sidecar, "/tmp/x Master Resume.docx.prune.acme.json")
         try:
             with open(sidecar, encoding="utf-8") as f:
                 data = json.load(f)
@@ -2897,6 +2897,27 @@ class WordBudgetTests(unittest.TestCase):
         self.assertIn("5+ years", lines[2])
         # benefits prose stays excluded
         self.assertFalse(any("401k" in ln for ln in lines))
+
+    def test_jd_requirement_lines_you_have_heading(self):
+        """REGRESSION: the Workday/agency 'You Have:' heading form
+        (Merkle QA Lead JD) was not recognized, so the audit fell back to
+        the WHOLE JD text and mined company-prose fragments ('fortune',
+        'like', 'looks') as actionable literal terms."""
+        jd = (
+            "QA Lead\n\n"
+            "Merkle is a leading data-driven agency partnered with Fortune "
+            "1000 companies.\n\n"
+            "You Have:\n\n"
+            "7+ years of QA / Quality Assurance Engineering experience\n"
+            "Hands-on experience with visual regression testing tools\n\n"
+            "Nice-to-Have Skills:\n\n"
+            "Agency or client services background\n"
+        )
+        lines = measure_resume_jd._jd_requirement_lines(jd)
+        self.assertEqual(len(lines), 2)
+        self.assertFalse(any("Fortune" in ln for ln in lines))
+        # the unrecognized nice-to-have section terminates collection
+        self.assertFalse(any("client services" in ln for ln in lines))
 
 
 

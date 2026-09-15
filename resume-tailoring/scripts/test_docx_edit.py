@@ -1300,6 +1300,36 @@ class PruneCoverageTests(unittest.TestCase):
                      "text": "Led testing efforts for the API releases",
                      "detail": "OFF-JD"}, **kw)
 
+    def test_per_jd_sidecar_beats_shared_legacy_file(self):
+        # REGRESSION: two tailor sessions running from the same master in
+        # parallel collided on the single <master>.prune.json — whichever
+        # auto_prune ran second clobbered the first's gate state and the
+        # other lint-prune failed with foreign candidates. The sidecar is
+        # now keyed by the JD (docstring "JD: jd_x.txt" -> <docx>.prune.x.json);
+        # a stale shared legacy file must NOT be read when the per-JD
+        # sidecar exists.
+        docx = self._docx_with("Led testing efforts for the API releases")
+        self._sidecar(docx, [self._cand(prefix="FOREIGN candidate text")])  # legacy
+        per_jd = docx + ".prune.x.json"
+        with open(per_jd, "w", encoding="utf-8") as f:
+            json.dump({"jd": "jd_x.txt",
+                       "candidates": [self._cand(prefix="Led testing efforts")]}, f)
+        script = self._script(
+            '"""Tailor script.\n\nJD: jd_x.txt. Every PRUNE-PLAN candidate is addressed here.\n"""\n',
+            'from docx_edit import drop\n',
+            'ps = drop(ps, ["Led testing efforts for the API releases"])\n')
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = dcli.lint_prune_coverage(docx, script)
+            self.assertEqual(rc, 0)
+            self.assertIn("all 1 PRUNE-PLAN candidate(s) covered", out.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+            os.unlink(per_jd)
+            os.unlink(docx + ".prune.json")
+
     def test_missing_sidecar_is_a_usage_error(self):
         docx = self._docx_with("Led testing efforts for the API releases")
         script = self._script('ps = None\n')
@@ -1348,6 +1378,29 @@ class PruneCoverageTests(unittest.TestCase):
             finally:
                 os.unlink(docx)
                 os.unlink(script)
+
+    def test_null_role_candidate_does_not_crash(self):
+        # A sidecar candidate with "role": null (JSON null, e.g. a
+        # section-level cut) must not crash the coverage gate — the
+        # motivating session's auto_prune run died on
+        # 'NoneType' object has no attribute 'replace'.
+        docx = self._docx_with(
+            "Led testing efforts for the API releases")
+        self._sidecar(docx, [self._cand(role=None)])
+        script = self._script(
+            'from docx_edit import drop, find_p\n',
+            'ps = None\n',
+            'ps = drop(ps, [find_p(ps, '
+            '"Led testing efforts for the API releases")])\n')
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = dcli.lint_prune_coverage(docx, script)
+            self.assertEqual(rc, 0)
+            self.assertIn("1 edit(s)", out.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
 
     def test_strict_direction_shorter_literal_does_not_cover(self):
         # A literal SHORTER than the plan's shortest-unique prefix cannot
