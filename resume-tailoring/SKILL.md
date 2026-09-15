@@ -72,7 +72,7 @@ restore phase.
 | 9 | Fix grammar, typos, punctuation | grep + `validate_resume.py` |
 | 10 | Save tailored copy (never overwrite master) | `save()` |
 | 11 | Render + verify PDF | `render_pdf.sh` |
-| 12 | Fold user-confirmed experience into the master (additive, AFTER the tailor script is final) | `clone_after`, `--set-text`/`--append-after` |
+| 12 | Close the session with the master untouched; user-owned master edits happen outside this workflow | — |
 
 ## Assets
 
@@ -81,18 +81,14 @@ User-supplied personal assets (`*.docx` / `*.pdf`, gitignored) live in the skill
 - `<userName> Master Resume.docx` — the comprehensive data pool and the
   formatting/structure source. No separate per-target template is needed:
   Phase 1 copies and edits this document in place while preserving its XML
-  styles. **Phase 1's `auto_prune.py` is the only sanctioned master consumer
-  at build time** — the agent does not open the master (or the LinkedIn
-  export) until Phase 2's gap mining unlocks it; re-running the machine
-  command, not hand-pruning, refreshes a stale base. **Real experience belongs here** — if a
-  session authors a bullet the user confirms, fold it into the master (via `clone_after` or
-  the `--set-text`/`--append-after` CLI) so every future tailored resume can pull from it.
-  Fold AFTER the per-target script is finished: a fold rewrites master text, which can
-  invalidate the script's `find_p` prefixes. This ordering is ENFORCED, not a habit —
-  after any fold (or a user edit between sessions), the next tailor run detects the
-  changed master (`MASTER CHANGED:`) and runs auto-strict: skipped edits exit 2 without
-  needing `DOCX_EDIT_STRICT=1`. If the master change was the USER's, respect it — re-run
-  `auto_prune.py` (Step 2), never re-fold over their text.
+  styles. **The workflow never writes the master.** `auto_prune.py` reads
+  the master to build the per-target copy; later gap mining reads it as an
+  evidence source. If the user edits the master directly, re-run the machine
+  command to refresh the stale base. **Real experience belongs here** — if a
+  The user owns all master updates. A user edit changes the source content and
+  can invalidate tailor-script `find_p` prefixes; the next run detects the
+  changed master (`MASTER CHANGED:`), runs auto-strict, and must re-run
+  `auto_prune.py` (Step 2). This workflow never overwrites or folds into it.
 - `Basic_LinkedInDataExport_*/` — the LinkedIn data export (CSVs), the richer source than
   the resume for content to enrich/merge — read ONLY in Step 8, when a surfaced gap
   needs evidence (Step 1 does not touch it).
@@ -141,7 +137,7 @@ manual habits are:
    trims, whole-category cuts, stub keeps), emits `tailor_<target>.py`, and runs it
    through `run_tailor.sh`'s gate chain in one command. There is no disposition
    checklist to fill and no cut report to read — the base build IS the disposition.
-   Re-running the command (after a master fold or user edit) refreshes the prune sidecar
+   Re-running the command after a user edit refreshes the prune sidecar
    the coverage gate enforces. That Step-3 measure run on the base build is also the
    term-coverage drift check: its **JD terms with NO host** list is the mining queue
    Step 8 works from.
@@ -480,8 +476,9 @@ If the JD targets a specific industry/stage (e.g. startup, AI, FinTech,
 healthcare), ALSO expand the most relevant past role to show those themes
 with concrete framing — keep and reframe (via `set_text`) the bullets that
 make the theme explicit. If the master is missing a theme the user confirms
-they have, fold that content into the master first (real experience lives in
-the master, not per-target scripts).
+they have, stop and ask the user to add it to the master directly. After the
+user edit, re-run Phase 1; do not write the fact into the master or a
+per-target script from this workflow.
 
 ### 8. PHASE 2 — final tailoring, restore & host
 **This step unlocks the master and the LinkedIn export.** Until here the
@@ -634,7 +631,8 @@ master's name). Never overwrite the master.
 validates BEFORE writing: a state that would fail validation is never
 written, and the stale master copy is removed — nothing to convert by hand.
 Approval tokens go in `RESUME_VALIDATE_ARGS` (same env the render gate
-reads). Tool-internal saves and master writes are exempt.
+reads). Master writes are outside this workflow and must be made directly by
+the user.
 The `.docx` is the working file for the session — iterate on it while tuning
 the rendered PDF, then delete both after the resume is submitted. The master
 is the permanent artifact; tailored copies are temp files scoped to the
@@ -694,7 +692,7 @@ for it — including the content Phase 1 cut.** Cut-first means the
 master still hosts what the deliverable lost: a real session kept
 `cybersecurity` on the FAIL list for two scan rounds while the only
 truthful host — a CareMetx security bullet cut during compression — sat
-in the master; the user had to point at it, and folding the term into a
+in the master; the user had to point at it, and hosting the term in a
 kept JD bullet (Snyk is a cybersecurity tool) cleared it in one edit.
 The report's soft-skill no-hosts are ACTIONABLE (Step 8's inference rule;
 soft skills are safe to infer) — not advisory. Its findings summary
@@ -817,25 +815,17 @@ If it overshoots the target, **compress one more older-role bullet** and
 re-render until the last page is full (the `.pdf` is the deliverable; the `.docx` is
 session-temp source — see Step 10).
 
-### 12. Fold user-confirmed experience into the master
-The session is NOT done when the PDF renders. Any fact the user confirmed
-that landed in the deliverable — a tool with no prior host (BrowserStack),
-an experience the resume compressed away (LLM prompt testing, contract
-testing), a theme they stated ("event-driven at every position") — goes
-back into the master so every future target inherits it. The master is
-the data pool; a fact that lives only in a per-target script is lost to
-the next run. **Do not wait for the user to remember this step** — one
-session ended the deliverable summary and the user had to prompt the
-fold themselves.
+### 12. Leave the master untouched
+The tailoring session ends with the tailored `.docx` and rendered `.pdf`.
+This workflow never edits the master, including confirmed experience,
+proficiency lines, or user-confirmed additions. Do not call `clone_after`,
+`--set-text`, or `--append-after` against the master as part of tailoring.
+If the user wants to retain a new fact for future targets, the user edits the
+master directly.
 
-The fold is strictly ADDITIVE: new bullets (`clone_after`), proficiency
-line additions, and in-place appends (`--set-text`/`--append-after`) —
-never removals or replacements of master text. Run it AFTER the per-target
-script is final, and the next tailor re-run must come up green against the
-changed master — new master bullets whose evidence already lives in kept,
-rewritten bullets join that role's drop list. The Assets section above owns
-the ordering, the `MASTER CHANGED:` auto-strict tripwire, and the user-edit
-precedence rule.
+If the user edits the master directly, a later tailoring run detects the
+change, refreshes the machine prune, and rebuilds the target from the updated
+source.
 
 ## When NOT to use this skill
 
@@ -902,7 +892,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (`save()` prints one summary line if element-form was used). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form (Helper library) |
 | Iterating Tools-line trims because a trimmed line still wraps | Rare now: TOOLS LINES THAT WRAP reports the MEASURED budget per line ("value is N chars, wraps after ~M — cut ~N-M chars"), so the first trim lands. Trim to the reported budget, not a tool count — the proportional font makes "~8 tools" unreliable (Step 8) |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
-| Ending the session at the rendered PDF without folding confirmed experience back into the master | Step 12 is part of the workflow — every user-confirmed fact lands in the master (additively) before the session closes |
+| Editing the master from a tailoring session | Never — the master is user-owned and read-only to this workflow; make any master update directly, then re-run Phase 1 |
 | Storing the JD in /tmp | Persist it as `jd_<target>.txt` in the skill root (Step 1) — every tool and the re-run instructions reference that path across sessions |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 7) |
 | Headline still says "Staff" against a less-senior JD title | Rewrite the top title to the JD's title and level its summary echo (Step 5) — the first line is what the screener compares |
