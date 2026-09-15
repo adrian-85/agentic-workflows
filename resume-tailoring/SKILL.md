@@ -20,12 +20,9 @@ writes a new file (e.g. `John Doe Resume - <Target>.docx`). Phase 1
 against the JD — every bullet, dead sentence, proficiency/Tools line, and
 certification/section line — and emits and runs the first tailor script
 through the full gate chain. Every disposition is row/sentence/whole-category
-granular: a bullet is cut whole or kept whole (with whole dead sentences
-dropped from a kept multi-sentence bullet), and a proficiency/Tools line is
-kept whole or cut whole — the machine never rewrites words or phrases inside
-a surviving sentence or line. That kind of wording change is Phase 2 agent
-work (Step 8), done only when the agent is already touching the line to host
-something. The agent never dispositions a prune candidate, never re-opens a
+granular — the machine never rewords a surviving sentence or line; that is
+Phase 2 agent work, done only when adding a host there (Step 2 has the exact
+rules). The agent never dispositions a prune candidate, never re-opens a
 cut by argument, never sees a cut report, and never page/word-measures the
 master. The single ask/evidence matcher is the disposition rule: fix its JD
 evidence families when truthful equivalents such as Python/Python scripting,
@@ -222,9 +219,9 @@ the residual page gap automatically.
   fails (the report degrades to generic advice). The line sits outside
   the qualification sections, so the internal matchers ignore it.
   **When the URL is unknown, OMIT the line entirely — never write a
-  placeholder** (`Posting URL: (not provided)`, `…(ask user)`): a real
-  session's placeholder reached the scan service as `url=(not)`, garbage
-  in the report. The function returns whatever is on the line — the
+  placeholder** (`Posting URL: (not provided)`, `…(ask user)`): a
+  placeholder reaches the scan service as `url=(not)` and garbles the
+  report. The function returns whatever is on the line — the
   caller skips the PATCH when the line is absent, but a placeholder on
   the line passes through. The doc rule is the guard, not a parser:
   line present means a real URL; omit the line when unknown.
@@ -332,7 +329,7 @@ still verifies post-build).
   re-measures it on the build after the content edits).
 
 **Seniority alignment — when the JD specifies fewer years than the candidate
-has** (this session's case: a mid-level "Software Test Engineer" JD asking
+has** (e.g. a mid-level "Software Test Engineer" JD asking
 "5+ years" against a 15-year Staff-engineer background). This is a distinct
 decision, presented **to the user before the tailor script is authored** —
 not discovered mid-compression when the page budget forces it:
@@ -402,10 +399,10 @@ not discovered mid-compression when the page budget forces it:
    and Globex, keep Initech"): naming every role to drop IS
    approval of that set, so re-present the measured numbers and proceed
    without a second approval round-trip. Also approved without a second
-   round-trip: a general approval ("approved, proceed", "go ahead") when
-   exactly ONE drop set was presented as the recommendation — the user
-   approved that recommendation (a real session's "Drop plan approved,
-   proceed" after a single recommended option). Only when two or more
+   round-trip: a general approval ("approved, proceed", "go ahead",
+   "Drop plan approved, proceed") when exactly ONE drop set was
+   presented as the recommendation — the user approved that
+   recommendation. Only when two or more
    options were left open does a general approval need the user to pick
    one first.
    **Enforced, not a habit:** `validate_resume.py` detects whole-role elimination
@@ -686,9 +683,10 @@ and `measure_resume.py` prints the page-fill table with widow/underfill
 detection.
 
 **ATS verification — the internal matchers are not the ground truth.** The
-workflow's term/concept matching overestimates alignment: a real session
-passed every internal gate while 9 of 24 hard skills had ZERO literal hits
-and the external ATS score DROPPED. After the final render, run the
+workflow's term/concept matching overestimates alignment — a build can pass
+every internal gate while its hard skills carry zero literal hits and the
+external ATS score drops (one scan: 9 of 24 hard skills at zero hits).
+After the final render, run the
 literal-phrase audit on the PDF a screener parses:
 
 ```bash
@@ -703,19 +701,14 @@ exit status. JD-named terms with no host mean a cut killed the last host
 (the machine protects JD-named sentences/lines whole, but a hosting rewrite
 can kill one — Step 8's in-bullet rule) or the phrase was never mirrored —
 fix or raise. **Before raising a no-host term as a genuine gap, grep the
-MASTER for it — including content Phase 1 cut from a role that is still
-KEPT in the build, not only from roles dropped whole.** Cut-first means the
-master still hosts what the deliverable lost: a real session kept
-`cybersecurity` on the FAIL list for two scan rounds while the only
-truthful host — a CareMetx security bullet cut during compression — sat
-in the master; the user had to point at it, and hosting the term in a
-kept JD bullet (Snyk is a cybersecurity tool) cleared it in one edit.
-Another session put a term on the RAISE checklist for a role that was never
-dropped at all — the user had to point out the KEPT role's own master text
-already had the evidence ("you didn't drop that role, did you forget to
-check the master for it?"): a surviving role's cut bullets are exactly as
-much a mining source as a dropped role's, and skipping that check costs a
-round-trip the grep would have avoided.
+MASTER for it — including content Phase 1 cut, from dropped roles AND from
+roles still kept in the build.** Cut-first means the master still hosts
+what the deliverable lost: the only truthful host of a term is often a
+bullet Phase 1 cut (a security bullet behind `cybersecurity`, a
+test-documentation bullet in a role the build kept) — hosting it from the
+master clears the gap in one edit, while raising it to the user costs a
+round-trip and, unchecked, reports as a gap something the candidate's own
+history already evidences.
 The report's soft-skill no-hosts are ACTIONABLE (Step 8's inference rule;
 soft skills are safe to infer) — not advisory. Its findings summary
 auto-IGNOREs the by-rule noise (contactEmail, specialCharacters,
@@ -791,8 +784,7 @@ blocked re-run cycles.
 1. **contactEmail** (searchability). The compact hyperlinked contact block
    (link text "Email" over a `mailto:` target) is a deliberate design the
    user chose for readability — NEVER widen columns, unwrap the header, or
-   rewrite link display text to satisfy a literal text parser. One session
-   did; the user reverted it as a readability failure ("looks sloppy").
+   rewrite link display text to satisfy a literal text parser.
    The address lives in the hyperlink target, which many ATS parsers
    extract; a raw-text parser's `contactEmail` fail is the known, accepted
    tradeoff.
