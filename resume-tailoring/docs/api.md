@@ -523,6 +523,43 @@ numbering. Then re-measure to confirm the resume still meets the target.
 Fixed priority order: (1) JD-aligned work experience, (2) the page target,
 (3) this spacing — when content or pages need room, the spacers go first.
 
+**Ordering, when the script also has list/word trims (the common case,
+since Phase 1's emitted script always does).** Two things fight the naive
+placement above:
+
+1. **`remove_empty(body)` deletes every blank paragraph**, including one
+   this block just cloned — if the clones run BEFORE `remove_empty`
+   (e.g. because they were added near the top of the script, next to the
+   list trims), they never survive to render. Clone AFTER `remove_empty`.
+2. **`find_p`'s lint resolves prefixes against the MASTER**, before any
+   rewrite — so an anchor written against the TRIMMED Tools-line text
+   (e.g. `"Tools & Technologies: "` after a `set_labeled` call shortened
+   it) fails lint even though it resolves fine at runtime, and `after=`
+   does not rescue a lint-time ambiguity (lint checks the bare prefix,
+   not the anchored form).
+
+The pattern that satisfies both: capture the Tools-line ELEMENTS early,
+while their master-text prefixes still resolve for lint, then `clone_after`
+the captured elements once `remove_empty` has already run:
+
+```python
+# Early — master-text prefixes still resolve for the lint pass.
+cvs_tools = find_p(ps, "Tools & Technologies: Karate, Java, REST APIs")
+trove_tools = find_p(ps, "Tools & Technologies: Jenkins, Bitbucket")
+
+# ... list trims, word trims, drop_role() calls ...
+
+remove_empty(body)
+
+# Late — clone the captured elements now that blanks won't be swept.
+clone_after(body, cvs_tools, "")
+clone_after(body, trove_tools, "")
+```
+
+A real session burned three failed rounds on this (spacers silently
+disappearing, then a lint failure from anchoring on trimmed text) before
+landing on the captured-element form.
+
 Re-run `render_pdf.sh` (compact) to verify — measuring replaces iteration, it
 does not replace the final verification render.
 
