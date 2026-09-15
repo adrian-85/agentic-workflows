@@ -376,6 +376,16 @@ def _list_line_role_key(idx, roles):
     return owner
 
 
+def _list_anchor(all_texts, text):
+    """(idx, find_p prefix) for one paragraph's text, or (None, None) when
+    no unique prefix resolves."""
+    try:
+        idx = all_texts.index(text)
+        return idx, de.shortest_unique_prefix(all_texts, idx, min_len=6)
+    except ValueError:
+        return None, None
+
+
 def _list_trim_candidates(body, jd_terms, all_texts, roles=()):
     """[(prefix, text, nonjd_chunks, line_has_jd, role)] for Technical
     Proficiencies lines and role Tools lines. These keyword lines were
@@ -395,22 +405,16 @@ def _list_trim_candidates(body, jd_terms, all_texts, roles=()):
         ts = t.strip()
         if not ts or ts in seen:
             continue
-        is_prof = ts in prof
         is_tools = (t.lower().startswith("tools")
                     and "technolog" in t.lower())
-        if not (is_prof or is_tools):
+        if not (ts in prof or is_tools):
             continue
         seen.add(ts)
         chunks = _list_nonjd_chunks(t, jd_terms)
         if not chunks:
             continue
-        try:
-            idx = all_texts.index(t)
-            prefix = de.shortest_unique_prefix(all_texts, idx, min_len=6)
-        except ValueError:
-            idx, prefix = None, None
-        role = (_list_line_role_key(idx, roles)
-                if is_tools and idx is not None else None)
+        idx, prefix = _list_anchor(all_texts, t)
+        role = _list_line_role_key(idx, roles) if is_tools and idx is not None else None
         out.append((prefix, ts, chunks, _evidenced(ts, jd_terms), role))
     return out
 

@@ -639,7 +639,7 @@ def _build_meta(docx, jd_file, target, skill_root):
     return dst, meta
 
 
-def _intro_candidates(body, roles, jd_terms, all_texts):
+def _intro_candidates(body, _roles, _jd_terms, all_texts):
     """Word-trim candidates for over-cap role-INTRO prose paragraphs.
 
     A paragraph under a company header that is neither a numbered bullet
@@ -647,20 +647,24 @@ def _intro_candidates(body, roles, jd_terms, all_texts):
     40-word cap governs (validate_resume blocks the build otherwise), so
     the machine dispositions it exactly like a kept bullet: trim to JD-
     evidenced sentences, capped at WORD_CAP. Under-cap intros are never
-    candidates.
+    candidates. ``_roles``/``_jd_terms`` are unused here — role ownership
+    is tracked from the body's own company headers as we walk it, and
+    every over-cap intro is a candidate regardless of JD terms (the
+    JD-evidenced trim itself happens downstream in ``_trim_bullet_text``)
+    — kept for signature symmetry with the other candidate-scanning
+    functions.
     """
-    keys = {r["raw"] for r in roles}
     out = []
     cur = None
     for p in de.paras(body):
-        style, numId = de.style_and_numid(p)
+        style, num_id = de.style_and_numid(p)
         txt = de.text_of(p).strip()
         if style == COMPANY_STYLE and txt:
             cur = txt
             continue
         if cur is None or not txt:
             continue
-        is_bullet = (numId is not None and numId != "0") or \
+        is_bullet = (num_id is not None and num_id != "0") or \
             style in BULLET_STYLES
         if is_bullet or (txt.lower().startswith("tool") and
                          "technolog" in txt.lower()):
