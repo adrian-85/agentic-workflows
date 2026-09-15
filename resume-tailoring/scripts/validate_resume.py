@@ -137,6 +137,7 @@ from validate_resume_checks import (
     _ASCII_OK_CHARS,
     _TOOLS_LABEL_RE,
     _bullet_cap_errors,
+    _editable_word_cap_errors,
     _claim_years,
     _is_bullet,
     _is_tools,
@@ -372,6 +373,8 @@ def validate_tree(path, body, opts=None):
     ctx["last"] = last
     ctx["jd_path"] = opts.jd_path
     ctx["claim_notes"] = []
+    ctx["paragraph_errors"] = [] if ctx["is_master_input"] else \
+        _editable_word_cap_errors(region, summary)
     ctx["guidance_notes"] = _readability_guidance(
         body, summary, region=region, master_input=ctx["is_master_input"])
     try:
@@ -405,6 +408,8 @@ def _report_errors_section(ctx, lines):
         ("== TEXT INTEGRITY ==", "integrity_errors",
          "  ok (no mangling artifacts — clean ASCII/Latin prose, no "
          "doubled punctuation or words)"),
+        ("== PARAGRAPH CAPS ==", "paragraph_errors",
+         "  ok (all editable prose paragraphs within the 40-word cap)"),
         ("== SENIORITY ==", "seniority_errors", "  ok"),
     ]
     for header, key, ok_msg in sections:
@@ -480,7 +485,7 @@ def _assemble_report(ctx):
     blocking = (len(ctx["errors"]) + len(ctx["punct_errors"])
                 + len(ctx["integrity_errors"]) + len(ctx["seniority_errors"])
                 + len(ctx["education_errors"]) + len(ctx["cap_errors"])
-                + len(ctx["word_errors"]))
+                + len(ctx["paragraph_errors"]) + len(ctx["word_errors"]))
     if blocking:
         lines.append(
             f"RESULT: {blocking} blocking error(s) — fix before rendering (exit 2)")

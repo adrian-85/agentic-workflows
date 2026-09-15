@@ -1628,6 +1628,25 @@ class LintScriptTests(unittest.TestCase):
             os.unlink(docx)
             os.unlink(script)
 
+    def test_summary_edit_is_rejected(self):
+        fd, docx = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        test_helpers._write_docx(
+            docx, [test_helpers._para("Original Summary", style="Summary")])
+        script = self._script(
+            'from docx_edit import find_p, set_text\n',
+            'ps = None\n',
+            'set_text(find_p(ps, "Original Summary"), "Changed Summary")\n')
+        try:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = dcli.lint_script(docx, script)
+            self.assertEqual(rc, 1)
+            self.assertIn("immutable Summary", err.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
     def test_miss_fails_with_line_number(self):
         docx = self._docx_with(
             "Monitoring & Logging: Prometheus, Grafana, New Relic, Datadog")

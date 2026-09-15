@@ -139,6 +139,40 @@ def _script_find_p_prefixes(script_path):
     return out
 
 
+def _script_summary_edit_targets(script_path, ps):
+    """Find literal set_text/set_labeled edits aimed at the Summary."""
+    with open(script_path, encoding="utf-8") as f:
+        tree = ast.parse(f.read(), script_path)
+    out = []
+    edit_names = {"set_text", "set_labeled", "replace_text"}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not node.args:
+            continue
+        func = node.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(
+            func, "id", None)
+        if name not in edit_names:
+            continue
+        target = node.args[0]
+        if not isinstance(target, ast.Call) or len(target.args) < 2:
+            continue
+        target_func = target.func
+        target_name = target_func.attr if isinstance(target_func, ast.Attribute) \
+            else getattr(target_func, "id", None)
+        prefix = target.args[1]
+        if target_name != "find_p" or not isinstance(prefix, ast.Constant) \
+                or not isinstance(prefix.value, str):
+            continue
+        nth = next((kw.value.value for kw in target.keywords
+                    if kw.arg == "nth"
+                    and isinstance(kw.value, ast.Constant)
+                    and isinstance(kw.value.value, int)), None)
+        paragraph = find_p(ps, prefix.value, nth=nth)
+        if paragraph is not None and style_and_numid(paragraph)[0] == "Summary":
+            out.append((node.lineno, prefix.value))
+    return out
+
+
 def lint_script(docx_path, script_path):
     """Validate a tailor script's find_p targets against a .docx BEFORE
     running it.
@@ -171,6 +205,13 @@ def lint_script(docx_path, script_path):
         return 0
     _, body, _, _, _ = load(docx_path)
     ps = paras(body)
+    summary_edits = _script_summary_edit_targets(script_path, ps)
+    for lineno, prefix in summary_edits:
+        print(f"  immutable Summary  line {lineno}: "
+              f"find_p({prefix!r}) — Summary/intro edits are forbidden",
+              file=sys.stderr)
+    if summary_edits:
+        return 1
     bad = []
     with contextlib.redirect_stderr(io.StringIO()) as err_io:
         for prefix, lineno, nth in targets:

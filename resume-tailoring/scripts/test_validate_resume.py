@@ -359,13 +359,13 @@ class WordCapTests(unittest.TestCase):
         tempfile + validate_tree shape (data-driven)."""
         cases = [
             # bullet_words, max_words_kw, filename, blocking, in_needles, out_needles
-            (99, {}, "Resume - T.docx", 0,
+            (20, {}, "Resume - T.docx", 0,
              ["within the 1000-word cap"], []),
-            (140, {}, "Resume - T.docx", 1,
-             ["exceeds the 1000-word cap", "WORD COUNT"], []),
+            (140, {}, "Resume - T.docx", None,
+             ["exceeds the 1000-word cap", "editable paragraph"], []),
             (140, {}, "Sample Master Resume.docx", None,
              ["input is a master"], ["exceeds the 1000-word cap"]),
-            (140, {"max_words": None}, "Resume - T.docx", None,
+            (20, {"max_words": None}, "Resume - T.docx", 0,
              ["word cap disabled"], ["exceeds the 1000-word cap"]),
         ]
         for bullet_words, kw, fname, blocking, in_needles, out_needles in cases:
@@ -382,6 +382,17 @@ class WordCapTests(unittest.TestCase):
                     self.assertNotIn(needle, report)
             finally:
                 os.unlink(path)
+
+    def test_editable_paragraph_cap_blocks_validation(self):
+        path = os.path.join(tempfile.mkdtemp(), "Resume - T.docx")
+        try:
+            self._docx(path, bullet_words=41, bullets=1)
+            result = vr.validate_tree(path, self._body(path))
+            report = "\n".join(result["lines"])
+            self.assertGreater(result["blocking"], 0, report)
+            self.assertIn("editable paragraph", report)
+        finally:
+            os.unlink(path)
 
     def test_max_words_flag_lowers_cap(self):
         path = os.path.join(tempfile.mkdtemp(), "Resume - T.docx")

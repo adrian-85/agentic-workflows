@@ -406,6 +406,20 @@ def _text_integrity_errors(region, summary):
     return errors
 
 
+def _editable_word_cap_errors(region, summary):
+    """Blocking cap errors for editable prose, excluding the Summary."""
+    errors = []
+    for paragraph, text in _prose_paragraphs(region, summary):
+        if paragraph is summary or _is_tools(paragraph):
+            continue
+        words = len(text.split())
+        if words > PARA_WORD_CAP:
+            errors.append(
+                f"editable paragraph has {words} words (cap "
+                f"{PARA_WORD_CAP})")
+    return errors
+
+
 def _readability_guidance(body, summary, *, region=None, master_input=False):
     """Advisory readability checks (SKILL Step 5 word cap + Step 6).
 
