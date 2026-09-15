@@ -37,6 +37,7 @@ class InferenceSources(NamedTuple):
     """Evidence sources used for no-host JD terms."""
     linkedin_text: str | None = None
     master_body: object | None = None
+    extra_missing: tuple = ()
 
 
 HEADLINE_STYLE = "Title"  # top-of-resume headline: 2nd 'Title' paragraph after the name
@@ -377,7 +378,10 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None):
             f"drop match terms); a recruiter's message is fine."
         )
     if body is not None:
-        missing = _jd_missing_terms(jd_text, body, jd_terms)
+        missing = list(_jd_missing_terms(jd_text, body, jd_terms))
+        for term in (sources.extra_missing if sources else ()):
+            if term not in missing:
+                missing.append(term)
         if missing:
             block, shown = _missing_report_block(jd_text, missing)
             lines.extend(block)

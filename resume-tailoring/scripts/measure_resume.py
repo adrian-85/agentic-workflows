@@ -13,6 +13,7 @@ sanctioned measure run on the master::
 
     python3 scripts/measure_resume.py "X Master Resume.docx" \
         --jd <raw-JD.txt> [--protect "<phrase>"] [--linkedin <dump>]
+        [--ats-report <scan.json>]
 
 It prints ONLY the JD assessment — requirement coverage, the per-role
 JD-FIT AUDIT (with copy-pasteable ``find_p`` anchors), WORD-LEVEL TRIM
@@ -142,6 +143,7 @@ from measure_resume_jd_terms import (
     _vocab_terms,
     _weakness_key)
 
+import gap_queue  # noqa: E402
 import jd_asks  # noqa: E402
 
 
@@ -281,7 +283,7 @@ def _print_usage():
     """Print the measure_resume CLI usage message to stderr."""
     print("usage: measure_resume.py <resume.docx> [TARGET_PAGES] "
           "[--jd <raw-JD.txt>] [--linkedin <profile-dump.txt>] "
-          "[--protect \"<JD-critical phrase>\"] "
+          "[--ats-report <scan.json>] [--protect \"<JD-critical phrase>\"] "
           "[--simulate <company-prefix>]",
           file=sys.stderr)
     print("  Renders the docx, reports per-role rendered line costs and "
@@ -298,6 +300,10 @@ def _print_usage():
           "variants and skill-family roots) for candidate evidence the "
           "resume compressed away.",
           file=sys.stderr)
+    print("  --ats-report <file>: merge the external scan's missing hard "
+          "and soft skills with the internal no-host list, run the same "
+          "master/LinkedIn inference map, and write a fingerprinted "
+          "<resume>.gap.json queue.", file=sys.stderr)
     print("  --protect: pass repeatedly; bullets containing the phrase "
           "are never suggested for cutting (candidate-specific facts "
           "the JD text cannot name, e.g. a confirmed Snyk duty).",
@@ -857,22 +863,46 @@ def _print_layout_summary(ctx):
                   f"clone_after(body, find_p(ps, \"<Tools line>\"), \"\")")
 
 
-def _load_and_render(docx, simulate, jd_file, jd_text, evidence_text):
-    """Simulate (if requested), load the docx, resolve JD terms, print the
-    JD report, and render the PDF. Returns (body, roles, jd_terms,
-    pages_text, total_pages)."""
-    master_body = _adjacent_master_body(docx)
+def _external_gap_terms(report_path, resume_path, internal_missing):
+    """Normalize external gaps, persist the fingerprinted queue, return terms."""
+    if not report_path:
+        return list(internal_missing)
+    try:
+        with open(report_path, encoding="utf-8") as source:
+            report = json.load(source)
+        gaps = gap_queue.normalize_gaps(report, internal_missing)
+        artifact = resume_path + ".gap.json"
+        gap_queue.write_artifact(
+            report_path, resume_path, internal_missing, artifact)
+        print(f"ATS GAP QUEUE: {len(gaps)} normalized gap(s) -> {artifact}")
+        return [gap["term"] for gap in gaps]
+    except (OSError, ValueError) as exc:
+        print(f"error: cannot read --ats-report {report_path}: {exc}",
+              file=sys.stderr)
+        sys.exit(2)
+
+
+def _load_and_render(args):
+    """Simulate, load the docx, resolve gaps, print the JD report, and render."""
+    source_docx = args.docx
+    master_body = _adjacent_master_body(source_docx)
     with tempfile.TemporaryDirectory() as td:
-        docx, sim_jd_terms = _print_simulate(docx, simulate, jd_file,
-                                             jd_text, td)
+        docx, sim_jd_terms = _print_simulate(
+            source_docx, args.simulate, args.jd_file, args.jd_text, td)
         _, body, _, _, _ = de.load(docx)
         roles = _roles(body)
-        jd_terms = _resolved_jd_terms(jd_text, body, simulate, sim_jd_terms)
-        if jd_file:
+        jd_terms = _resolved_jd_terms(
+            args.jd_text, body, args.simulate, sim_jd_terms)
+        if args.jd_file:
+            internal_missing = _jd_missing_terms(
+                args.jd_text, body, jd_terms)
+            extra_missing = _external_gap_terms(
+                args.ats_report, source_docx, internal_missing)
             _print_jd_report(
-                jd_file, jd_text, jd_terms, body,
-                InferenceSources(linkedin_text=evidence_text,
-                                 master_body=master_body))
+                args.jd_file, args.jd_text, jd_terms, body,
+                InferenceSources(linkedin_text=args.evidence_text,
+                                 master_body=master_body,
+                                 extra_missing=tuple(extra_missing)))
         pdf = _render_pdf(docx, td)
         pages_text = _pdf_pages_text(pdf)
         total_pages = len(pages_text)
@@ -887,6 +917,7 @@ class _Args(NamedTuple):
     jd_text: str | None
     jd_file: str | None
     evidence_text: str | None
+    ats_report: str | None
     protect: list
     simulate: list
 
@@ -896,6 +927,7 @@ def _parse_measure_args():
     argv = list(sys.argv[1:])
     maybe_help(argv, __doc__)
     linkedin_file = extract_flag(argv, "--linkedin")
+    ats_report = extract_flag(argv, "--ats-report")
     simulate = extract_flag_all(argv, "--simulate")
     protect, jd_file, kept = extract_common(argv)
     if len(kept) < 1:
@@ -915,7 +947,7 @@ def _parse_measure_args():
                   f"{e}", file=sys.stderr)
             sys.exit(2)
     return _Args(docx, target, default_target, jd_text, jd_file,
-                 evidence_text, protect, simulate)
+                 evidence_text, ats_report, protect, simulate)
 
 
 def _build_ctx(args, body, roles, jd_terms, pages_text):
@@ -947,9 +979,7 @@ def main():  # CLI entry: prune-plan on the master, full page math otherwise
     if _is_master_input(args.docx):
         _main_prune_plan(args)
         return
-    body, roles, jd_terms, pages_text, _ = _load_and_render(
-        args.docx, args.simulate, args.jd_file, args.jd_text,
-        args.evidence_text)
+    body, roles, jd_terms, pages_text, _ = _load_and_render(args)
     ctx = _build_ctx(args, body, roles, jd_terms, pages_text)
     _print_page_summary(ctx)
     _print_cost_table(ctx)

@@ -1783,6 +1783,17 @@ class JdReportTests(unittest.TestCase):
         lines = mr._jd_report("jd.txt", "word " * 400, {"python"})
         self.assertNotIn("verbatim", "\n".join(lines))
 
+    def test_external_gap_is_sent_through_inference_map(self):
+        body = _body([_para("Used a unit testing framework for components.")])
+        lines = mr._jd_report(
+            "jd.txt", "word " * 400, {"component-level testing"},
+            body=body,
+            sources=mr.InferenceSources(
+                extra_missing=("component-level testing",)))
+        joined = "\n".join(lines)
+        self.assertIn("component-level testing", joined)
+        self.assertIn("AUTO-HOST", joined)
+
     def test_no_terms_fallback_message(self):
         lines = mr._jd_report("jd.txt", "word " * 400, set())
         self.assertTrue(any("no candidate-tech terms" in ln for ln in lines))
@@ -3053,8 +3064,8 @@ class PrunePlanModeTests(unittest.TestCase):
         return mr._Args(
             docx=docx, target=target or 2,
             default_target=target is None, jd_text=jd_text,
-            jd_file=jd_file, evidence_text=None, protect=[],
-            simulate=list(simulate))
+            jd_file=jd_file, evidence_text=None, ats_report=None,
+            protect=[], simulate=list(simulate))
 
     def test_is_master_input(self):
         self.assertTrue(mr._is_master_input("/x/A Master Resume.docx"))

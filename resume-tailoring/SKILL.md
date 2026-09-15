@@ -706,10 +706,23 @@ remaining findings are the actionable ones.
 "<resume>.pdf" jd_<target>.txt` submits the deliverable to the user's ATS
 scan service and saves the match-report JSON next to the resume
 (`<...>.ats-check.json`); feed it back for the authoritative cross-check:
-`.ats-check/cookies.txt` to re-seed). When the score is below 75, read the
+`.ats-check/cookies.txt` to re-seed). When the score is below 75, pass the
+saved report to the current-build measure run:
+
+```bash
+python3 scripts/measure_resume.py "<Name> Resume - <Target>.docx" \
+  <TARGET_PAGES> --jd jd_<target>.txt --linkedin /tmp/profile.txt \
+  --ats-report "<Name> Resume - <Target>.ats-check.json"
+```
+
+That command normalizes the external hard/soft gaps, merges them with the
+internal no-host list, runs the same master/LinkedIn inference map, and writes
+`<resume>.gap.json` with resume/report fingerprints. When the score is below
+75, read the
 report's `skills.hard` and `skills.soft` entries with `resumeCount == 0`
-before asking anything. `ats_check.py` prints both missing lists explicitly;
-these lists are the next source-mining queue and are not optional. Re-run the
+before asking anything. `ats_check.py` prints both missing lists explicitly, and the gap artifact
+preserves them as derived data without altering the raw API response. These
+lists are the next source-mining queue and are not optional. Re-run the
 master/LinkedIn inference loop after each hosting round. Do not treat generic
 finding fragments as skills, and do not skip the external lists merely
 because `ats_audit.py` produced a different no-host list. The report's
