@@ -58,7 +58,8 @@ JD_QUAL_HEADING_RE = re.compile(
     # Conversational heading forms ("Who you are", "What you'll do") —
     # common startup-style JD headings whose bullet lines are still asks.
     r"|^\s*(?:who\s+you\s+are|about\s+you|your\s+profile"
-    r"|what\s+you.?ll\s+(?:do|bring))\s*:?\s*$"
+    r"|what\s+you(?:.{0,2}ll|\s+will)\s+(?:do|bring)"
+    r"|what\s+will\s+set\s+you\s+apart)\s*:?\s*$"
     # A bare "Required:" / "Preferred:" / "Minimum:" heading line — a
     # common short-form JD format where the qualifier IS the whole heading.
     r"|^\s*#{0,6}\s*(?:required|preferred|minimum)\s*:?\s*$"

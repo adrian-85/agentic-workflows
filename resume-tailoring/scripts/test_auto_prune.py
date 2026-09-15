@@ -79,6 +79,12 @@ def _master_paras():
         _para("Logged bugs in a spreadsheet and filed paperwork",
               numId=2),
         _para("Answered the office phone", numId=2),
+        _para("Sole testing and quality engineering resource for the "
+              "entire payments department, reporting to the director of "
+              "payments, and partnered with the director to secure buy-in "
+              "from a team of managers and an architect for process, "
+              "release, and testing changes across five engineering teams "
+              "building a new payments platform in a large monorepo."),
         _para(mr.SECTION_EDUCATION, style="SectionHeading"),
         _para("BA, General Studies"),
     ])
@@ -93,6 +99,9 @@ class _AutoPruneBase(unittest.TestCase):
         self.jd_terms = mr._jd_terms(JD, self.body)
         self.candidates = mrd.prune_candidates(self.roles, self.jd_terms,
                                                self.body, protect=())
+        self.candidates.extend(auto_prune._intro_candidates(
+            self.body, self.roles, self.jd_terms,
+            [de.text_of(p) for p in de.paras(self.body)]))
         self.plan = auto_prune.plan_phase_a(self.candidates, self.roles,
                                             self.jd_terms, self.body)
 
@@ -142,6 +151,30 @@ class TestJdEvidenceFamilies(unittest.TestCase):
         evidence = jd_asks.evidence_set(
             "Performed manual visual checks on every release.", asks)
         self.assertIn("visual regression testing", evidence)
+
+
+class TestIntroProseCap(_AutoPruneBase):
+    """Over-cap role-intro prose paragraphs (non-bullets) are word-trim
+    candidates — validate_resume caps every editable prose paragraph."""
+
+    def test_over_cap_intro_is_a_word_trim_candidate(self):
+        c = self._cand("Sole testing and quality", "word-trim")
+        self.assertTrue(c, "over-cap intro prose must be a candidate")
+
+    def test_under_cap_intro_is_never_a_candidate(self):
+        self.assertFalse(self._cand("QA Engineer"))
+
+    def test_intro_is_disposed_under_cap(self):
+        # No JD-evidenced sentence in this fixture's intro → the machine
+        # disposes it as a CUT (trim would be empty); with evidence it
+        # word-trims to <= WORD_CAP (see the GEICO case on a real master).
+        c = self._cand("Sole testing and quality", "word-trim")
+        trims = [new for anchor, new in self.plan["trims"]
+                 if anchor[1] == c["text"]]
+        cuts = [t for _p, t in self.plan["drops"] if t == c["text"]]
+        self.assertTrue(trims or cuts)
+        for new in trims:
+            self.assertLessEqual(len(new.split()), auto_prune.WORD_CAP)
 
 
 class TestPlanDispositions(_AutoPruneBase):

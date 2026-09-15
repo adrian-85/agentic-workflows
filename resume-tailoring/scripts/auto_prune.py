@@ -49,8 +49,8 @@ from docx_edit import (SECTION_STYLE, paras, shortest_unique_prefix,  # noqa: E4
                        text_of, prune_sidecar_path)
 from measure_resume_drops import _sentence_clauses, _weakness_key, \
     prune_candidates  # noqa: E402
-from measure_resume_format import (COMPANY_STYLE, SECTION_PROFICIENCIES,  # noqa: E402
-                                   _roles)
+from measure_resume_format import (BULLET_STYLES, COMPANY_STYLE,
+                                   SECTION_PROFICIENCIES, _roles)
 import jd_asks  # noqa: E402
 from script_args import maybe_help, read_jd_text  # noqa: E402
 
@@ -639,6 +639,46 @@ def _build_meta(docx, jd_file, target, skill_root):
     return dst, meta
 
 
+def _intro_candidates(body, roles, jd_terms, all_texts):
+    """Word-trim candidates for over-cap role-INTRO prose paragraphs.
+
+    A paragraph under a company header that is neither a numbered bullet
+    nor a Tools line is role intro text — an editable prose paragraph the
+    40-word cap governs (validate_resume blocks the build otherwise), so
+    the machine dispositions it exactly like a kept bullet: trim to JD-
+    evidenced sentences, capped at WORD_CAP. Under-cap intros are never
+    candidates.
+    """
+    keys = {r["raw"] for r in roles}
+    out = []
+    cur = None
+    for p in de.paras(body):
+        style, numId = de.style_and_numid(p)
+        txt = de.text_of(p).strip()
+        if style == COMPANY_STYLE and txt:
+            cur = txt
+            continue
+        if cur is None or not txt:
+            continue
+        is_bullet = (numId is not None and numId != "0") or \
+            style in BULLET_STYLES
+        if is_bullet or (txt.lower().startswith("tool") and
+                         "technolog" in txt.lower()):
+            continue
+        if len(txt.split()) <= WORD_CAP:
+            continue
+        try:
+            prefix = de.shortest_unique_prefix(all_texts,
+                                               all_texts.index(de.text_of(p)),
+                                               min_len=6)
+        except ValueError:
+            prefix = None
+        out.append({"kind": "word-trim", "role": cur, "prefix": prefix,
+                    "text": de.text_of(p),
+                    "detail": "over-cap intro prose (>40 words)"})
+    return out
+
+
 def _load_candidates(docx, jd_text):
     """(body, roles, jd_terms, candidates) for a master + JD; exits 2
     when the JD has no intersection with the resume's vocabulary or
@@ -651,6 +691,8 @@ def _load_candidates(docx, jd_text):
               "raw posting text", file=sys.stderr)
         sys.exit(2)
     candidates = prune_candidates(roles, jd_terms, body, protect=())
+    texts = [de.text_of(p) for p in de.paras(body)]
+    candidates.extend(_intro_candidates(body, roles, jd_terms, texts))
     if not candidates:
         print("error: no prune candidates — the JD matches everything in "
               "the master; nothing to machine-prune", file=sys.stderr)

@@ -2907,6 +2907,25 @@ class WordBudgetTests(unittest.TestCase):
         # benefits prose stays excluded
         self.assertFalse(any("401k" in ln for ln in lines))
 
+    def test_jd_requirement_lines_will_bring_and_apart_headings(self):
+        """REGRESSION: the Empower JD's 'What you will bring:' and
+        'What will set you apart:' headings were not recognized (only the
+        contracted "you'll" form was), so requirement coverage silently
+        returned [] and the REQUIREMENTS SUMMARY never printed."""
+        jd = (
+            "Senior Engineer Automation Quality\n\n"
+            "What you will bring:\n\n"
+            "4-7 years of overall testing experience.\n"
+            "Experience with API automation using Karate.\n\n"
+            "What will set you apart:\n\n"
+            "Experience mentoring test automation teams.\n\n"
+            "What we offer:\n\n"
+            "Flexible work environment.\n"
+        )
+        lines = measure_resume_jd._jd_requirement_lines(jd)
+        self.assertEqual(len(lines), 3)
+        self.assertFalse(any("Flexible work" in ln for ln in lines))
+
     def test_jd_requirement_lines_you_have_heading(self):
         """REGRESSION: the Workday/agency 'You Have:' heading form
         (Merkle QA Lead JD) was not recognized, so the audit fell back to
