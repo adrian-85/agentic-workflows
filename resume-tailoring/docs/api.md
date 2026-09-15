@@ -336,18 +336,22 @@ is ignored with a note. **The agent does not run this mode** — Phase 1's
 `auto_prune.py` (SKILL Step 2) is the machine prune's only consumer: it
 machine-dispositions every candidate (no agent keeps, no overrides, no cut
 report), emits the first tailor script, and runs it through `run_tailor.sh`.
-The only `# kept:` lines in an emitted script are the machine's stub keeps
-(a role would otherwise lose every bullet; timeline gaplessness). A user-
-approved whole-role drop is represented by `drop_role()` itself, never by a
-fake `# kept:` comment; per-bullet edits inside that role must not remain in
-the script.
+A `# kept:` line in an emitted script is always machine-generated, never an
+agent negotiation, and covers three cases: a role's stub keep (it would
+otherwise lose every bullet; timeline gaplessness), a bullet kept WHOLE
+unmodified (every sentence carries JD evidence and it is already within the
+word cap), and a proficiency/Tools line kept WHOLE unmodified (it hosts at
+least one JD-evidenced item). A user-approved whole-role drop is
+represented by `drop_role()` itself, never by a fake `# kept:` comment;
+per-bullet edits inside that role must not remain in the script.
 
 **Machine prune sidecar + coverage gate.** The internal `--jd` machinery
 writes `<master>.prune.json`, one candidate record per bullet/list/section
 candidate. `auto_prune.py` consumes that data and generates all CUT/TRIM
 edits itself. The agent does not run the master mode, fill a disposition
 checklist, or negotiate `# kept:` reasons. A `# kept:` line in a generated
-script is only a machine-created timeline-stub or whole-section explanation.
+script is always machine-generated (stub, whole-bullet, whole-line, or
+whole-section keep), never an agent negotiation.
 
 **Enforced, not a habit:** `run_tailor.sh` runs `docx_edit.py
 <master> --lint-prune <script>` before executing the tailor script. It
@@ -362,10 +366,13 @@ planning deliverable.
 
 `measure_resume.py --jd` emits this section after the JD-FIT AUDIT.
 It names non-JD content inside kept bullets and list lines (Technical
-Proficiencies, role Tools lines) that survived bullet-level cutting but
-still carry irrelevant tool mentions, structured chunks, or dead
-sentences. Phase 1 applies safe structured trims automatically; ordinary
-prose that cannot be safely shortened remains for Phase 2 rewriting.
+Proficiencies, role Tools lines) that survived Phase 1's row/sentence/
+whole-category pruning but still carry irrelevant tool mentions or dead
+sentences. Phase 1 (`auto_prune.py`) never rewrites a surviving sentence or
+line at the word/phrase level — it only drops whole dead sentences and
+keeps or cuts a list line whole; anything this section flags is backstop
+cleanup for the agent to apply by hand in Phase 2 (Step 8), not something
+the machine already did.
 
 **Bullet-level output:**
 ```

@@ -17,31 +17,39 @@ styles, list/bullet numbering, and hyperlinks all survive.
 ever reaches the build.** Copy the master, never overwrite it — every run
 writes a new file (e.g. `John Doe Resume - <Target>.docx`). Phase 1
 (`auto_prune.py`, Step 2) machine-dispositions EVERY paragraph of the master
-against the JD — every bullet, dead sentence, list chunk, and Tools line —
-and emits and runs the first tailor script through the full gate chain. The
-agent never dispositions a prune candidate, never re-opens a cut by argument,
-never sees a cut report, and never page/word-measures the master. The single
-ask/evidence matcher is the disposition rule: fix its JD evidence families
-when truthful equivalents such as Python/Python scripting, Linux/WSL/Linux
-bash, unit/component testing, or visual checks/visual regression testing are
-being cut; do not add a second independent preservation filter. Its work
-starts on the resulting LEAN BASE BUILD: measure it and decide
-length/seniority (Steps 3–4), preserve the user’s Summary/intro (Step 5),
-tailor title/flagship (Steps 5–7), and mine the master + LinkedIn ONLY when
-the ATS steps surface a gap to host (Step 8). Restores are add-driven and
-JD-evidenced; because the base build starts relevance-pruned, the old
-cut-iterate-cut compression loop is structurally gone. Page and whole-resume
-word budgets are Phase 2 work — closed after the initial positioning edits —
-never Phase 1. JD alignment is king, readability second; time-in-role and
-recency are only tiebreakers, never a cut signal and never an exemption.
+against the JD — every bullet, dead sentence, proficiency/Tools line, and
+certification/section line — and emits and runs the first tailor script
+through the full gate chain. Every disposition is row/sentence/whole-category
+granular: a bullet is cut whole or kept whole (with whole dead sentences
+dropped from a kept multi-sentence bullet), and a proficiency/Tools line is
+kept whole or cut whole — the machine never rewrites words or phrases inside
+a surviving sentence or line. That kind of wording change is Phase 2 agent
+work (Step 8), done only when the agent is already touching the line to host
+something. The agent never dispositions a prune candidate, never re-opens a
+cut by argument, never sees a cut report, and never page/word-measures the
+master. The single ask/evidence matcher is the disposition rule: fix its JD
+evidence families when truthful equivalents such as Python/Python scripting,
+Linux/WSL/Linux bash, unit/component testing, or visual checks/visual
+regression testing are being cut; do not add a second independent
+preservation filter. Its work starts on the resulting LEAN BASE BUILD:
+measure it and decide length/seniority (Steps 3–4), preserve the user’s
+Summary/intro (Step 5), tailor title/flagship (Steps 5–7), and mine the
+master + LinkedIn ONLY when the ATS steps surface a gap to host (Step 8).
+Restores are add-driven and JD-evidenced; because the base build starts
+relevance-pruned, the old cut-iterate-cut compression loop is structurally
+gone. Page and whole-resume word budgets are Phase 2 work — closed after the
+initial positioning edits — never Phase 1. JD alignment is king, readability
+second; time-in-role and recency are only tiebreakers, never a cut signal and
+never an exemption.
 
 ## Editing phases
 
 **Phase 1 — relevance assembly.** `auto_prune.py` builds a JD-relevant base
-from the master. It removes unevidenced content, dead sentences, structured
-non-JD word/phrase chunks, and non-JD list entries. It never drops a whole
-role and does not perform page/word-budget iteration. The agent does not
-review or negotiate these cuts.
+from the master. It removes unevidenced content, whole dead sentences from a
+kept bullet, and whole non-JD proficiency/Tools lines — never a sub-sentence
+word/phrase edit and never a partial value list within a kept line. It never
+drops a whole role and does not perform page/word-budget iteration. The
+agent does not review or negotiate these cuts.
 
 **Phase 2 — final tailoring.** Starting from the Phase 1 base, the agent
 performs every remaining edit: title/Summary positioning, less-obvious
@@ -132,8 +140,9 @@ manual habits are:
    `docx_edit.py "<docx>" <idx> --full` (or `<start>-<end> --full`) rather than ad-hoc
    inline python — it is one command and shows the exact string you are replacing.
 2. **Never run the prune yourself.** `auto_prune.py` (Step 2) is the only sanctioned
-   master consumer: it machine-dispositions every candidate (cuts, word trims, list
-   trims, whole-category cuts, stub keeps), emits `tailor_<target>.py`, and runs it
+   master consumer: it machine-dispositions every candidate (bullet cuts, whole dead
+   sentences dropped from kept bullets, whole-category proficiency/Tools-line keeps or
+   cuts, stub keeps), emits `tailor_<target>.py`, and runs it
    through `run_tailor.sh`'s gate chain in one command. There is no disposition
    checklist to fill and no cut report to read — the base build IS the disposition.
    Re-running the command after a user edit refreshes the prune sidecar
@@ -243,9 +252,13 @@ What the machine does (deterministic; the agent has no lever here):
   every no-JD-evidence proficiencies/cert line; a section whose every
   line is cut goes whole — an entire technical-proficiency category may
   go.
-- **TRIM** kept bullets' dead sentences and safely removable structured
-  chunks (comma/semicolon/parenthetical phrases), enforce the ≤40-word
-  bullet cap, and strip non-JD chunks from list lines.
+- **TRIM** kept bullets by dropping whole dead SENTENCES (never a
+  sub-sentence word or phrase), enforcing the ≤40-word bullet cap by
+  dropping more whole sentences when needed. A proficiency/Tools line
+  hosting ANY JD-evidenced item is kept WHOLE and unmodified; a line
+  hosting NONE is cut whole — never a partial value list. Word-choice
+  tailoring of a surviving sentence or line is Phase 2 agent work (Step
+  8), done only when adding a host to that line.
 - **NEVER drops a whole role** — a role left with zero bullets keeps a
   one-bullet stub (header/title + strongest bullet), so the timeline
   stays gapless and the seniority gate (Step 4) sees every role.
@@ -262,8 +275,9 @@ cut content gets it through Step 8's gap-driven mining, as a fresh,
 purpose-written host — which tailors better than preserved master prose
 anyway.
 
-The machine protects hosts by construction: any chunk carrying a JD term
-or a practice-phrase concept survives every trim, so a JD-named hard
+The machine protects hosts by construction: any SENTENCE carrying a JD term
+or a practice-phrase concept survives every trim (whole, unmodified) and any
+proficiency/Tools LINE carrying one is kept whole, so a JD-named hard
 skill's last host is never cut (Step 11's `ats_audit.py --jd` backstop
 still verifies post-build).
 
@@ -686,15 +700,22 @@ phrases literally (host the exact phrase truthfully or raise the gap — never
 fabricate). Posting metadata, company-introduction prose, and generic
 fragments are excluded from the normal phrase list and cannot affect the
 exit status. JD-named terms with no host mean a cut killed the last host
-(the machine protects JD-named chunks, but a hosting rewrite can kill
-one — Step 8's in-bullet rule) or the phrase was never mirrored — fix or
-raise. **Before raising a no-host term as a genuine gap, grep the MASTER
-for it — including the content Phase 1 cut.** Cut-first means the
+(the machine protects JD-named sentences/lines whole, but a hosting rewrite
+can kill one — Step 8's in-bullet rule) or the phrase was never mirrored —
+fix or raise. **Before raising a no-host term as a genuine gap, grep the
+MASTER for it — including content Phase 1 cut from a role that is still
+KEPT in the build, not only from roles dropped whole.** Cut-first means the
 master still hosts what the deliverable lost: a real session kept
 `cybersecurity` on the FAIL list for two scan rounds while the only
 truthful host — a CareMetx security bullet cut during compression — sat
 in the master; the user had to point at it, and hosting the term in a
 kept JD bullet (Snyk is a cybersecurity tool) cleared it in one edit.
+Another session put a term on the RAISE checklist for a role that was never
+dropped at all — the user had to point out the KEPT role's own master text
+already had the evidence ("you didn't drop that role, did you forget to
+check the master for it?"): a surviving role's cut bullets are exactly as
+much a mining source as a dropped role's, and skipping that check costs a
+round-trip the grep would have avoided.
 The report's soft-skill no-hosts are ACTIONABLE (Step 8's inference rule;
 soft skills are safe to infer) — not advisory. Its findings summary
 auto-IGNOREs the by-rule noise (contactEmail, specialCharacters,
@@ -882,7 +903,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | "Keep N" with a drop list that doesn't add up | intended keep + len(drop list) == the role's master bullet count (23 − 16 = 7, not 8); a built role whose count differs from intent is a MISS to fix, not a counting convention (Step 8) |
 | Measuring the full master for page/word budgets | Refused by the tool — the master is machine-pruned only (Step 2); length/word decisions run on the BASE BUILD (Steps 3–4) |
 | Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 2, 8) |
-| Treating a proficiencies/Tools line as permanent ATS-host real estate | The machine strips every non-JD chunk from list lines and cuts lines with no ask (Step 2); hosting comes from purpose-written bullet text, not preserved lines |
+| Treating a proficiencies/Tools line as permanent ATS-host real estate | The machine keeps a line whole only when it hosts JD evidence and cuts a line with no ask whole (Step 2, never a partial value list); hosting comes from purpose-written bullet text, not preserved lines |
 | Re-litigating Phase 1 cuts by argument, or hand-pruning the master | The machine's disposition stands; there is no `# kept:` negotiation. `auto_prune.py` is the only sanctioned master consumer — re-run the command rather than editing its output cuts. Content the JD genuinely needs returns via Step 8 mining as a fresh, purpose-written host |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
 | Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (`save()` prints one summary line if element-form was used). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form (Helper library) |
@@ -898,7 +919,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Reading a clean render (no `--jd`) as education-clause clearance | The education gate runs only with `--jd`; the seniority gate always — render_pdf.sh NOTEs when the education gate did not run (Step 11) |
 | Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 9) |
 | Trusting the internal JD matchers as the ATS score | Internal matching is term/concept-based; ATS tools match literal phrases — run `ats_audit.py` on the rendered PDF before declaring done (Step 11) |
-| Cutting the last host of a JD-named hard skill | The machine protects JD-named/concept chunks through every trim (Step 2); a hosting rewrite can still kill one — `ats_audit.py --jd` catches it post-build (Step 11) |
+| Cutting the last host of a JD-named hard skill | The machine protects any JD-named/concept SENTENCE or LINE whole through every trim (Step 2 never edits a survivor's words); a hosting rewrite can still kill one — `ats_audit.py --jd` catches it post-build (Step 11) |
 | Widening the contact block or rewriting link text for ATS parsers | IGNORED by rule — the compact hyperlinked contact block is deliberate design; `contactEmail` searchability findings are noise (Step 11) |
 | Reformatting typography to clear the scan's Special Characters finding | IGNORED by rule — Wingdings bullets, en-dash dates, curly quotes are the user's deliberate formatting; never reformat to satisfy a text parser (Step 11) |
 | Restoring Education because the scan wants an Education section | IGNORED by rule when Education was dropped per Step 4.4 — the render gate sanctioned the drop; the scan's generic advice does not re-open it (Step 11) |
