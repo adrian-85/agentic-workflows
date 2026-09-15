@@ -25,6 +25,7 @@ import sys
 
 from docx_edit import (TITLE_STYLE, clone_after, find_p, load, paras, prune_sidecar_path, save,
                        set_text, style_and_numid, text_of)
+from validate_resume_checks import SUMMARY_STYLE
 
 
 def paragraph_map(body, width=90):
@@ -104,17 +105,17 @@ def prefixes(body, min_len=30, max_len=70):
     return out
 
 
-def _script_find_p_prefixes(script_path):
-    """Every find_p search-string in a tailor script, via AST.
+def _script_find_p_prefixes(tree):
+    """Every find_p search-string in a parsed tailor script, via AST.
 
     Python's implicit string-literal concatenation collapses multi-line
     arguments into one Constant at parse time, so this handles both
     ``find_p(ps, "prefix")`` and multi-line set_labeled-style calls.
     Returns (prefix, lineno) pairs, in source order; None entries for
     calls whose search string is not a literal (dynamic prefix — can't
-    be linted statically)."""
-    with open(script_path, encoding="utf-8") as f:
-        tree = ast.parse(f.read(), script_path)
+    be linted statically). Takes the already-parsed tree so lint_script
+    parses the script once.
+    """
     out = []
     for node in ast.walk(tree):
         func = getattr(node, "func", None) if isinstance(node, ast.Call) \
@@ -139,10 +140,8 @@ def _script_find_p_prefixes(script_path):
     return out
 
 
-def _script_summary_edit_targets(script_path, ps):
+def _script_summary_edit_targets(tree, ps):
     """Find literal set_text/set_labeled edits aimed at the Summary."""
-    with open(script_path, encoding="utf-8") as f:
-        tree = ast.parse(f.read(), script_path)
     out = []
     edit_names = {"set_text", "set_labeled", "replace_text"}
     for node in ast.walk(tree):
@@ -168,9 +167,34 @@ def _script_summary_edit_targets(script_path, ps):
                     and isinstance(kw.value, ast.Constant)
                     and isinstance(kw.value.value, int)), None)
         paragraph = find_p(ps, prefix.value, nth=nth)
-        if paragraph is not None and style_and_numid(paragraph)[0] == "Summary":
+        if paragraph is not None \
+                and style_and_numid(paragraph)[0] == SUMMARY_STYLE:
             out.append((node.lineno, prefix.value))
     return out
+
+
+def _resolve_find_p_targets(targets, ps):
+    """(prefix, lineno, reason) for every find_p target that does not
+    resolve against ``ps`` — the shared scan behind lint_script."""
+    bad = []
+    with contextlib.redirect_stderr(io.StringIO()) as err_io:
+        for prefix, lineno, nth in targets:
+            if prefix is None:
+                bad.append((lineno, "<dynamic>",
+                            "search string is not a literal — verify by "
+                            "hand"))
+                continue
+            if nth is not None:
+                resolved = find_p(ps, prefix, nth=nth)
+            else:
+                resolved = find_p(ps, prefix)
+            if resolved is None:
+                warning = err_io.getvalue().strip().splitlines()
+                reason = warning[-1] if warning else "not found"
+                bad.append((lineno, prefix, reason))
+                err_io.truncate(0)
+                err_io.seek(0)
+    return bad
 
 
 def lint_script(docx_path, script_path):
@@ -195,7 +219,9 @@ def lint_script(docx_path, script_path):
         print(f"error: script not found: {script_path}", file=sys.stderr)
         return 2
     try:
-        targets = _script_find_p_prefixes(script_path)
+        with open(script_path, encoding="utf-8") as f:
+            tree = ast.parse(f.read(), script_path)
+        targets = _script_find_p_prefixes(tree)
     except SyntaxError as e:
         print(f"error: {script_path} does not parse: {e}", file=sys.stderr)
         return 1
@@ -205,31 +231,14 @@ def lint_script(docx_path, script_path):
         return 0
     _, body, _, _, _ = load(docx_path)
     ps = paras(body)
-    summary_edits = _script_summary_edit_targets(script_path, ps)
+    summary_edits = _script_summary_edit_targets(tree, ps)
     for lineno, prefix in summary_edits:
         print(f"  immutable Summary  line {lineno}: "
               f"find_p({prefix!r}) — Summary/intro edits are forbidden",
               file=sys.stderr)
     if summary_edits:
         return 1
-    bad = []
-    with contextlib.redirect_stderr(io.StringIO()) as err_io:
-        for prefix, lineno, nth in targets:
-            if prefix is None:
-                bad.append((lineno, "<dynamic>",
-                            "search string is not a literal — verify by "
-                            "hand"))
-                continue
-            if nth is not None:
-                resolved = find_p(ps, prefix, nth=nth)
-            else:
-                resolved = find_p(ps, prefix)
-            if resolved is None:
-                warning = err_io.getvalue().strip().splitlines()
-                reason = warning[-1] if warning else "not found"
-                bad.append((lineno, prefix, reason))
-                err_io.truncate(0)
-                err_io.seek(0)
+    bad = _resolve_find_p_targets(targets, ps)
     for lineno, prefix, reason in bad:
         print(f"  MISS  line {lineno}: find_p({prefix!r}) — {reason}",
               file=sys.stderr)
