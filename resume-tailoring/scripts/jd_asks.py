@@ -160,7 +160,7 @@ _TECH_ANCHORS = frozenset({
     "model", "models", "prompt", "prompts", "defect", "defects",
     "code", "analysis", "observability", "governance", "nlp",
     "prediction", "predictive", "context", "harness", "harnesses",
-    "request", "requests",
+    "request", "requests", "linux", "bash", "batch", "windows",
 })
 
 # Seniority/level words: mid-sentence Capitalized ('Staff or Senior') is a
@@ -444,6 +444,33 @@ def soft_lines(jd_text):
 # --------------------------------------------------------------------- #
 # THE matcher and the evidence rule
 # --------------------------------------------------------------------- #
+# These are alternatives within one JD ask, not a second pruning rule. The
+# existing ask matcher uses them in both directions: a source paragraph that
+# carries a truthful equivalent protects the paragraph from Phase 1 cuts, and
+# the same equivalent can satisfy the later no-host audit.
+_EVIDENCE_FAMILIES = {
+    "component-level testing": (
+        "component-level testing", "component testing", "unit testing",
+        "unit test", "isolated component", "isolated ui"),
+    "level testing": (
+        "level testing", "component testing", "unit testing", "unit test",
+        "isolated component", "isolated ui"),
+    "python scripting": (
+        "python scripting", "python script", "python scripts", "python"),
+    "scripting": ("scripting", "script", "scripts"),
+    "linux bash": ("linux bash", "bash", "linux", "wsl"),
+    "windows batch": ("windows batch", "batch", "windows"),
+    "visual regression testing": (
+        "visual regression testing", "visual regression", "manual visual",
+        "visual checks", "visual verification"),
+}
+
+
+def _evidence_candidates(phrase_low):
+    """Return the literal/equivalent forms for one existing JD ask."""
+    return _EVIDENCE_FAMILIES.get(phrase_low, (phrase_low,))
+
+
 def hosted(text_low, phrase_low):
     """Literal phrase host, ATS-style: word-boundary substring, with a
     punctuation-stripped fallback for MULTI-TOKEN phrases (a phrase
@@ -495,10 +522,10 @@ def _concept_hosted(text_low, phrase_low):
 
 
 def _phrase_evidence(text_low, phrase, kind):
-    """Apply the engine's matcher for one ask phrase."""
-    if kind == "concept":
-        return _concept_hosted(text_low, phrase)
-    return hosted(text_low, phrase)
+    """Apply the engine's matcher for one ask phrase and its equivalents."""
+    matcher = _concept_hosted if kind == "concept" else hosted
+    return any(matcher(text_low, candidate)
+               for candidate in _evidence_candidates(phrase))
 
 
 def evidence_set(text_low, phrases):

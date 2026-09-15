@@ -25,6 +25,7 @@ import docx_edit_cli  # noqa: E402
 import measure_resume as mr  # noqa: E402
 import measure_resume_drops as mrd  # noqa: E402
 import auto_prune  # noqa: E402
+import jd_asks  # noqa: E402
 
 # Real-JD shape: a qualification section (the engine's ask source).
 JD = ("Required Qualifications\n"
@@ -101,6 +102,37 @@ class _AutoPruneBase(unittest.TestCase):
                                           or c["kind"] == kind):
                 return c
         return None
+
+
+class TestJdEvidenceFamilies(unittest.TestCase):
+    def test_component_testing_ask_protects_unit_testing_evidence(self):
+        jd = ("Required Qualifications\n"
+              "Experience with component-level testing of isolated UI elements.\n")
+        asks = {ask.phrase for ask in jd_asks.parse_asks(jd)}
+        self.assertTrue(
+            jd_asks.evidence_set(
+                "Used a unit testing framework for isolated components.", asks))
+
+    def test_alternative_scripting_terms_protect_source_evidence(self):
+        jd = ("Preferred Qualifications\n"
+              "Python scripting experience and scripting in Linux bash or "
+              "Windows batch.\n")
+        asks = {ask.phrase for ask in jd_asks.parse_asks(jd)}
+        self.assertIn("linux bash", asks)
+        text = "Wrote Python scripts and Linux WSL helpers for test data."
+        evidence = jd_asks.evidence_set(text.lower(), asks)
+        self.assertTrue(any(term in evidence for term in ("python scripting",
+                                                           "python")))
+        self.assertTrue(any(term in evidence for term in ("linux bash",
+                                                           "linux")))
+
+    def test_visual_regression_ask_protects_manual_visual_evidence(self):
+        jd = ("Required Qualifications\n"
+              "Hands-on experience with visual regression testing tools.\n")
+        asks = {ask.phrase for ask in jd_asks.parse_asks(jd)}
+        evidence = jd_asks.evidence_set(
+            "Performed manual visual checks on every release.", asks)
+        self.assertIn("visual regression testing", evidence)
 
 
 class TestPlanDispositions(_AutoPruneBase):
