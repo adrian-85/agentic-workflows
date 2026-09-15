@@ -120,6 +120,10 @@ def _roles(body):
                        DROP PLAN's weakest-first ranking and copy-pasteable
                        find_p lines)
         has_tools– whether a Tools & Technologies line is present
+        header_idx – the role header's index in ``de.paras(body)`` (the
+                     whole-document paragraph list, not the region slice)
+                     — lets a caller attribute a body paragraph (e.g. a
+                     Tools-line prune candidate) to its owning role
     """
     ps = de.paras(body)
     # Find section-heading indices by text.
@@ -146,7 +150,8 @@ def _roles(body):
             if cur:
                 roles.append(cur)
             cur = {"key": _company_key(txt), "raw": txt,
-                   "bullets": 0, "bullet_texts": [], "has_tools": False}
+                   "bullets": 0, "bullet_texts": [], "has_tools": False,
+                   "header_idx": start + j}
         elif cur is not None:
             # Count numbered bullets (numId not None and not "0", or a
             # paragraph style whose numbering lives on the style, e.g.

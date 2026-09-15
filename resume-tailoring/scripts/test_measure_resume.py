@@ -1336,6 +1336,23 @@ class PruneCandidatesTests(unittest.TestCase):
         self.assertIn("gatling", cands[0]["detail"])
         self.assertIn("javascript", cands[0]["detail"])
 
+    def test_tools_line_list_trim_carries_its_role_key(self):
+        # REGRESSION: a Tools & Technologies list-trim candidate had no
+        # role key, so drop_role()'s coverage (docx_edit_cli._prune_covered)
+        # never covered it even when the line sits inside the dropped role
+        # — a real session had to keep the now-pointless set_labeled edit in
+        # the script (it applies-and-skips) just to satisfy prune-coverage,
+        # contradicting SKILL Step 4's "keep no edits for the dropped role".
+        body = self._cand_body()
+        roles = mr._roles(body)
+        cands = mrd.prune_candidates(
+            roles, mr._jd_terms("Hands-on Cypress. CI/CD with Jenkins.",
+                                body), body)
+        tools = next(c for c in cands
+                     if c["kind"] == "list-trim"
+                     and c["text"].startswith("Tools & Technologies:"))
+        self.assertEqual(tools["role"], roles[0]["key"])
+
     def test_prefixes_resolve_against_the_document(self):
         body = self._cand_body()
         texts = [de.text_of(p) for p in de.paras(body)]

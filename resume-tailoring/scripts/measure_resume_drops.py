@@ -362,14 +362,31 @@ def _list_nonjd_chunks(text, jd_terms):
     return out
 
 
-def _list_trim_candidates(body, jd_terms, all_texts):
-    """[(prefix, text, nonjd_chunks, line_has_jd)] for Technical
+def _list_line_role_key(idx, roles):
+    """Key of the role owning paragraph index ``idx`` (a Tools & Technologies
+    line), or None when it sits outside every role (Technical Proficiencies /
+    Certifications lines live in the fixed top block). ``roles`` is in
+    document order (``_roles`` builds it that way), so the last role whose
+    ``header_idx`` is at or before ``idx`` is the owner."""
+    owner = None
+    for role in roles:
+        header_idx = role.get("header_idx")
+        if header_idx is not None and header_idx <= idx:
+            owner = role["key"]
+    return owner
+
+
+def _list_trim_candidates(body, jd_terms, all_texts, roles=()):
+    """[(prefix, text, nonjd_chunks, line_has_jd, role)] for Technical
     Proficiencies lines and role Tools lines. These keyword lines were
     bullet-blind in the trim scan — yet they are where non-JD tools pile
     up. A line carrying a JD practice phrase is skipped entirely (its
     chunks may host the concept). ``line_has_jd`` lets the printer send a
     fully non-JD line to the whole-line TOP-BLOCK cut instead of token
-    trimming."""
+    trimming. ``role`` is the owning role's key for a Tools line (None for
+    a Technical Proficiencies line, which sits outside every role) — it is
+    what lets a whole-role ``drop_role()`` cover the role's own Tools-line
+    candidate the same way it covers that role's bullets."""
     prof = set(_proficiency_block(body))
     out = []
     seen = set()
@@ -391,8 +408,10 @@ def _list_trim_candidates(body, jd_terms, all_texts):
             idx = all_texts.index(t)
             prefix = de.shortest_unique_prefix(all_texts, idx, min_len=6)
         except ValueError:
-            prefix = None
-        out.append((prefix, ts, chunks, _evidenced(ts, jd_terms)))
+            idx, prefix = None, None
+        role = (_list_line_role_key(idx, roles)
+                if is_tools and idx is not None else None)
+        out.append((prefix, ts, chunks, _evidenced(ts, jd_terms), role))
     return out
 
 
@@ -424,7 +443,7 @@ def _list_trim_lines(lists):
     """Section lines for the list-line (proficiencies / Tools) group."""
     lines = ["  list lines (Technical Proficiencies / "
              "Tools & Technologies):"]
-    for prefix, text, chunks, has_jd in lists:
+    for prefix, text, chunks, has_jd, _role in lists:
         lines.append(f'    find_p(ps, "{prefix}")  # {text[:80]}'
                      if prefix else f"    - {text[:80]}")
         if not has_jd:
@@ -459,7 +478,7 @@ def _keep_trim_section(roles, jd_terms, body, protect=()):
     for role in roles:
         lines.extend(_role_trim_lines(role, jd_terms, vocab, all_texts,
                                       protect))
-    lists = _list_trim_candidates(body, jd_terms, all_texts)
+    lists = _list_trim_candidates(body, jd_terms, all_texts, roles)
     if lists:
         lines.extend(_list_trim_lines(lists))
     if not lines:
@@ -507,18 +526,22 @@ def _role_prune_candidates(role, jd_terms, protect, all_texts, vocab):
     return cuts
 
 
-def _list_prune_candidates(body, jd_terms, all_texts):
+def _list_prune_candidates(body, jd_terms, all_texts, roles=()):
     """The list-trim and top-block candidates, deduped across the two
-    scans (a whole-line cut flagged by both is one top-block candidate)."""
+    scans (a whole-line cut flagged by both is one top-block candidate).
+    A Tools-line candidate carries its owning role's key (``roles``) so a
+    whole-role ``drop_role()`` covers it exactly as it covers that role's
+    bullets — a top-block candidate never carries one (it sits outside
+    every role by construction; see ``_top_block_candidates``)."""
     top = _top_block_candidates(body, jd_terms)
     top_texts = {t for _p, t in top}
     out = [
-        _cand("list-trim", None, text,
+        _cand("list-trim", role, text,
               ("no JD term on this line — whole-line cut" if not has_jd
                else "strip: " + ", ".join(chunks)),
               prefix)
-        for prefix, text, chunks, has_jd in _list_trim_candidates(
-            body, jd_terms, all_texts)
+        for prefix, text, chunks, has_jd, role in _list_trim_candidates(
+            body, jd_terms, all_texts, roles)
         if text not in top_texts]
     out.extend(
         _cand("top-block", None, text, "no JD evidence; cut whole", prefix)
@@ -549,7 +572,7 @@ def prune_candidates(roles, jd_terms, body, protect=()):
     for role in roles:
         out.extend(_role_prune_candidates(role, jd_terms, protect,
                                           all_texts, vocab))
-    out.extend(_list_prune_candidates(body, jd_terms, all_texts))
+    out.extend(_list_prune_candidates(body, jd_terms, all_texts, roles))
     return out
 
 
