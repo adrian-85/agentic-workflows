@@ -46,6 +46,19 @@ reference. The non-obvious rules while authoring:
   Handles duplicate job titles with no `after=`/`nth=` anchor (the block is
   contiguous from the role's OWN header). Seniority alignment (Step 4) is
   a sequence of these.
+  **Call order is execution order**: when extending an already-emitted
+  tailor script with approved `drop_role()` calls (SKILL Step 4), place
+  them AFTER every per-bullet edit in the script, including the machine's
+  own word-trim/list-trim edits on bullets that belong to the dropped role
+  — not where the Phase 1 cuts block happens to sit. A `drop_role()` that
+  runs first removes those paragraphs before their `set_text`/`set_labeled`
+  calls run, which strands them as `target paragraph not found` skips and
+  fails `DOCX_EDIT_STRICT=1` (a real session hit 15 such skips after
+  placing three `drop_role()` calls near the top of the script; moving
+  them to the end, right before `save()`, fixed it with 0 skipped). Edits
+  that still run before the drop simply apply and are then discarded with
+  the role — harmless, and simpler than hand-picking which per-bullet
+  edits belong to the role being dropped.
 - **`drop_section(body, "<heading prefix>")`**: removes a whole SECTION
   (e.g. Education) from its `SectionHeading` to just before the next one.
   Same boundary guarantee as `drop_role`.
