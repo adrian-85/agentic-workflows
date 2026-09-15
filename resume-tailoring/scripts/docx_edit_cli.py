@@ -360,6 +360,17 @@ def _report_uncovered(uncovered, total):
           file=sys.stderr)
 
 
+def _prune_sidecar_for_script(docx_path, script_path):
+    """Choose the JD-specific sidecar recorded by a tailor script."""
+    jd_name = _script_jd_name(script_path)
+    sidecar = prune_sidecar_path(docx_path, jd_name)
+    if jd_name and not os.path.exists(sidecar):
+        legacy = docx_path + PRUNE_SIDECAR_SUFFIX
+        if os.path.exists(legacy):
+            return legacy
+    return sidecar
+
+
 def lint_prune_coverage(docx_path, script_path):
     """Every PRUNE-PLAN candidate must be addressed by the tailor script.
 
@@ -386,12 +397,7 @@ def lint_prune_coverage(docx_path, script_path):
     except (OSError, SyntaxError) as e:
         print(f"error: {script_path}: {e}", file=sys.stderr)
         return 2
-    jd_name = _script_jd_name(script_path)
-    sidecar = prune_sidecar_path(docx_path, jd_name)
-    if jd_name and not os.path.exists(sidecar):
-        legacy = docx_path + PRUNE_SIDECAR_SUFFIX
-        if os.path.exists(legacy):
-            sidecar = legacy
+    sidecar = _prune_sidecar_for_script(docx_path, script_path)
     candidates, err = _prune_sidecar_candidates(sidecar)
     if err:
         print(err, file=sys.stderr)

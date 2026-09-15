@@ -1315,7 +1315,8 @@ class PruneCoverageTests(unittest.TestCase):
             json.dump({"jd": "jd_x.txt",
                        "candidates": [self._cand(prefix="Led testing efforts")]}, f)
         script = self._script(
-            '"""Tailor script.\n\nJD: jd_x.txt. Every PRUNE-PLAN candidate is addressed here.\n"""\n',
+            ('"""Tailor script.\n\nJD: jd_x.txt. Every PRUNE-PLAN '
+             'candidate is addressed here.\n"""\n'),
             'from docx_edit import drop\n',
             'ps = drop(ps, ["Led testing efforts for the API releases"])\n')
         try:
