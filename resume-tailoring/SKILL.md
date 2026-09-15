@@ -80,15 +80,14 @@ User-supplied personal assets (`*.docx` / `*.pdf`, gitignored) live in the skill
 
 - `<userName> Master Resume.docx` — the comprehensive data pool and the
   formatting/structure source. No separate per-target template is needed:
-  Phase 1 copies and edits this document in place while preserving its XML
-  styles. **The workflow never writes the master.** `auto_prune.py` reads
-  the master to build the per-target copy; later gap mining reads it as an
-  evidence source. If the user edits the master directly, re-run the machine
-  command to refresh the stale base. **Real experience belongs here** — if a
-  The user owns all master updates. A user edit changes the source content and
-  can invalidate tailor-script `find_p` prefixes; the next run detects the
-  changed master (`MASTER CHANGED:`), runs auto-strict, and must re-run
-  `auto_prune.py` (Step 2). This workflow never overwrites or folds into it.
+  Phase 1 copies this document and edits the tailored copy in place while
+  preserving its XML styles. **The workflow never writes the master.**
+  `auto_prune.py` reads it to build the per-target copy; later gap mining
+  reads it as an evidence source. The user owns all master updates: a user
+  edit changes the source content and can invalidate tailor-script `find_p`
+  prefixes, so the next run detects the changed master (`MASTER CHANGED:`),
+  runs auto-strict, and must re-run `auto_prune.py` (Step 2). Never overwrite
+  or fold into the master from this workflow.
 - `Basic_LinkedInDataExport_*/` — the LinkedIn data export (CSVs), the richer source than
   the resume for content to enrich/merge — read ONLY in Step 8, when a surfaced gap
   needs evidence (Step 1 does not touch it).
@@ -398,7 +397,7 @@ not discovered mid-compression when the page budget forces it:
    See [docs/api.md](docs/api.md) for the full approval-token rules and
    single-turn session behavior.
 
-### 5. Align the top title to the JD's, then rewrite the Summary to lead with JD-aligned value
+### 5. Align the top title to the JD's; the Summary stays untouched
 The name/title line is what a screener compares against the posting's level
 first. The positioning pass (this step, the Step 7 senior-role re-anchor,
 and the Education decision) is applied immediately after the user approves
@@ -421,9 +420,7 @@ The `--prefixes` dump marks it for you (`# HEADLINE (positioning title,
 not the name)`) — the name line shares the Title style, so the mark, not
 the index, tells you which Title is the headline.
 
-Level the title's echo in the Summary's first sentence so the pair reads
-consistently ("Results-driven Staff engineer…" → "Results-driven Software Test
-Engineer…"). `measure_resume.py --jd` and `validate_resume.py --jd` print a
+`measure_resume.py --jd` and `validate_resume.py --jd` print a
 `JD TITLE vs HEADLINE` WARNING when the headline is more senior — act on it.
 
 **Never edit the user’s Summary/intro paragraph.** It is the human-positioning
@@ -489,7 +486,7 @@ is gap-driven ONLY, but the surfaced list is a work order, not permission to
 ask immediately. Before raising ANY term, perform this source-first loop:
 
 1. Read the current master for the term and its truthful evidence families,
-   including content Phase 1 cut.
+   including content that Phase 1 cut.
 2. Read the complete LinkedIn dump and run the inference map for the current
    build and current gap list.
 3. AUTO-HOST every term with source evidence, without asking the user.
@@ -501,8 +498,8 @@ The master and LinkedIn are evidence sources for the surfaced asks, never a
 general enrichment pool. The JD's selling-point themes come from the same
 surfaces.
 
-- Run the LinkedIn dump once per mining round and read the whole file — never hand-`cat`
-  individual CSVs:
+- Run the LinkedIn dump once per mining round and read the whole file —
+  never hand-`cat` individual CSVs:
 
   ```bash
   ./scripts/read_profile.sh > /tmp/profile.txt   # the whole export, one stream
@@ -704,8 +701,8 @@ remaining findings are the actionable ones.
 "<resume>.pdf" jd_<target>.txt` submits the deliverable to the user's ATS
 scan service and saves the match-report JSON next to the resume
 (`<...>.ats-check.json`); feed it back for the authoritative cross-check:
-`.ats-check/cookies.txt` to re-seed). When the score is below 75, pass the
-saved report to the current-build measure run:
+`.ats-check/cookies.txt` to re-seed). Below the 75 target, feed the saved
+report back through the current-build measure run:
 
 ```bash
 python3 scripts/measure_resume.py "<Name> Resume - <Target>.docx" \
@@ -713,18 +710,13 @@ python3 scripts/measure_resume.py "<Name> Resume - <Target>.docx" \
   --ats-report "<Name> Resume - <Target>.ats-check.json"
 ```
 
-That command normalizes the external hard/soft gaps, merges them with the
-internal no-host list, runs the same master/LinkedIn inference map, and writes
-`<resume>.gap.json` with resume/report fingerprints. When the score is below
-75, read the
-report's `skills.hard` and `skills.soft` entries with `resumeCount == 0`
-before asking anything. `ats_check.py` prints both missing lists explicitly, and the gap artifact
-preserves them as derived data without altering the raw API response. These
-lists are the next source-mining queue and are not optional. Re-run the
-master/LinkedIn inference loop after each hosting round. Do not treat generic
-finding fragments as skills, and do not skip the external lists merely
-because `ats_audit.py` produced a different no-host list. The report's
-`wordCount` is a CROSS-CHECK only — the service's
+That command merges the external hard/soft gaps with the internal no-host
+list, runs the master/LinkedIn inference map over the combined queue, and
+writes `<resume>.gap.json` (resume/report fingerprinted — a stale artifact
+never passes for a fresh build). `ats_check.py` also prints both missing
+lists at scan time. Those lists are the next source-mining queue — not
+optional, and not displaced by a different `ats_audit.py` no-host list. The
+report's `wordCount` is a CROSS-CHECK only — the service's
 PDF parser inflates counts (it splits labeled values into fragments), so
 the cap is always `ats_audit.py`'s own count. The scan output names the
 target company's ATS when it identified one (`target ATS:` line, from the
@@ -895,7 +887,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Editing the master from a tailoring session | Never — the master is user-owned and read-only to this workflow; make any master update directly, then re-run Phase 1 |
 | Storing the JD in /tmp | Persist it as `jd_<target>.txt` in the skill root (Step 1) — every tool and the re-run instructions reference that path across sessions |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 7) |
-| Headline still says "Staff" against a less-senior JD title | Rewrite the top title to the JD's title and level its summary echo (Step 5) — the first line is what the screener compares |
+| Headline still says "Staff" against a less-senior JD title | Rewrite the top title to the JD's exact title (Step 5); the Summary stays untouched — the first line is what the screener compares |
 | Appending bullets when content overlaps an existing one | Merge (`merge_into`) — appending blows the page budget (Step 7) |
 | Overwriting the master resume | Write to `<userName> Resume - <Target>.docx` — never the master filename (Step 10) |
 | Keeping Education when the degree isn't evidence for the JD | Evaluate the drop/keep predicates (Step 4.4) — a BA vs an engineering JD is a 3-line drop |
