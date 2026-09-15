@@ -32,6 +32,23 @@ class GapQueueTests(unittest.TestCase):
             ],
         )
 
+    def test_missing_skills_reads_hard_and_soft_lists(self):
+        report = {
+            "skills": {
+                "hard": [
+                    {"name": "Python", "resumeCount": 2},
+                    {"name": "Storybook", "resumeCount": 0},
+                ],
+                "soft": [
+                    {"name": "Stakeholder Management", "resumeCount": 0},
+                ],
+            }
+        }
+        self.assertEqual(
+            gap_queue.missing_skills(report),
+            {"hard": ["Storybook"],
+             "soft": ["Stakeholder Management"]})
+
     def test_fingerprint_is_stable_for_normalized_gaps(self):
         gaps = [{"term": "Storybook", "sources": ["external-hard"]}]
         self.assertEqual(gap_queue.gap_fingerprint(gaps),

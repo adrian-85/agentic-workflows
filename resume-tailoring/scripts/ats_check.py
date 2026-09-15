@@ -59,6 +59,8 @@ import sys
 import time
 import urllib.parse
 
+import gap_queue  # noqa: E402
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from script_args import MATCH_RATE_TARGET, flag_value, maybe_help, match_target_met  # noqa: E402
 
@@ -634,34 +636,11 @@ def _resolve_posting(jd_path, company_flag=None):
     return jd_text, company, posting_url
 
 
-def missing_skill_names(report):
-    """Return external-scan hard/soft skills with zero resume hits.
-
-    Findings are not the complete keyword report. When the score is below
-    the hosting target, these lists are the required source for the next
-    mining pass; returning both categories keeps soft-skill omissions from
-    being silently ignored.
-    """
-    result = {"hard": [], "soft": []}
-    skills = report.get("skills") if isinstance(report, dict) else None
-    if not isinstance(skills, dict):
-        return result
-    for category in result:
-        entries = skills.get(category, [])
-        if not isinstance(entries, list):
-            continue
-        result[category] = [entry["name"] for entry in entries
-                            if isinstance(entry, dict)
-                            and entry.get("name")
-                            and entry.get("resumeCount") == 0]
-    return result
-
-
 def _print_missing_skills(report, score):
     """Print actionable external skill lists below the hosting target."""
     if score is None or score >= MATCH_RATE_TARGET:
         return
-    missing = missing_skill_names(report)
+    missing = gap_queue.missing_skills(report)
     for category in ("hard", "soft"):
         names = missing[category]
         print(f"    missing {category} skills (read before asking): "

@@ -459,7 +459,7 @@ _EVIDENCE_FAMILIES = {
         "python scripting", "python script", "python scripts", "python"),
     "scripting": ("scripting", "script", "scripts"),
     "linux bash": ("linux bash", "bash", "linux", "wsl"),
-    "windows batch": ("windows batch", "batch", "windows"),
+    "windows batch": ("windows batch", "batch"),
     "visual regression testing": (
         "visual regression testing", "visual regression", "manual visual",
         "visual checks", "visual verification"),

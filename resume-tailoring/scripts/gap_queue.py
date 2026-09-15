@@ -20,18 +20,37 @@ def _add(queue, seen, term, source):
         queue[seen[key]]["sources"].append(source)
 
 
+def missing_skills(report):
+    """{"hard": [...], "soft": [...]} external skills with zero resume hits.
+
+    The ONE parser for the scan report's keyword lists — shared by the
+    scan's summary print (ats_check) and the normalized gap queue. Both
+    categories are returned even when one is empty, so a soft-skill gap
+    cannot be silently dropped.
+    """
+    result = {"hard": [], "soft": []}
+    skills = report.get("skills") if isinstance(report, dict) else None
+    if not isinstance(skills, dict):
+        return result
+    for category in result:
+        entries = skills.get(category, [])
+        if not isinstance(entries, list):
+            continue
+        result[category] = [entry["name"] for entry in entries
+                            if isinstance(entry, dict)
+                            and entry.get("name")
+                            and entry.get("resumeCount") == 0]
+    return result
+
+
 def normalize_gaps(report, internal_terms=()):
     """Merge missing external hard/soft skills with internal no-host terms."""
     queue, seen = [], {}
-    skills = report.get("skills", {}) if isinstance(report, dict) else {}
+    missing = missing_skills(report)
     for category, source in (("hard", "external-hard"),
                              ("soft", "external-soft")):
-        entries = skills.get(category, []) if isinstance(skills, dict) else []
-        if not isinstance(entries, list):
-            continue
-        for entry in entries:
-            if (isinstance(entry, dict) and entry.get("resumeCount") == 0):
-                _add(queue, seen, entry.get("name"), source)
+        for name in missing[category]:
+            _add(queue, seen, name, source)
     for term in internal_terms:
         _add(queue, seen, term, "internal")
     return queue

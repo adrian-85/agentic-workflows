@@ -126,6 +126,15 @@ class TestJdEvidenceFamilies(unittest.TestCase):
         self.assertTrue(any(term in evidence for term in ("linux bash",
                                                            "linux")))
 
+    def test_windows_batch_ask_requires_batch_evidence(self):
+        jd = ("Preferred Qualifications\n"
+              "Scripting experience in Linux bash or Windows batch.\n")
+        asks = {ask.phrase for ask in jd_asks.parse_asks(jd)}
+        # Bare 'windows' (e.g. Windows Server admin) is NOT batch-scripting
+        # evidence — hosting the ask from it would fabricate a skill.
+        evidence = jd_asks.evidence_set("administered windows servers", asks)
+        self.assertNotIn("windows batch", evidence)
+
     def test_visual_regression_ask_protects_manual_visual_evidence(self):
         jd = ("Required Qualifications\n"
               "Hands-on experience with visual regression testing tools.\n")
