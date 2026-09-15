@@ -362,20 +362,6 @@ def _list_nonjd_chunks(text, jd_terms):
     return out
 
 
-def _list_line_role_key(idx, roles):
-    """Key of the role owning paragraph index ``idx`` (a Tools & Technologies
-    line), or None when it sits outside every role (Technical Proficiencies /
-    Certifications lines live in the fixed top block). ``roles`` is in
-    document order (``_roles`` builds it that way), so the last role whose
-    ``header_idx`` is at or before ``idx`` is the owner."""
-    owner = None
-    for role in roles:
-        header_idx = role.get("header_idx")
-        if header_idx is not None and header_idx <= idx:
-            owner = role["key"]
-    return owner
-
-
 def _list_anchor(all_texts, text):
     """(idx, find_p prefix) for one paragraph's text, or (None, None) when
     no unique prefix resolves."""
@@ -398,11 +384,15 @@ def _list_trim_candidates(body, jd_terms, all_texts, roles=()):
     what lets a whole-role ``drop_role()`` cover the role's own Tools-line
     candidate the same way it covers that role's bullets."""
     prof = set(_proficiency_block(body))
+    role_keys = {role["raw"]: role["key"] for role in roles}
     out = []
     seen = set()
+    current_role = None
     for p in de.paras(body):
         t = de.text_of(p)
         ts = t.strip()
+        if t in role_keys:
+            current_role = role_keys[t]
         if not ts or ts in seen:
             continue
         is_tools = (t.lower().startswith("tools")
@@ -413,9 +403,9 @@ def _list_trim_candidates(body, jd_terms, all_texts, roles=()):
         chunks = _list_nonjd_chunks(t, jd_terms)
         if not chunks:
             continue
-        idx, prefix = _list_anchor(all_texts, t)
-        role = _list_line_role_key(idx, roles) if is_tools and idx is not None else None
-        out.append((prefix, ts, chunks, _evidenced(ts, jd_terms), role))
+        _, prefix = _list_anchor(all_texts, t)
+        out.append((prefix, ts, chunks, _evidenced(ts, jd_terms),
+                    current_role if is_tools else None))
     return out
 
 

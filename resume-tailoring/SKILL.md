@@ -341,9 +341,13 @@ not discovered mid-compression when the page budget forces it:
    title/bullets after each whole-role removal.
 
    The approved `drop_role()` calls also dispose of the dropped roles'
-   per-bullet prune candidates — keep no `set_text`/`set_labeled` edits or
-   `# kept:` comments for them; the prune gate counts an enclosing
-   `drop_role()` as a whole-role disposition (docs/api.md).
+   per-bullet and Tools-line prune candidates — preferred practice is to
+   remove their `set_text`/`set_labeled` edits and `# kept:` comments; the
+   prune gate associates role Tools-line candidates with the owning role,
+   so an enclosing `drop_role()` covers them as a whole-role disposition
+   (docs/api.md). If generated edits are temporarily retained, place the
+   `drop_role()` calls after those edits, immediately before `save()`, so
+   strict mode does not report skipped targets.
 
    **Compute the resulting span BEFORE editing.** Pass each whole-role drop
    to measure as a what-if — it drops the roles in a temp copy, renders

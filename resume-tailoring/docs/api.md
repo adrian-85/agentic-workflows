@@ -46,19 +46,14 @@ reference. The non-obvious rules while authoring:
   Handles duplicate job titles with no `after=`/`nth=` anchor (the block is
   contiguous from the role's OWN header). Seniority alignment (Step 4) is
   a sequence of these.
-  **Call order is execution order**: when extending an already-emitted
-  tailor script with approved `drop_role()` calls (SKILL Step 4), place
-  them AFTER every per-bullet edit in the script, including the machine's
-  own word-trim/list-trim edits on bullets that belong to the dropped role
-  — not where the Phase 1 cuts block happens to sit. A `drop_role()` that
-  runs first removes those paragraphs before their `set_text`/`set_labeled`
-  calls run, which strands them as `target paragraph not found` skips and
-  fails `DOCX_EDIT_STRICT=1` (a real session hit 15 such skips after
-  placing three `drop_role()` calls near the top of the script; moving
-  them to the end, right before `save()`, fixed it with 0 skipped). Edits
-  that still run before the drop simply apply and are then discarded with
-  the role — harmless, and simpler than hand-picking which per-bullet
-  edits belong to the role being dropped.
+  **Preferred order when extending an emitted script:** remove all
+  `set_text`/`set_labeled` edits for the dropped role, including its
+  Tools-line edits. The prune gate associates Tools-line candidates with
+  their owning role, so `drop_role()` covers them as well as bullet
+  candidates. If generated edits are temporarily retained, place
+  `drop_role()` AFTER them and immediately before `save()`; calling it
+  first removes their targets and makes `DOCX_EDIT_STRICT=1` report
+  `target paragraph not found` skips.
 - **`drop_section(body, "<heading prefix>")`**: removes a whole SECTION
   (e.g. Education) from its `SectionHeading` to just before the next one.
   Same boundary guarantee as `drop_role`.
@@ -523,42 +518,28 @@ numbering. Then re-measure to confirm the resume still meets the target.
 Fixed priority order: (1) JD-aligned work experience, (2) the page target,
 (3) this spacing — when content or pages need room, the spacers go first.
 
-**Ordering, when the script also has list/word trims (the common case,
-since Phase 1's emitted script always does).** Two things fight the naive
-placement above:
+**Ordering when the script also contains list/word trims:**
 
-1. **`remove_empty(body)` deletes every blank paragraph**, including one
-   this block just cloned — if the clones run BEFORE `remove_empty`
-   (e.g. because they were added near the top of the script, next to the
-   list trims), they never survive to render. Clone AFTER `remove_empty`.
-2. **`find_p`'s lint resolves prefixes against the MASTER**, before any
-   rewrite — so an anchor written against the TRIMMED Tools-line text
-   (e.g. `"Tools & Technologies: "` after a `set_labeled` call shortened
-   it) fails lint even though it resolves fine at runtime, and `after=`
-   does not rescue a lint-time ambiguity (lint checks the bare prefix,
-   not the anchored form).
+1. `remove_empty(body)` deletes every blank paragraph, including one this
+   script just cloned. Run the spacer clones after `remove_empty()`.
+2. `find_p` lint resolves prefixes against the MASTER before rewrites. An
+   anchor based on shortened Tools-line text may resolve at runtime but fail
+   lint; `after=` does not change that lint-time check.
 
-The pattern that satisfies both: capture the Tools-line ELEMENTS early,
-while their master-text prefixes still resolve for lint, then `clone_after`
-the captured elements once `remove_empty` has already run:
+Capture each reference element early, while its master-text prefix resolves,
+then clone after `remove_empty()`:
 
 ```python
-# Early — master-text prefixes still resolve for the lint pass.
-cvs_tools = find_p(ps, "Tools & Technologies: Karate, Java, REST APIs")
-trove_tools = find_p(ps, "Tools & Technologies: Jenkins, Bitbucket")
+# Use unique prefixes copied from the current master's --prefixes output.
+tools_ref_1 = find_p(ps, "<unique master-text Tools-line prefix 1>")
+tools_ref_2 = find_p(ps, "<unique master-text Tools-line prefix 2>")
 
-# ... list trims, word trims, drop_role() calls ...
+# ... list trims, word trims, and role drops ...
 
 remove_empty(body)
-
-# Late — clone the captured elements now that blanks won't be swept.
-clone_after(body, cvs_tools, "")
-clone_after(body, trove_tools, "")
+clone_after(body, tools_ref_1, "")
+clone_after(body, tools_ref_2, "")
 ```
-
-A real session burned three failed rounds on this (spacers silently
-disappearing, then a lint failure from anchoring on trimmed text) before
-landing on the captured-element form.
 
 Re-run `render_pdf.sh` (compact) to verify — measuring replaces iteration, it
 does not replace the final verification render.
