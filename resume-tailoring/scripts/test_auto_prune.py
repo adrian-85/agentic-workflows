@@ -218,36 +218,30 @@ class TestPlanDispositions(_AutoPruneBase):
         for _anchor, new in self.plan["trims"]:
             self.assertLessEqual(len(new.split()), auto_prune.WORD_CAP)
 
-    def test_list_trim_strips_non_jd_chunks(self):
+    def test_list_line_hosting_jd_evidence_is_kept_whole(self):
+        # The Automation line hosts Cypress/Playwright (JD-evidenced) AND
+        # Karate (not JD-named) — the whole line is kept UNCHANGED, never
+        # reduced to a partial value list.
         c = self._cand("Automation Testing Frameworks:", "list-trim")
         self.assertTrue(c)
-        entry = [e for e in self.plan["list_trims"] if e[0][1] == c["text"]]
-        self.assertEqual(len(entry), 1)
-        self.assertEqual(entry[0][1], "Automation Testing Frameworks: ")
-        self.assertIn("Cypress", entry[0][2])
-        self.assertNotIn("Karate", entry[0][2])
+        self.assertNotIn(
+            c["text"], {t for _p, t in self.plan["drops"]})
+        self.assertTrue(any(head == c["prefix"] or c["text"][:24] in head
+                            for head, _why in self.plan["keeps"]))
+        self.assertFalse(
+            any(a[1] == c["text"] for a, _new in self.plan["trims"]))
 
-    def test_languages_line_list_trims_to_the_ask(self):
+    def test_languages_line_hosting_jd_evidence_is_kept_whole(self):
         # 'Python' (a capitalized mention) and 'python scripting' (the
         # cue-tail phrase) are BOTH asks under the engine; the Languages
-        # line evidences 'python', so it list-trims (Java/COBOL stripped)
-        # instead of dying whole.
+        # line evidences 'python', so the WHOLE line (Java/COBOL included)
+        # is kept unchanged — never reduced to just the JD-named item.
         c = self._cand("Programming Languages:", "list-trim")
         self.assertTrue(c)
-        entry = [e for e in self.plan["list_trims"] if e[0][1] == c["text"]]
-        self.assertEqual(len(entry), 1)
-        self.assertIn("Python", entry[0][2])
-        self.assertNotIn("Java", entry[0][2])
-        self.assertNotIn("COBOL", entry[0][2])
-
-    def test_fully_non_jd_proficiency_line_is_cut(self):
-        # Automation line's Karate is not in the JD → only Cypress and
-        # Playwright survive; the line itself is trimmed, not cut.
-        c = self._cand("Automation Testing Frameworks:", "list-trim")
-        self.assertTrue(c)
-        entry = [e for e in self.plan["list_trims"] if e[0][1] == c["text"]]
-        self.assertTrue(entry)
-        self.assertNotIn("Karate", entry[0][2])
+        self.assertNotIn(
+            c["text"], {t for _p, t in self.plan["drops"]})
+        self.assertFalse(
+            any(a[1] == c["text"] for a, _new in self.plan["trims"]))
 
     def test_emptied_cert_section_drops_whole(self):
         c = self._cand("Rapid Software Testing", "top-block")
@@ -352,36 +346,23 @@ class TestEmittedScriptRuns(_AutoPruneBase):
 
 class TestTrimHelpers(unittest.TestCase):
 
-    def test_trim_bullet_text_removes_unhosted_word_clause(self):
+    def test_trim_bullet_text_keeps_evidenced_sentence_verbatim(self):
+        # Row/sentence granular only — a surviving sentence is NEVER
+        # rewritten word-by-word, even when it also names a non-JD tool.
         text = "Built Selenium suites with Java."
         trimmed = auto_prune._trim_bullet_text(text, {"selenium"})
-        self.assertEqual(trimmed, "Built Selenium suites.")
+        self.assertEqual(trimmed, text)
 
-    def test_trim_bullet_text_removes_unhosted_comma_chunk(self):
+    def test_trim_bullet_text_keeps_whole_sentence_with_mixed_chunks(self):
         text = "Built Selenium suites with Java, TestNG and Playwright."
-        trimmed = auto_prune._trim_bullet_text(
-            text, {"selenium", "java"})
-        self.assertEqual(trimmed, "Built Selenium suites with Java.")
+        trimmed = auto_prune._trim_bullet_text(text, {"selenium", "java"})
+        self.assertEqual(trimmed, text)
 
-    def test_trim_bullet_text_removes_unhosted_parenthetical(self):
+    def test_trim_bullet_text_keeps_parenthetical_verbatim(self):
         text = "Built Selenium suites with Java (TestNG and Playwright)."
         trimmed = auto_prune._trim_bullet_text(
             text, {"selenium", "java"})
-        self.assertEqual(trimmed, "Built Selenium suites with Java.")
-
-    def test_trim_bullet_text_removes_unhosted_middle_clause_word(self):
-        text = ("Built Selenium tests using Java, creating a unified UI "
-                "test approach.")
-        trimmed = auto_prune._trim_bullet_text(
-            text, {"selenium", "unified ui test approach"})
-        self.assertEqual(
-            trimmed, "Built Selenium tests, creating a unified UI test approach.")
-
-    def test_trim_bullet_text_removes_unhosted_keyword_before_relevant_word(self):
-        text = "Built Java and Selenium tests for the API."
-        trimmed = auto_prune._trim_bullet_text(
-            text, {"selenium", "api"})
-        self.assertEqual(trimmed, "Built Selenium tests for the API.")
+        self.assertEqual(trimmed, text)
 
     def test_trim_bullet_text_drops_dead_sentences_and_caps_words(self):
         jd_terms = {"cypress"}
@@ -394,6 +375,19 @@ class TestTrimHelpers(unittest.TestCase):
         self.assertIn("Cypress", out)
         self.assertNotIn("offsites", out)
         self.assertLessEqual(len(out.split()), auto_prune.WORD_CAP)
+
+    def test_trim_bullet_text_drops_whole_sentence_not_words_when_over_cap(self):
+        # A single evidenced sentence that survives whole is never chopped
+        # mid-sentence to fit the cap — only whole SURVIVING sentences are
+        # ever dropped to reach the cap.
+        jd_terms = {"cypress"}
+        long_sentence = ("Automated the regression suite with Cypress "
+                         "across every supported browser and device "
+                         "combination for the whole engineering "
+                         "organization spanning multiple quarters of "
+                         "continuous release cycles and audits.")
+        out = auto_prune._trim_bullet_text(long_sentence, jd_terms)
+        self.assertEqual(out, long_sentence)
 
     def test_surviving_chunks_keeps_jd_named_chunk(self):
         self.assertEqual(

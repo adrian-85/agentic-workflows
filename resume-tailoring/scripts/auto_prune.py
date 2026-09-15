@@ -8,13 +8,19 @@ through run_tailor.sh's full gate chain (ast + find_p lint + prune-coverage
 (SKILL Phase 2) — it never negotiates a cut, never sees a disposition
 checklist, and never page/word-measures the master.
 
-Machine disposition rules (deterministic, no judgment):
+Machine disposition rules (deterministic, no judgment). Every disposition
+is row/sentence/whole-category granular — the machine never edits words or
+phrases inside a surviving sentence or a surviving list line; that kind of
+wording change is Phase 2 agent work (SKILL Step 8), done only when the
+agent is already touching the line to host something:
   - bullet-cut (unevidenced by the unified ask engine): CUT every one.
-  - word-trim (kept bullet with dead sentences/structured chunks):
-    rewrite without dead sentences and safely removable comma/semicolon/
-    parenthetical chunks, capped at WORD_CAP words.
-  - list-trim (proficiencies/Tools line): strip the non-JD chunks; a line
-    with NO surviving chunk is cut whole.
+  - word-trim (kept bullet with dead sentences): drop whole sentences that
+    carry no JD evidence, capped at WORD_CAP words by dropping more whole
+    sentences (fewest-JD-hits first) — never rewrites words within a
+    surviving sentence.
+  - list-trim (proficiencies/Tools line): a line hosting ANY JD-evidenced
+    chunk is KEPT WHOLE, unmodified; a line hosting NONE is CUT WHOLE —
+    never a partial value list.
   - top-block (no-JD-evidence proficiencies/cert line): CUT. A section
     whose every line is cut is removed whole (drop_section) — an entire
     technical-proficiency category may go.
@@ -99,121 +105,24 @@ def _strength(text, jd_terms):
             _weakness_key(text))
 
 
-def _unhosted_keyword_tokens(sentence, jd_terms):
-    """Remove a non-JD proper/technology token only through a common
-    grammatical span (coordination, preposition, or comma list).
-
-    Returns (text, changed). If no safe span exists, the token stays for
-    Phase 2 rewriting rather than being deleted in broken prose. The
-    sentence's first token is never a removal candidate: bullets open
-    with their action verb ("Built", "Led"), never with the ask."""
-    token_re = re.compile(
-        r"(?<![A-Za-z0-9])([A-Z][A-Za-z0-9+#.-]*|"
-        r"[A-Za-z]+[A-Z][A-Za-z0-9+#.-]*)(?![A-Za-z0-9])")
-    matches = list(token_re.finditer(sentence))
-    tokens = [m.group(1) for m in matches[1:]]
-    value = sentence
-    changed = False
-    for token in tokens:
-        if jd_asks.evidence_set(token.lower(), jd_terms):
-            continue
-        escaped = re.escape(token)
-        patterns = (
-            rf"\b{escaped}\s+and\s+",
-            rf"\band\s+{escaped}\b",
-            rf"\s+(?:with|using|via|in|on|from|to)\s+{escaped}\b",
-            rf"\s*,\s*{escaped}\b",
-            rf"\b{escaped}\s*,\s*",
-        )
-        for pattern in patterns:
-            candidate = re.sub(pattern, " ", value, count=1,
-                               flags=re.I)
-            candidate = re.sub(r"\s+([,.])", r"\1", candidate)
-            candidate = re.sub(r" {2,}", " ", candidate).strip()
-            if (candidate != value
-                    and jd_asks.evidence_set(candidate.lower(), jd_terms)):
-                value = candidate
-                changed = True
-                break
-    return value, changed
-
-
-def _trim_structured_chunks(sentence, jd_terms):
-    """Remove non-JD keywords and phrases from an evidenced sentence,
-    wherever they sit, keeping the sentence grammatical.
-
-    Safe spans: parentheticals, coordinated/prepositional keyword spans
-    (``with Java``, ``using Java``, ``Java and Selenium``), and
-    comma/semicolon list chunks. An ordinary prose word with no such
-    span stays intact — Phase 2 rewrites that sentence rather than the
-    machine emitting broken prose.
-    """
-    changed = False
-
-    def drop_unhosted_parenthetical(match):
-        nonlocal changed
-        if jd_asks.evidence_set(match.group(1).lower(), jd_terms):
-            return match.group(0)
-        changed = True
-        return ""
-
-    value = re.sub(r"\s*\(([^()]*)\)",
-                   drop_unhosted_parenthetical, sentence).strip()
-    value, keyword_changed = _unhosted_keyword_tokens(value, jd_terms)
-    changed |= keyword_changed
-
-    def strip_unhosted_tail_clause(value):
-        tail = re.search(
-            r"\s+(?:with|using|via|through|and)\s+([^,;.!?]+)([.!?])?$",
-            value, re.I)
-        if not tail:
-            return value, False
-        prefix = value[:tail.start()].rstrip()
-        clause = tail.group(0).strip()
-        if (jd_asks.evidence_set(prefix.lower(), jd_terms)
-                and not jd_asks.evidence_set(clause.lower(), jd_terms)):
-            return prefix + (tail.group(2) or ""), True
-        return value, False
-
-    parts = re.split(r"([,;])", value)
-    if len(parts) >= 3:
-        content = []
-        for index in range(0, len(parts), 2):
-            chunk, removed = strip_unhosted_tail_clause(parts[index].strip())
-            changed |= removed
-            content.append(chunk)
-        if jd_asks.evidence_set(content[0].lower(), jd_terms):
-            kept = [content[0].rstrip(".,;:!?\"")]
-            for chunk in content[1:]:
-                chunk = chunk.strip().rstrip(".,;:!?\"")
-                if jd_asks.evidence_set(chunk.lower(), jd_terms):
-                    kept.append(chunk)
-                else:
-                    changed = True
-            if changed:
-                terminal = value.rstrip()[-1] if value.rstrip()[-1:] in ".!?" else ""
-                return ", ".join(kept).rstrip(".,;:!?\"") + terminal
-    else:
-        value, removed = strip_unhosted_tail_clause(value)
-        changed |= removed
-    return value
-
-
 def _trim_bullet_text(text, jd_terms):
-    """The bullet rewritten without dead sentences, capped at WORD_CAP.
+    """The bullet rewritten without dead SENTENCES, capped at WORD_CAP.
 
-    A sentence survives when it carries a JD term or a practice-phrase
-    concept; survivors over the word cap are dropped fewest-JD-hits
-    first (ties: longest first — removes the most words). Never returns
-    a kept bullet with zero sentences (a kept bullet always has one
-    JD-evidence or concept sentence); returns None when nothing
-    survives (caller cuts the bullet instead).
+    Row/sentence granular only — never rewrites words or phrases within a
+    surviving sentence (that is Phase 2 agent work, SKILL Step 8). A
+    sentence survives when it carries a JD term or a practice-phrase
+    concept; survivors over the word cap are dropped whole (fewest-JD-hits
+    first, ties: longest first — removes the most words). Never returns a
+    kept bullet with zero sentences (a kept bullet always has one
+    JD-evidence or concept sentence); returns None when nothing survives
+    (caller cuts the bullet instead); returns the text UNCHANGED when
+    every sentence survives and the bullet is already within cap (the
+    caller records that as a whole-bullet keep, not an edit).
     """
     keep = [s for s in _sentence_clauses(text)
             if jd_asks.evidence_set(s.lower(), jd_terms)]
     if not keep:
         return None
-    keep = [_trim_structured_chunks(s, jd_terms) for s in keep]
 
     def _words(sents):
         return len(" ".join(sents).split())
@@ -228,7 +137,10 @@ def _trim_bullet_text(text, jd_terms):
 
 def _surviving_chunks(text, jd_terms):
     """Comma/semicolon chunks of a list line that a JD term or concept
-    names — the set-labeled value. Empty → the whole line is cut."""
+    names. A whole-line signal only: a non-empty result means the line
+    hosts at least one JD-evidenced item and the disposition keeps the
+    line AS-IS (never a partial value list); empty means no chunk
+    survives and the whole line is cut."""
     if ":" not in text:
         return []
     value = text.split(":", 1)[1]
@@ -316,9 +228,11 @@ class _RoleState(NamedTuple):
 def _disposition(c, anchors, role_state, jd_terms):
     """(action, payload) for one candidate.
 
-    Actions: 'cut', 'keep' ((anchor_head, reason) — the stub rule),
-    'trim' (((prefix, text), new_text)), and 'list'
-    (((prefix, text), label, value))."""
+    Actions: 'cut', 'keep' ((anchor_head, reason) — the stub rule, an
+    already-in-cap fully-evidenced bullet, or a list line hosting JD
+    evidence kept whole), and 'trim' (((prefix, text), new_text) — a
+    whole dead SENTENCE removed, never a sub-sentence word/phrase
+    edit)."""
     kind, role, text = c["kind"], c["role"], c["text"]
     prefix, _nth = anchors[text]
     if kind == "bullet-cut" and \
@@ -332,13 +246,19 @@ def _disposition(c, anchors, role_state, jd_terms):
         if text not in role_state.cut_texts.get(role, set()) and \
                 text not in role_state.cap_texts:
             trimmed = _trim_bullet_text(text, jd_terms)
-        if trimmed is not None:
+        if trimmed is not None and trimmed != text:
             payload = "trim", ((prefix, text), trimmed)
+        elif trimmed == text:
+            return "keep", (prefix if prefix else text[:24],
+                            "bullet kept whole — every sentence carries "
+                            "JD evidence, already within the word cap "
+                            "(auto-prune)")
     elif kind == "list-trim":
-        keep = _surviving_chunks(text, jd_terms)
-        if keep:
-            payload = "list", ((prefix, text),
-                               text.split(":", 1)[0] + ": ", ", ".join(keep))
+        if _surviving_chunks(text, jd_terms):
+            return "keep", (prefix if prefix else text[:24],
+                            "list line kept whole — hosts at least one "
+                            "JD-evidenced item (auto-prune; never a "
+                            "partial value list)")
     if payload is None:
         # bullet-cut, a trim that cut whole, a list line with no JD chunk,
         # and top-block all collapse to CUT — the drop covers the candidate
@@ -349,11 +269,11 @@ def _disposition(c, anchors, role_state, jd_terms):
 def _walk_candidates(candidates, anchors, role_state, jd_terms):
     """Disposition every candidate into emitted edits.
 
-    Returns the plan's edit lists (drops, removes, keeps, trims,
-    list_trims, and empty section lists) as a dict.
+    Returns the plan's edit lists (drops, removes, keeps, trims, and
+    empty section lists) as a dict.
     """
     edits = {"drops": [], "removes": [], "keeps": [], "trims": [],
-             "list_trims": [], "section_drops": [], "section_keeps": []}
+             "section_drops": [], "section_keeps": []}
     drops, removes = edits["drops"], edits["removes"]
     drop_keys = set()
 
@@ -378,8 +298,6 @@ def _walk_candidates(candidates, anchors, role_state, jd_terms):
             edits["keeps"].append(payload)
         elif action == "trim":
             edits["trims"].append(payload)
-        elif action == "list":
-            edits["list_trims"].append(payload)
     return edits
 
 
@@ -438,8 +356,9 @@ def plan_phase_a(candidates, roles, jd_terms, body):
       drops        [(prefix, text)]       — drop()-list entries
       removes      [(text, nth)]          — nth-disambiguated cuts
       keeps        [(anchor_head, why)]   — '# kept:' comment lines
-      trims        [(anchor, new_text)]   — set_text rewrites
-      list_trims   [(anchor, label, value)]
+      trims        [(anchor, new_text)]   — set_text rewrites (whole dead
+                                             sentences dropped; never a
+                                             sub-sentence word/phrase edit)
       section_drops [(heading_prefix, heading)] — drop_section calls
       stats        {cut, trim, stub, section}
     """
@@ -451,7 +370,7 @@ def plan_phase_a(candidates, roles, jd_terms, body):
     _apply_section_cuts(body, all_texts, edits)
     edits["stats"] = {
         "cut": len(edits["drops"]) + len(edits["removes"]),
-        "trim": len(edits["trims"]) + len(edits["list_trims"]),
+        "trim": len(edits["trims"]),
         "stub": len(role_state.stubs),
         "section": len(edits["section_drops"])}
     return edits
@@ -527,19 +446,12 @@ def emit_script(plan, src, dst, meta):
                      f"nth={nth}))")
     for head, why in plan["keeps"]:
         lines.append(f"    # kept: {head} — {why}")
-    if plan["trims"] or plan["list_trims"]:
+    if plan["trims"]:
         lines.append("")
-        lines.append("    # ---- word trims (dead sentences out, "
-                     f"{WORD_CAP}-word cap) ----- #")
+        lines.append("    # ---- sentence trims (dead sentences dropped "
+                     f"whole, {WORD_CAP}-word cap) ----- #")
     for (prefix, _text), new in plan["trims"]:
         lines.append(f"    set_text(find_p(ps, {_py(prefix)}), {_py(new)})")
-    if plan["list_trims"]:
-        lines.append("")
-        lines.append("    # ---- list trims (non-JD chunks stripped) "
-                     "--------------------- #")
-    for (prefix, _text), label, value in plan["list_trims"]:
-        lines.append(f"    set_labeled(find_p(ps, {_py(prefix)}), "
-                     f"{_py(label)}, {_py(value)})")
     if plan["section_drops"]:
         lines.append("")
         lines.append("    # ---- whole-category cuts (emptied sections) "
