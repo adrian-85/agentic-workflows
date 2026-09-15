@@ -1,9 +1,10 @@
 """auto_prune (machine Phase A) tests.
 
 The machine dispositions every prune candidate with no agent judgment:
-cuts, word trims, list trims, whole-category cuts, stub keeps, and the
-per-role cap — then emits the first tailor script, which must pass
-run_tailor.sh's gates (ast + prefix lint + prune coverage + strict exec).
+bullet cuts, whole dead-sentence trims, whole-line proficiency/Tools keeps
+or cuts, whole-category cuts, stub keeps, and the per-role cap — then emits
+the first tailor script, which must pass run_tailor.sh's gates (ast + prefix
+lint + prune coverage + strict exec).
 """
 
 # pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access
@@ -281,6 +282,12 @@ class TestEmittedScript(_AutoPruneBase):
     def test_no_drop_role(self):
         self.assertNotIn("drop_role", self._script())
 
+    def test_emitted_imports_cover_only_machine_edits(self):
+        # The machine never emits set_labeled (whole-line keeps/cuts only)
+        # and never drop_role — Phase 2 extensions import their own helpers
+        # (the authoring superset lives in the tailor_resume.py template).
+        self.assertNotIn("set_labeled", self._script())
+
     def test_every_candidate_covered(self):
         # docx_edit_cli reads from a path — write the script to disk
         with tempfile.NamedTemporaryFile("w", suffix=".py",
@@ -389,11 +396,15 @@ class TestTrimHelpers(unittest.TestCase):
         out = auto_prune._trim_bullet_text(long_sentence, jd_terms)
         self.assertEqual(out, long_sentence)
 
-    def test_surviving_chunks_keeps_jd_named_chunk(self):
-        self.assertEqual(
-            auto_prune._surviving_chunks(
-                "Languages: Python, COBOL, Rust", {"python"}),
-            ["Python"])
+    def test_surviving_chunks_boolean_signals_whole_line(self):
+        # _hosts_jd_chunk is a whole-line boolean signal: True when ANY
+        # chunk hosts JD evidence (line kept whole), False when none does.
+        self.assertTrue(
+            auto_prune._hosts_jd_chunk(
+                "Languages: Python, COBOL, Rust", {"python"}))
+        self.assertFalse(
+            auto_prune._hosts_jd_chunk(
+                "Languages: COBOL, Rust", {"python"}))
 
 
 if __name__ == "__main__":

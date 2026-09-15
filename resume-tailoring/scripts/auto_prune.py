@@ -115,9 +115,10 @@ def _trim_bullet_text(text, jd_terms):
     first, ties: longest first — removes the most words). Never returns a
     kept bullet with zero sentences (a kept bullet always has one
     JD-evidence or concept sentence); returns None when nothing survives
-    (caller cuts the bullet instead); returns the text UNCHANGED when
-    every sentence survives and the bullet is already within cap (the
-    caller records that as a whole-bullet keep, not an edit).
+    (caller cuts the bullet instead); returns the text UNCHANGED when no
+    sentence needs dropping — a lone surviving sentence is kept however
+    long, so an over-cap residual can reach validate_resume and Phase 2
+    (the caller records that as a whole-bullet keep, not an edit).
     """
     keep = [s for s in _sentence_clauses(text)
             if jd_asks.evidence_set(s.lower(), jd_terms)]
@@ -135,21 +136,17 @@ def _trim_bullet_text(text, jd_terms):
     return " ".join(keep)
 
 
-def _surviving_chunks(text, jd_terms):
-    """Comma/semicolon chunks of a list line that a JD term or concept
-    names. A whole-line signal only: a non-empty result means the line
-    hosts at least one JD-evidenced item and the disposition keeps the
-    line AS-IS (never a partial value list); empty means no chunk
-    survives and the whole line is cut."""
+def _hosts_jd_chunk(text, jd_terms):
+    """Whether any comma/semicolon chunk of a list line hosts a JD term
+    or concept — the whole-line disposition signal: True keeps the line
+    AS-IS (never a partial value list); False cuts the line whole."""
     if ":" not in text:
-        return []
+        return False
     value = text.split(":", 1)[1]
-    out = []
-    for chunk in re.split(r"[,;]", value):
-        c = chunk.strip().rstrip(".,;:!?'\"")
-        if c and jd_asks.evidence_set(c.lower(), jd_terms):
-            out.append(c)
-    return out
+    return any(
+        c and jd_asks.evidence_set(c.lower(), jd_terms)
+        for c in (chunk.strip().rstrip(".,;:!?'\"")
+                  for chunk in re.split(r"[,;]", value)))
 
 
 def _top_sections(body):
@@ -251,10 +248,9 @@ def _disposition(c, anchors, role_state, jd_terms):
         elif trimmed == text:
             return "keep", (prefix if prefix else text[:24],
                             "bullet kept whole — every sentence carries "
-                            "JD evidence, already within the word cap "
-                            "(auto-prune)")
+                            "JD evidence (auto-prune; nothing to cut)")
     elif kind == "list-trim":
-        if _surviving_chunks(text, jd_terms):
+        if _hosts_jd_chunk(text, jd_terms):
             return "keep", (prefix if prefix else text[:24],
                             "list line kept whole — hosts at least one "
                             "JD-evidenced item (auto-prune; never a "
@@ -379,12 +375,16 @@ def plan_phase_a(candidates, roles, jd_terms, body):
 # --------------------------------------------------------------------- #
 # Script emission
 # --------------------------------------------------------------------- #
+# The emitted script imports exactly what the machine emits — no more.
+# Phase 2 extensions add their own imports as they author edits
+# (set_labeled, drop_role, merge_into, ...); the full authoring-time
+# superset lives in the tailor_resume.py template.
 _EMITTED_IMPORTS = (
     "import shutil\n"
     "\n"
     "from docx_edit import (\n"
     "    DriftMeta, drop, drop_section, find_p, load, paras, remove,\n"
-    "    remove_empty, save, set_labeled, set_text,\n"
+    "    remove_empty, save, set_text,\n"
     ")\n"
 )
 
