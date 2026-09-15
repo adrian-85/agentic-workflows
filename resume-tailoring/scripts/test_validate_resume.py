@@ -963,20 +963,18 @@ class GuidanceTests(unittest.TestCase):
         b = mkbody([summary_p, *ps])
         return b, summary_p
 
-    def test_long_summary_warns(self):
+    def test_long_summary_is_exempt_from_word_cap(self):
         over = " ".join(f"w{i}" for i in range(45)) + "."
         b, s = self._body_with(over)
         notes = vr._readability_guidance(b, s)
-        warns = [c for lvl, c in notes if lvl == "warn"]
-        self.assertTrue(any("Summary has 45 words" in w for w in warns), warns)
+        self.assertFalse(any("Summary" in c and lvl == "warn"
+                             for lvl, c in notes), notes)
 
-    def test_summary_at_cap_is_ok(self):
+    def test_summary_at_cap_has_no_cap_guidance(self):
         exactly = " ".join(f"w{i}" for i in range(40)) + "."
         b, s = self._body_with(exactly)
         notes = vr._readability_guidance(b, s)
-        self.assertFalse(any(lvl == "warn" for lvl, _ in notes), notes)
-        self.assertTrue(any("within the 40-word cap" in c
-                            for lvl, c in notes if lvl == "ok"), notes)
+        self.assertFalse(any("word cap" in c for _lvl, c in notes), notes)
 
     def test_over_cap_bullet_warns(self):
         summary = mk("Clean summary.", style=vr.SUMMARY_STYLE)
@@ -1038,7 +1036,7 @@ class GuidanceTests(unittest.TestCase):
             result = vr.validate_tree(path, body_el)
             report = "\n".join(result["lines"])
             self.assertIn("== GUIDANCE ==", report)
-            self.assertIn("Summary has 45 words", report)
+            self.assertNotIn("Summary has 45 words", report)
             self.assertIn("Top Skills", report)
             self.assertGreater(result["warnings"], 0)
         finally:

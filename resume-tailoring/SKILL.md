@@ -13,26 +13,27 @@ styles, list/bullet numbering, and hyperlinks all survive.
 
 ## Core principle
 
-**The machine prunes; the agent tailors; nothing irrelevant ever reaches
-the build.** Copy the master, never overwrite it — every run writes a new
-file (e.g. `John Doe Resume - <Target>.docx`). Phase 1 (`auto_prune.py`,
-Step 2) machine-dispositions EVERY paragraph of the master against the JD
-— every bullet, dead sentence, list chunk, and Tools line — and emits and
-runs the first tailor script through the full gate chain. The agent never
-dispositions a prune candidate, never re-opens a cut by argument, never
-sees a cut report, and never page/word-measures the master. Its work
+**The existing machine filter prunes; the agent tailors; nothing irrelevant
+ever reaches the build.** Copy the master, never overwrite it — every run
+writes a new file (e.g. `John Doe Resume - <Target>.docx`). Phase 1
+(`auto_prune.py`, Step 2) machine-dispositions EVERY paragraph of the master
+against the JD — every bullet, dead sentence, list chunk, and Tools line —
+and emits and runs the first tailor script through the full gate chain. The
+agent never dispositions a prune candidate, never re-opens a cut by argument,
+never sees a cut report, and never page/word-measures the master. The single
+ask/evidence matcher is the disposition rule: fix its JD evidence families
+when truthful equivalents such as Python/Python scripting, Linux/WSL/Linux
+bash, unit/component testing, or visual checks/visual regression testing are
+being cut; do not add a second independent preservation filter. Its work
 starts on the resulting LEAN BASE BUILD: measure it and decide
-length/seniority (Steps 3–4), tailor title/Summary/flagship (Steps 5–7),
-and mine the master + LinkedIn ONLY when the ATS steps surface a gap to
-host (Step 8) — until then the agent does not even read them. Restores
-are add-driven and JD-evidenced; because the base build starts
-relevance-pruned, the old cut-iterate-cut compression loop is structurally
-gone. Removing 25% relevant content beats leaving 25% irrelevant
-content: what the machine leaves is small enough to tailor freely. Page
-and whole-resume word budgets are Phase 2 work — closed after the initial
-positioning edits — never Phase 1. JD alignment
-is king, readability second; time-in-role and recency are only tiebreakers,
-never a cut signal and never an exemption.
+length/seniority (Steps 3–4), preserve the user’s Summary/intro (Step 5),
+tailor title/flagship (Steps 5–7), and mine the master + LinkedIn ONLY when
+the ATS steps surface a gap to host (Step 8). Restores are add-driven and
+JD-evidenced; because the base build starts relevance-pruned, the old
+cut-iterate-cut compression loop is structurally gone. Page and whole-resume
+word budgets are Phase 2 work — closed after the initial positioning edits —
+never Phase 1. JD alignment is king, readability second; time-in-role and
+recency are only tiebreakers, never a cut signal and never an exemption.
 
 ## Editing phases
 
@@ -64,7 +65,7 @@ restore phase.
 | 2 | PHASE A — the machine prune: dispositions every candidate, emits the first tailor script, runs it through the gates, writes the lean base build. No cut report | `auto_prune.py` (runs `run_tailor.sh`) |
 | 3 | Measure the BASE BUILD (never the master) — diagnose relevance output; do not budget-prune in Phase 1 | `measure_resume.py` on the base copy |
 | 4 | Decide length + seniority alignment (whole-role drops, with the user) | `measure_resume.py --simulate` |
-| 5 | Align top title to JD title (less senior); rewrite Summary to lead with JD value — do this before the first post-drop run | `set_text` |
+| 5 | Align top title to JD title (less senior); preserve the user’s Summary/intro unchanged | `set_text` for title only |
 | 6 | No sections between Summary & Proficiencies | — |
 | 7 | Re-anchor senior role (merge, don't append); expand role adjacent to JD industry/stage — do this before the first post-drop run | `set_text`, `merge_into` |
 | 8 | PHASE 2 — final tailoring: mine master + LinkedIn for less-obvious hosts, weave tone/focus/word choice, then close page/word/ATS budgets | `ats_audit.py --jd`, `read_profile.sh`, `set_text`, `squeeze_resume.py --protect` |
@@ -429,20 +430,14 @@ consistently ("Results-driven Staff engineer…" → "Results-driven Software Te
 Engineer…"). `measure_resume.py --jd` and `validate_resume.py --jd` print a
 `JD TITLE vs HEADLINE` WARNING when the headline is more senior — act on it.
 
-Then rewrite the Summary so its first sentence hits the JD's core ask (e.g.
-"owns quality end-to-end", "builds QA frameworks from scratch rather than
-working within established ones"). Mirror the user's selling points explicitly.
-**Cap every prose paragraph — the Summary included — at 40 words (a ceiling,
-never a target: shorter is always fine). Individual bullets carry the same
-40-word cap.** Word count,
-not sentence count: a 3-sentence Summary measured ~84 words in a real
-session and still read as a wall. `validate_resume.py` warns over the cap
-in its GUIDANCE section (Tools lines exempt — they are keyword lists
-governed by the wrap budget; master input exempt). The Summary is the
-intro a human reviewer reads first — an overlong intro risks the reviewer
-never reaching the bullets. Every Summary claim must be re-evidenced by a
-kept bullet below; cut Summary content that duplicates what a role block
-already says and let that block speak for itself.
+**Never edit the user’s Summary/intro paragraph.** It is the human-positioning
+asset, not an ATS keyword surface: do not rewrite it, add to it, remove from
+it, or score-driven-compress it. Exclude this immutable paragraph from the
+40-word cap and from word-level pruning. The title may still be aligned to
+the JD, but the Summary must be copied byte-for-byte from the master unless
+the user edits it. Cap every other editable prose paragraph and individual
+bullet at 40 words. `validate_resume.py` must report any over-cap editable
+paragraph before rendering; do not claim completion while one remains.
 
 ### 6. Don't insert sections between the Summary and Technical Proficiencies
 
@@ -492,14 +487,24 @@ the master, not per-target scripts).
 **This step unlocks the master and the LinkedIn export.** Until here the
 agent has not read either. The trigger is a SURFACED GAP: the build
 measure's **JD terms with NO host** list, `ats_audit.py --jd`'s no-host
-report, or the external scan's missing-keyword list (Step 11). Mining is
-gap-driven ONLY — the surfaced-term list is the work order; the master
-and LinkedIn are evidence sources for those asks, never a general
-enrichment pool. The JD's selling-point themes come from the same
-surfaces: infer them from the JD, cross-check the no-host list, and
-present them with the checklist below.
+report, or the external scan's missing hard/soft skill list (Step 11). Mining
+is gap-driven ONLY, but the surfaced list is a work order, not permission to
+ask immediately. Before raising ANY term, perform this source-first loop:
 
-- Run the LinkedIn dump ONCE and read the file — never hand-`cat`
+1. Read the current master for the term and its truthful evidence families,
+   including content Phase 1 cut.
+2. Read the complete LinkedIn dump and run the inference map for the current
+   build and current gap list.
+3. AUTO-HOST every term with source evidence, without asking the user.
+4. Only then put genuinely unsupported terms in one RAISE checklist.
+5. After every hosting edit or new ATS scan, repeat the map and source check
+   for the changed gap list. Never reuse a stale map from an earlier build.
+
+The master and LinkedIn are evidence sources for the surfaced asks, never a
+general enrichment pool. The JD's selling-point themes come from the same
+surfaces.
+
+- Run the LinkedIn dump once per mining round and read the whole file — never hand-`cat`
   individual CSVs:
 
   ```bash
@@ -521,10 +526,10 @@ states:**
 
 The INFERENCE MAP decides which terms land in which state — follow its
 verdicts; do not re-ask what the map already answered. Read measure's
-**INFERENCE MAP** (`--linkedin <profile-dump.txt>`): "no literal host"
-may not be "no evidence" — the map deterministically searches the master
-and the LinkedIn dump for each term's morphological variants and
-skill-family roots and prints the evidence it finds (see
+**INFERENCE MAP** (`--linkedin <profile-dump.txt>`) on every mining round:
+"no literal host" may not be "no evidence" — the map deterministically
+searches the current master and LinkedIn dump for each term's morphological
+variants and skill-family roots and prints the evidence it finds (see
 [docs/api.md](docs/api.md)), then prints a mechanical verdict per term:
 
 - **AUTO-HOST** — evidence found in the master or LinkedIn material.
@@ -599,13 +604,15 @@ Common catches: `to improving` → `improving` (infinitive),
 `evangelist`, `testzing` → `testing`, `Github` → `GitHub` (official casing).
 Don't rely on spellcheck for these — grep the text.
 
-**Re-read every paragraph you generated — the Summary first.** Before
-declaring the build done, dump each `set_text`-rewritten paragraph with
-`docx_edit.py "<docx>" <idx> --full` and verify it reads clean. The Summary
-is the highest-visibility text; read it twice. The validator's TEXT
-INTEGRITY section (non-ASCII mangling, doubled punctuation, doubled
-words) catches the mechanical classes; the re-read catches everything
-else — awkward phrasing, missing words, wrong tense.
+**Re-read every editable paragraph you generated.** The Summary/intro is
+immutable and is not part of this edit pass. Before declaring the build done,
+dump each changed role intro and bullet from the actual final `.docx` with
+`docx_edit.py "<docx>" <idx> --full`, count its words, and verify it reads
+clean. Do this again after any user edit. The validator's TEXT INTEGRITY
+section catches non-ASCII mangling, doubled punctuation, and doubled words;
+the re-read must catch awkward phrasing, malformed possessives, missing words,
+wrong tense, and sentence fragments. A cap violation or unresolved grammar
+warning blocks completion.
 
 **Punctuation rule — periods and commas only.** In the Summary and
 job-history prose, never use em dashes (`—`), double hyphens (`--`),
@@ -699,7 +706,14 @@ remaining findings are the actionable ones.
 "<resume>.pdf" jd_<target>.txt` submits the deliverable to the user's ATS
 scan service and saves the match-report JSON next to the resume
 (`<...>.ats-check.json`); feed it back for the authoritative cross-check:
-`.ats-check/cookies.txt` to re-seed). The report's `wordCount` is a CROSS-CHECK only — the service's
+`.ats-check/cookies.txt` to re-seed). When the score is below 75, read the
+report's `skills.hard` and `skills.soft` entries with `resumeCount == 0`
+before asking anything. `ats_check.py` prints both missing lists explicitly;
+these lists are the next source-mining queue and are not optional. Re-run the
+master/LinkedIn inference loop after each hosting round. Do not treat generic
+finding fragments as skills, and do not skip the external lists merely
+because `ats_audit.py` produced a different no-host list. The report's
+`wordCount` is a CROSS-CHECK only — the service's
 PDF parser inflates counts (it splits labeled values into fragments), so
 the cap is always `ats_audit.py`'s own count. The scan output names the
 target company's ATS when it identified one (`target ATS:` line, from the

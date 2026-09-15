@@ -409,31 +409,26 @@ def _text_integrity_errors(region, summary):
 def _readability_guidance(body, summary, *, region=None, master_input=False):
     """Advisory readability checks (SKILL Step 5 word cap + Step 6).
 
-    Word count, not sentence count — the master input is exempt (it
-    intentionally keeps everything); see PARA_WORD_CAP above.
+    Word count, not sentence count — the master input and immutable Summary
+    are exempt; see PARA_WORD_CAP above.
 
     Returns [(severity, message)] — severity in warn|ok.
     These are NOT blocking (the agent may have a good reason to exceed
-    the cap); they surface when the agent writes a paragraph or bullet
-    without applying the SKILL's readability guidance.
+    the cap); they surface when the agent writes an editable paragraph or
+    bullet without applying the SKILL's readability guidance.
     """
     notes = []
-    summary_text = de.text_of(summary).strip() if summary is not None else ""
     if not master_input:
         for p, text in _prose_paragraphs(region or _region(body), summary):
-            if _is_tools(p):
+            if p is summary or _is_tools(p):
                 continue
             n = len(text.split())
             if n <= PARA_WORD_CAP:
                 continue
             notes.append(("warn",
-                f"{'Summary' if p is summary else 'Bullet' if _is_bullet(p) else 'Paragraph'}"
+                f"{'Bullet' if _is_bullet(p) else 'Paragraph'}"
                 f" has {n} words (cap {PARA_WORD_CAP}, SKILL Step 5): "
                 f"{' '.join(text.split())[:60]!r}... — split or trim to {PARA_WORD_CAP} words"))
-    if summary_text and len(summary_text.split()) <= PARA_WORD_CAP:
-        notes.append(("ok",
-            f"Summary has {len(summary_text.split())} words — within the "
-            f"{PARA_WORD_CAP}-word cap"))
 
     # Same word twice within a window of the same paragraph reads as
     # repetition (Step 9's re-read catches this by eye; this makes it

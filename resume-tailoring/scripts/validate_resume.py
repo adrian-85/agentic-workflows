@@ -71,9 +71,10 @@ Catches the error classes tailoring sessions actually hit:
    catching them mechanically replaces a user's manual proofread.
 
 6. GUIDANCE — readability signals the agent should act on (advisory).
-   Word-count cap — no prose paragraph or individual bullet over 40 words
-   (<=40 acceptable; SKILL Step 5) — and sections inserted between the
-   Summary and Technical Proficiencies (SKILL Step 6 forbids this). These
+   Word-count cap — no editable prose paragraph or individual bullet over 40
+   words (the immutable Summary/intro is exempt; <=40 is acceptable; SKILL
+   Step 5) — and sections inserted between the Summary and Technical
+   Proficiencies (SKILL Step 6 forbids this). These
    are warnings, not blocking errors — the agent may have a reason to
    deviate, but the validator flags the deviation so it cannot go unnoticed.
 
