@@ -246,6 +246,21 @@ class SetLabeledTests(unittest.TestCase):
         self.assertTrue(runs[0][1], "label run should be bold")
         self.assertFalse(runs[1][1], "value run should be non-bold")
 
+    def test_bare_label_gets_colon_separator(self):
+        # Regression (Alteryx + Libra sessions): a bare label written
+        # verbatim glued label and values ("Tools & TechnologiesC#, .NET").
+        # The library now owns the ": " separator.
+        p = mkp(("Tools & Technologies:", True), (" C#, .NET", False))
+        de.set_labeled(p, "Tools & Technologies", "C#, .NET, SQL")
+        self.assertEqual(
+            de.text_of(p), "Tools & Technologies: C#, .NET, SQL")
+
+    def test_bare_colon_label_gets_space(self):
+        p = mkp(("Tools & Technologies:", True), (" C#, .NET", False))
+        de.set_labeled(p, "Tools & Technologies:", "C#, .NET, SQL")
+        self.assertEqual(
+            de.text_of(p), "Tools & Technologies: C#, .NET, SQL")
+
     def test_clone_shaped_single_run_label_derives_value_formatting(self):
         # clone_after collapses a "Label: values" line to ONE run carrying
         # the label's rPr, so set_labeled has no non-bold value run to copy.

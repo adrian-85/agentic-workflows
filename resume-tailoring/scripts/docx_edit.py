@@ -545,10 +545,24 @@ def set_labeled(p, label, value):
 
     No-op with a stderr warning if ``p`` is ``None`` (target paragraph not
     found in the master) so a script still runs when the master changed.
+
+    The label is NORMALIZED to end with ``": "`` — a label passed bare
+    (``"Tools & Technologies"``) or with a bare colon (``"Tools:"``) gets
+    the separator appended, because writing the label verbatim without it
+    glues label and values together (``Tools & TechnologiesC#, .NET``).
+    Two consecutive sessions passed a bare label and lost a repair round
+    each; the library now owns the separator. A label already ending in
+    ``": "`` is written verbatim.
     """
     if p is None:
         _warn_missing(label)
         return
+    if label.endswith(": "):
+        pass  # already carries the separator — written verbatim
+    elif label.endswith(":"):
+        label += " "
+    else:
+        label += ": "
     rs = _runs(p)
     bold_rPr = None
     val_rPr = None

@@ -13,7 +13,10 @@ reference. The non-obvious rules while authoring:
 - **`set_text` vs `set_labeled`**: `set_text` collapses all text into the first
   (bold) run — never use it on "Label: values" proficiency lines (e.g.
   `Programming Languages: Java, Python`). Use `set_labeled` to preserve the
-  bold-label / non-bold-value split.
+  bold-label / non-bold-value split. The label is normalized to end with
+  `": "` — a bare label (`"Tools & Technologies"`) or a bare-colon label
+  (`"Tools:"`) gets the separator appended automatically, so label and
+  values can never glue together.
 - **`set_text` replaces, never inserts**: calling it to "add" content rewrites
   the anchor paragraph instead — the original line is gone. To ADD a new
   bullet/paragraph, anchor on a unique neighbor and use `clone_after`.
