@@ -190,7 +190,15 @@ from measure_resume_jd import (
     _top_block_candidates,
     _adjacent_master_body,
     _fail_without_master,
+    _print_jd_coverage,
+    _print_jd_report,
     title_alignment_notes)
+from measure_resume_pruneplan import (  # noqa: E402  (facade re-exports)
+    _main_prune_plan,
+    _print_disposition_checklist,
+    _print_jd_audit,
+    _print_top_block_lines,
+    _write_prune_sidecar)
 
 from measure_resume_drops import (
     Budget,
@@ -363,23 +371,6 @@ def _print_simulate(docx, simulate, jd_file, jd_text, td):
           "tailor script (SKILL Step 4).")
     print()
     return docx, sim_jd_terms
-
-
-def _print_jd_report(jd_file, jd_text, jd_terms, body, sources=None,
-                     *, extra_missing=()):
-    """Print the JD report + title-alignment check.
-
-    too-many-arguments: the report needs the merged gap list alongside the
-    five inputs it already takes — a keyword-only extra beats smuggling it
-    through the evidence-sources tuple.
-    """  # pylint: disable=too-many-arguments
-    for line in _jd_report(jd_file, jd_text, jd_terms, body, sources,
-                           extra_missing=extra_missing):
-        print(line)
-    print("JD TITLE vs HEADLINE:")
-    lvl, msg = title_alignment_notes(body, jd_text)
-    tag = {"warn": "WARNING", "ok": "ok", "note": "note"}[lvl]
-    print(f"  {tag}: {msg}")
 
 
 def _print_page_summary(ctx):
@@ -625,213 +616,6 @@ def _print_word_budget(body):
         print("  Wordiest bullets (shorten or cut first):")
         for n, t in sorted(bullets, reverse=True)[:5]:
             print(f"    {n:>3}w  {t[:72]}")
-    print()
-
-
-def _coverage_status_counts(coverage):
-    """Status histogram + the hard-skill subset of the UNCOVERED lines
-    (the two-state call-to-action count for REQUIREMENTS SUMMARY)."""
-    counts = {s: sum(1 for _, st, _ in coverage if st == s)
-              for s in ("covered", "weak", "uncovered", "by_hand")}
-    hard_uncovered = sum(
-        1 for label, s, _ in coverage
-        if s == "uncovered" and not JD_SOFT_SKILL_RE.search(label))
-    return counts, hard_uncovered
-
-
-def _print_coverage_lines(coverage, term_map):
-    """The per-qualification status lines (with matcher-term noise on
-    weak/uncovered rows)."""
-    tag = {"covered": "covered", "weak": "weak",
-           "uncovered": "UNCOVERED", "by_hand": "by hand"}
-    for (label, status, detail), (_, terms) in zip(coverage, term_map):
-        # Show the matcher's extracted terms on weak/uncovered lines: the
-        # fix for a demonstrated-but-UNCOVERED qual is hosting the JD's
-        # literal phrase, and that requires seeing WHICH phrase the
-        # matcher wants (an artifact like 'solid sql' mined from "Solid
-        # SQL skills" is visible instead of a debugging session).
-        shown = f" (extracted terms: {', '.join(sorted(terms))})" \
-            if terms and status in ("uncovered", "weak") else ""
-        print(f"  [{tag[status]}] {label}{shown}")
-        if detail:
-            print(f"      {detail}")
-
-
-def _requirements_summary_line(coverage, counts, hard_uncovered):
-    """The compact one-line REQUIREMENTS SUMMARY signal for the agent —
-    when unanswered_hard > 0, the two-state checklist (SKILL Step 8)
-    MUST be presented to the user before claiming done."""
-    summary = (f"REQUIREMENTS SUMMARY: {counts['covered']}/{len(coverage)} "
-               f"quals covered, {counts['weak']} weak, "
-               f"{counts['uncovered']} uncovered, "
-               f"{counts['by_hand']} by-hand")
-    if hard_uncovered:
-        summary += (f" ({hard_uncovered} unanswered hard skill(s) — "
-                    "present two-state checklist to user, SKILL Step 8)")
-    if counts["by_hand"]:
-        # Soft-skill asks extract no terms ([by hand]) — without a
-        # directive they sat unhosted until the Step-11 scan flagged the
-        # absence and the score paid for it. Host them in the authoring
-        # pass, where the action-verb evidence and the literal-phrase
-        # bullet are both in hand (SKILL Step 2's default-inference rule).
-        summary += (f" ({counts['by_hand']} soft-skill line(s) [by hand] — "
-                    "host the literal phrases in THIS pass; soft skills are "
-                    "safe to infer from action-verb evidence, SKILL Step 8)")
-    return summary
-
-
-def _print_jd_coverage(roles, body, jd_text, jd_terms):
-    """JD REQUIREMENT COVERAGE — per qualification line, its kept hosts."""
-    if not jd_terms:
-        return
-    coverage = _jd_requirement_coverage(roles, body, jd_text)
-    if not coverage:
-        return
-    counts, hard_uncovered = _coverage_status_counts(coverage)
-    print()
-    print("JD REQUIREMENT COVERAGE (each qualification line → "
-          f"status; {len(coverage)} line(s)):")
-    _print_coverage_lines(coverage, _jd_line_terms_map(jd_text))
-    if counts["uncovered"]:
-        print(f"  {counts['uncovered']} requirement(s) UNCOVERED — a resume "
-              "that does not demonstrate a required qual reads as "
-              "unqualified for it.")
-    if counts["weak"]:
-        print(f"  {counts['weak']} requirement(s) [weak] — hosted only on "
-              "proficiencies/Tools lines; weave into a bullet "
-              "where used (SKILL Step 6).")
-    print(_requirements_summary_line(coverage, counts, hard_uncovered))
-    print()
-
-
-def _print_jd_audit(roles, body, jd_terms, protect):
-    """JD-FIT AUDIT — every role, independent of the page math."""
-    if not jd_terms:
-        return
-    all_texts = [de.text_of(p) for p in de.paras(body)]
-    audit = _jd_fit_audit(roles, jd_terms, protect=protect,
-                          all_texts=all_texts)
-    if audit:
-        print("JD-FIT AUDIT (every role — cut every OFF-JD/weak bullet "
-              "listed here in the FIRST pass, no page-math condition; "
-              "on the master this IS the whole plan):")
-        for section in audit:
-            print(section)
-            print()
-    trim = _keep_trim_section(roles, jd_terms, body, protect=protect)
-    if trim:
-        print(trim)
-        print()
-
-
-def _print_top_block_lines(top):
-    """The copy-pasteable cut lines for TOP-BLOCK candidates (shared by
-    the prune-plan and reclaim-plan printers)."""
-    for prefix, text in top:
-        print(f'    find_p(ps, "{prefix}")  # {text[:70]}')
-
-
-def _print_top_block_prune(body, jd_terms):
-    """TOP-BLOCK PRUNE CANDIDATES — off-JD proficiencies/cert lines.
-
-    The prune-plan (master) form of the reclaim-plan's TOP-BLOCK section:
-    here it is unconditional — an off-JD top-block line is irrelevant
-    content regardless of any page math."""
-    top = _top_block_candidates(body, jd_terms)
-    if not top:
-        return
-    print()
-    print("TOP-BLOCK PRUNE CANDIDATES (Technical Proficiencies / "
-          "Certifications lines with no JD evidence; cut whole):")
-    _print_top_block_lines(top)
-    print()
-
-
-def _main_prune_plan(args):
-    """PRUNE-PLAN mode — the only sanctioned measure run on the master.
-
-    Assess every paragraph of the master against the JD and cut everything
-    irrelevant FIRST (SKILL Step 3); no page, word, or role-drop math is
-    printed, because it would describe content that is about to be pruned
-    (and measuring the full master invites keeping it). The PDF is not
-    even rendered — relevance needs no layout. After the prune pass,
-    measure the tailored copy for the length/seniority decision
-    (SKILL Step 4)."""
-    if args.simulate:
-        print("error: --simulate answers a seniority question (which whole "
-              "roles to drop) — decided on the PRUNED copy in SKILL Step 4, "
-              "after the prune pass. The master only answers 'what is "
-              "irrelevant'.", file=sys.stderr)
-        sys.exit(2)
-    if not args.jd_text:
-        print("error: the master is measured ONLY with --jd (prune-plan "
-              "mode). Without a JD there is no relevance signal — and "
-              "page/word math on the unpruned master is never measured "
-              "(SKILL Step 3). Pass --jd <JD.txt>.", file=sys.stderr)
-        sys.exit(2)
-    if not args.default_target:
-        print(f"(page target {args.target} ignored — the master is only "
-              "prune-planned; measure the tailored copy for page math)")
-        print()
-    _, body, _, _, _ = de.load(args.docx)
-    roles = _roles(body)
-    jd_terms = _jd_terms(args.jd_text, body)
-    print("PRUNE PLAN — master input: cut everything irrelevant FIRST "
-          "(SKILL Step 3) — every OFF-JD/weak bullet, dead sentence, "
-          "non-JD clause, and non-JD list chunk below goes in the first "
-          "pass, before any page target, role drop, seniority, or word "
-          "count is decided. Page/word math on the unpruned master is "
-          "never measured; prune, then measure the tailored copy "
-          "(SKILL Step 4).")
-    print()
-    _print_jd_report(args.jd_file, args.jd_text, jd_terms, body,
-                     InferenceSources(linkedin_text=args.evidence_text))
-    _print_jd_coverage(roles, body, args.jd_text, jd_terms)
-    _print_jd_audit(roles, body, jd_terms, args.protect)
-    _print_top_block_prune(body, jd_terms)
-    candidates = prune_candidates(roles, jd_terms, body, protect=args.protect)
-    sidecar = _write_prune_sidecar(args.docx, args.jd_file, candidates)
-    _print_disposition_checklist(sidecar, candidates)
-
-
-def _write_prune_sidecar(docx_path, jd_file, candidates):
-    """Write the machine-readable prune plan next to the master.
-
-    ``<master>.prune.json`` — the same sidecar pattern as the drift
-    file: docx_edit.py --lint-prune (run_tailor.sh) reads it and blocks
-    the tailor run while any candidate lacks an edit or a recorded
-    ``# kept:`` reason. Written fresh on EVERY --jd run, so re-running
-    the prune plan also refreshes it after a master fold or a user edit.
-    Returns the sidecar path.
-    """
-    path = de.prune_sidecar_path(docx_path, jd_file)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump({"jd": os.path.basename(jd_file) if jd_file else None,
-                   "candidates": candidates}, f, indent=1)
-    return path
-
-
-def _print_disposition_checklist(sidecar_path, candidates):
-    """The fill-in disposition table for the ONE-message plan (SKILL
-    Steps 2-4) — the fix for the motivating session's 'Prune plan
-    highlights' summary, which listed only the bullet cuts and left the
-    word/sentence-level trims out of the user's approval entirely."""
-    print()
-    print(f"PRUNE COVERAGE SIDECAR: {sidecar_path}")
-    print("PRUNE DISPOSITION CHECKLIST — EVERY candidate needs exactly one "
-          "disposition: CUT (drop whole), TRIM (word-level per the plan: "
-          "cut the flagged sentence, strip the flagged clause/chunk), or "
-          "KEEP (# kept: <one-line JD reason>). Copy this table into the "
-          "ONE-message plan filled in — 'highlights' are not a plan — and "
-          "mirror every row in the tailor script: run_tailor.sh exits 2 "
-          "while any line is uncovered (--lint-prune).")
-    for i, c in enumerate(candidates, 1):
-        anchor = (f'find_p(ps, "{c["prefix"]}")' if c["prefix"]
-                  else "(no unique prefix)")
-        print(f"  {i:2d}. {c['kind']:<10s} {anchor}")
-        print(f"      # {c['text'][:76]}")
-        if c["detail"]:
-            print(f"      ({c['detail'][:76]})")
     print()
 
 

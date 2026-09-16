@@ -395,6 +395,99 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None,
     return lines
 
 
+def _print_jd_report(jd_file, jd_text, jd_terms, body, sources=None,
+                     *, extra_missing=()):
+    """Print the JD report + title-alignment check.
+
+    too-many-arguments: the report needs the merged gap list alongside the
+    five inputs it already takes — a keyword-only extra beats smuggling it
+    through the evidence-sources tuple.
+    """  # pylint: disable=too-many-arguments
+    for line in _jd_report(jd_file, jd_text, jd_terms, body, sources,
+                           extra_missing=extra_missing):
+        print(line)
+    print("JD TITLE vs HEADLINE:")
+    lvl, msg = title_alignment_notes(body, jd_text)
+    tag = {"warn": "WARNING", "ok": "ok", "note": "note"}[lvl]
+    print(f"  {tag}: {msg}")
+
+
+def _coverage_status_counts(coverage):
+    """Status histogram + the hard-skill subset of the UNCOVERED lines
+    (the two-state call-to-action count for REQUIREMENTS SUMMARY)."""
+    counts = {s: sum(1 for _, st, _ in coverage if st == s)
+              for s in ("covered", "weak", "uncovered", "by_hand")}
+    hard_uncovered = sum(
+        1 for label, s, _ in coverage
+        if s == "uncovered" and not JD_SOFT_SKILL_RE.search(label))
+    return counts, hard_uncovered
+
+
+def _print_coverage_lines(coverage, term_map):
+    """The per-qualification status lines (with matcher-term noise on
+    weak/uncovered rows)."""
+    tag = {"covered": "covered", "weak": "weak",
+           "uncovered": "UNCOVERED", "by_hand": "by hand"}
+    for (label, status, detail), (_, terms) in zip(coverage, term_map):
+        # Show the matcher's extracted terms on weak/uncovered lines: the
+        # fix for a demonstrated-but-UNCOVERED qual is hosting the JD's
+        # literal phrase, and that requires seeing WHICH phrase the
+        # matcher wants (an artifact like 'solid sql' mined from "Solid
+        # SQL skills" is visible instead of a debugging session).
+        shown = f" (extracted terms: {', '.join(sorted(terms))})" \
+            if terms and status in ("uncovered", "weak") else ""
+        print(f"  [{tag[status]}] {label}{shown}")
+        if detail:
+            print(f"      {detail}")
+
+
+def _requirements_summary_line(coverage, counts, hard_uncovered):
+    """The compact one-line REQUIREMENTS SUMMARY signal for the agent —
+    when unanswered_hard > 0, the two-state checklist (SKILL Step 8)
+    MUST be presented to the user before claiming done."""
+    summary = (f"REQUIREMENTS SUMMARY: {counts['covered']}/{len(coverage)} "
+               f"quals covered, {counts['weak']} weak, "
+               f"{counts['uncovered']} uncovered, "
+               f"{counts['by_hand']} by-hand")
+    if hard_uncovered:
+        summary += (f" ({hard_uncovered} unanswered hard skill(s) — "
+                    "present two-state checklist to user, SKILL Step 8)")
+    if counts["by_hand"]:
+        # Soft-skill asks extract no terms ([by hand]) — without a
+        # directive they sat unhosted until the Step-11 scan flagged the
+        # absence and the score paid for it. Host them in the authoring
+        # pass, where the action-verb evidence and the literal-phrase
+        # bullet are both in hand (SKILL Step 2's default-inference rule).
+        summary += (f" ({counts['by_hand']} soft-skill line(s) [by hand] — "
+                    "host the literal phrases in THIS pass; soft skills are "
+                    "safe to infer from action-verb evidence, SKILL Step 8)")
+    return summary
+
+
+def _print_jd_coverage(roles, body, jd_text, jd_terms):
+    """JD REQUIREMENT COVERAGE — per qualification line, its kept hosts."""
+    if not jd_terms:
+        return
+    coverage = _jd_requirement_coverage(roles, body, jd_text)
+    if not coverage:
+        return
+    counts, hard_uncovered = _coverage_status_counts(coverage)
+    print()
+    print("JD REQUIREMENT COVERAGE (each qualification line → "
+          f"status; {len(coverage)} line(s)):")
+    _print_coverage_lines(coverage, _jd_line_terms_map(jd_text))
+    if counts["uncovered"]:
+        print(f"  {counts['uncovered']} requirement(s) UNCOVERED — a resume "
+              "that does not demonstrate a required qual reads as "
+              "unqualified for it.")
+    if counts["weak"]:
+        print(f"  {counts['weak']} requirement(s) [weak] — hosted only on "
+              "proficiencies/Tools lines; weave into a bullet "
+              "where used (SKILL Step 6).")
+    print(_requirements_summary_line(coverage, counts, hard_uncovered))
+    print()
+
+
 def _adjacent_master_body(docx):
     """Load the sole adjacent master as evidence for a tailored copy."""
     directory = os.path.dirname(os.path.abspath(docx))
