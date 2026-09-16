@@ -245,7 +245,12 @@ be silently cut under page pressure. `--jd` extracts the candidate-tech terms
 the JD asks for (matched against the resume's proficiency/Tools/title
 vocabulary plus bullet-only tools) and excludes JD-evidence bullets from the
 suggestions, listing them under "JD-matched (kept)" with the terms that
-matched. It also prints the FULL extracted term list plus the file's word
+matched. The JD file uses the fixed 8-section template (SKILL Step 1:
+`jd_sections.py` — Position Title, Company Overview, Tech Stack,
+Responsibilities, Required Experience, Additional Experience, Required
+Education, 30/60/90 Day Expectations; every header present, blank body when
+the posting omits that content; no fallback synonym recognition). It also
+prints the FULL extracted term list plus the file's word
 count — scan that list against the posting to confirm the JD file is the
 verbatim text, not a paraphrase: a summarized JD silently drops whole skill
 areas from the DROP PLAN (paste the posting verbatim; a short file gets a

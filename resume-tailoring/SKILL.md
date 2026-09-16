@@ -66,14 +66,14 @@ restore phase.
 
 | Step | Action | Tool |
 |---|---|---|
-| 1 | Read the JD (persist to skill root + posting URL). The master and LinkedIn export stay UNREAD | — |
-| 2 | PHASE A — the machine prune: dispositions every candidate, emits the first tailor script, runs it through the gates, writes the lean base build. No cut report | `auto_prune.py` (runs `run_tailor.sh`) |
+| 1 | Read the WHOLE JD, saved in the fixed 8-section template (persist to skill root + posting URL); write the one-line theme brief + any term equivalences. The master and LinkedIn export stay UNREAD | `jd_sections.py` contract |
+| 2 | PHASE A — the machine prune (enforces the 8-header contract; `--theme`/`--equivalence` from Step 1): dispositions every candidate, emits the first tailor script, runs it through the gates, writes the lean base build. No cut report | `auto_prune.py` (runs `run_tailor.sh`) |
 | 3 | Measure the BASE BUILD (never the master) — diagnose relevance output; do not budget-prune in Phase 1 | `measure_resume.py` on the base copy |
 | 4 | Decide length + seniority alignment (whole-role drops, with the user) | `measure_resume.py --simulate` |
 | 5 | Align top title to JD title (less senior); preserve the user’s Summary/intro unchanged | `set_text` for title only |
 | 6 | No sections between Summary & Proficiencies | — |
 | 7 | Re-anchor senior role (merge, don't append); expand role adjacent to JD industry/stage — do this before the first post-drop run | `set_text`, `merge_into` |
-| 8 | PHASE 2 — final tailoring: mine master + LinkedIn for less-obvious hosts, weave tone/focus/word choice, then close page/word/ATS budgets | `ats_audit.py --jd`, `read_profile.sh`, `set_text`, `squeeze_resume.py --protect` |
+| 8 | PHASE 2 — final tailoring: mine master (grep-first) + LinkedIn for less-obvious hosts, weave tone/focus/word choice, close page/word/ATS budgets, then add role spacers (default on; skip only on a page conflict) | `ats_audit.py --jd`, `read_profile.sh`, `set_text`, `squeeze_resume.py --protect` |
 | 9 | Fix grammar, typos, punctuation | grep + `validate_resume.py` |
 | 10 | Save tailored copy (never overwrite master) | `save()` |
 | 11 | Render + verify PDF | `render_pdf.sh` |
@@ -184,7 +184,8 @@ manual habits are:
    anchor it against a unique existing line.
 
 Tool-enforced (no instruction needed): `auto_prune.py` REFUSES non-master input (exit 2) —
-the tailored copy is its OUTPUT, never its input — and its emitted script runs under the
+the tailored copy is its OUTPUT, never its input — REFUSES a JD that violates the
+8-section template (exit 2 naming the missing headers), and its emitted script runs under the
 full gate chain (`run_tailor.sh`: ast + find_p lint + prune-coverage + strict exec).
 `measure_resume.py` REFUSES full-master page/word
 measurement (exit 2 without `--jd`; on the master, `--jd` is the machine pipeline's
@@ -202,10 +203,29 @@ the residual page gap automatically.
 ## Workflow
 
 ### 1. Read the JD — nothing else
-- Read the **job description** (JD) **or the recruiter's message**. A
-  recruiter's "top skills" list or screening email is a lighter-weight input
-  than a full JD — treat the named skills/tools as the alignment target just
-  the same.
+- Read the **job description** (JD) **or the recruiter's message**,
+  saved in the **fixed 8-section template** — the user provides the
+  section headers every time, with the posting's material under each
+  (blank body when the posting omits that content; **never** a
+  differently-phrased synonym):
+
+  ```
+  Position Title:
+  Company Overview:
+  Tech Stack:
+  Responsibilities:
+  Required Experience:
+  Additional Experience:
+  Required Education:
+  30/60/90 Day Expectations:
+  ```
+
+  There is **no fallback heading recognition** by design: the parser
+  (`jd_sections.py`) matches exactly this vocabulary, and `auto_prune.py`
+  exits 2 naming any missing header — a mis-pasted JD fails at the
+  pipeline's entry instead of silently mis-collecting asks. A
+  recruiter's "top skills" message uses the same template (the named
+  skills go under `Required Experience`) — one input format everywhere.
 - **Persist the JD in the skill root, not /tmp.** Save it as
   `jd_<target>.txt` (e.g. `jd_acme.txt`) before anything else. Every
   downstream tool references that path for the whole session, and re-run
@@ -231,6 +251,19 @@ the residual page gap automatically.
   session or an earlier one) identified the ATS for the same company,
   `ats_check.py` reuses that known posting URL for the metadata PATCH
   and prints the reuse.
+- **Characterize the JD's theme BEFORE Phase 1 — reading the ENTIRE
+  JD, every section.** Themes are often strongest in the `Company
+  Overview` and `Tech Stack` sections, not the requirement lists, so no
+  section is skippable. Write a one-line theme brief — seniority,
+  domain/stage (startup, AI, FinTech, government...), and the primary
+  skill axis — and hand it to Phase 1: `--theme "<brief>"` records it
+  in the emitted tailor script's docstring, and any JD-specific
+  terminology equivalence the read surfaces (e.g. a government JD's
+  "IV&V" meaning testing for that posting) goes in a repeatable
+  `--equivalence "IV&V=testing,quality validation"` flag — extending
+  the ONE ask/evidence matcher for that run, never a second filter.
+  The theme also steers Phase 2's judgment calls (Step 7's industry
+  expansion, Step 8's host placement).
 - **The master resume and the LinkedIn export are NOT inputs here.**
   Phase 1's `auto_prune.py` (Step 2) is the only sanctioned master
   consumer until Step 8's gap mining unlocks both — the agent that reads
@@ -241,8 +274,16 @@ the residual page gap automatically.
 One command. No judgment, no dispositions, no cut report:
 
 ```bash
-python3 scripts/auto_prune.py "<userName> Master Resume.docx" jd_<target>.txt --target "<Target Name>"
+python3 scripts/auto_prune.py "<userName> Master Resume.docx" jd_<target>.txt \
+    --target "<Target Name>" --theme "<Step 1's one-line theme brief>" \
+    [--equivalence "<term>=<alt1>[,<alt2>...]"]...
 ```
+
+`--theme` is traceability (the emitted script's docstring records it);
+`--equivalence` (repeatable) extends the ask/evidence matcher with the
+JD-specific equivalences Step 1's whole-JD read surfaced. The JD file
+must satisfy the 8-section contract — the command exits 2 naming any
+missing header before touching the master.
 
 What the machine does (deterministic; the agent has no lever here):
 - **CUT** every unevidenced bullet (the most recent role included) and
@@ -498,14 +539,27 @@ agent has not read either. The trigger is a SURFACED GAP: the build
 measure's **JD terms with NO host** list, `ats_audit.py --jd`'s no-host
 report, or the external scan's missing hard/soft skill list (Step 11). Mining
 is gap-driven ONLY, but the surfaced list is a work order, not permission to
-ask immediately. Before raising ANY term, perform this source-first loop:
+ask immediately. Before raising ANY term, perform this source-first loop —
+**in this order, and the master leg is a checked step, not a habit**
+(two real sessions mined only the LinkedIn dump and asked the user
+about evidence the master still hosted):
 
-1. Read the current master for the term and its truthful evidence families,
-   including content that Phase 1 cut.
+1. **Read the current master for the term — literally.** Run the
+   inference map (`--linkedin <dump>`), which searches the adjacent
+   master automatically and now names, per term, which sources were
+   searched (`master: "..."` on a hit; `master: no match` on a RAISE).
+   Then GREP the raw master text for every RAISE-candidate term
+   yourself (`docx_edit.py "<master>.docx" --prefixes | grep -i
+   "<term>"`) — the map's variants/family roots miss paraphrased
+   evidence the raw text still shows, and a `WARNING: the master was
+   NOT searched` line means the map fell back to the pruned copy
+   (content Phase 1 cut is invisible to it — trust only the grep).
 2. Read the complete LinkedIn dump and run the inference map for the current
    build and current gap list.
 3. AUTO-HOST every term with source evidence, without asking the user.
-4. Only then put genuinely unsupported terms in one RAISE checklist.
+4. Only then put genuinely unsupported terms in one RAISE checklist —
+   each with the master-grep result noted ("not in master, not in
+   LinkedIn"), so the user sees the search actually happened.
 5. After every hosting edit or new ATS scan, repeat the map and source check
    for the changed gap list. Never reuse a stale map from an earlier build.
 
@@ -603,10 +657,20 @@ bullets are the cuttable supply); then `squeeze_resume.py --protect
 the residual gap — and JD-judge every squeeze fold-back line before
 applying it (squeeze is page-math-only).
 
-**Readability spacing — lowest priority, only when there is room.** After
-every host lands and the measure shows the last page at/below target
-with slack, add one blank spacer paragraph between roles — measure prints
-**SPACER OPPORTUNITIES** with the boundaries that lack the pause. Fixed
+**Readability spacing — the DEFAULT is to add spacers; skip only on a
+page-length conflict.** One blank spacer paragraph between roles is
+part of the deliverable's readability, not optional polish — five
+consecutive real sessions printed the opportunities and applied zero.
+After the content settles (hosts landed, budgets closed), add one
+blank spacer at EVERY inter-role boundary: measure prints **SPACER
+OPPORTUNITIES** with the boundaries that lack the pause, and
+`validate_resume.py`'s GUIDANCE section now lists them at the render
+gate (`clone_after(body, find_p(ps, "<Tools line>"), "")`, run AFTER
+`remove_empty(body)` — see docs/api.md). The ONLY reason to skip a
+spacer is that adding it would push the build past the agreed page
+target; when it does, drop the spacer, never the JD-matched content.
+Fixed precedence: (1) JD-aligned content, (2) the page target,
+(3) spacing — but (3) loses only to (2), never to inertia.
 ### 9. Fix grammar and typos in the same pass
 Common catches: `to improving` → `improving` (infinitive),
 `companies goal` → `company's goal`, `HIPPA` → `HIPAA`, `evangalist` →
