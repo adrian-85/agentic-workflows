@@ -598,6 +598,15 @@ RESUME_VALIDATE_ARGS="--jd <JD.txt> --jd-years <N> --seniority-approved" \
   ./scripts/render_pdf.sh "<output>.docx"
 ```
 
+**Env vs CLI — same flags, two delivery paths.** `render_pdf.sh` and
+`run_tailor.sh` read their gate flags from the `RESUME_VALIDATE_ARGS`
+ENVIRONMENT variable (they forward it to the save/render gates);
+`validate_resume.py` invoked DIRECTLY takes the same flags as CLI
+arguments (`python3 scripts/validate_resume.py "<docx>" 2 --jd
+<JD.txt> --seniority-approved`). Putting the flags in the env for a
+direct validate call (or vice versa) silently drops them — a session
+lost four calls to exactly that confusion.
+
 `--jd-years <N>` reports the visible span vs the JD's ask ("~7.4 years vs the
 JD's 5+ — aligned"), warns if under (underqualified), and notes a large
 overshoot — the signal to offer Step 4's gapless oldest-role elimination.

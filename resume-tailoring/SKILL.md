@@ -265,8 +265,11 @@ the residual page gap automatically.
   downstream tool references that path for the whole session, and re-run
   instructions outlive it. The code warns when `--jd` points at `/tmp`;
   the tailor script's docstring records the JD path used.
-- **Persist the job posting URL with the JD.** Ask for it when the user
-  provides only posting text, and put `Posting URL: <url>` as the FIRST
+- **Persist the job posting URL with the JD.** Ask for it ONCE, when
+  the user
+  provides only posting text — if the reply doesn't include it, omit
+  the line and proceed (the scan always runs without it); never re-ask
+  mid-session. Put `Posting URL: <url>` as the FIRST
   line of `jd_<target>.txt`. The external ATS scan (Step 11) extracts it
   to identify the target company's ATS — its ATS-specific guidance and
   several findings depend on that match, and without the URL the match
@@ -1012,6 +1015,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Hand-counting an edit budget (`expect_edits=N`) | Never count — `save()`'s drift sidecar records the baseline and warns on change |
 | Hand-rolling whole-role removal in the tailor script | Use `drop_role(body, "<company prefix>")` / `drop_section(body, "Education")` — the library owns the block grammar. A hand-rolled helper that appends before checking the boundary (or only treats Heading1/2 as boundaries) swallows the next `SectionHeading` (Education) and strands later edits as "not found" skips |
 | Verifying the PDF by rendering pages to images | Never works — this harness reads no images. Use `render_pdf.sh --verbose` (page map, last-page tail), `measure_resume.py`'s page-fill table, and `pdftotext` |
+| Editing the tailor script with ad-hoc `python3 - <<'EOF' s.replace(...)` heredocs | Use the `edit` tool on a targeted view (`sed -n 'A,Bp'`) — a string-replace heredoc mangled quotes in a session and cost a repair round. The one-heredoc FULL rewrite is for corruption recovery only (Token-spend #6) |
 | Chasing a skip warning as a library bug | Re-dump `--prefixes` on the master FIRST — it may have been edited since your dump (the `MASTER CHANGED:` sidecar warning fires on this); a prefix can also match a paragraph an earlier `drop` already removed if you thread a stale `ps` list — REBIND `ps = drop(body, [...])`, never concatenate (`ps = drop(...) + ps` duplicates the list and every later `find_p` matches twice) |
 | Guessing WHICH bullets to cut | Never — `auto_prune.py` (Step 2) machine-dispositions every candidate; the base build IS the disposition. Post-build unevidenced bullets come from the build measure's DROP PLAN (Step 8 backstop) |
 | Reading "no unprotected bullet to give" as a dead end | The engine has one rule (hosts an ask or not) — there is no second relevance threshold to negotiate; the dead-end fix is a TOP-BLOCK cut, a Tools-line trim, or a user-approved whole-role drop (Step 8 backstop) |
