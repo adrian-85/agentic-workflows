@@ -175,21 +175,26 @@ def _hosted(text_low, phrase_low):
 def _jd_literal_terms(jd_text):
     """Actionable literal skill phrases the JD asks for.
 
-    Mined from recognized qualification lines when the JD has them (a
-    recruiter message keeps the whole-message behavior), so posting
+    Mined from the WHOLE posting (parse_asks's capitalized-mention and
+    repetition gates need posting context — mining the qualification
+    lines alone re-admits header/prose words as asks), then scoped to
+    phrases whose text occurs in the qualification lines, so posting
     metadata and company-introduction prose never create audit failures.
     """
     qualification_lines = jd_asks.requirement_lines(jd_text)
-    source = "\n".join(qualification_lines) if qualification_lines \
-        else jd_text
-    return jd_asks.hard_phrases(source)
+    if not qualification_lines:
+        return jd_asks.hard_phrases(jd_text)
+    scope = jd_asks._norm_text(" ".join(qualification_lines))
+    return [t for t in jd_asks.hard_phrases(jd_text)
+            if jd_asks._norm_text(t) in scope]
 
 
 def _audit_jd(text_low, jd_text):
     """Literal check of the JD's qualification terms. Returns (ok_count,
     missing)."""
     terms = _jd_literal_terms(jd_text)
-    missing = [t for t in terms if not _hosted(text_low, t)]
+    missing = [t for t in terms
+               if not jd_asks._phrase_evidence(text_low, t, "hard")]
     return len(terms) - len(missing), missing
 
 

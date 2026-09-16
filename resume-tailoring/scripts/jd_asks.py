@@ -109,6 +109,9 @@ _VAGUE_STOP = frozenset({
     "demonstrated", "working", "field", "areas", "area", "role",
     "roles", "team", "teams", "environment", "candidate", "candidates",
     "master",  # 'a Master's degree' — education, not a skill ask
+    # Degree acronyms ("BS/BE/BTech in Computer Science"): education
+    # credentials, not skill asks — the degree itself hosts the ask.
+    "bs", "be", "ba", "btech", "ms", "phd", "mba",
     # Ambient nouns (the retired AMBIENT_TECH_NOUNS): never asks alone,
     # fine inside a phrase ("AWS services", "platform engineering").
     "service", "services", "server", "servers", "tool", "tools",
@@ -195,6 +198,8 @@ def _single_token_terms(line):
         terms.add(low)
     for tok in re.findall(r"[A-Za-z][A-Za-z0-9+#\-]*", line):
         low = tok.lower().rstrip(".")
+        if low in _VAGUE_STOP or low in JD_STOP:
+            continue
         if low in CORE_TECH_NOUNS or re.search(r"[#+]", low) or (
                 len(low) >= 2 and low.isupper()):
             terms.add(low)
@@ -302,6 +307,8 @@ def _repeated_terms(jd_text):
 
     stream = []
     for ln in jd_text.splitlines():
+        if jd_sections.header_at(ln.strip()):
+            continue  # a section header names no ask ('30/60/90 Day Expectations:')
         words = [w.strip(".,;:!?'\"()").lower() for w in ln.split()]
         stream.extend(words[1:])
     counts = Counter(w for w in stream if w)
@@ -342,7 +349,8 @@ def _repeated_terms(jd_text):
     # Acronyms only as STANDALONE tokens ('RCA' yes; the 'NG' inside
     # 'TestNG' is not an acronym occurrence).
     out |= {a for a in _acronym_terms(jd_text)
-            if not a.endswith("ly")
+            if a not in _VAGUE_STOP  # 'BS'/'BE' are degree credentials
+            and not a.endswith("ly")
             and re.search(rf"(?<![A-Za-z0-9#+]){re.escape(a)}"
                           rf"(?![A-Za-z0-9#+])", jd_low)}
     return out
@@ -438,6 +446,29 @@ _EVIDENCE_FAMILIES = {
     "visual regression testing": (
         "visual regression testing", "visual regression", "manual visual",
         "visual checks", "visual verification"),
+    # Degree/credential asks: a JD's "BS in Computer Science" is hosted by
+    # the held degree itself ("Bachelor's Degree") — the field name is not
+    # a skill phrase and the JD's substitution clause governs equivalence.
+    "computer science": ("computer science", "bachelor"),
+    "computer": ("computer", "computing", "bachelor"),
+    "science": ("science", "bachelor"),
+    # Shell/environment asks: WSL IS Bash on Linux, and Linux is the
+    # Unix-family environment the JD's "Unix/Linux" phrase names.
+    "bash": ("bash", "wsl", "shell scripting"),
+    "unix": ("unix", "linux"),
+    "os": ("os", "linux", "unix"),
+    "os development": ("os development", "linux", "unix"),
+    "linux mac os": ("linux mac os", "linux", "unix"),
+    "unix linux mac": ("unix linux mac", "linux", "unix"),
+    "mac os development": ("mac os development", "linux", "unix"),
+    # Test-pyramid level enumerations: the ask is coverage of the levels,
+    # hosted by the levels' literal names in the resume.
+    "component unit": ("component unit", "component", "unit"),
+    "api component": ("api component", "api", "component"),
+    "database layers": ("database layers", "database", "databases"),
+    # CI-system preference: "GitLab CI (preferred) or Jenkins" is an
+    # either/or — a hosted alternative satisfies the preference pair.
+    "ci preferred": ("ci preferred", "jenkins", "ci"),
 }
 
 # Per-run extension of the SAME matcher (SKILL Step 1's JD-theme read):
@@ -475,6 +506,13 @@ def hosted(text_low, phrase_low):
     if re.search(rf"(?<![a-z0-9]){re.escape(phrase_low)}{suffix}(?![a-z0-9])",
                  text_low):
         return True
+    # A slash-path phrase ("UI/API/component/unit tests") ENUMERATES
+    # alternatives/levels — it is hosted when every segment is hosted,
+    # never as one literal token (no resume writes the path verbatim).
+    if "/" in phrase_low:
+        segs = [s for s in phrase_low.split("/") if s]
+        if len(segs) > 1:
+            return all(hosted(text_low, s) for s in segs)
     if not re.search(r"[\s\-]", phrase_low):
         return False
     return re.sub(r"[^a-z0-9]+", "", phrase_low) in re.sub(

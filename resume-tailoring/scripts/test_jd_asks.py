@@ -83,3 +83,77 @@ class ExtraEvidenceFamiliesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SlashPathAndStopwordTests(unittest.TestCase):
+    """Regression: Alteryx SDET JD audit false-failures (SKILL Step 11
+    fix-tools-in-session)."""
+
+    JD = """Position Title:
+Software Development Engineer in Test
+
+Company Overview:
+We build things.
+
+Tech Stack:
+
+Responsibilities:
+Test things.
+
+Required Experience:
+Strong proficiency in Python for test automation
+Experience with Locust is a plus
+Familiarity with Unix/Linux/Mac OS development environments and shell scripting (Bash required).
+PowerShell knowledge is a strong plus (for Windows automation workflows).
+BS/BE/BTech in Computer Science, or equivalent experience.
+
+Additional Experience:
+GCP/Azure nice to have
+
+Required Education:
+
+30/60/90 Day Expectations:
+"""
+
+    def test_header_words_are_not_asks(self):
+        """'30/60/90 Day Expectations:' and 'Tech Stack:' name no ask."""
+        terms = jd_asks.hard_phrases(self.JD)
+        self.assertNotIn("day", terms)
+        self.assertNotIn("expectations", terms)
+        self.assertNotIn("stack", terms)
+
+    def test_degree_acronyms_are_not_asks(self):
+        """'BS/BE/BTech' are education credentials, not skill asks."""
+        terms = jd_asks.hard_phrases(self.JD)
+        for t in ("bs", "be", "btech"):
+            self.assertNotIn(t, terms)
+
+    def test_slash_path_enumeration_hosts_by_segments(self):
+        """'UI/API/component/unit tests' hosts when every level is named."""
+        text = "built unit tests, component suites, api checks, and ui coverage"
+        self.assertTrue(jd_asks.hosted(text, "ui/api/component/unit"))
+        self.assertFalse(jd_asks.hosted("unit tests and api checks only",
+                                        "ui/api/component/unit"))
+
+    def test_bash_hosts_via_wsl_and_unix_via_linux(self):
+        """WSL is Bash on Linux; Linux is the Unix-family environment."""
+        ev = jd_asks._phrase_evidence
+        self.assertTrue(ev("automation in wsl", "bash", "hard"))
+        self.assertTrue(ev("linux servers", "unix", "hard"))
+
+    def test_degree_phrase_hosts_via_bachelor(self):
+        """'Computer Science' is hosted by the held degree line."""
+        self.assertTrue(jd_asks._phrase_evidence(
+            "bachelor's degree", "computer science", "hard"))
+
+    def test_audits_qualification_scope_not_whole_posting(self):
+        """ats_audit's term source keeps posting context but stays scoped."""
+        import ats_audit
+        terms = ats_audit._jd_literal_terms(self.JD)
+        self.assertNotIn("day", terms)
+        self.assertNotIn("expectations", terms)
+        self.assertIn("locust", terms)  # a plus-item ask stays actionable
+
+
+if __name__ == "__main__":
+    unittest.main()
