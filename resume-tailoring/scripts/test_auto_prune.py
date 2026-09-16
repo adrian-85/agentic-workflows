@@ -12,6 +12,8 @@ lint + prune coverage + strict exec).
 # dict (that IS the contract) and reuse the shared docx scaffolding.
 
 import ast
+import contextlib
+import io
 import os
 import subprocess
 import sys
@@ -405,6 +407,97 @@ class TestTrimHelpers(unittest.TestCase):
         self.assertFalse(
             auto_prune._hosts_jd_chunk(
                 "Languages: COBOL, Rust", {"python"}))
+
+
+class TestJdContractAndEquivalences(unittest.TestCase):
+    """The fixed JD contract enforced at the pipeline entry, the per-run
+    --equivalence extension of the ask/evidence matcher, and the --theme
+    traceability line in the emitted docstring."""
+
+    def test_missing_headers_exit_2_with_names(self):
+        jd = "Required Experience:\n5+ years QA\n"
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            with self.assertRaises(SystemExit) as ctx:
+                auto_prune.validate_jd_contract(jd)
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn("Position Title", err.getvalue())
+        self.assertIn("30/60/90 Day Expectations", err.getvalue())
+
+    def test_unsectioned_jd_exit_2(self):
+        jd = "Top 3 skills: Python, SQL, Selenium.\n"
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            with self.assertRaises(SystemExit) as ctx:
+                auto_prune.validate_jd_contract(jd)
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn("canonical section headers", err.getvalue())
+
+    def test_complete_jd_passes_contract(self):
+        sections = auto_prune.validate_jd_contract(_full_contract_jd())
+        self.assertEqual(sections["Position Title"], "Senior SDET")
+
+    def test_equivalence_extends_matcher_for_this_run(self):
+        auto_prune.apply_equivalences(["IV&V=testing,quality validation"])
+        try:
+            asks = {a.phrase for a in jd_asks.parse_asks(
+                _full_contract_jd())}
+            self.assertIn("iv&v", asks)
+            self.assertTrue(jd_asks.evidence_set(
+                "performed independent testing across the platform",
+                asks))
+        finally:
+            jd_asks.EXTRA_EVIDENCE_FAMILIES.clear()
+
+    def test_malformed_equivalence_exit_2(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as ctx:
+                auto_prune.apply_equivalences(["no-equals-sign"])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_theme_recorded_in_emitted_docstring(self):
+        body = _master_paras()
+        roles = mr._roles(body)
+        jd_terms = mr._jd_terms(_full_contract_jd(), body)
+        candidates = mrd.prune_candidates(roles, jd_terms, body,
+                                          protect=())
+        plan = auto_prune.plan_phase_a(candidates, roles, jd_terms, body)
+        plan["candidates"] = candidates
+        script = auto_prune.emit_script(
+            plan, "Test User Master Resume.docx", "Test User Resume - X.docx",
+            {"target": "X", "jd_name": "jd_x.txt",
+             "script_name": "tailor_x.py", "theme": "AI-first QA startup"})
+        self.assertIn("JD theme: AI-first QA startup", script)
+
+    def test_no_theme_no_line(self):
+        body = _master_paras()
+        roles = mr._roles(body)
+        jd_terms = mr._jd_terms(_full_contract_jd(), body)
+        candidates = mrd.prune_candidates(roles, jd_terms, body,
+                                          protect=())
+        plan = auto_prune.plan_phase_a(candidates, roles, jd_terms, body)
+        plan["candidates"] = candidates
+        script = auto_prune.emit_script(
+            plan, "Test User Master Resume.docx", "Test User Resume - X.docx",
+            {"target": "X", "jd_name": "jd_x.txt",
+             "script_name": "tailor_x.py"})
+        self.assertNotIn("JD theme:", script)
+
+
+def _full_contract_jd():
+    return ("Position Title:\n"
+            "Senior SDET\n"
+            "Company Overview:\n"
+            "We build things.\n"
+            "Tech Stack:\n"
+            "Python, Selenium\n"
+            "Responsibilities:\n"
+            "Own the automated test approach.\n"
+            "Required Experience:\n"
+            "5+ years of test automation and IV&V experience\n"
+            "Additional Experience:\n"
+            "Docker\n"
+            "Required Education:\n"
+            "Bachelor's degree\n"
+            "30/60/90 Day Expectations:\n")
 
 
 if __name__ == "__main__":

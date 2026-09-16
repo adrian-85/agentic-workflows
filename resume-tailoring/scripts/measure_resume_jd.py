@@ -16,6 +16,7 @@ from typing import NamedTuple
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 import jd_asks  # noqa: E402
+import jd_sections  # noqa: E402
 from docx_edit_gate import tmp_jd_note  # noqa: E402
 from measure_resume_format import COMPANY_STYLE, SECTION_PROFICIENCIES  # noqa: E402
 # The engine (jd_asks) owns JD parsing; this module consumes it and
@@ -500,18 +501,22 @@ def _title_rank(title):
 
 
 def _jd_title(jd_text):
-    """Best-effort extraction of the JD's position title.
+    """The JD's position title.
 
-    Prefers an explicit 'Job Title:'-style line anywhere in the posting;
-    otherwise uses the first non-empty line (JDs normally open with the
-    title). Lines beginning 'Posting URL:' are skipped — SKILL Step 1
-    persists the job posting URL as the JD file's first line, and that
-    metadata line must never become the title. Returns None when neither
+    Deterministic under the fixed section contract: the Position Title
+    section's body (jd_sections) when present. Otherwise (a recruiter's
+    message or a bare posting without the template) the old heuristics
+    apply: an explicit 'Job Title:'-style label anywhere, else the first
+    non-empty line, skipping 'Posting URL:' lines (SKILL Step 1 persists
+    the URL as the file's first line). Returns None when neither
     candidate is a plausible single-line title
-    (<= TITLE_MAX_WORDS words, no lowercase sentence continuation) — the
-    posting may be a recruiter message or boilerplate, so the check is
-    skipped, never guessed.
+    (<= TITLE_MAX_WORDS words, no lowercase sentence continuation).
     """
+    position = jd_sections.find_section(jd_text, "Position Title")
+    if position:
+        for line in position.splitlines():
+            if line.strip():
+                return line.strip()
     lines = [l.strip() for l in jd_text.splitlines() if l.strip()
              and not l.lstrip().lower().startswith("posting url:")]
     if not lines:

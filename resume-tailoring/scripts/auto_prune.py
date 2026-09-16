@@ -58,17 +58,27 @@ from measure_resume_drops import _sentence_clauses, _weakness_key, \
 from measure_resume_format import (BULLET_STYLES, COMPANY_STYLE,
                                    SECTION_PROFICIENCIES, _roles)
 import jd_asks  # noqa: E402
-from script_args import maybe_help, read_jd_text  # noqa: E402
+import jd_sections  # noqa: E402
+from script_args import (maybe_help, read_jd_text)  # noqa: E402
+from script_args import extract_flag, extract_flag_all  # noqa: E402
 
 WORD_CAP = 40      # a trimmed bullet carries at most this many words
 PER_ROLE_CAP = 8   # hard per-role kept-bullet cap (SKILL Step 8)
 
 USAGE = """usage: auto_prune.py "<userName> Master Resume.docx" jd_<target>.txt \\
-        [--target "<Target Name>"]
+        [--target "<Target Name>"] [--theme "<one-line JD theme brief>"] \\
+        [--equivalence "<term>=<alt1>[,<alt2>...]"]
 
 Machine Phase 1: machine-prunes the master against the JD, emits
 scripts/tailor_<target>.py, and runs it through run_tailor.sh's gates.
 --target names the deliverable (default: derived from the JD filename).
+--theme records the agent's one-line characterization of the whole JD
+(seniority, domain/stage, primary skill axis) in the emitted script's
+docstring for traceability (SKILL Step 1's theme read).
+--equivalence (repeatable) adds a JD-specific terminology equivalence —
+e.g. --equivalence "IV&V=testing,quality validation" — extending the
+ONE ask/evidence matcher for this run only: a master bullet evidencing
+an alternative phrase protects the JD's term. Never a second filter.
 """
 
 
@@ -412,6 +422,10 @@ def emit_script(plan, src, dst, meta):
         f"here by the machine:",
         f"CUT {stats['cut']}, TRIM {stats['trim']}, stubs {stats['stub']}, "
         f"emptied sections {stats['section']}.",
+    ]
+    if meta.get("theme"):
+        lines += [f"JD theme: {meta['theme']}"]
+    lines += [
         "No agent judgment and no cut report — the agent's work starts at "
         "SKILL Phase 2",
         "on this build. Re-run:",
@@ -481,6 +495,8 @@ def emit_script(plan, src, dst, meta):
 def _parse_args(argv):
     maybe_help(argv, USAGE)
     rest = list(argv)
+    theme = extract_flag(rest, "--theme")
+    equivalences = extract_flag_all(rest, "--equivalence")
     target = None
     if "--target" in rest:
         i = rest.index("--target")
@@ -508,7 +524,46 @@ def _parse_args(argv):
         stem = re.sub(r"^jd_", "", os.path.splitext(
             os.path.basename(jd_file))[0])
         target = stem.replace("_", " ").strip().title()
-    return docx, jd_file, target
+    return docx, jd_file, target, theme, equivalences
+
+
+def validate_jd_contract(jd_text):
+    """Enforce the fixed JD section contract (SKILL Step 1, no fallback):
+    every one of the eight canonical headers present — blank body when
+    the posting omits that content. Returns the sections dict or exits 2
+    naming exactly what is missing, so a mis-pasted JD fails at the
+    pipeline's entry instead of silently mis-collecting asks."""
+    try:
+        sections = jd_sections.parse_sections(jd_text)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(2)
+    if sections is None:
+        print("error: the JD file carries none of the canonical section "
+              "headers — re-save it in the 8-section template (SKILL "
+              "Step 1): " + ", ".join(jd_sections.SECTION_HEADERS),
+              file=sys.stderr)
+        sys.exit(2)
+    return sections
+
+
+def apply_equivalences(equivalences):
+    """Populate jd_asks.EXTRA_EVIDENCE_FAMILIES from --equivalence
+    "term=alt1,alt2" strings — a per-run extension of the one ask/evidence
+    matcher (see EXTRA_EVIDENCE_FAMILIES). Exits 2 on malformed input."""
+    for item in equivalences:
+        if "=" not in item:
+            print(f"error: --equivalence {item!r} needs the form "
+                  "\"<term>=<alt1>[,<alt2>...]\"", file=sys.stderr)
+            sys.exit(2)
+        term, alts = item.split("=", 1)
+        term = term.strip().lower()
+        forms = tuple(a.strip().lower() for a in alts.split(",") if a.strip())
+        if not term or not forms:
+            print(f"error: --equivalence {item!r} needs a term and at "
+                  "least one alternative", file=sys.stderr)
+            sys.exit(2)
+        jd_asks.EXTRA_EVIDENCE_FAMILIES[term] = (term,) + forms
 
 
 def _emit_and_run(plan, meta):
@@ -618,10 +673,14 @@ def _load_candidates(docx, jd_text):
 
 def main():
     """CLI entry: machine-prune, emit the tailor script, run the gates."""
-    docx, jd_file, target = _parse_args(sys.argv[1:])
+    docx, jd_file, target, theme, equivalences = _parse_args(sys.argv[1:])
     skill_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     jd_text = read_jd_text(jd_file)
+    validate_jd_contract(jd_text)
+    apply_equivalences(equivalences)
     dst, meta = _build_meta(docx, jd_file, target, skill_root)
+    if theme:
+        meta["theme"] = theme
     body, roles, jd_terms, candidates = _load_candidates(docx, jd_text)
     plan = plan_phase_a(candidates, roles, jd_terms, body)
     plan["candidates"] = candidates
