@@ -163,6 +163,21 @@ class JdLiteralTermsTests(unittest.TestCase):
         _ok_n, missing = aa._audit_jd(resume.lower(), self.JD)
         self.assertEqual(missing, [])
 
+    def test_conversational_what_were_looking_for_heading(self):
+        # Ashby/startup heading form: its bullet lines are asks, and the
+        # company-prose sections before it must not be mined.
+        jd = ("About Nest\n\nWe're the category leader in care plan "
+              "infrastructure for veterinary practices.\n\n"
+              "What We're Looking For\n\n"
+              "3+ years in a QA, SDET, or test automation role\n"
+              "Strong proficiency in Dart and Flutter testing\n")
+        terms = aa._jd_literal_terms(jd)
+        self.assertIn("flutter testing", terms, terms)
+        self.assertIn("test automation", terms, terms)
+        for noise in ("category leader", "care plan infrastructure",
+                      "veterinary practices"):
+            self.assertNotIn(noise, terms, terms)
+
     def test_prose_fragments_not_mined(self):
         # A responsibilities-style qual line is prose, not a skill list —
         # its fragments must not become literal terms.

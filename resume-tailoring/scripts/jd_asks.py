@@ -54,11 +54,12 @@ JD_COMPANY_VOICE_RE = re.compile(r"\b(we|our|us|you|your)\b", re.I)
 
 JD_QUAL_HEADING_RE = re.compile(
     r"^\s*#{0,6}\s*(?:required\s+|preferred\s+|minimum\s+)?"
-    r"(?:qualifications|requirements|skills|experience)\b\s*:?\s*$"
+    r"(?:qualifications|requirements|skills(?:\s*/\s*experience)?|experience)\b\s*:?\s*$"
     # Conversational heading forms ("Who you are", "What you'll do") —
     # common startup-style JD headings whose bullet lines are still asks.
     r"|^\s*(?:who\s+you\s+are|about\s+you|your\s+profile"
     r"|what\s+you(?:.{0,2}ll|\s+will)\s+(?:do|bring)"
+    r"|what\s+we(?:'re|\s+are)\s+looking\s+for"
     r"|what\s+will\s+set\s+you\s+apart)\s*:?\s*$"
     # A bare "Required:" / "Preferred:" / "Minimum:" heading line — a
     # common short-form JD format where the qualifier IS the whole heading.

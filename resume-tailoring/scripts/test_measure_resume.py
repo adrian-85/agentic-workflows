@@ -2960,6 +2960,32 @@ class WordBudgetTests(unittest.TestCase):
         # the unrecognized nice-to-have section terminates collection
         self.assertFalse(any("client services" in ln for ln in lines))
 
+    def test_jd_requirement_lines_slash_suffixed_headings(self):
+        """REGRESSION: the West 4th Strategy JD's 'REQUIRED SKILLS/EXPERIENCE'
+        and 'PREFERRED SKILLS/EXPERIENCE' headings were not recognized (the
+        heading regex required the section word to end the line, so the
+        '/experience' suffix failed the match) — requirement_lines returned
+        [] and the ATS audit mined the whole posting (posting URL, company
+        prose) as actionable literal terms."""
+        jd = (
+            "QA Automation Engineer / Enterprise ETL Tester\n\n"
+            "ROLE\n"
+            "We need an experienced QA Automation Engineer.\n\n"
+            "REQUIRED SKILLS/EXPERIENCE\n"
+            "Demonstrated experience in software QA and test automation.\n"
+            "Strong proficiency with XML, JSON, and CSV data formats.\n\n"
+            "PREFERRED SKILLS/EXPERIENCE\n"
+            "Strong written and oral communication skills.\n\n"
+            "REQUIRED EDUCATION / CERTIFICATIONS\n"
+            "Bachelor's degree in computer science or a related field.\n"
+        )
+        lines = measure_resume_jd._jd_requirement_lines(jd)
+        # role prose excluded; both skills sections and the education
+        # requirement line are qualification asks
+        self.assertEqual(len(lines), 5)
+        self.assertFalse(any("QA Automation Engineer" in ln for ln in lines))
+        self.assertIn("Bachelor's", lines[-1])
+
 
 
 if __name__ == "__main__":
