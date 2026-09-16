@@ -188,6 +188,8 @@ from measure_resume_jd import (
     _jd_title,
     _title_rank,
     _top_block_candidates,
+    adjacent_master_body,
+    fail_without_master,
     title_alignment_notes)
 
 from measure_resume_drops import (
@@ -222,40 +224,6 @@ def _is_master_input(docx):
     cuts from master page math, and the user then hand-cut four more
     non-JD sentences the delivered copy kept)."""
     return os.path.basename(docx).endswith(" Master Resume.docx")
-
-
-def _adjacent_master_body(docx):
-    """Load the sole adjacent master as evidence for a tailored copy."""
-    directory = os.path.dirname(os.path.abspath(docx))
-    candidates = [name for name in os.listdir(directory)
-                  if name.endswith(" Master Resume.docx")]
-    if len(candidates) != 1:
-        return None
-    try:
-        _, body, _, _, _ = de.load(os.path.join(directory, candidates[0]))
-    except (OSError, ValueError):
-        return None
-    return body
-
-
-def _fail_without_master(queue_label):
-    """Exit 2 when the master is not adjacent to the tailored copy.
-
-    The master leg of Step 8's source-first loop is mandatory, not
-    optional: content Phase 1 cut lives ONLY in the master, so a mining
-    queue run against the pruned tailored copy silently overstates gaps
-    (two real sessions asked the user about evidence the master still
-    hosted). A warning was scrollable past; this failure makes it
-    impossible to mine without the master present."""
-    print(
-        f"error: {queue_label} found, but the master resume is not "
-        "adjacent to the tailored copy — the JD gap mining queue cannot "
-        "be run without searching the full master (SKILL Step 8: the "
-        "master leg of the source-first loop is mandatory; content "
-        "Phase 1 cut lives only there). Place '<userName> Master "
-        "Resume.docx' next to the tailored copy and re-run.",
-        file=sys.stderr)
-    sys.exit(2)
 
 
 def _target_from_args(kept):
@@ -909,7 +877,7 @@ def _external_gap_terms(report_path, resume_path, internal_missing):
 def _load_and_render(args):
     """Simulate, load the docx, resolve gaps, print the JD report, and render."""
     source_docx = args.docx
-    master_body = _adjacent_master_body(source_docx)
+    master_body = adjacent_master_body(source_docx)
     with tempfile.TemporaryDirectory() as td:
         docx, sim_jd_terms = _print_simulate(
             source_docx, args.simulate, args.jd_file, args.jd_text, td)
@@ -921,12 +889,12 @@ def _load_and_render(args):
             internal_missing = _jd_missing_terms(
                 args.jd_text, body, jd_terms)
             if master_body is None and internal_missing:
-                _fail_without_master(
+                fail_without_master(
                     "JD terms with NO host in the resume")
             extra_missing = _external_gap_terms(
                 args.ats_report, source_docx, internal_missing)
             if master_body is None and extra_missing:
-                _fail_without_master("external ATS gap")
+                fail_without_master("external ATS gap")
             _print_jd_report(
                 args.jd_file, args.jd_text, jd_terms, body,
                 InferenceSources(linkedin_text=args.evidence_text,

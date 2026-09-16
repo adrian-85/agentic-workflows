@@ -8,6 +8,7 @@ Split from measure_resume.py; term vocabulary/mining lives in measure_resume_jd_
 # rationale at each site.
 
 
+import os
 import re
 import textwrap
 import sys
@@ -392,6 +393,40 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None,
             sources = sources or InferenceSources()
             lines.extend(_inference_map(shown, body, sources))
     return lines
+
+
+def adjacent_master_body(docx):
+    """Load the sole adjacent master as evidence for a tailored copy."""
+    directory = os.path.dirname(os.path.abspath(docx))
+    candidates = [name for name in os.listdir(directory)
+                  if name.endswith(" Master Resume.docx")]
+    if len(candidates) != 1:
+        return None
+    try:
+        _, body, _, _, _ = de.load(os.path.join(directory, candidates[0]))
+    except (OSError, ValueError):
+        return None
+    return body
+
+
+def fail_without_master(queue_label):
+    """Exit 2 when the master is not adjacent to the tailored copy.
+
+    The master leg of SKILL Step 8's source-first loop is mandatory,
+    not optional: content Phase 1 cut lives ONLY in the master, so a
+    mining queue run against the pruned tailored copy silently
+    overstates gaps (two real sessions asked the user about evidence
+    the master still hosted). A warning was scrollable past; this
+    failure makes it impossible to mine without the master present."""
+    print(
+        f"error: {queue_label} found, but the master resume is not "
+        "adjacent to the tailored copy — the JD gap mining queue cannot "
+        "be run without searching the full master (SKILL Step 8: the "
+        "master leg of the source-first loop is mandatory; content "
+        "Phase 1 cut lives only there). Place '<userName> Master "
+        "Resume.docx' next to the tailored copy and re-run.",
+        file=sys.stderr)
+    sys.exit(2)
 
 
 def _inference_variants(term):
