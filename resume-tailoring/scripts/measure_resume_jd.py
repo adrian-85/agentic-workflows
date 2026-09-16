@@ -439,11 +439,11 @@ def _inference_map(missing_terms, body, sources=None):
     ps = de.paras(sources.master_body if master_loaded else body)
     master_texts = [de.text_of(p).strip() for p in ps
                     if de.text_of(p).strip()]
-    evidence_lines = ([ln.strip() for ln in sources.linkedin_text.splitlines()
-                       if ln.strip()] if sources.linkedin_text else [])
     source_lines = [("master", master_texts)]
     if sources.linkedin_text is not None:
-        source_lines.append(("linkedin", evidence_lines))
+        source_lines.append(("linkedin", [
+            ln.strip() for ln in sources.linkedin_text.splitlines()
+            if ln.strip()]))
     out = [textwrap.fill(
         "INFERENCE MAP for no-host terms (deterministic evidence search "
         "over the master + LinkedIn): follow the verdicts. AUTO-HOST "

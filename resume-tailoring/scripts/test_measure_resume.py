@@ -36,7 +36,6 @@ import docx_edit as de  # noqa: E402
 import test_helpers
 import measure_resume as mr  # noqa: E402
 import measure_resume_drops as mrd  # noqa: E402
-import measure_resume_jd  # noqa: E402
 import jd_sections  # noqa: E402
 import measure_resume_format as mrf  # noqa: E402  (constants live here post-split)
 
