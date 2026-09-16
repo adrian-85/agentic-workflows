@@ -636,7 +636,7 @@ def _title_rank(title):
 def _jd_title(jd_text):
     """The JD's position title.
 
-    Deterministic under the fixed section contract: the Position Title
+    Deterministic under the fixed section contract: the title
     section's body (jd_sections) when present. Otherwise (a recruiter's
     message or a bare posting without the template) the old heuristics
     apply: an explicit 'Job Title:'-style label anywhere, else the first
@@ -645,7 +645,7 @@ def _jd_title(jd_text):
     candidate is a plausible single-line title
     (<= TITLE_MAX_WORDS words, no lowercase sentence continuation).
     """
-    position = jd_sections.find_section(jd_text, "Position Title")
+    position = jd_sections.find_section(jd_text, "title")
     if position:
         for line in position.splitlines():
             if line.strip():

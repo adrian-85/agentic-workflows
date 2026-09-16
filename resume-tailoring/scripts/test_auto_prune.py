@@ -31,7 +31,7 @@ import auto_prune  # noqa: E402
 import jd_asks  # noqa: E402
 
 # Real-JD shape: a qualification section (the engine's ask source).
-JD = ("Required Experience:\n"
+JD = ("required:\n"
       "Experience with Cypress, Jenkins, Gatling, Selenium, Playwright, "
       "Kubernetes, Docker, AWS, REST APIs, and Python scripting.\n"
       "CI/CD pipeline ownership and test automation depth.")
@@ -118,7 +118,7 @@ class _AutoPruneBase(unittest.TestCase):
 
 class TestJdEvidenceFamilies(unittest.TestCase):
     def test_component_testing_ask_protects_unit_testing_evidence(self):
-        jd = ("Required Experience:\n"
+        jd = ("required:\n"
               "Experience with component-level testing of isolated UI elements.\n")
         asks = {ask.phrase for ask in jd_asks.parse_asks(jd)}
         self.assertTrue(
@@ -126,7 +126,7 @@ class TestJdEvidenceFamilies(unittest.TestCase):
                 "Used a unit testing framework for isolated components.", asks))
 
     def test_alternative_scripting_terms_protect_source_evidence(self):
-        jd = ("Additional Experience:\n"
+        jd = ("additional:\n"
               "Python scripting experience and scripting in Linux bash or "
               "Windows batch.\n")
         asks = {ask.phrase for ask in jd_asks.parse_asks(jd)}
@@ -139,7 +139,7 @@ class TestJdEvidenceFamilies(unittest.TestCase):
                                                            "linux")))
 
     def test_windows_batch_ask_requires_batch_evidence(self):
-        jd = ("Additional Experience:\n"
+        jd = ("additional:\n"
               "Scripting experience in Linux bash or Windows batch.\n")
         asks = {ask.phrase for ask in jd_asks.parse_asks(jd)}
         # Bare 'windows' (e.g. Windows Server admin) is NOT batch-scripting
@@ -148,7 +148,7 @@ class TestJdEvidenceFamilies(unittest.TestCase):
         self.assertNotIn("windows batch", evidence)
 
     def test_visual_regression_ask_protects_manual_visual_evidence(self):
-        jd = ("Required Experience:\n"
+        jd = ("required:\n"
               "Hands-on experience with visual regression testing tools.\n")
         asks = {ask.phrase for ask in jd_asks.parse_asks(jd)}
         evidence = jd_asks.evidence_set(
@@ -415,13 +415,13 @@ class TestJdContractAndEquivalences(unittest.TestCase):
     traceability line in the emitted docstring."""
 
     def test_missing_headers_exit_2_with_names(self):
-        jd = "Required Experience:\n5+ years QA\n"
+        jd = "required:\n5+ years QA\n"
         with contextlib.redirect_stderr(io.StringIO()) as err:
             with self.assertRaises(SystemExit) as ctx:
                 auto_prune.validate_jd_contract(jd)
         self.assertEqual(ctx.exception.code, 2)
-        self.assertIn("Position Title", err.getvalue())
-        self.assertIn("30/60/90 Day Expectations", err.getvalue())
+        self.assertIn("title", err.getvalue())
+        self.assertIn("expectations", err.getvalue())
 
     def test_unsectioned_jd_exit_2(self):
         jd = "Top 3 skills: Python, SQL, Selenium.\n"
@@ -433,7 +433,7 @@ class TestJdContractAndEquivalences(unittest.TestCase):
 
     def test_complete_jd_passes_contract(self):
         sections = auto_prune.validate_jd_contract(_full_contract_jd())
-        self.assertEqual(sections["Position Title"], "Senior SDET")
+        self.assertEqual(sections["title"], "Senior SDET")
 
     def test_equivalence_extends_matcher_for_this_run(self):
         auto_prune.apply_equivalences(["IV&V=testing,quality validation"])
@@ -483,21 +483,23 @@ class TestJdContractAndEquivalences(unittest.TestCase):
 
 
 def _full_contract_jd():
-    return ("Position Title:\n"
+    return ("title:\n"
             "Senior SDET\n"
-            "Company Overview:\n"
+            "company:\n"
             "We build things.\n"
-            "Tech Stack:\n"
+            "role:\n"
+            "Own test automation for the platform.\n"
+            "required:\n"
             "Python, Selenium\n"
-            "Responsibilities:\n"
+            "responsibilities:\n"
             "Own the automated test approach.\n"
-            "Required Experience:\n"
+            "required:\n"
             "5+ years of test automation and IV&V experience\n"
-            "Additional Experience:\n"
+            "additional:\n"
             "Docker\n"
-            "Required Education:\n"
+            "education:\n"
             "Bachelor's degree\n"
-            "30/60/90 Day Expectations:\n")
+            "expectations:\n")
 
 
 if __name__ == "__main__":

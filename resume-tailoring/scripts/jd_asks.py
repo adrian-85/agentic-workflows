@@ -61,9 +61,9 @@ JD_COMPANY_VOICE_RE = re.compile(r"\b(we|our|us|you|your)\b", re.I)
 
 
 def requirement_lines(jd_text):
-    """The JD's qualification lines — where skill asks live: the Tech
-    Stack, Required Experience, Additional Experience, and Required
-    Education sections (jd_sections.ASK_SECTIONS). [] when the JD is
+    """The JD's qualification lines — where skill asks live: the
+    required, additional, and education sections
+    (jd_sections.ASK_SECTIONS). [] when the JD is
     unsectioned (parse_asks then mines the whole text as ask_lines).
     A stray company-voice sentence ('We offer...') pasted into an ask
     section is still filtered out."""
@@ -109,6 +109,11 @@ _VAGUE_STOP = frozenset({
     "demonstrated", "working", "field", "areas", "area", "role",
     "roles", "team", "teams", "environment", "candidate", "candidates",
     "master",  # 'a Master's degree' — education, not a skill ask
+    # JD section-contract vocabulary (jd_sections.SECTION_HEADERS): a
+    # header word appearing in prose ('across the company', 'job title')
+    # is never a skill ask. (role/required/education were already stopped
+    # above; responsibilities lives in JD_STOP.)
+    "title", "company", "additional", "expectations",
     # Degree acronyms ("BS/BE/BTech in Computer Science"): education
     # credentials, not skill asks — the degree itself hosts the ask.
     "bs", "be", "ba", "btech", "ms", "phd", "mba",
@@ -269,9 +274,8 @@ def _capitalized_mention(jd_text, term):
 
 def _first_heading_offset(jd_text):
     """Character offset of the first ask-section header (jd_sections's
-    Tech Stack / Required Experience / Additional Experience / Required
-    Education) — None when the posting has none (unsectioned / a
-    recruiter message)."""
+    required / additional / education) — None when the posting has none
+    (unsectioned / a recruiter message)."""
     pos = 0
     for ln in jd_text.splitlines(keepends=True):
         if jd_sections.is_ask_header(ln.strip()):
@@ -308,7 +312,7 @@ def _repeated_terms(jd_text):
     stream = []
     for ln in jd_text.splitlines():
         if jd_sections.header_at(ln.strip()):
-            continue  # a section header names no ask ('30/60/90 Day Expectations:')
+            continue  # a section header names no ask ('expectations:')
         words = [w.strip(".,;:!?'\"()").lower() for w in ln.split()]
         stream.extend(words[1:])
     counts = Counter(w for w in stream if w)

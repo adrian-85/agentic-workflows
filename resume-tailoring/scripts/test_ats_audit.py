@@ -128,8 +128,8 @@ class WordCountTests(unittest.TestCase):
 
 class JdLiteralTermsTests(unittest.TestCase):
     JD = (
-        "Company Overview:\n\nWe combine healthcare expertise and "
-        "artificial intelligence.\n\nRequired Experience:\n\n"
+        "company:\n\nWe combine healthcare expertise and "
+        "artificial intelligence.\n\nrequired:\n\n"
         "Minimum of 5 years of experience in software quality assurance\n"
         "Proficiency in Python or another scripting language used for test "
         "automation\n"
@@ -164,11 +164,11 @@ class JdLiteralTermsTests(unittest.TestCase):
         self.assertEqual(missing, [])
 
     def test_company_overview_prose_not_mined(self):
-        # The canonical Company Overview section's prose must not be
+        # The canonical company section's prose must not be
         # mined, while the ask section's lines are.
-        jd = ("Company Overview:\n\nWe're the category leader in care "
+        jd = ("company:\n\nWe're the category leader in care "
               "plan infrastructure for veterinary practices.\n\n"
-              "Required Experience:\n\n"
+              "required:\n\n"
               "3+ years in a QA, SDET, or test automation role\n"
               "Strong proficiency in Dart and Flutter testing\n")
         terms = aa._jd_literal_terms(jd)
@@ -181,7 +181,7 @@ class JdLiteralTermsTests(unittest.TestCase):
     def test_prose_fragments_not_mined(self):
         # A responsibilities-style qual line is prose, not a skill list —
         # its fragments must not become literal terms.
-        jd = ("Required Experience:\n\nAssess whether code changes make "
+        jd = ("required:\n\nAssess whether code changes make "
               "sense for the product and collaborate effectively with "
               "customer-facing teams.\n")
         self.assertEqual(aa._jd_literal_terms(jd), [])
@@ -190,8 +190,8 @@ class JdLiteralTermsTests(unittest.TestCase):
         # Posting metadata and company names are not resume skills. They
         # must not turn an otherwise useful audit into a false failure.
         jd = ("Posting URL: https://example.com/job\n"
-              "Position Title:\nSTAR Autism Support\n\n"
-              "Required Experience:\n"
+              "title:\nSTAR Autism Support\n\n"
+              "required:\n"
               "Ability to set your own priorities without an existing "
               "playbook.\nExperience with Playwright.\n")
         terms = aa._jd_literal_terms(jd)

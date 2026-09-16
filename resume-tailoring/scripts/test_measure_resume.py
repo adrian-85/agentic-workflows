@@ -2049,13 +2049,13 @@ class JdMissingTermsTests(unittest.TestCase):
     caught by chance at final review). This makes the 'never fabricate'
     flags mechanical."""
 
-    JD = ("Position Title:\n"
+    JD = ("title:\n"
           "Senior QA Automation Engineer, E&I Commercial UW\n"
-          "Company Overview:\n"
+          "company:\n"
           "At AcmeCo, we build things.\n"
-          "Responsibilities:\n"
+          "responsibilities:\n"
           "Take ownership of the automated test approach.\n"
-          "Required Experience:\n"
+          "required:\n"
           "5+ years of experience using Selenium Web Driver, Java, "
           "TestNG, Cucumber, REST Assured, or similar IDE\n"
           "Experience with SoapUI or REST API testing tools\n"
@@ -2304,18 +2304,18 @@ class JdTermRecallTests(unittest.TestCase):
                             f'{heading!r} must collect its lines')
 
     def test_whole_jd_signal_mining_flags_no_host_asks(self):
-        # Asks living in the Responsibilities prose (outside the ask
+        # Asks living in the responsibilities prose (outside the ask
         # sections) must still reach the never-fabricate checklist —
-        # while the Company Overview's mission-statement company name
+        # while the company's mission-statement company name
         # (a single-occurrence capitalized mention before the first ask
         # section) is never mined as an ask.
-        jd = ("Position Title:\n"
+        jd = ("title:\n"
               "Software Engineer\n"
-              "Company Overview:\n"
+              "company:\n"
               "At AcmeCo, we build things.\n"
-              "Responsibilities:\n"
+              "responsibilities:\n"
               "Build and maintain platform services.\n"
-              "Required Experience:\n"
+              "required:\n"
               "Experience with Kotlin and Swift is preferred. Kotlin and "
               "Swift round out the mobile stack.\n")
         body = _body([
@@ -2327,7 +2327,7 @@ class JdTermRecallTests(unittest.TestCase):
         missing = {t.lower() for t in mr._jd_missing_terms(jd, body, set())}
         self.assertIn("kotlin", missing)
         self.assertIn("swift", missing)
-        # Mission prose (Company Overview, before the first ask section)
+        # Mission prose (company, before the first ask section)
         # is never an ask.
         self.assertNotIn("acmeco", missing)
 
@@ -2483,7 +2483,7 @@ class JdRequirementCoverageTests(unittest.TestCase):
     user; never fabricate)."""
 
     def _jd_and_body(self):
-        jd = ("Required Experience:\n"
+        jd = ("required:\n"
               "5+ years of experience using Selenium Web Driver, Java, "
               "TestNG, Cucumber, REST Assured, or similar IDE\n"
               "Experience with Kubernetes and Helm\n"
@@ -2698,13 +2698,13 @@ class CoverageTermsVisibilityTests(unittest.TestCase):
     SQL_LINE = "Solid SQL skills and experience with database validation."
 
     def test_line_terms_map_aligned_and_artifact_visible(self):
-        jd = "Required Experience:\n" + self.SQL_LINE + "\n"
+        jd = "required:\n" + self.SQL_LINE + "\n"
         terms = dict(mr._jd_line_terms_map(jd))
         line = [k for k in terms if "Solid SQL" in k][0]
         self.assertIn("solid sql", terms[line], terms)
 
     def test_uncovered_line_prints_extracted_terms(self):
-        jd = ("Required Experience:\n"
+        jd = ("required:\n"
               "Experience with Kubernetes and Helm\n" + self.SQL_LINE + "\n")
         body = _body([
             _para("Career Experience", style="SectionHeading"),
@@ -2732,7 +2732,7 @@ class CoverageTermsVisibilityTests(unittest.TestCase):
         self.assertIn("solid sql", out)
 
     def test_covered_line_has_no_term_noise(self):
-        jd = ("Required Experience:\n"
+        jd = ("required:\n"
               "Experience with Kubernetes and Helm\n")
         body = _body([
             _para("Career Experience", style="SectionHeading"),
@@ -2856,10 +2856,10 @@ class MasterRequiredForMiningTests(unittest.TestCase):
             _write_docx(tailored, self._tailored_paras())
             jd_path = os.path.join(td, "jd_x.txt")
             with open(jd_path, "w", encoding="utf-8") as fh:
-                fh.write("Required Experience:\nLoadRunner experience\n")
+                fh.write("required:\nLoadRunner experience\n")
             args = mr._Args(
                 docx=tailored, target=2, default_target=True,
-                jd_text="Required Experience:\nLoadRunner experience\n",
+                jd_text="required:\nLoadRunner experience\n",
                 jd_file=jd_path, evidence_text=None, ats_report=None,
                 protect=[], simulate=[])
             err = io.StringIO()
@@ -2878,10 +2878,10 @@ class MasterRequiredForMiningTests(unittest.TestCase):
             _write_docx(tailored, self._tailored_paras())
             jd_path = os.path.join(td, "jd_x.txt")
             with open(jd_path, "w", encoding="utf-8") as fh:
-                fh.write("Required Experience:\nSelenium experience\n")
+                fh.write("required:\nSelenium experience\n")
             args = mr._Args(
                 docx=tailored, target=2, default_target=True,
-                jd_text="Required Experience:\nSelenium experience\n",
+                jd_text="required:\nSelenium experience\n",
                 jd_file=jd_path, evidence_text=None, ats_report=None,
                 protect=[], simulate=[])
             err = io.StringIO()
@@ -2908,7 +2908,7 @@ class RequirementsSummaryTests(unittest.TestCase):
     checklist MUST be presented before claiming the honest ceiling."""
 
     def test_summary_line_printed(self):
-        jd = ("Required Experience:\n"
+        jd = ("required:\n"
               "Selenium and Java experience\n"
               "Terraform and Ansible\n")
         body = _body([
@@ -2930,7 +2930,7 @@ class RequirementsSummaryTests(unittest.TestCase):
     def test_fully_covered_run_has_no_checklist_call_to_action(self):
         # A fully-covered run must NOT tell the agent to present a
         # checklist that is empty — the call-to-action is conditional.
-        jd = ("Required Experience:\n"
+        jd = ("required:\n"
               "Selenium and Java experience\n")
         body = _body([
             _para("Career Experience", style="SectionHeading"),
@@ -2954,7 +2954,7 @@ class RequirementsSummaryTests(unittest.TestCase):
         # directive the summary counted it and moved on — hosting waited
         # for the Step-11 scan to flag the absence. The directive names
         # THIS pass (authoring time), not the scan (2026-09-11).
-        jd = ("Required Experience:\n"
+        jd = ("required:\n"
               "Selenium and Java experience\n"
               "Excellent communication, stakeholder management, and "
               "technical leadership skills\n")
@@ -2988,7 +2988,7 @@ class PrunePlanModeTests(unittest.TestCase):
     copy-pasteable anchors, and no PAGES/RECLAIM/WORD BUDGET sections.
     """
 
-    JD = ("Required Experience:\n"
+    JD = ("required:\n"
           "Playwright experience\n")
 
     def _master_paras(self):

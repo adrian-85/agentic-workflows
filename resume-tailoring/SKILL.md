@@ -210,25 +210,41 @@ the residual page gap automatically.
   saved in the **fixed 8-section template** — the user provides the
   section headers every time, with the posting's material under each
   (blank body when the posting omits that content; **never** a
-  differently-phrased synonym):
+  differently-phrased synonym). Each header is one word with a
+  **required trailing colon** (case-insensitive):
 
   ```
-  Position Title:
-  Company Overview:
-  Tech Stack:
-  Responsibilities:
-  Required Experience:
-  Additional Experience:
-  Required Education:
-  30/60/90 Day Expectations:
+  title:
+  company:
+  role:
+  responsibilities:
+  required:
+  additional:
+  education:
+  expectations:
   ```
+
+  `title:` carries just the job title; `company:` the company overview;
+  `role:` the role overview — what the job entails generally (mission
+  text a posting opens with); `responsibilities:` the day-to-day duties;
+  `required:` / `additional:` / `education:` / `expectations:` the
+  qualification and onboarding material. A posting's tech-stack list
+  goes under `required:` (optionally as a second `required:` block —
+  repeat headers accumulate). Header ORDER in the file does not matter:
+  the parser collects bodies by header name, each body running until
+  the next header line.
 
   There is **no fallback heading recognition** by design: the parser
   (`jd_sections.py`) matches exactly this vocabulary, and `auto_prune.py`
-  exits 2 naming any missing header — a mis-pasted JD fails at the
-  pipeline's entry instead of silently mis-collecting asks. A
+  exits 2 naming any missing header — a mis-pasted JD (a typo like
+  `Teck Stack:`, a bare header missing its colon, an omitted section)
+  fails at the pipeline's entry instead of silently mis-collecting
+  asks. **Do not silently normalize or restructure the user's paste**:
+  surface the parser's failure and have the user re-supply the
+  corrected sections. The colon is mandatory precisely because the
+  one-word headers must not match a bare body word. A
   recruiter's "top skills" message uses the same template (the named
-  skills go under `Required Experience`) — one input format everywhere.
+  skills go under `required:`) — one input format everywhere.
 - **Persist the JD in the skill root, not /tmp.** Save it as
   `jd_<target>.txt` (e.g. `jd_acme.txt`) before anything else. Every
   downstream tool references that path for the whole session, and re-run

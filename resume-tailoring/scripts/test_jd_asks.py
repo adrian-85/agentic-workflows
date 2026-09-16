@@ -10,10 +10,10 @@ class RequirementLinesTests(unittest.TestCase):
     """Qualification-line collection over the canonical ask sections."""
 
     def test_collects_ask_section_lines(self):
-        """Tech Stack/Required/Additional/Education lines all collect."""
-        jd = ("Required Experience:\n"
+        """required/Required/Additional/Education lines all collect."""
+        jd = ("required:\n"
               "5+ years of test automation\n"
-              "Additional Experience:\n"
+              "additional:\n"
               "Docker experience a plus\n")
         lines = jd_asks.requirement_lines(jd)
         self.assertIn("5+ years of test automation", lines)
@@ -22,10 +22,10 @@ class RequirementLinesTests(unittest.TestCase):
     def test_ignores_non_ask_sections(self):
         """Context sections (title/overview/responsibilities) never
         contribute qualification lines."""
-        jd = ("Position Title:\nQA Engineer\n"
-              "Company Overview:\nWe build things.\n"
-              "Responsibilities:\nWrite automated tests daily.\n"
-              "Required Experience:\n5+ years QA\n")
+        jd = ("title:\nQA Engineer\n"
+              "company:\nWe build things.\n"
+              "responsibilities:\nWrite automated tests daily.\n"
+              "required:\n5+ years QA\n")
         lines = jd_asks.requirement_lines(jd)
         self.assertEqual(lines, ["5+ years QA"])
 
@@ -45,7 +45,7 @@ class RequirementLinesTests(unittest.TestCase):
     def test_company_voice_sentence_filtered_from_ask_section(self):
         """A stray 'We offer...' sentence inside an ask section is
         filtered like it always was."""
-        jd = "Required Experience:\nWe offer great benefits.\n5+ years QA\n"
+        jd = "required:\nWe offer great benefits.\n5+ years QA\n"
         lines = jd_asks.requirement_lines(jd)
         self.assertEqual(lines, ["5+ years QA"])
 
@@ -89,34 +89,34 @@ class SlashPathAndStopwordTests(unittest.TestCase):
     """Regression: Alteryx SDET JD audit false-failures (SKILL Step 11
     fix-tools-in-session)."""
 
-    JD = """Position Title:
+    JD = """title:
 Software Development Engineer in Test
 
-Company Overview:
+company:
 We build things.
 
-Tech Stack:
+required:
 
-Responsibilities:
+responsibilities:
 Test things.
 
-Required Experience:
+required:
 Strong proficiency in Python for test automation
 Experience with Locust is a plus
 Familiarity with Unix/Linux/Mac OS development environments and shell scripting (Bash required).
 PowerShell knowledge is a strong plus (for Windows automation workflows).
 BS/BE/BTech in Computer Science, or equivalent experience.
 
-Additional Experience:
+additional:
 GCP/Azure nice to have
 
-Required Education:
+education:
 
-30/60/90 Day Expectations:
+expectations:
 """
 
     def test_header_words_are_not_asks(self):
-        """'30/60/90 Day Expectations:' and 'Tech Stack:' name no ask."""
+        """'expectations:' and 'required:' name no ask."""
         terms = jd_asks.hard_phrases(self.JD)
         self.assertNotIn("day", terms)
         self.assertNotIn("expectations", terms)
