@@ -422,14 +422,17 @@ def _editable_word_cap_errors(region, summary):
     return errors
 
 
-def _readability_guidance(body, summary, *, region=None):
+def _readability_guidance(body, summary, *, region=None,
+                            is_master=False):
     """Advisory readability checks (SKILL Step 5 word cap + Step 6).
 
     Word count, not sentence count. The per-paragraph cap itself is BLOCKING
     (_editable_word_cap_errors, PARAGRAPH CAPS section — master input exempt
     there); this guidance carries only the signals that stay advisory: word
-    repetition (Step 9's re-read catches it by eye; this makes it mechanical)
-    and the Step 6 no-sections-between rule.
+    repetition (Step 9's re-read catches it by eye; this makes it mechanical),
+    the Step 6 no-sections-between rule, and the Step 8 spacer default
+    (suppressed for master input — the master's spacing is the user's
+    own formatting, never this workflow's to advise on).
     """
     notes = []
 
@@ -464,6 +467,23 @@ def _readability_guidance(body, summary, *, region=None):
                 f"forbids inserting Core Strengths, Top Skills, or "
                 f"keyword-mirror sections here; weave skills into role "
                 f"bullets instead"))
+
+    # Inter-role readability spacers: SKILL Step 8's DEFAULT is to add
+    # one blank spacer paragraph at every role boundary, skipping only
+    # when adding them would push the build past the agreed page target.
+    # Five consecutive real sessions printed SPACER OPPORTUNITIES and
+    # never applied one — the default must be visible at the render
+    # gate, not only in measure's report (which fires only when the
+    # last page has slack, so an agent skipping measure never saw it).
+    spacer_gaps = ([] if is_master
+                   else mr._boundaries_without_spacer(body))
+    if spacer_gaps:
+        names = ", ".join(h[:36] for h, _a in spacer_gaps)
+        notes.append(("warn",
+            f"{len(spacer_gaps)} role boundary/boundaries lack the "
+            f"readability spacer ({names}) — add them via clone_after"
+            f'(body, find_p(ps, "<Tools line>"), "") unless doing so '
+            f"pushes the build past the page target (SKILL Step 8)"))
     return notes
 
 

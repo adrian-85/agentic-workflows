@@ -1007,6 +1007,52 @@ class GuidanceTests(unittest.TestCase):
         notes = vr._readability_guidance(b, s)
         self.assertFalse(any(lvl == "warn" for lvl, _ in notes), notes)
 
+    def _two_role_body(self, with_spacer):
+        ps = [
+            mk("Clean summary.", style=vr.SUMMARY_STYLE),
+            mk(mr.SECTION_PROFICIENCIES, style="SectionHeading"),
+            mk(mr.SECTION_CAREER, style="SectionHeading"),
+            mk("Acme, MA (Remote)01/2024 \u2013 12/2026",
+               style=mr.COMPANY_STYLE),
+            mk("Engineer", style=vr.TITLE_STYLE),
+            mk("Did things.", numId=4),
+            mk("Tools & Technologies: Java", style="BodyText"),
+        ]
+        if with_spacer:
+            ps.append(mk("", style="BodyText"))
+        ps += [
+            mk("Globex, CA (Remote)01/2022 \u2013 12/2023",
+               style=mr.COMPANY_STYLE),
+            mk("Engineer II", style=vr.TITLE_STYLE),
+            mk("Did more things.", numId=4),
+        ]
+        return mkbody(ps), ps[0]
+
+    def test_missing_role_spacers_warn(self):
+        # SKILL Step 8's default: spacers are ALWAYS added unless the
+        # page target conflicts — five real sessions never applied one.
+        # The render gate now surfaces the boundary list directly.
+        b, s = self._two_role_body(with_spacer=False)
+        notes = vr._readability_guidance(b, s)
+        warns = [c for lvl, c in notes if lvl == "warn"]
+        self.assertTrue(any("readability spacer" in w and "Globex" in w
+                            for w in warns), warns)
+        self.assertTrue(any("clone_after" in w for w in warns), warns)
+
+    def test_spacers_present_no_warn(self):
+        b, s = self._two_role_body(with_spacer=True)
+        notes = vr._readability_guidance(b, s)
+        self.assertFalse(any("readability spacer" in c
+                             for _lvl, c in notes), notes)
+
+    def test_master_input_suppresses_spacer_note(self):
+        # The master's spacing is the user's own formatting — never
+        # advisory territory for this workflow.
+        b, s = self._two_role_body(with_spacer=False)
+        notes = vr._readability_guidance(b, s, is_master=True)
+        self.assertFalse(any("readability spacer" in c
+                             for _lvl, c in notes), notes)
+
     def test_guidance_appears_in_report(self):
         """The GUIDANCE section renders in the validate_tree output."""
         fd, path = tempfile.mkstemp(suffix=".docx")

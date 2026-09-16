@@ -375,7 +375,8 @@ def validate_tree(path, body, opts=None):
     ctx["paragraph_errors"] = [] if ctx["is_master_input"] else \
         _editable_word_cap_errors(region, summary)
     ctx["guidance_notes"] = _readability_guidance(
-        body, summary, region=region)
+        body, summary, region=region,
+        is_master=ctx["is_master_input"])
     try:
         ctx["education_errors"], ctx["education_notes"] = _jd_checks(
             opts.jd_path, body, span, opts, ctx)
