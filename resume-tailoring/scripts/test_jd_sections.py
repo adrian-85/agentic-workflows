@@ -136,16 +136,17 @@ class FindSectionTests(unittest.TestCase):
         self.assertEqual(js.find_section(jd, "additional"),
                          "Docker")
 
-    def test_repeated_header_blocks_accumulate(self):
-        """A migrated JD may carry former tech-stack lines in a second
-        required: block — repeats re-open collection and merge, matching
-        parse_sections (a break-at-first-block would silently drop the
-        second block's asks from requirement_lines)."""
+    def test_repeated_header_raises(self):
+        """Each header appears exactly once — a repeat is a contract
+        violation (merge the content into one block), not an
+        accumulation."""
         jd = ("required:\nPython, Selenium\n"
               "responsibilities:\nWrite tests.\n"
               "required:\n5+ years QA\n")
-        self.assertEqual(js.find_section(jd, "required"),
-                         "Python, Selenium\n5+ years QA")
+        with self.assertRaises(ValueError) as ctx:
+            js.parse_sections(jd)
+        self.assertIn("repeats canonical section header: required",
+                      str(ctx.exception))
 
     def test_header_at_eof_returns_empty_string(self):
         """A header as the last line yields an empty body string."""

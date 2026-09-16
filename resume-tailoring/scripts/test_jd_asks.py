@@ -95,7 +95,8 @@ Software Development Engineer in Test
 company:
 We build things.
 
-required:
+role:
+Core contributor on the quality engineering team.
 
 responsibilities:
 Test things.

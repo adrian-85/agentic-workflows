@@ -237,7 +237,8 @@ the residual page gap automatically.
   There is **no fallback heading recognition** by design: the parser
   (`jd_sections.py`) matches exactly this vocabulary, and `auto_prune.py`
   exits 2 naming any missing header — a mis-pasted JD (a typo like
-  `Teck Stack:`, a bare header missing its colon, an omitted section)
+  `Teck Stack:`, a bare header missing its colon, an omitted or
+  repeated section)
   fails at the pipeline's entry instead of silently mis-collecting
   asks. **Do not silently normalize or restructure the user's paste**:
   surface the parser's failure and have the user re-supply the

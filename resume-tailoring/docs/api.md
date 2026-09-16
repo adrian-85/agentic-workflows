@@ -252,8 +252,9 @@ matched. The JD file uses the fixed 8-section template (SKILL Step 1:
 `jd_sections.py` — title, company, role, responsibilities, required,
 additional, education, expectations; one-word headers, each with a
 required trailing colon; every header present, blank body when
-the posting omits that content; header order in the file is free and
-repeat headers accumulate; no fallback synonym recognition). It also
+the posting omits that content; header order in the file is free, each
+header appears exactly once — repeats fail the contract; no fallback
+synonym recognition). It also
 prints the FULL extracted term list plus the file's word
 count — scan that list against the posting to confirm the JD file is the
 verbatim text, not a paraphrase: a summarized JD silently drops whole skill

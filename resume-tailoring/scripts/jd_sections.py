@@ -77,15 +77,23 @@ def parse_sections(jd_text):
     function's job). Raises ValueError naming the missing header(s) when
     SOME but not all eight are present — the contract is all-or-nothing:
     every header is always included, blank when the posting omits that
-    content (a header present without its colon counts as missing).
+    content (a header present without its colon counts as missing). A
+    REPEATED header also raises: each header appears exactly once —
+    merge the content into a single block (a posting's tech-stack list
+    joins its qualification lines under one ``required:``).
     """
     found = {}
     current = None
     for ln in jd_text.splitlines():
         h = header_at(ln)
         if h:
+            if h in found:
+                raise ValueError(
+                    f"JD repeats canonical section header: {h} — "
+                    "SKILL Step 1 requires each header exactly once; "
+                    "merge the content into one block")
             current = h
-            found.setdefault(h, [])
+            found[h] = []
             continue
         if current is not None:
             found[current].append(ln)
@@ -104,12 +112,11 @@ def parse_sections(jd_text):
 def find_section(jd_text, header):
     """Lenient single-section lookup: the body text under ``header`` up
     to the next canonical header or EOF, or None when ``header`` never
-    appears at all. A REPEATED header of the same name re-opens
-    collection — repeat blocks accumulate into one body, exactly like
-    parse_sections (a migrated JD may carry former tech-stack lines in a
-    second ``required:`` block). Tolerant of a partial document — callers
-    that need only one section's lines (jd_asks.requirement_lines) use
-    this instead of the whole-file parse_sections contract."""
+    appears at all. Tolerant of a partial document — callers that need
+    only one section's lines (jd_asks.requirement_lines) use this
+    instead of the whole-file parse_sections contract. Repeated headers
+    are a contract violation rejected by parse_sections; this lenient
+    helper simply reads the first block."""
     collecting = False
     seen = False
     out = []
@@ -120,7 +127,8 @@ def find_section(jd_text, header):
             seen = True
             continue
         if h is not None:
-            collecting = False  # a later repeat of `header` re-opens it
+            if collecting:
+                break
             continue
         if collecting:
             out.append(ln)
