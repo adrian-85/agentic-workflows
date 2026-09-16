@@ -37,6 +37,7 @@ import test_helpers
 import measure_resume as mr  # noqa: E402
 import measure_resume_drops as mrd  # noqa: E402
 import measure_resume_jd  # noqa: E402
+import jd_sections  # noqa: E402
 import measure_resume_format as mrf  # noqa: E402  (constants live here post-split)
 
 # Format-assumption constants are READ through the owning module's globals
@@ -2038,11 +2039,13 @@ class JdMissingTermsTests(unittest.TestCase):
     caught by chance at final review). This makes the 'never fabricate'
     flags mechanical."""
 
-    JD = ("Senior QA Automation Engineer, E&I Commercial UW\n"
+    JD = ("Position Title:\n"
+          "Senior QA Automation Engineer, E&I Commercial UW\n"
+          "Company Overview:\n"
           "At AcmeCo, we build things.\n"
-          "Primary Responsibilities:\n"
+          "Responsibilities:\n"
           "Take ownership of the automated test approach.\n"
-          "Required Qualifications:\n"
+          "Required Experience:\n"
           "5+ years of experience using Selenium Web Driver, Java, "
           "TestNG, Cucumber, REST Assured, or similar IDE\n"
           "Experience with SoapUI or REST API testing tools\n"
@@ -2280,35 +2283,31 @@ class JdTermRecallTests(unittest.TestCase):
         jd = "incident triage and RCA drafting. The RCA feeds the fix."
         self.assertIn("rca", mr._jd_terms(jd, body))
 
-    def test_workday_heading_forms_collect_quals(self):
-        # Six-session calibration: Workday-style postings carry NO
-        # 'Qualifications' heading ('Essential Functions', 'Basic
-        # Requirements', 'Knowledge, Skills and Abilities') — without
-        # these, the whole coverage map and the never-fabricate flags
-        # stayed silent (external ATS found the asks anyway).
-        for heading in ('Essential Functions', 'Basic Requirements',
-                        'Knowledge, Skills and Abilities',
-                        'Craft & Technical Requirements'):
-            jd = ("Software Engineer\nJob Summary\nWe do things.\n"
-                  f"{heading}\n"
+    def test_ask_section_headers_collect_quals(self):
+        # The fixed canonical headers (SKILL Step 1) are the ONLY
+        # recognized section boundary — no fuzzy synonym matching.
+        for heading in jd_sections.ASK_SECTIONS:
+            jd = (f"{heading}:\n"
                   "Experience with Selenium Web Driver required\n")
             lines = mr._jd_requirement_lines(jd)
             self.assertTrue(any('Selenium' in ln for ln in lines),
                             f'{heading!r} must collect its lines')
 
     def test_whole_jd_signal_mining_flags_no_host_asks(self):
-        # Asks living in the responsibilities prose (outside the qual
-        # section) must still reach the never-fabricate checklist: the
-        # external ATS found kotlin/swift/wpf while the old qual-line-only
-        # mining stayed silent (six-session calibration).
-        jd = ("Software Engineer\n"
+        # Asks living in the Responsibilities prose (outside the ask
+        # sections) must still reach the never-fabricate checklist —
+        # while the Company Overview's mission-statement company name
+        # (a single-occurrence capitalized mention before the first ask
+        # section) is never mined as an ask.
+        jd = ("Position Title:\n"
+              "Software Engineer\n"
+              "Company Overview:\n"
               "At AcmeCo, we build things.\n"
-              "Essential Functions\n"
+              "Responsibilities:\n"
               "Build and maintain platform services.\n"
+              "Required Experience:\n"
               "Experience with Kotlin and Swift is preferred. Kotlin and "
-              "Swift round out the mobile stack.\n"
-              "Knowledge, Skills and Abilities\n"
-              "Strong communication skills\n")
+              "Swift round out the mobile stack.\n")
         body = _body([
             _para("Career Experience", style="SectionHeading"),
             _para("Acme, City" + _sample_date() + " – 08/2016",
@@ -2318,7 +2317,8 @@ class JdTermRecallTests(unittest.TestCase):
         missing = {t.lower() for t in mr._jd_missing_terms(jd, body, set())}
         self.assertIn("kotlin", missing)
         self.assertIn("swift", missing)
-        # Mission prose and section labels are not asks.
+        # Mission prose (Company Overview, before the first ask section)
+        # is never an ask.
         self.assertNotIn("acmeco", missing)
 
     def test_missing_report_is_signal_ranked_and_bounded(self):
@@ -2332,16 +2332,6 @@ class JdTermRecallTests(unittest.TestCase):
         lines = mr._jd_report("jd.txt", jd, {"selenium"}, body=body)
         missing_block = re.sub(r"\s+", " ", "\n".join(lines))
         self.assertIn("more, strongest signals shown first", missing_block)
-
-    def test_negated_and_bare_headings_terminate_coverage(self):
-        # 'What this role is not' must STOP qualification collection without
-    # contributing lines; the bare 'Level' heading must not mine as a
-        # one-word qualification (extracted term 'level' was reported as an
-        # uncovered ask — the noise that made the agent override the plan).
-        qual_lines = mr._jd_requirement_lines(self.JD)
-        self.assertFalse(any("role is not" in q for q in qual_lines))
-        self.assertFalse(any(q.strip().lower() == "level" for q in qual_lines))
-        self.assertFalse(any("research position" in q for q in qual_lines))
 
     def test_stop_word_gap_bigrams_not_mined(self):
         # 'measured on adoption' must NOT yield 'measured adoption' — a
@@ -2483,7 +2473,7 @@ class JdRequirementCoverageTests(unittest.TestCase):
     user; never fabricate)."""
 
     def _jd_and_body(self):
-        jd = ("Required Qualifications:\n"
+        jd = ("Required Experience:\n"
               "5+ years of experience using Selenium Web Driver, Java, "
               "TestNG, Cucumber, REST Assured, or similar IDE\n"
               "Experience with Kubernetes and Helm\n"
@@ -2548,37 +2538,6 @@ class JdRequirementCoverageTests(unittest.TestCase):
         self.assertTrue(any(s == "by_hand" and "soft-skill" in detail
                             for _, s, detail in result), result)
 
-    def test_bare_colon_headings_still_collect(self):
-        # A short-form JD labels its qualification sections with a bare
-        # "Required:" / "Preferred:" heading line (no noun after the
-        # qualifier). Such a line ends in ':', which the collector reads
-        # as a section TERMINATOR — the heading regex must recognize it
-        # as a heading first, or the requirement-coverage map (and its
-        # never-fabricate guard) silently fires for the whole posting.
-        jd = ("Requirements\n"
-              "Required:\n"
-              "5+ years of experience using Selenium Web Driver, Java, "
-              "TestNG\n"
-              "Preferred:\n"
-              "Familiarity with Kubernetes and Helm\n")
-        body = _body([
-            _para("Career Experience", style="SectionHeading"),
-            _para("Acme, City" + _sample_date() + " \u2013 08/2016",
-                  style=mr.COMPANY_STYLE),
-            _para("Built REST API test suites with Selenium WebDriver, "
-                  "Java, TestNG and Cucumber.", numId=2),
-            _para("Tools & Technologies: Kubernetes, Helm"),
-        ])
-        result = mr._jd_requirement_coverage(mr._roles(body), body, jd)
-        self.assertTrue(result, "bare Required:/Preferred: headings must "
-                        "collect qualification lines")
-        self.assertTrue(any(s == "covered" and "Selenium" in label
-                            for label, s, _ in result), result)
-        # Kubernetes/Helm live only on the Tools line: [weak], per the
-        # same rule test_non_bullet_host_is_weak asserts above.
-        self.assertTrue(any(s == "weak" and "Kubernetes" in label
-                            for label, s, _ in result), result)
-
 
 class SpacerBoundaryTests(unittest.TestCase):
     """The readability pause, reported instead of remembered: inter-role
@@ -2606,50 +2565,6 @@ class SpacerBoundaryTests(unittest.TestCase):
     def test_boundary_with_spacer_silent(self):
         self.assertEqual(mr._boundaries_without_spacer(self._body(True)),
                          [])
-
-    def test_you_bring_heading_collects_qualifications(self):
-        # Modern JDs often label their qualification section "You Bring"
-        # (or "What You'll Bring") instead of "Required Qualifications"
-        # — e.g. OnePay's QE Platform Engineer posting. The collector
-        # must recognize it as a heading, or the requirement-coverage
-        # map (and its never-fabricate guard) silently stays silent for
-        # the whole posting. Bullets under it collect; the company-voice
-        # "Tools We Use" prose after it must not surface as qual lines.
-        jd = ("QE Platform Engineer\n"
-              "About OnePay\n"
-              "We're an all-in-one financial services platform.\n"
-              "The Role\n"
-              "Design and own shared test automation frameworks.\n"
-              "You Bring\n"
-              "Deep experience building test automation frameworks "
-              "such as Playwright, Selenium, Appium, or similar\n"
-              "Proficiency in TypeScript/Node.js\n"
-              "Experience with cloud-native infrastructure such as "
-              "Kubernetes and AWS\n"
-              "Tools We Use\n"
-              "We use Node and TypeScript on the server.\n")
-        body = _body([
-            _para("Career Experience", style="SectionHeading"),
-            _para("Acme, City" + _sample_date() + " \u2013 08/2016",
-                  style=mr.COMPANY_STYLE),
-            _para("Built test automation frameworks with Playwright and "
-                  "Selenium.", numId=2),
-            _para("Designed TypeScript test suites.", numId=2),
-            _para("Tools & Technologies: Kubernetes, Docker, AWS"),
-        ])
-        result = mr._jd_requirement_coverage(mr._roles(body), body, jd)
-        self.assertTrue(result, "You Bring heading must collect "
-                        "qualification lines")
-        self.assertTrue(any(s == "covered" and label.startswith("Deep experience")
-                            for label, s, _ in result), result)
-        self.assertTrue(any("Acme, City" in detail and "Playwright" in detail
-                            for _, s, detail in result if s == "covered"), result)
-        # Kubernetes/AWS live only on the Tools line: [weak], same rule.
-        self.assertTrue(any(s == "weak" and "Kubernetes" in label
-                            for label, s, _ in result), result)
-        # The company-voice Tools We Use prose must not be mined.
-        self.assertFalse(any("Tools We Use" in label
-                             for label, _, _ in result), result)
 
 
 class JdFitAuditTests(unittest.TestCase):
@@ -2773,13 +2688,13 @@ class CoverageTermsVisibilityTests(unittest.TestCase):
     SQL_LINE = "Solid SQL skills and experience with database validation."
 
     def test_line_terms_map_aligned_and_artifact_visible(self):
-        jd = "Required Qualifications:\n" + self.SQL_LINE + "\n"
+        jd = "Required Experience:\n" + self.SQL_LINE + "\n"
         terms = dict(mr._jd_line_terms_map(jd))
         line = [k for k in terms if "Solid SQL" in k][0]
         self.assertIn("solid sql", terms[line], terms)
 
     def test_uncovered_line_prints_extracted_terms(self):
-        jd = ("Required Qualifications:\n"
+        jd = ("Required Experience:\n"
               "Experience with Kubernetes and Helm\n" + self.SQL_LINE + "\n")
         body = _body([
             _para("Career Experience", style="SectionHeading"),
@@ -2807,7 +2722,7 @@ class CoverageTermsVisibilityTests(unittest.TestCase):
         self.assertIn("solid sql", out)
 
     def test_covered_line_has_no_term_noise(self):
-        jd = ("Required Qualifications:\n"
+        jd = ("Required Experience:\n"
               "Experience with Kubernetes and Helm\n")
         body = _body([
             _para("Career Experience", style="SectionHeading"),
@@ -2901,91 +2816,6 @@ class WordBudgetTests(unittest.TestCase):
 
 
 
-    def test_jd_requirement_lines_conversational_headings(self):
-        """'Who you are' / 'What you'll do' headings are qual sections."""
-        jd = (
-            "Software Test Architect\n\n"
-            "What you'll do:\n\n"
-            "Define test automation architecture across products.\n"
-            "Lead proofs of concept for UI and API testing.\n\n"
-            "Who you are:\n\n"
-            "5+ years of experience in test automation engineering.\n"
-            "Proficiency in TypeScript, C#, Java, or Python.\n\n"
-            "Benefits:\n\n"
-            "Great pay and a 401k.\n"
-        )
-        lines = measure_resume_jd._jd_requirement_lines(jd)
-        self.assertEqual(len(lines), 4)
-        self.assertIn("5+ years", lines[2])
-        # benefits prose stays excluded
-        self.assertFalse(any("401k" in ln for ln in lines))
-
-    def test_jd_requirement_lines_will_bring_and_apart_headings(self):
-        """REGRESSION: the Empower JD's 'What you will bring:' and
-        'What will set you apart:' headings were not recognized (only the
-        contracted "you'll" form was), so requirement coverage silently
-        returned [] and the REQUIREMENTS SUMMARY never printed."""
-        jd = (
-            "Senior Engineer Automation Quality\n\n"
-            "What you will bring:\n\n"
-            "4-7 years of overall testing experience.\n"
-            "Experience with API automation using Karate.\n\n"
-            "What will set you apart:\n\n"
-            "Experience mentoring test automation teams.\n\n"
-            "What we offer:\n\n"
-            "Flexible work environment.\n"
-        )
-        lines = measure_resume_jd._jd_requirement_lines(jd)
-        self.assertEqual(len(lines), 3)
-        self.assertFalse(any("Flexible work" in ln for ln in lines))
-
-    def test_jd_requirement_lines_you_have_heading(self):
-        """REGRESSION: the Workday/agency 'You Have:' heading form
-        (Merkle QA Lead JD) was not recognized, so the audit fell back to
-        the WHOLE JD text and mined company-prose fragments ('fortune',
-        'like', 'looks') as actionable literal terms."""
-        jd = (
-            "QA Lead\n\n"
-            "Merkle is a leading data-driven agency partnered with Fortune "
-            "1000 companies.\n\n"
-            "You Have:\n\n"
-            "7+ years of QA / Quality Assurance Engineering experience\n"
-            "Hands-on experience with visual regression testing tools\n\n"
-            "Nice-to-Have Skills:\n\n"
-            "Agency or client services background\n"
-        )
-        lines = measure_resume_jd._jd_requirement_lines(jd)
-        self.assertEqual(len(lines), 2)
-        self.assertFalse(any("Fortune" in ln for ln in lines))
-        # the unrecognized nice-to-have section terminates collection
-        self.assertFalse(any("client services" in ln for ln in lines))
-
-    def test_jd_requirement_lines_slash_suffixed_headings(self):
-        """REGRESSION: the West 4th Strategy JD's 'REQUIRED SKILLS/EXPERIENCE'
-        and 'PREFERRED SKILLS/EXPERIENCE' headings were not recognized (the
-        heading regex required the section word to end the line, so the
-        '/experience' suffix failed the match) — requirement_lines returned
-        [] and the ATS audit mined the whole posting (posting URL, company
-        prose) as actionable literal terms."""
-        jd = (
-            "QA Automation Engineer / Enterprise ETL Tester\n\n"
-            "ROLE\n"
-            "We need an experienced QA Automation Engineer.\n\n"
-            "REQUIRED SKILLS/EXPERIENCE\n"
-            "Demonstrated experience in software QA and test automation.\n"
-            "Strong proficiency with XML, JSON, and CSV data formats.\n\n"
-            "PREFERRED SKILLS/EXPERIENCE\n"
-            "Strong written and oral communication skills.\n\n"
-            "REQUIRED EDUCATION / CERTIFICATIONS\n"
-            "Bachelor's degree in computer science or a related field.\n"
-        )
-        lines = measure_resume_jd._jd_requirement_lines(jd)
-        # role prose excluded; both skills sections and the education
-        # requirement line are qualification asks
-        self.assertEqual(len(lines), 5)
-        self.assertFalse(any("QA Automation Engineer" in ln for ln in lines))
-        self.assertIn("Bachelor's", lines[-1])
-
 
 
 if __name__ == "__main__":
@@ -2999,7 +2829,7 @@ class RequirementsSummaryTests(unittest.TestCase):
     checklist MUST be presented before claiming the honest ceiling."""
 
     def test_summary_line_printed(self):
-        jd = ("Required Qualifications:\n"
+        jd = ("Required Experience:\n"
               "Selenium and Java experience\n"
               "Terraform and Ansible\n")
         body = _body([
@@ -3021,7 +2851,7 @@ class RequirementsSummaryTests(unittest.TestCase):
     def test_fully_covered_run_has_no_checklist_call_to_action(self):
         # A fully-covered run must NOT tell the agent to present a
         # checklist that is empty — the call-to-action is conditional.
-        jd = ("Required Qualifications:\n"
+        jd = ("Required Experience:\n"
               "Selenium and Java experience\n")
         body = _body([
             _para("Career Experience", style="SectionHeading"),
@@ -3045,7 +2875,7 @@ class RequirementsSummaryTests(unittest.TestCase):
         # directive the summary counted it and moved on — hosting waited
         # for the Step-11 scan to flag the absence. The directive names
         # THIS pass (authoring time), not the scan (2026-09-11).
-        jd = ("Required Qualifications:\n"
+        jd = ("Required Experience:\n"
               "Selenium and Java experience\n"
               "Excellent communication, stakeholder management, and "
               "technical leadership skills\n")
@@ -3079,7 +2909,7 @@ class PrunePlanModeTests(unittest.TestCase):
     copy-pasteable anchors, and no PAGES/RECLAIM/WORD BUDGET sections.
     """
 
-    JD = ("Required Qualifications:\n"
+    JD = ("Required Experience:\n"
           "Playwright experience\n")
 
     def _master_paras(self):

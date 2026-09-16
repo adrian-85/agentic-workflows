@@ -29,7 +29,7 @@ import auto_prune  # noqa: E402
 import jd_asks  # noqa: E402
 
 # Real-JD shape: a qualification section (the engine's ask source).
-JD = ("Required Qualifications\n"
+JD = ("Required Experience:\n"
       "Experience with Cypress, Jenkins, Gatling, Selenium, Playwright, "
       "Kubernetes, Docker, AWS, REST APIs, and Python scripting.\n"
       "CI/CD pipeline ownership and test automation depth.")
@@ -116,7 +116,7 @@ class _AutoPruneBase(unittest.TestCase):
 
 class TestJdEvidenceFamilies(unittest.TestCase):
     def test_component_testing_ask_protects_unit_testing_evidence(self):
-        jd = ("Required Qualifications\n"
+        jd = ("Required Experience:\n"
               "Experience with component-level testing of isolated UI elements.\n")
         asks = {ask.phrase for ask in jd_asks.parse_asks(jd)}
         self.assertTrue(
@@ -124,7 +124,7 @@ class TestJdEvidenceFamilies(unittest.TestCase):
                 "Used a unit testing framework for isolated components.", asks))
 
     def test_alternative_scripting_terms_protect_source_evidence(self):
-        jd = ("Preferred Qualifications\n"
+        jd = ("Additional Experience:\n"
               "Python scripting experience and scripting in Linux bash or "
               "Windows batch.\n")
         asks = {ask.phrase for ask in jd_asks.parse_asks(jd)}
@@ -137,7 +137,7 @@ class TestJdEvidenceFamilies(unittest.TestCase):
                                                            "linux")))
 
     def test_windows_batch_ask_requires_batch_evidence(self):
-        jd = ("Preferred Qualifications\n"
+        jd = ("Additional Experience:\n"
               "Scripting experience in Linux bash or Windows batch.\n")
         asks = {ask.phrase for ask in jd_asks.parse_asks(jd)}
         # Bare 'windows' (e.g. Windows Server admin) is NOT batch-scripting
@@ -146,7 +146,7 @@ class TestJdEvidenceFamilies(unittest.TestCase):
         self.assertNotIn("windows batch", evidence)
 
     def test_visual_regression_ask_protects_manual_visual_evidence(self):
-        jd = ("Required Qualifications\n"
+        jd = ("Required Experience:\n"
               "Hands-on experience with visual regression testing tools.\n")
         asks = {ask.phrase for ask in jd_asks.parse_asks(jd)}
         evidence = jd_asks.evidence_set(

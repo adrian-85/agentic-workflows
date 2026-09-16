@@ -33,6 +33,7 @@ from collections import Counter
 from typing import NamedTuple
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
+import jd_sections  # noqa: E402
 from measure_resume_jd_terms import (CORE_TECH_NOUNS, JD_CONCEPTS,  # noqa: E402
                                      JD_METRIC_HEADS, JD_SOFT_SKILL_RE,
                                      JD_STOP, _acronym_terms,
@@ -42,6 +43,12 @@ from measure_resume_jd_terms import (CORE_TECH_NOUNS, JD_CONCEPTS,  # noqa: E402
 # --------------------------------------------------------------------- #
 # Qualification-section detection (moved from measure_resume_jd — the
 # engine owns JD parsing; measure_resume_jd re-imports these).
+#
+# Section boundaries come from jd_sections's fixed 8-header contract
+# (SKILL Step 1) — no fuzzy heading-phrasing recognition here by design.
+# A JD carrying none of the canonical headers is a different, already-
+# documented input class (a recruiter's message / a bare posting) whose
+# whole text is the ask surface — parse_asks below falls back to it.
 # --------------------------------------------------------------------- #
 JD_SHORT_WORDS = 100  # below this, a --jd file is likely a summary
 
@@ -52,57 +59,22 @@ JD_WORD_TERM_RE = re.compile(r"(?<![A-Za-z0-9+#])([A-Z][A-Za-z0-9+#.]+)")
 
 JD_COMPANY_VOICE_RE = re.compile(r"\b(we|our|us|you|your)\b", re.I)
 
-JD_QUAL_HEADING_RE = re.compile(
-    r"^\s*#{0,6}\s*(?:required\s+|preferred\s+|minimum\s+)?"
-    r"(?:qualifications|requirements|skills(?:\s*/\s*experience)?|experience)\b\s*:?\s*$"
-    # Conversational heading forms ("Who you are", "What you'll do") —
-    # common startup-style JD headings whose bullet lines are still asks.
-    r"|^\s*(?:who\s+you\s+are|about\s+you|your\s+profile"
-    r"|what\s+you(?:.{0,2}ll|\s+will)\s+(?:do|bring)"
-    r"|what\s+we(?:'re|\s+are)\s+looking\s+for"
-    r"|what\s+will\s+set\s+you\s+apart)\s*:?\s*$"
-    # A bare "Required:" / "Preferred:" / "Minimum:" heading line — a
-    # common short-form JD format where the qualifier IS the whole heading.
-    r"|^\s*#{0,6}\s*(?:required|preferred|minimum)\s*:?\s*$"
-    # "You Bring" / "What You'll Bring" / "You Have" headings — the
-    # "You Have:" form is Workday/agency-common (Merkle QA Lead JD).
-    r"|^\s*#{0,6}\s*(?:what\s+)?you(?:'ll)?\s+(?:bring|have)\s*:?\s*$"
-    # "What makes you a fit" — HubSync-style fit heading; its lines ARE asks.
-    r"|^\s*what\s+makes\s+you\s+(?:a\s+)?fit\s*:?\s*$"
-    # A bare section word heading ("Level") — terminates the section.
-    r"|^\s*#{0,6}\s*level\s*:?\s*$"
-    # Workday-style sections whose lines are asks (six-session calibration).
-    r"|^\s*#{0,6}\s*(?:essential\s+functions|basic\s+requirements"
-    r"|minimum\s+requirements|key\s+requirements"
-    r"|knowledge,?\s+skills,?(?:\s+and|\s*&)?\s+abilities?)\s*:?\s*$"
-    r"|^\s*#{0,6}\s*craft\s*(?:&|and)\s*technical\s+requirements\s*:?\s*$",
-    re.I,
-)
-
-JD_NEGATED_HEADING_RE = re.compile(
-    r"^\s*what\s+this\s+role\s+is\s+(?:not|n[o']t)\s*:?\s*$", re.I)
-
 
 def requirement_lines(jd_text):
-    """The JD's qualification lines — where skill asks live (moved from
-    measure_resume_jd verbatim; see that module's history)."""
-    lines = jd_text.splitlines()
-    out, collecting = [], False
-    for line in lines:
-        s = line.strip()
-        if JD_NEGATED_HEADING_RE.match(s):
-            collecting = False
+    """The JD's qualification lines — where skill asks live: the Tech
+    Stack, Required Experience, Additional Experience, and Required
+    Education sections (jd_sections.ASK_SECTIONS). [] when the JD is
+    unsectioned (parse_asks then mines the whole text as ask_lines).
+    A stray company-voice sentence ('We offer...') pasted into an ask
+    section is still filtered out."""
+    out = []
+    for header in jd_sections.ASK_SECTIONS:
+        body = jd_sections.find_section(jd_text, header)
+        if not body:
             continue
-        if JD_QUAL_HEADING_RE.match(s):
-            collecting = True
-            continue
-        if not s:
-            continue
-        if collecting:
-            if s.endswith(":") or JD_QUAL_HEADING_RE.match(s):
-                collecting = False
-                continue
-            if not JD_COMPANY_VOICE_RE.search(s):
+        for line in body.splitlines():
+            s = line.strip()
+            if s and not JD_COMPANY_VOICE_RE.search(s):
                 out.append(s)
     return out
 
@@ -291,11 +263,13 @@ def _capitalized_mention(jd_text, term):
 
 
 def _first_heading_offset(jd_text):
-    """Character offset of the first recognized qualification heading
-    (None when the posting has none — a recruiter message)."""
+    """Character offset of the first ask-section header (jd_sections's
+    Tech Stack / Required Experience / Additional Experience / Required
+    Education) — None when the posting has none (unsectioned / a
+    recruiter message)."""
     pos = 0
     for ln in jd_text.splitlines(keepends=True):
-        if JD_QUAL_HEADING_RE.match(ln.strip()):
+        if jd_sections.is_ask_header(ln.strip()):
             return pos
         pos += len(ln)
     return None
@@ -360,8 +334,7 @@ def _repeated_terms(jd_text):
     else:
         seq_text = jd_text
     for ln in seq_text.splitlines():
-        if not ln.strip() or JD_QUAL_HEADING_RE.match(ln.strip()) \
-                or JD_NEGATED_HEADING_RE.match(ln.strip()):
+        if not ln.strip() or jd_sections.header_at(ln.strip()):
             continue
         for part in re.split(r"(?<=[.!?])\s+", ln):
             for m in JD_SEQ_TERM_RE.finditer(part):
@@ -467,9 +440,24 @@ _EVIDENCE_FAMILIES = {
         "visual checks", "visual verification"),
 }
 
+# Per-run extension of the SAME matcher (SKILL Step 1's JD-theme read):
+# when the agent reads the whole JD and finds a JD-specific term whose
+# truthful equivalent is worded differently in the master/resume (e.g. a
+# government JD's "IV&V" meaning "testing" for that posting only), it is
+# recorded here for the one auto_prune.py run (--equivalence) rather than
+# hand-patched into _EVIDENCE_FAMILIES above, which is the GENERAL,
+# permanent vocabulary shared by every future JD. This is not a second
+# preservation filter — it is a caller-supplied entry in the one ask/
+# evidence matcher's existing extensibility point. Empty by default;
+# auto_prune.py populates it from --equivalence and callers should treat
+# it as scoped to one process run.
+EXTRA_EVIDENCE_FAMILIES = {}
+
 
 def _evidence_candidates(phrase_low):
     """Return the literal/equivalent forms for one existing JD ask."""
+    if phrase_low in EXTRA_EVIDENCE_FAMILIES:
+        return EXTRA_EVIDENCE_FAMILIES[phrase_low]
     return _EVIDENCE_FAMILIES.get(phrase_low, (phrase_low,))
 
 

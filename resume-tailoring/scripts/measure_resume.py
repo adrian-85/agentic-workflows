@@ -159,7 +159,6 @@ def _jd_terms(jd_text, body=None):
 
 from jd_asks import (  # engine home: JD parsing names live here now
     JD_COMPANY_VOICE_RE,
-    JD_QUAL_HEADING_RE,
     JD_SEQ_TERM_RE,
     JD_WORD_TERM_RE,
 )
