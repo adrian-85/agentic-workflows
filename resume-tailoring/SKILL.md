@@ -66,7 +66,7 @@ restore phase.
 
 | Step | Action | Tool |
 |---|---|---|
-| 1 | Read the WHOLE JD, saved in the fixed 8-section template (persist to skill root + posting URL); write the one-line theme brief + any term equivalences. The master and LinkedIn export stay UNREAD | `jd_sections.py` contract |
+| 1 | Read the WHOLE JD, saved in the fixed 8-section template (persist to skill root + posting URL); write the company-focus theme brief + any term equivalences. The master and LinkedIn export stay UNREAD | `jd_sections.py` contract |
 | 2 | PHASE A — the machine prune (enforces the 8-header contract; `--theme`/`--equivalence` from Step 1): dispositions every candidate, emits the first tailor script, runs it through the gates, writes the lean base build. No cut report | `auto_prune.py` (runs `run_tailor.sh`) |
 | 3 | Measure the BASE BUILD (never the master) — diagnose relevance output; do not budget-prune in Phase 1 | `measure_resume.py` on the base copy |
 | 4 | Decide length + seniority alignment (whole-role drops, with the user) | `measure_resume.py --simulate` |
@@ -252,18 +252,28 @@ the residual page gap automatically.
   `ats_check.py` reuses that known posting URL for the metadata PATCH
   and prints the reuse.
 - **Characterize the JD's theme BEFORE Phase 1 — reading the ENTIRE
-  JD, every section.** Themes are often strongest in the `Company
-  Overview` and `Tech Stack` sections, not the requirement lists, so no
-  section is skippable. Write a one-line theme brief — seniority,
-  domain/stage (startup, AI, FinTech, government...), and the primary
-  skill axis — and hand it to Phase 1: `--theme "<brief>"` records it
-  in the emitted tailor script's docstring, and any JD-specific
-  terminology equivalence the read surfaces (e.g. a government JD's
-  "IV&V" meaning testing for that posting) goes in a repeatable
-  `--equivalence "IV&V=testing,quality validation"` flag — extending
-  the ONE ask/evidence matcher for that run, never a second filter.
-  The theme also steers Phase 2's judgment calls (Step 7's industry
-  expansion, Step 8's host placement).
+  JD, every section.** Theme cannot be assessed without taking the entire
+  JD into context, so no section is skippable. Write a compact labeled
+  theme brief covering:
+  - **Company focus:** what the company does and the domain it serves.
+  - **Differentiator:** what makes its approach, product, stage, or
+    operating model distinctive in that domain.
+  - **Role mission/outcomes:** what the company needs this position to
+    accomplish beyond listing tools and primary skills.
+  - **Capability connection:** how the testing, automation, reliability,
+    collaboration, and domain requirements help the company sustain its
+    specific focus.
+
+  Do **not** put seniority in the theme brief — Step 4 owns seniority
+  alignment. Hand the brief to Phase 1 as `--theme "<compact labeled
+  brief>"` for traceability in the emitted tailor script's docstring.
+  Any JD-specific terminology equivalence the whole-JD read surfaces
+  (for example, a government JD's "IV&V" meaning testing for that
+  posting) goes in a repeatable `--equivalence
+  "IV&V=testing,quality validation"` flag — extending the ONE
+  ask/evidence matcher for that run, never a second filter. The theme
+  also steers Phase 2's judgment calls (Step 7's industry expansion,
+  Step 8's host placement).
 - **The master resume and the LinkedIn export are NOT inputs here.**
   Phase 1's `auto_prune.py` (Step 2) is the only sanctioned master
   consumer until Step 8's gap mining unlocks both — the agent that reads
@@ -275,7 +285,7 @@ One command. No judgment, no dispositions, no cut report:
 
 ```bash
 python3 scripts/auto_prune.py "<userName> Master Resume.docx" jd_<target>.txt \
-    --target "<Target Name>" --theme "<Step 1's one-line theme brief>" \
+    --target "<Target Name>" --theme "<Step 1's compact labeled theme brief>" \
     [--equivalence "<term>=<alt1>[,<alt2>...]"]...
 ```
 
@@ -540,9 +550,7 @@ measure's **JD terms with NO host** list, `ats_audit.py --jd`'s no-host
 report, or the external scan's missing hard/soft skill list (Step 11). Mining
 is gap-driven ONLY, but the surfaced list is a work order, not permission to
 ask immediately. Before raising ANY term, perform this source-first loop —
-**in this order, and the master leg is a checked step, not a habit**
-(two real sessions mined only the LinkedIn dump and asked the user
-about evidence the master still hosted):
+**in this order, and the master leg is a checked step, not a habit**:
 
 1. **Read the current master for the term — literally.** Run the
    inference map (`--linkedin <dump>`), which searches the adjacent
@@ -661,8 +669,7 @@ applying it (squeeze is page-math-only).
 
 **Readability spacing — the DEFAULT is to add spacers; skip only on a
 page-length conflict.** One blank spacer paragraph between roles is
-part of the deliverable's readability, not optional polish — five
-consecutive real sessions printed the opportunities and applied zero.
+part of the deliverable's readability, not optional polish.
 After the content settles (hosts landed, budgets closed), add one
 blank spacer at EVERY inter-role boundary: measure prints **SPACER
 OPPORTUNITIES** with the boundaries that lack the pause, and
