@@ -551,9 +551,11 @@ about evidence the master still hosted):
    Then GREP the raw master text for every RAISE-candidate term
    yourself (`docx_edit.py "<master>.docx" --prefixes | grep -i
    "<term>"`) — the map's variants/family roots miss paraphrased
-   evidence the raw text still shows, and a `WARNING: the master was
-   NOT searched` line means the map fell back to the pruned copy
-   (content Phase 1 cut is invisible to it — trust only the grep).
+   evidence the raw text still shows. **The master MUST sit next to the
+   tailored copy: `measure_resume.py` now exits 2 rather than fall back
+   to the pruned copy when a mining queue exists and the master is
+   absent** (content Phase 1 cut lives only in the master — mining
+   without it silently overstates gaps).
 2. Read the complete LinkedIn dump and run the inference map for the current
    build and current gap list.
 3. AUTO-HOST every term with source evidence, without asking the user.

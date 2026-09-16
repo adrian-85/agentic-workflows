@@ -238,6 +238,26 @@ def _adjacent_master_body(docx):
     return body
 
 
+def _fail_without_master(queue_label):
+    """Exit 2 when the master is not adjacent to the tailored copy.
+
+    The master leg of Step 8's source-first loop is mandatory, not
+    optional: content Phase 1 cut lives ONLY in the master, so a mining
+    queue run against the pruned tailored copy silently overstates gaps
+    (two real sessions asked the user about evidence the master still
+    hosted). A warning was scrollable past; this failure makes it
+    impossible to mine without the master present."""
+    print(
+        f"error: {queue_label} found, but the master resume is not "
+        "adjacent to the tailored copy — the JD gap mining queue cannot "
+        "be run without searching the full master (SKILL Step 8: the "
+        "master leg of the source-first loop is mandatory; content "
+        "Phase 1 cut lives only there). Place '<userName> Master "
+        "Resume.docx' next to the tailored copy and re-run.",
+        file=sys.stderr)
+    sys.exit(2)
+
+
 def _target_from_args(kept):
     """(target, is_default) from the positional args or TARGET_PAGES env."""
     if len(kept) > 1:
@@ -900,8 +920,13 @@ def _load_and_render(args):
         if args.jd_file:
             internal_missing = _jd_missing_terms(
                 args.jd_text, body, jd_terms)
+            if master_body is None and internal_missing:
+                _fail_without_master(
+                    "JD terms with NO host in the resume")
             extra_missing = _external_gap_terms(
                 args.ats_report, source_docx, internal_missing)
+            if master_body is None and extra_missing:
+                _fail_without_master("external ATS gap")
             _print_jd_report(
                 args.jd_file, args.jd_text, jd_terms, body,
                 InferenceSources(linkedin_text=args.evidence_text,

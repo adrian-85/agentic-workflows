@@ -2845,6 +2845,75 @@ class WordBudgetTests(unittest.TestCase):
 
 
 
+class MasterRequiredForMiningTests(unittest.TestCase):
+    """The master leg of Step 8's source-first loop is mandatory: when a
+    mining queue exists (JD terms with no host) and the master is not
+    adjacent to the tailored copy, measure_resume exits 2 rather than
+    silently fall back to the pruned copy — two real sessions asked the
+    user about evidence the master still hosted."""
+
+    def _tailored_paras(self):
+        return [
+            _para("Adrian Sample"),
+            _para("QA Engineer", style="Title"),
+            _para("Summary of a career.", style="Summary"),
+            _para(mr.SECTION_PROFICIENCIES, style="SectionHeading"),
+            _para("Testing: Selenium"),
+            _para(mr.SECTION_CAREER, style="SectionHeading"),
+            _para("Acme, City" + _sample_date() + " \u2013 08/2026",
+                  style=mr.COMPANY_STYLE),
+            _para("Built Selenium suites.", numId=2),
+        ]
+
+    def test_missing_master_exits_2_when_gap_exists(self):
+        # JD names a skill the tailored copy does not host -> a mining
+        # queue exists; no adjacent master -> exit 2, never fall back.
+        with tempfile.TemporaryDirectory() as td:
+            tailored = os.path.join(td, "Adrian Sample Resume - X.docx")
+            _write_docx(tailored, self._tailored_paras())
+            jd_path = os.path.join(td, "jd_x.txt")
+            with open(jd_path, "w", encoding="utf-8") as fh:
+                fh.write("Required Experience:\nLoadRunner experience\n")
+            args = mr._Args(
+                docx=tailored, target=2, default_target=True,
+                jd_text="Required Experience:\nLoadRunner experience\n",
+                jd_file=jd_path, evidence_text=None, ats_report=None,
+                protect=[], simulate=[])
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), \
+                    self.assertRaises(SystemExit) as ctx:
+                mr._load_and_render(args)
+            self.assertEqual(ctx.exception.code, 2)
+            self.assertIn("master resume is not adjacent", err.getvalue())
+
+    def test_no_gap_no_failure_even_without_master(self):
+        # Nothing missing -> nothing to mine -> no master leg needed, so
+        # the run must NOT fail on the absent master. (Exits via the
+        # render path, so assert the guard did not fire: no error text.)
+        with tempfile.TemporaryDirectory() as td:
+            tailored = os.path.join(td, "Adrian Sample Resume - X.docx")
+            _write_docx(tailored, self._tailored_paras())
+            jd_path = os.path.join(td, "jd_x.txt")
+            with open(jd_path, "w", encoding="utf-8") as fh:
+                fh.write("Required Experience:\nSelenium experience\n")
+            args = mr._Args(
+                docx=tailored, target=2, default_target=True,
+                jd_text="Required Experience:\nSelenium experience\n",
+                jd_file=jd_path, evidence_text=None, ats_report=None,
+                protect=[], simulate=[])
+            err = io.StringIO()
+            try:
+                with contextlib.redirect_stderr(err):
+                    mr._load_and_render(args)
+            except SystemExit as exc:
+                self.assertNotEqual(exc.code, 2,
+                                     "guard fired with no gap: " + err.getvalue())
+            # no master-absent error printed
+            self.assertNotIn("master resume is not adjacent", err.getvalue())
+
+
+
+
 if __name__ == "__main__":
     unittest.main()
 
