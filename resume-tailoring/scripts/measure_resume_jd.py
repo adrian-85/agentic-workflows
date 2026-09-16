@@ -435,20 +435,31 @@ def _inference_map(missing_terms, body, sources=None):
     if not missing_terms:
         return []
     sources = sources or InferenceSources()
-    ps = de.paras(sources.master_body if sources.master_body is not None
-                  else body)
+    master_loaded = sources.master_body is not None
+    ps = de.paras(sources.master_body if master_loaded else body)
     master_texts = [de.text_of(p).strip() for p in ps
                     if de.text_of(p).strip()]
     evidence_lines = ([ln.strip() for ln in sources.linkedin_text.splitlines()
                        if ln.strip()] if sources.linkedin_text else [])
-    source_lines = (("master", master_texts),
-                    ("linkedin", evidence_lines))
+    source_lines = [("master", master_texts)]
+    if sources.linkedin_text is not None:
+        source_lines.append(("linkedin", evidence_lines))
     out = [textwrap.fill(
         "INFERENCE MAP for no-host terms (deterministic evidence search "
         "over the master + LinkedIn): follow the verdicts. AUTO-HOST "
         "terms are hosted without asking the user; the checklist "
         "presented to the user contains exactly the RAISE terms:",
         width=76, initial_indent="  ", subsequent_indent="    ")]
+    if not master_loaded:
+        out.append(textwrap.fill(
+            "  WARNING: the master was NOT searched (no adjacent "
+            "'* Master Resume.docx' next to the tailored copy) — the map "
+            "searched the tailored copy instead, so content Phase 1 cut "
+            "is invisible to it. Grep the raw master for every RAISE "
+            "term before asking the user (SKILL Steps 8 and 11): the "
+            "user's own history often evidences the ask in a bullet the "
+            "prune removed.",
+            width=76, initial_indent="  ", subsequent_indent="    "))
     for term in missing_terms:
         _variants = _inference_variants(term)
         _roots = _family_roots(term)
@@ -465,15 +476,18 @@ def _inference_map(missing_terms, body, sources=None):
                         break
             return matched
 
-        ev = []
-        for label, texts in source_lines:
-            ev.extend(f'{label}: "{m[:70]}"' for m in _hits(texts))
+        hits_by_source = [(label, _hits(texts))
+                          for label, texts in source_lines]
+        ev = [f'{label}: "{m[:70]}"'
+              for label, matched in hits_by_source for m in matched]
+        misses = [f"{label}: no match"
+                  for label, matched in hits_by_source if not matched]
         if ev:
             out.append(f"  - {term}: AUTO-HOST — host the JD's literal "
                        "phrase in the bullet/role where this evidence "
                        "lives (merge, don't append); no skill "
                        "confirmation needed")
-            out.extend(f"      {e}" for e in ev)
+            out.extend(f"      {e}" for e in ev + misses)
         else:
             out.append(
                 f"  - {term}: RAISE — no deterministic evidence — ASK "
@@ -481,6 +495,7 @@ def _inference_map(missing_terms, body, sources=None):
                 "in the master/LinkedIn — macOS, stress testing, and a "
                 "user's 'Linux home lab' evidence were, in a real "
                 "session); host only what the user confirms")
+            out.extend(f"      {m}" for m in misses)
     out.append(textwrap.fill(
         "AUTO-HOST = evidence exists in master or LinkedIn material — "
         "host without asking about the skill; RAISE = ask about the "
