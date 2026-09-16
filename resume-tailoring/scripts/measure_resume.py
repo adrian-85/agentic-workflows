@@ -188,8 +188,8 @@ from measure_resume_jd import (
     _jd_title,
     _title_rank,
     _top_block_candidates,
-    adjacent_master_body,
-    fail_without_master,
+    _adjacent_master_body,
+    _fail_without_master,
     title_alignment_notes)
 
 from measure_resume_drops import (
@@ -877,7 +877,7 @@ def _external_gap_terms(report_path, resume_path, internal_missing):
 def _load_and_render(args):
     """Simulate, load the docx, resolve gaps, print the JD report, and render."""
     source_docx = args.docx
-    master_body = adjacent_master_body(source_docx)
+    master_body = _adjacent_master_body(source_docx)
     with tempfile.TemporaryDirectory() as td:
         docx, sim_jd_terms = _print_simulate(
             source_docx, args.simulate, args.jd_file, args.jd_text, td)
@@ -889,12 +889,12 @@ def _load_and_render(args):
             internal_missing = _jd_missing_terms(
                 args.jd_text, body, jd_terms)
             if master_body is None and internal_missing:
-                fail_without_master(
+                _fail_without_master(
                     "JD terms with NO host in the resume")
             extra_missing = _external_gap_terms(
                 args.ats_report, source_docx, internal_missing)
             if master_body is None and extra_missing:
-                fail_without_master("external ATS gap")
+                _fail_without_master("external ATS gap")
             _print_jd_report(
                 args.jd_file, args.jd_text, jd_terms, body,
                 InferenceSources(linkedin_text=args.evidence_text,

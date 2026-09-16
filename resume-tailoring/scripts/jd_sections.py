@@ -58,11 +58,6 @@ def is_ask_header(line):
     return header_at(line) in ASK_SECTIONS
 
 
-def is_sectioned(jd_text):
-    """True when ``jd_text`` carries at least one canonical header."""
-    return any(header_at(ln) for ln in jd_text.splitlines())
-
-
 def parse_sections(jd_text):
     """Strict split into the 8 canonical sections.
 

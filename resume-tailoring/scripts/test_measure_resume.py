@@ -1874,23 +1874,6 @@ class InferenceMapTests(unittest.TestCase):
         # no LinkedIn dump provided -> the source is not claimed searched
         self.assertNotIn("linkedin:", joined)
 
-    def test_missing_master_body_prints_warning(self):
-        # No adjacent '* Master Resume.docx' next to the tailored copy:
-        # the map silently searched the pruned COPY — content Phase 1
-        # cut was invisible (a real session raised CareMetx bullets the
-        # master still hosted). The warning makes the fallback visible
-        # and points at the master grep before RAISEing.
-        body = _body([
-            _para("Career Experience", style="SectionHeading"),
-            _para("Acme, City" + _sample_date() + " \u2013 08/2016",
-                  style=mr.COMPANY_STYLE),
-            _para("Wrote SQL queries against complex test data.", numId=2),
-        ])
-        out = mr._inference_map(["loadrunner"], body)
-        joined = "\n".join(out)
-        self.assertIn("WARNING: the master was NOT searched", joined)
-        self.assertIn("Grep the raw master", joined)
-
     def test_linkedin_dump_searched_as_second_source(self):
         # The LinkedIn export is the richer evidence source (a real
         # session justified the Elasticsearch fold from Skills.csv).

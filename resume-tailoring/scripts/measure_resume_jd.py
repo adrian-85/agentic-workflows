@@ -395,7 +395,7 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None,
     return lines
 
 
-def adjacent_master_body(docx):
+def _adjacent_master_body(docx):
     """Load the sole adjacent master as evidence for a tailored copy."""
     directory = os.path.dirname(os.path.abspath(docx))
     candidates = [name for name in os.listdir(directory)
@@ -409,7 +409,7 @@ def adjacent_master_body(docx):
     return body
 
 
-def fail_without_master(queue_label):
+def _fail_without_master(queue_label):
     """Exit 2 when the master is not adjacent to the tailored copy.
 
     The master leg of SKILL Step 8's source-first loop is mandatory,
@@ -470,8 +470,8 @@ def _inference_map(missing_terms, body, sources=None):
     if not missing_terms:
         return []
     sources = sources or InferenceSources()
-    master_loaded = sources.master_body is not None
-    ps = de.paras(sources.master_body if master_loaded else body)
+    ps = de.paras(sources.master_body if sources.master_body is not None
+                  else body)
     master_texts = [de.text_of(p).strip() for p in ps
                     if de.text_of(p).strip()]
     source_lines = [("master", master_texts)]
@@ -485,16 +485,6 @@ def _inference_map(missing_terms, body, sources=None):
         "terms are hosted without asking the user; the checklist "
         "presented to the user contains exactly the RAISE terms:",
         width=76, initial_indent="  ", subsequent_indent="    ")]
-    if not master_loaded:
-        out.append(textwrap.fill(
-            "  WARNING: the master was NOT searched (no adjacent "
-            "'* Master Resume.docx' next to the tailored copy) — the map "
-            "searched the tailored copy instead, so content Phase 1 cut "
-            "is invisible to it. Grep the raw master for every RAISE "
-            "term before asking the user (SKILL Steps 8 and 11): the "
-            "user's own history often evidences the ask in a bullet the "
-            "prune removed.",
-            width=76, initial_indent="  ", subsequent_indent="    "))
     for term in missing_terms:
         _variants = _inference_variants(term)
         _roots = _family_roots(term)

@@ -187,6 +187,9 @@ Tool-enforced (no instruction needed): `auto_prune.py` REFUSES non-master input 
 the tailored copy is its OUTPUT, never its input — REFUSES a JD that violates the
 8-section template (exit 2 naming the missing headers), and its emitted script runs under the
 full gate chain (`run_tailor.sh`: ast + find_p lint + prune-coverage + strict exec).
+`measure_resume.py` FAILS (exit 2) when a JD mining queue exists and no adjacent
+`* Master Resume.docx` sits next to the tailored copy — the master leg of Step 8's
+source-first loop is mandatory, never skippable.
 `measure_resume.py` REFUSES full-master page/word
 measurement (exit 2 without `--jd`; on the master, `--jd` is the machine pipeline's
 prune-plan mode) and, on a tailored copy, prints the BATCH RECLAIM PLAN, its JD-aware DROP PLAN
@@ -253,7 +256,7 @@ the residual page gap automatically.
   and prints the reuse.
 - **Characterize the JD's theme BEFORE Phase 1 — reading the ENTIRE
   JD, every section.** Theme cannot be assessed without taking the entire
-  JD into context, so no section is skippable. Write a compact labeled
+  JD into context, so no section is skippable. Write a company-focus
   theme brief covering:
   - **Company focus:** what the company does and the domain it serves.
   - **Differentiator:** what makes its approach, product, stage, or
@@ -265,15 +268,15 @@ the residual page gap automatically.
     specific focus.
 
   Do **not** put seniority in the theme brief — Step 4 owns seniority
-  alignment. Hand the brief to Phase 1 as `--theme "<compact labeled
-  brief>"` for traceability in the emitted tailor script's docstring.
-  Any JD-specific terminology equivalence the whole-JD read surfaces
-  (for example, a government JD's "IV&V" meaning testing for that
-  posting) goes in a repeatable `--equivalence
-  "IV&V=testing,quality validation"` flag — extending the ONE
-  ask/evidence matcher for that run, never a second filter. The theme
-  also steers Phase 2's judgment calls (Step 7's industry expansion,
-  Step 8's host placement).
+  alignment. Hand the brief to Phase 1 as `--theme "<company-focus
+  theme brief>"` for traceability in the emitted tailor script's
+  docstring. Any JD-specific terminology equivalence the whole-JD read
+  surfaces (for example, a government JD's "IV&V" meaning testing for
+  that posting) goes in a repeatable
+  `--equivalence "IV&V=testing,quality validation"` flag — extending
+  the ONE ask/evidence matcher for that run, never a second filter. The
+  theme also steers Phase 2's judgment calls (Step 7's industry
+  expansion, Step 8's host placement).
 - **The master resume and the LinkedIn export are NOT inputs here.**
   Phase 1's `auto_prune.py` (Step 2) is the only sanctioned master
   consumer until Step 8's gap mining unlocks both — the agent that reads
@@ -285,15 +288,12 @@ One command. No judgment, no dispositions, no cut report:
 
 ```bash
 python3 scripts/auto_prune.py "<userName> Master Resume.docx" jd_<target>.txt \
-    --target "<Target Name>" --theme "<Step 1's compact labeled theme brief>" \
+    --target "<Target Name>" --theme "<Step 1's company-focus theme brief>" \
     [--equivalence "<term>=<alt1>[,<alt2>...]"]...
 ```
 
-`--theme` is traceability (the emitted script's docstring records it);
-`--equivalence` (repeatable) extends the ask/evidence matcher with the
-JD-specific equivalences Step 1's whole-JD read surfaced. The JD file
-must satisfy the 8-section contract — the command exits 2 naming any
-missing header before touching the master.
+The JD file must satisfy the 8-section contract — the command exits 2
+naming any missing header before touching the master.
 
 What the machine does (deterministic; the agent has no lever here):
 - **CUT** every unevidenced bullet (the most recent role included) and
@@ -559,11 +559,11 @@ ask immediately. Before raising ANY term, perform this source-first loop —
    Then GREP the raw master text for every RAISE-candidate term
    yourself (`docx_edit.py "<master>.docx" --prefixes | grep -i
    "<term>"`) — the map's variants/family roots miss paraphrased
-   evidence the raw text still shows. **The master MUST sit next to the
-   tailored copy: `measure_resume.py` now exits 2 rather than fall back
-   to the pruned copy when a mining queue exists and the master is
-   absent** (content Phase 1 cut lives only in the master — mining
-   without it silently overstates gaps).
+   evidence the raw text still shows. **Mining without the master is a
+   FAILURE, not a warning: the master must sit next to the tailored
+   copy, and `measure_resume.py` exits 2 when a mining queue exists and
+   no adjacent master is found** (content Phase 1 cut lives only in the
+   master — mining without it silently overstates gaps).
 2. Read the complete LinkedIn dump and run the inference map for the current
    build and current gap list.
 3. AUTO-HOST every term with source evidence, without asking the user.

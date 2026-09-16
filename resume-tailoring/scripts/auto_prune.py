@@ -59,24 +59,24 @@ from measure_resume_format import (BULLET_STYLES, COMPANY_STYLE,
                                    SECTION_PROFICIENCIES, _roles)
 import jd_asks  # noqa: E402
 import jd_sections  # noqa: E402
-from script_args import (maybe_help, read_jd_text)  # noqa: E402
-from script_args import extract_flag, extract_flag_all  # noqa: E402
+from script_args import (extract_flag, extract_flag_all, maybe_help,  # noqa: E402
+                         read_jd_text)
 
 WORD_CAP = 40      # a trimmed bullet carries at most this many words
 PER_ROLE_CAP = 8   # hard per-role kept-bullet cap (SKILL Step 8)
 
 USAGE = """usage: auto_prune.py "<userName> Master Resume.docx" \\
         jd_<target>.txt [--target "<Target Name>"] \\
-        [--theme "<compact labeled JD theme brief>"] \\
+        [--theme "<company-focus JD theme brief>"] \\
         [--equivalence "<term>=<alt1>[,<alt2>...]"]
 
 Machine Phase 1: machine-prunes the master against the JD, emits
 scripts/tailor_<target>.py, and runs it through run_tailor.sh's gates.
 --target names the deliverable (default: derived from the JD filename).
---theme records the agent's compact labeled characterization of the whole
-JD (company focus, differentiator, role mission/outcomes, and capability
-connection) in the emitted script's docstring for traceability (SKILL Step
-1's theme read; seniority is handled separately in Step 4).
+--theme records the agent's characterization of the whole JD — company
+focus, differentiator, role mission/outcomes, and the capability
+connection — in the emitted script's docstring for traceability (SKILL
+Step 1's theme read; seniority is handled separately in Step 4).
 --equivalence (repeatable) adds a JD-specific terminology equivalence —
 e.g. --equivalence "IV&V=testing,quality validation" — extending the
 ONE ask/evidence matcher for this run only: a master bullet evidencing

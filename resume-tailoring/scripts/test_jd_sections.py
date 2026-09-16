@@ -51,19 +51,6 @@ class HeaderAtTests(unittest.TestCase):
         self.assertFalse(js.is_ask_header("some random line"))
 
 
-class IsSectionedTests(unittest.TestCase):
-    """The freeform-vs-sectioned input-class split."""
-
-    def test_freeform_jd_is_unsectioned(self):
-        """A recruiter-style message carries no canonical header."""
-        self.assertFalse(js.is_sectioned(
-            "Top 3 skills: Python, SQL, and Selenium."))
-
-    def test_one_canonical_header_marks_sectioned(self):
-        """Any single canonical header marks the text as sectioned."""
-        self.assertTrue(js.is_sectioned("Required Experience:\nSQL\n"))
-
-
 class ParseSectionsTests(unittest.TestCase):
     """The strict whole-file split into the 8 canonical sections."""
 
