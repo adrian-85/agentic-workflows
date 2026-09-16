@@ -4,6 +4,7 @@ evidence-family extension (EXTRA_EVIDENCE_FAMILIES)."""
 import unittest
 
 import jd_asks
+import ats_audit
 
 
 class RequirementLinesTests(unittest.TestCase):
@@ -149,7 +150,6 @@ expectations:
 
     def test_audits_qualification_scope_not_whole_posting(self):
         """ats_audit's term source keeps posting context but stays scoped."""
-        import ats_audit
         terms = ats_audit._jd_literal_terms(self.JD)
         self.assertNotIn("day", terms)
         self.assertNotIn("expectations", terms)
