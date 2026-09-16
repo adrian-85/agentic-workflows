@@ -22,17 +22,28 @@ certification/section line — and emits and runs the first tailor script
 through the full gate chain. Every disposition is row/sentence/whole-category
 granular — the machine never rewords a surviving sentence or line; that is
 Phase 2 agent work, done only when adding a host there (Step 2 has the exact
-rules). The agent never dispositions a prune candidate, never re-opens a
-cut by argument, never sees a cut report, and never page/word-measures the
-master. The single ask/evidence matcher is the disposition rule: fix its JD
-evidence families when truthful equivalents such as Python/Python scripting,
-Linux/WSL/Linux bash, unit/component testing, or visual checks/visual
-regression testing are being cut; do not add a second independent
-preservation filter. Its work starts on the resulting LEAN BASE BUILD:
+rules) — and the agent never page/word-measures the master. **The machine's
+dispositions are the STARTING POINT, not a verdict: the agent's theme
+judgment owns every edit on top of them.** Step 3's theme review checks the
+prune's output against the Step-1 brief — restoring theme-relevant content
+the matcher cut (as a fresh, purpose-written host, or by fixing the
+matcher's evidence families and re-running when truthful equivalents were
+wrongly cut) and cutting theme-irrelevant survivors the matcher kept — and
+every later edit round gets the same check. The single ask/evidence matcher
+stays the only MACHINE rule: do not add a second independent preservation
+filter; fix its JD evidence families when truthful equivalents such as
+Python/Python scripting, Linux/WSL/Linux bash, unit/component testing, or
+visual checks/visual regression testing are being cut. The goal of every
+edit — prune review, hosting, squeeze, render — is a resume built towards
+the central theme, not a keyword collection that passes ATS: after each
+edit round, re-read the round's changes against the theme brief and
+strengthen the theme's representation where it weakened. Agent work
+continues on the resulting LEAN BASE BUILD:
 measure it and decide length/seniority (Steps 3–4), preserve the user’s
 Summary/intro (Step 5), tailor title/flagship (Steps 5–7), and mine the
-master + LinkedIn ONLY when the ATS steps surface a gap to host (Step 8).
-Restores are add-driven and JD-evidenced; because the base build starts
+master + LinkedIn when the ATS steps surface a gap to host (Step 8).
+Restores are theme-review or gap-driven, and always land as fresh,
+purpose-written hosts; because the base build starts
 relevance-pruned, the old cut-iterate-cut compression loop is structurally
 gone. Page and whole-resume word budgets are Phase 2 work — closed after the
 initial positioning edits — never Phase 1. JD alignment is king, readability
@@ -45,14 +56,17 @@ never an exemption.
 from the master. It removes unevidenced content, whole dead sentences from a
 kept bullet, and whole non-JD proficiency/Tools lines — never a sub-sentence
 word/phrase edit and never a partial value list within a kept line. It never
-drops a whole role and does not perform page/word-budget iteration. The
-agent does not review or negotiate these cuts.
+drops a whole role and does not perform page/word-budget iteration. Its
+dispositions are deterministic and complete, but they are the STARTING
+POINT: Step 3's theme review is where the agent judges them against the
+Step-1 brief and overrides where warranted.
 
 **Phase 2 — final tailoring.** Starting from the Phase 1 base, the agent
 performs every remaining edit: title/Summary positioning, less-obvious
 master/LinkedIn mining, literal ATS hosts, JD tone and word choice, page and
-word budgets, rendering, and final ATS verification. There is no separate
-restore phase.
+word budgets, rendering, and final ATS verification — with every edit round
+checked against the theme brief. There is no separate restore phase;
+restores are theme-review or gap-driven hosts.
 
 ## When to Use
 
@@ -68,7 +82,7 @@ restore phase.
 |---|---|---|
 | 1 | Read the WHOLE JD, saved in the fixed 8-section template (persist to skill root + posting URL); write the company-focus theme brief + any term equivalences. The master and LinkedIn export stay UNREAD | `jd_sections.py` contract |
 | 2 | PHASE A — the machine prune (enforces the 8-header contract; `--theme`/`--equivalence` from Step 1): dispositions every candidate, emits the first tailor script, runs it through the gates, writes the lean base build. No cut report | `auto_prune.py` (runs `run_tailor.sh`) |
-| 3 | Measure the BASE BUILD (never the master) — diagnose relevance output; do not budget-prune in Phase 1 | `measure_resume.py` on the base copy |
+| 3 | Measure the BASE BUILD (never the master) and theme-review the prune's dispositions; do not budget-prune in Phase 1 | `measure_resume.py` on the base copy, master-vs-build prefix diff |
 | 4 | Decide length + seniority alignment (whole-role drops, with the user) | `measure_resume.py --simulate` |
 | 5 | Align top title to JD title (less senior); preserve the user’s Summary/intro unchanged | `set_text` for title only |
 | 6 | No sections between Summary & Proficiencies | — |
@@ -296,9 +310,10 @@ the residual page gap automatically.
   expansion, Step 8's host placement).
 - **The master resume and the LinkedIn export are NOT inputs here.**
   Phase 1's `auto_prune.py` (Step 2) is the only sanctioned master
-  consumer until Step 8's gap mining unlocks both — the agent that reads
-  the master early starts justifying keeps from it, which is how the
-  prune gets ignored.
+  consumer until Step 3's theme review unlocks the master's paragraph
+  map (the cut-set diff) and Step 8's mining unlocks both sources in
+  full — the agent that reads the master before the prune runs starts
+  justifying keeps from it, which is how the prune gets ignored.
 
 ### 2. PHASE A — run the machine prune
 One command. No judgment, no dispositions, no cut report:
@@ -335,8 +350,10 @@ What the machine does (deterministic; the agent has no lever here):
 
 Output is deliberately minimal — `WROTE scripts/tailor_<target>.py` and
 `BUILD: <dst>`. **There is no cut report.** Over-cutting is not corrected
-by argument or restore-from-report: a later phase that genuinely needs
-cut content gets it through Step 8's gap-driven mining, as a fresh,
+by argument or restore-from-report: Step 3's theme review catches
+theme-relevant losses (via the master-vs-build prefix diff), and a later
+phase that genuinely needs cut content gets it through Step 8's gap-driven
+mining, as a fresh,
 purpose-written host — which tailors better than preserved master prose
 anyway.
 
@@ -346,7 +363,7 @@ proficiency/Tools LINE carrying one is kept whole, so a JD-named hard
 skill's last host is never cut (Step 11's `ats_audit.py --jd` backstop
 still verifies post-build).
 
-### 3. Measure the base build — verify, don't reclaim
+### 3. Measure the base build, then theme-review the prune
 - Run `measure_resume.py` on the BASE BUILD (never the master — the tool
   refuses it): page-fill table, TIMELINE, word budget. The machine prune
   already removed everything without JD evidence, so the build lands
@@ -356,6 +373,24 @@ still verifies post-build).
 - Read the coverage report's [UNCOVERED] and [weak] lists and the **JD
   terms with NO host** list — that list is Step 8's mining queue. It is
   not something to fix by keeping more content up front.
+- **Theme-review the prune (the judgment layer).** The machine matched
+  terms; only the agent can judge theme. Diff the master's paragraph
+  map against the base build's (`docx_edit.py "<master>.docx"
+  --prefixes` vs the build's — the delta IS the cut set) and judge both
+  sides against the Step-1 theme brief:
+  - **Theme-relevant content the prune cut** → restore it as a fresh,
+    purpose-written host in the role where it lived (the Step-8 hosting
+    pattern, available from here for theme restores), or, when the
+    matcher cut a truthful equivalent, fix `--equivalence`/evidence
+    families and re-run `auto_prune.py` rather than hand-rebuilding.
+  - **Theme-irrelevant content the prune kept** (term-matched but
+    off-theme) → cut it in the positioning pass; the JD-FIT AUDIT's
+    unevidenced bullets are the first candidates, but theme judgment
+    may go beyond them.
+  Record each override's theme rationale as a comment in the tailor
+  script. This review — not the machine — is what makes the deliverable
+  read as a resume built towards a theme rather than a keyword
+  collection that passes ATS.
 
 ### 4. Decide length up front — on the PRUNED copy
 - **Target 2 pages; accept 3 for senior/Staff; 4 is too long.** The target
@@ -561,8 +596,10 @@ user edit, re-run Phase 1; do not write the fact into the master or a
 per-target script from this workflow.
 
 ### 8. PHASE 2 — final tailoring, restore & host
-**This step unlocks the master and the LinkedIn export.** Until here the
-agent has not read either. The trigger is a SURFACED GAP: the build
+**This step unlocks the LinkedIn export and full master mining.** (The
+master's paragraph map has been readable since Step 3's theme review;
+until here the agent has not read the LinkedIn export.) The mining
+trigger is a SURFACED GAP: the build
 measure's **JD terms with NO host** list, `ats_audit.py --jd`'s no-host
 report, or the external scan's missing hard/soft skill list (Step 11). Mining
 is gap-driven ONLY, but the surfaced list is a work order, not permission to
@@ -896,7 +933,7 @@ time.
 
 **Final human review (what the tools can't judge).** After the last render,
 re-read the full `--prefixes` dump top-to-bottom once: every kept bullet still
-serves the JD, whole-role removals still read as a coherent timeline, the top
+serves the JD and reads on-theme, whole-role removals still read as a coherent timeline, the top
 title's level matches the JD's title (Step 5), and the Summary's claims still
 match what the reader sees. Years-vs-timeline is
 automated (`validate_resume.py`); JD-fit judgment of kept bullets is not — that
@@ -975,7 +1012,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Hand-counting an edit budget (`expect_edits=N`) | Never count — `save()`'s drift sidecar records the baseline and warns on change |
 | Hand-rolling whole-role removal in the tailor script | Use `drop_role(body, "<company prefix>")` / `drop_section(body, "Education")` — the library owns the block grammar. A hand-rolled helper that appends before checking the boundary (or only treats Heading1/2 as boundaries) swallows the next `SectionHeading` (Education) and strands later edits as "not found" skips |
 | Verifying the PDF by rendering pages to images | Never works — this harness reads no images. Use `render_pdf.sh --verbose` (page map, last-page tail), `measure_resume.py`'s page-fill table, and `pdftotext` |
-| Chasing a skip warning as a library bug | Re-dump `--prefixes` on the master FIRST — it may have been edited since your dump (the `MASTER CHANGED:` sidecar warning fires on this); a prefix can also match a paragraph an earlier `drop` already removed if you thread a stale `ps` list — use `ps = drop(body, [...])` |
+| Chasing a skip warning as a library bug | Re-dump `--prefixes` on the master FIRST — it may have been edited since your dump (the `MASTER CHANGED:` sidecar warning fires on this); a prefix can also match a paragraph an earlier `drop` already removed if you thread a stale `ps` list — REBIND `ps = drop(body, [...])`, never concatenate (`ps = drop(...) + ps` duplicates the list and every later `find_p` matches twice) |
 | Guessing WHICH bullets to cut | Never — `auto_prune.py` (Step 2) machine-dispositions every candidate; the base build IS the disposition. Post-build unevidenced bullets come from the build measure's DROP PLAN (Step 8 backstop) |
 | Reading "no unprotected bullet to give" as a dead end | The engine has one rule (hosts an ask or not) — there is no second relevance threshold to negotiate; the dead-end fix is a TOP-BLOCK cut, a Tools-line trim, or a user-approved whole-role drop (Step 8 backstop) |
 | Running squeeze in apply mode on the tailored .docx and then folding cuts back into the script by hand | Harvest with `--plan-only` BEFORE the script's first run — same loop, same fold-back block, file untouched (Step 8) |
@@ -986,7 +1023,7 @@ the drift sidecar, `merge_into`; Steps 8 & 11). What's left is judgment:
 | Measuring the full master for page/word budgets | Refused by the tool — the master is machine-pruned only (Step 2); length/word decisions run on the BASE BUILD (Steps 3–4) |
 | Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 2, 8) |
 | Treating a proficiencies/Tools line as permanent ATS-host real estate | The machine keeps a line whole only when it hosts JD evidence and cuts a line with no ask whole (Step 2, never a partial value list); hosting comes from purpose-written bullet text, not preserved lines |
-| Re-litigating Phase 1 cuts by argument, or hand-pruning the master | The machine's disposition stands; there is no `# kept:` negotiation. `auto_prune.py` is the only sanctioned master consumer — re-run the command rather than editing its output cuts. Content the JD genuinely needs returns via Step 8 mining as a fresh, purpose-written host |
+| Overriding a prune cut without theme rationale, or hand-editing the emitted cuts | Step 3's theme review is the sanctioned override: restore as a fresh, purpose-written host, or fix the evidence families and re-run `auto_prune.py`; record the rationale in the script. Never hand-edit the machine's output cuts — the machine prune stays the only master consumer and there is no `# kept:` negotiation |
 | Dropping an interior role and leaving a timeline gap | Check the plan's gap warning; cut from the oldest role instead, or restore a lean stub (header/title + strongest bullet) of the dropped role (Step 8) |
 | Passing `find_p(ps, ...)` results into `drop()`/`drop_role()` | Works now — the element's own text is derived as the prefix (`save()` prints one summary line if element-form was used). Still prefer pasting the DROP PLAN's `find_p` lines verbatim: the string is the documented form (Helper library) |
 | Iterating Tools-line trims because a trimmed line still wraps | Rare now: TOOLS LINES THAT WRAP reports the MEASURED budget per line ("value is N chars, wraps after ~M — cut ~N-M chars"), so the first trim lands. Trim to the reported budget, not a tool count — the proportional font makes "~8 tools" unreliable (Step 8) |
