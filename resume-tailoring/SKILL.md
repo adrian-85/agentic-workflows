@@ -33,14 +33,21 @@ edit — prune review, hosting, squeeze, render — is a resume built towards th
 just a keyword collection that passes ATS: after each edit round, re-read the round's changes
 against the theme brief and strengthen the theme's representation where it weakened.
 
-Agent work continues on the resulting LEAN BASE BUILD: measure it and decide length/seniority (Steps
-3–4), preserve the user’s Summary/intro (Step 5), tailor title/flagship (Steps 5–7), and mine the
-master + LinkedIn when the ATS steps surface a gap to host (Step 8). Restores are theme-review or
-gap-driven, and always land as fresh, purpose-written hosts; because the base build starts
-relevance-pruned, the old cut-iterate-cut compression loop is structurally gone. Page and
-whole-resume word budgets are Phase 2 work — closed after the initial positioning edits — never
-Phase 1. JD alignment is king, readability second; time-in-role and recency are only tiebreakers,
-never a cut signal and never an exemption.
+The theme is an explicit decision layer, not a keyword decoration. The required execution order is:
+(1) machine prune, (2) Theme Review A of the prune, (3) baseline ATS audit, (4) Theme Review B of
+the audit with any theme-aligned edits, (5) seniority review in theme context, (6) title and
+positioning edits, (7) theme-scoped page closure, (8) theme-scoped word closure only when the build
+exceeds 1,000 words, (9) the limited page-removal assessment, and (10) spacers only when they do
+not create a new page. A final render/ATS run verifies the result; it must not reopen a score-driven
+editing loop. Each gate must be complete before the next one begins.
+
+Agent work continues on the resulting LEAN BASE BUILD: Theme Review A owns the prune overrides,
+Theme Review B owns ATS-related hosts, seniority protects unique theme evidence, and every later
+edit is checked against the brief. Restores are theme-review or gap-driven, and always land as
+fresh, purpose-written hosts. The single ask/evidence matcher remains the only MACHINE rule; the
+agent's theme reviews are judgment gates, not a second matcher. JD alignment is king, readability
+second, and theme coherence is the tie-breaker when keyword coverage and narrative strength
+conflict. Time-in-role and recency are only tiebreakers, never a cut signal and never an exemption.
 
 ## Editing phases
 
@@ -69,13 +76,13 @@ Core principle's theme check; there is no separate restore phase.
 | Step | Action | Tool |
 |---|---|---|
 | 1 | Read the WHOLE JD, saved in the fixed 8-section template (persist to skill root + posting URL); write the company-focus theme brief + any term equivalences. The master and LinkedIn export stay UNREAD | `jd_sections.py` contract |
-| 2 | PHASE A — the machine prune (enforces the 8-header contract; `--theme`/`--equivalence` from Step 1): dispositions every candidate, emits the first tailor script, runs it through the gates, writes the lean base build. No cut report | `auto_prune.py` (runs `run_tailor.sh`) |
-| 3 | Measure the BASE BUILD (never the master) and theme-review the prune's dispositions; do not budget-prune in Phase 1 | `measure_resume.py` on the base copy, master-vs-build prefix diff |
-| 4 | Decide length + seniority alignment (whole-role drops, with the user) | `measure_resume.py --simulate` |
-| 5 | Align top title to JD title (less senior); preserve the user’s Summary/intro unchanged | `set_text` for title only |
-| 6 | No sections between Summary & Proficiencies | — |
-| 7 | Re-anchor senior role (merge, don't append); expand role adjacent to JD industry/stage — do this before the first post-drop run | `set_text`, `merge_into` |
-| 8 | PHASE 2 — final tailoring: mine master (grep-first) + LinkedIn for less-obvious hosts, weave tone/focus/word choice, close page/word/ATS budgets, then add role spacers (default on; skip only on a page conflict) | `ats_audit.py --jd`, `read_profile.sh`, `set_text`, `squeeze_resume.py --protect` |
+| 2 | PHASE A — the independent machine prune (enforces the 8-header contract; `--theme` is provenance only; `--equivalence` extends the matcher): dispositions every candidate, emits the first tailor script, runs it through the gates, writes the lean base build. No cut report | `auto_prune.py` (runs `run_tailor.sh`) |
+| 3 | Theme Review A: measure the BASE BUILD, diff master vs build, and disposition the prune against the theme before any seniority or budget decision | `measure_resume.py`, `docx_edit.py --prefixes` |
+| 4 | Baseline ATS audit, then Theme Review B: classify every finding through the theme and make only truthful, theme-aligned hosts or raises | `render_pdf.sh`, `ats_audit.py --jd`, `read_profile.sh` |
+| 5 | Decide length + seniority alignment with the theme in view; preserve roles carrying unique theme evidence | `measure_resume.py --simulate` |
+| 6 | Align top title to JD title (less senior); preserve the user’s Summary/intro unchanged | `set_text` for title only |
+| 7 | Re-anchor senior role and industry/stage story, then close page/word budgets with theme-scoped edits | `set_text`, `merge_into`, `measure_resume.py` |
+| 8 | Assess page removal only when spill is ≤5 rendered lines; add spacers last only when they do not create a new page | `render_pdf.sh --verbose`, `clone_after` |
 | 9 | Fix grammar, typos, punctuation | grep + `validate_resume.py` |
 | 10 | Save tailored copy (never overwrite master) | `save()` |
 | 11 | Render + verify PDF | `render_pdf.sh` |
@@ -103,10 +110,9 @@ User-supplied personal assets (`*.docx` / `*.pdf`, gitignored) live in the skill
 runs the first tailor script through `run_tailor.sh`'s gates) · `measure_resume.py` (Step 3/4 page
 math on the tailored copy; `--jd` on the MASTER is the machine pipeline's prune-plan mode — the
 agent never runs it; `--linkedin <dump>` feeds the INFERENCE MAP for no-host terms in Step 8) ·
-`squeeze_resume.py` (Step 8 backstop; auto-tightens to the page budget) · `validate_resume.py`
+`squeeze_resume.py` (Step 7A backstop; auto-tightens only within the theme-scoped page pass) · `validate_resume.py`
 (Steps 4, 11; `--master` auto-detects the `* Master Resume.docx` next to the input) ·
-`diff_resume.py` (Token-spend) · `read_profile.sh` (Step 8) · `ats_audit.py` (Step 11;
-literal-phrase ATS audit of the rendered PDF + word cap) · `ats_check.py` (Step 11; runs the
+`diff_resume.py` (Token-spend) · `read_profile.sh` (Step 8) · `ats_audit.py` (Steps 3A and 11; baseline and final literal-phrase audits of the rendered PDF + word cap) · `ats_check.py` (Step 11; runs the
 external ATS scan via the user's saved credentials, saves the report JSON) · `test_*.py` unit tests
 (`python3 -m unittest test_docx_edit test_auto_prune test_measure_resume \ test_validate_resume
 test_squeeze_resume test_ats_audit test_ats_check`, from `scripts/`).
@@ -149,15 +155,16 @@ are:
    sidecar is the tripwire; diff_resume is the review.)
 4. **Over-cut by 1–2 bullets per batch; if still over, drop a whole oldest role.** Never
    hand-shorten sentences to chase a page break — it's the lowest-leverage, highest-cycle edit.
-   When only a few lines over, run `squeeze_resume.py` (Step 8) to close the residual gap
+   When only a few lines over, run `squeeze_resume.py` (Step 7A) to close the residual gap
    automatically instead of trimming by hand.
 5. **Slice files, not re-runs.** Output you will read in sections — measure's DROP PLAN /
    page-fill table, a full `--prefixes` dump — goes to a file once (`measure_resume.py … >
    /tmp/measure.txt 2>&1`), then read the file with grep/sed. Never pipe a dump you will author
    from through `head`: the tail is silently lost and the missing paragraphs resurface as skipped
    edits.
-6. **Syntax-check and lint a tailor script the moment it is written.** Run `scripts/run_tailor.sh
-   "<master>.docx" scripts/tailor_<target>.py` — it ast.parses the script, verifies EVERY
+6. **Syntax-check and lint a tailor script the moment it is written.** For Phase 2, run
+   `RESUME_WORKFLOW_STATE="<Name> Resume - <Target>.docx.workflow.json" scripts/run_tailor.sh
+   "<master>.docx" scripts/tailor_<target>.py` — it requires Theme Review B, then ast.parses the script and verifies EVERY
    `find_p` target resolves against the master (`--lint-script`), verifies EVERY prune-plan
    candidate is addressed by an edit or a recorded `# kept:` reason (`--lint-prune` — output
    format, sidecar, and exit codes: [docs/api.md](docs/api.md)), then executes it under
@@ -249,8 +256,9 @@ the residual page gap automatically.
     domain requirements help the company sustain its specific focus.
 
   Do **not** put seniority in the theme brief — Step 4 owns seniority alignment. Hand the brief to
-  Phase 1 as `--theme "<company-focus theme brief>"` for traceability in the emitted tailor
-  script's docstring. Any JD-specific terminology equivalence the whole-JD read surfaces (for
+  Phase 1 as `--theme "<company-focus theme brief>"` for provenance in the emitted tailor
+  script's docstring only. `auto_prune.py` does not use the flag to decide cuts; Theme Review A is
+  the required post-prune alignment gate. Any JD-specific terminology equivalence the whole-JD read surfaces (for
   example, a government JD's "IV&V" meaning testing for that posting) goes in a repeatable
   `--equivalence "IV&V=testing,quality validation"` flag — extending the ONE ask/evidence matcher
   for that run, never a second filter. The theme also steers Phase 2's judgment calls (Step 7's
@@ -301,7 +309,7 @@ concept survives every trim (whole, unmodified) and any proficiency/Tools LINE c
 whole, so a JD-named hard skill's last host is never cut (Step 11's `ats_audit.py --jd` backstop
 still verifies post-build).
 
-### 3. Measure the base build, then theme-review the prune
+### 3. Theme Review A — review the prune against the theme before any budget or seniority decision
 - Run `measure_resume.py` on the BASE BUILD (never the master — the tool refuses it): page-fill
   table, TIMELINE, word budget. The machine prune already removed everything without JD evidence,
   so the build lands JD-evidenced content only by construction, but Phase 1 does not enforce page
@@ -323,7 +331,83 @@ still verifies post-build).
     tailor script. This review — not the machine — is what makes the deliverable read as a
     resume built towards a theme rather than a keyword collection that passes ATS.
 
-### 4. Decide length up front — on the PRUNED copy
+**Theme Review A is a gate, not a note.** Before simulating role drops, aligning the title, mining
+sources, or editing for page/word budgets, record the meaningful dispositions in the tailor script
+comments or a short per-target review note:
+
+- **Cut but theme-relevant:** restore it as a fresh host in its original role, or correct the
+  evidence family and rerun Phase 1 only when the matcher missed a truthful equivalent.
+- **Kept but theme-irrelevant:** remove it in the positioning pass, even if it matched a JD term.
+- **Kept and theme-supporting:** state the theme role it plays when the rationale is not obvious.
+- **Theme anchor:** identify the roles, outcomes, domain evidence, and capability connections that
+  must survive later seniority and budget edits.
+
+The review must include the master-vs-build cut set, not just the build's coverage report. Do not
+advance until the review's restores, cuts, and keep rationales are applied or explicitly recorded.
+The prune emits `<Name> Resume - <Target>.docx.workflow.json` in phase `pruned`; record the review
+with a JSON file and advance the gate:
+
+```bash
+python3 scripts/workflow_gate.py review \
+    "<Name> Resume - <Target>.docx.workflow.json" theme_review_<target>.json
+```
+
+The JSON must contain `{"kind":"prune", "theme_anchors":[...], "dispositions":[...]}`. Each
+disposition needs an item, a `restore`, `cut`, or `keep` decision, and a non-empty theme rationale.
+The gate validates that the review exists; it does not make the semantic judgment for the agent.
+
+### 3A. Baseline ATS audit, then Theme Review B
+Render the Theme Review A build sufficiently to run the literal audit, then run:
+
+```bash
+RESUME_RENDER_PHASE=baseline \
+RESUME_WORKFLOW_STATE="<Name> Resume - <Target>.docx.workflow.json" \
+RESUME_VALIDATE_ARGS="--jd jd_<target>.txt --max-words 0" \
+    ./scripts/render_pdf.sh "<Name> Resume - <Target>.docx"
+python3 scripts/ats_audit.py "<Name> Resume - <Target>.pdf" \
+    --jd jd_<target>.txt --max-words 0 --baseline \
+    --workflow-state "<Name> Resume - <Target>.docx.workflow.json"
+```
+
+This is the **baseline ATS audit**, not the final deliverable check. The baseline may use
+`--max-words 0` because word closure intentionally happens later. Review every no-host finding
+through the theme before editing. For each finding, record one disposition:
+
+- **Theme-aligned host:** truthful evidence exists and the exact phrase strengthens the central
+  story. Host it in the evidence-bearing bullet, merging rather than appending.
+- **Theme-aligned concept, missing literal wording:** add the phrase only if it improves both ATS
+  coverage and the theme narrative.
+- **Off-theme or parser noise:** do not distort the resume to host it. Record why it is ignored.
+- **Unsupported:** search the master and complete LinkedIn export first, then raise it if no truthful
+  evidence exists.
+
+The source-first mining and hosting rules in Step 8 are executed here, during Theme Review B, before
+seniority or budget edits. Re-run the audit after approved hosts land until no further theme-aligned
+host remains. Do not move to seniority while a no-host finding is merely unreviewed. A final
+post-render audit later verifies the finished document but never reopens score-driven editing. Record
+Theme Review B before seniority:
+
+```bash
+python3 scripts/workflow_gate.py review \
+    "<Name> Resume - <Target>.docx.workflow.json" theme_review_<target>_ats.json
+```
+
+The ATS review JSON must contain `{"kind":"ats", "findings":[...]}`. Every finding needs a phrase,
+a `host`, `ignore`, or `raise` decision, and a non-empty rationale. The review command advances the
+state only after the baseline audit has been recorded.
+
+### 4. Decide seniority and positioning with the theme in view
+Run this step only after Theme Review B closes the baseline ATS findings. Record the user's approved
+role-drop decision before editing the script:
+
+```bash
+python3 scripts/workflow_gate.py advance \
+    "<Name> Resume - <Target>.docx.workflow.json" seniority-approved
+```
+
+The seniority proposal must preserve any role that carries unique company-focus, domain, mission, or
+capability evidence, even when that evidence has few literal JD matches.
+
 - **Target 2 pages; accept 3 for senior/Staff; 4 is too long.** The target is a MAX, never a
   requirement — a resume that lands under it is always fine, and never add or keep content to fill
   pages. "Senior" is mechanical, not a judgment call: the JD's stated title is
@@ -468,8 +552,8 @@ heavy AI leverage can genuinely accomplish more than a 3-year one — time serve
 signal, and volume of accomplishment never justifies keeping a bullet. It was pruned under the same
 machine rule as every other role (Step 2).
 
-Enrichment is NOT part of this step — new content from the master/LinkedIn enters only through Step
-8's gap-driven hosting, never a general pass. Where new content overlaps an existing bullet,
+Enrichment is NOT part of this step — new content from the master/LinkedIn enters only through
+Theme Review B's source-first hosting pass, never a general pass. Where new content overlaps an existing bullet,
 **merge** rather than append — appending blows the page budget; merging keeps the role tight.
 
 When the recruiter or JD names specific tools, weave each into the role bullet where it was actually
@@ -482,12 +566,54 @@ most relevant past role to show those themes with concrete framing — keep and 
 confirms they have, stop and ask the user to add it to the master directly. After the user edit,
 re-run Phase 1; do not write the fact into the master or a per-target script from this workflow.
 
-### 8. PHASE 2 — final tailoring, restore & host
-**This step unlocks the LinkedIn export and full master mining.** (The master's paragraph map has
-been readable since Step 3's theme review; until here the agent has not read the LinkedIn export.)
-The mining trigger is a SURFACED GAP: the build measure's **JD terms with NO host** list,
-`ats_audit.py --jd`'s no-host report, or the external scan's missing hard/soft skill list (Step 11).
-Mining is gap-driven ONLY, but the surfaced list is a work order, not permission to ask immediately.
+### 7A. Close page and word budgets with theme-scoped edits
+Run this section only after the user approves the seniority plan and Steps 5–7 positioning edits
+are applied. The page target is a maximum, never a reason to add content. Re-measure the positioned
+build and edit toward the agreed target using the theme anchors from Theme Review A:
+
+- **Page closure first:** cut or merge only content that is off-theme, redundant, or weaker than
+  another host for the same theme outcome. Never remove a unique domain, mission, capability, or
+  role-continuity anchor merely because it has fewer literal JD terms.
+- **Word closure second:** if and only if the build exceeds the 1,000-word cap, make a separate
+  theme-scoped word pass. Keep headroom for the rendered-PDF counter, and record the theme reason
+  for every cut or merge. If the build is at or below 1,000 words, do not make score-driven word
+  edits.
+- **Page-removal assessment:** if an extra page remains, measure the rendered spill. Attempt a
+  trim-to-remove-page pass only when the spill is **five rendered lines or fewer**. When the spill
+  is greater than five lines, retain the page or return to the approved target decision; do not
+  launch a broad compression loop.
+- **Spacers last:** after content and budgets settle, add one spacer at each inter-role boundary only
+  when it does not create a new page or exceed the agreed target. If a spacer spills, omit the
+  spacer, never theme-aligned content.
+
+Every page, word, page-removal, or spacer edit gets one final read against the theme brief before
+rendering. Close the measurable budget gate with the measured PDF word count and spill:
+
+```bash
+python3 scripts/workflow_gate.py budgets \
+    "<Name> Resume - <Target>.docx.workflow.json" \
+    --words <rendered-word-count> --spill-lines <spill-lines>
+```
+
+Add `--attempted-page-removal` only when attempting to remove a page. The command rejects counts above 1,000 and rejects a page-removal attempt unless its positive spill
+is five lines or fewer. After spacers are added and confirmed not to create a page, close the final
+layout gate:
+
+```bash
+python3 scripts/workflow_gate.py spacers \
+    "<Name> Resume - <Target>.docx.workflow.json"
+```
+
+The final render and ATS audit are verification only.
+
+### 8. Source-first hosting reference — execute during Theme Review B
+**This section unlocks the LinkedIn export and full master mining.** (The master's paragraph map has
+been readable since Theme Review A; the source-first loop itself executes during Theme Review B,
+before seniority and budget work.)
+The mining trigger is a SURFACED GAP during Theme Review B: the build measure's **JD terms with NO
+host** list or `ats_audit.py --jd`'s baseline no-host report. A later external scan may confirm a
+gap, but it cannot reopen the closed hosting loop. Mining is gap-driven ONLY, and the surfaced list
+is a work order for thematic review, not permission to ask or host immediately.
 Before raising ANY term, perform this source-first loop — **in this order, and the master leg is a
 checked step, not a habit**:
 
@@ -558,37 +684,22 @@ concept; the never-fabricate rule is for tools and employers (Appium, LoadRunner
 skills backed by the candidate's own demonstrated history.
 
 **Host in-bullet first.** A mined host lands as a rewrite or extension of the kept bullet where the
-evidence lives — mirroring the JD's literal phrase — never as resurrected master prose and never as
-a keyword list (Step 6). Every bullet stays under the 40-word cap. When no kept bullet can
+evidence lives — mirroring the JD's literal phrase only when Theme Review B approves it — never as
+resurrected master prose and never as a keyword list (Step 6). Every bullet stays under the 40-word cap. When no kept bullet can
 truthfully host the ask, author a fresh bullet in the role where the experience lives (merge, don't
-append). **If a host pushes the build over the page or word budget, trade: drop the weakest
-surviving bullet of the SAME role in the same edit** — a one-term, one-edit trade, never a reclaim
-plan. That keeps the hosting loop O(1); the old cut-iterate-cut compression cycle is gone by
-construction, because the base build (Step 2) starts with relevance pruning complete; page and
-whole-resume word budgets are handled in Phase 2.
+append). Do not trade or cut content inside this hosting loop to solve page or word budgets. Record
+the host, finish Theme Review B, and handle all budget changes later in Step 7A.
 
-**Backstop length math** — the caps bind before rendering, after the initial positioning pass
-(title, Summary, senior role, Education decision); a build over cap before that pass is expected,
-not a signal to trim early. **Hard bullet cap per role: never more than 8 kept bullets** (the
-machine enforces it on survivors; hosting can push a role back over — a trade above fixes it).
-**Whole-resume word cap: ≤1,000 words**, validator-enforced, second in precedence to the page target
-and never bypassed — and keep the .docx count at ~990 or below, because `ats_audit.py`'s
-rendered-PDF counter (the authoritative one) drifts +1–2%. If drift accumulates beyond single
-trades: run `measure_resume.py` on the build with the agreed Step-4 target and take its
-weakest-first DROP PLAN and TOP-BLOCK candidates (they name exact bullets — don't hand-pick; the
-engine's one rule leaves nothing to negotiate — unevidenced bullets are the cuttable supply); then
-`squeeze_resume.py --protect "<JD-critical phrase>"` for the residual gap — and JD-judge every
-squeeze fold-back line before applying it (squeeze is page-math-only).
+**Budget reference only.** The hard per-role cap remains eight bullets and the whole-resume cap
+remains 1,000 words, but all page and word decisions execute in Step 7A after seniority and
+positioning. Do not use this source-mining section to launch a weakest-first or score-driven reclaim
+loop. If `squeeze_resume.py --protect "<JD-critical phrase>"` is used in Step 7A, review every
+fold-back line against the theme before applying it.
 
-**Readability spacing — the DEFAULT is to add spacers; skip only on a page-length conflict.** One
-blank spacer paragraph between roles is part of the deliverable's readability, not optional polish.
-After the content settles (hosts landed, budgets closed), add one blank spacer at EVERY inter-role
-boundary: measure prints **SPACER OPPORTUNITIES** with the boundaries that lack the pause, and
-`validate_resume.py`'s GUIDANCE section now lists them at the render gate (`clone_after(body,
-find_p(ps, "<Tools line>"), "")`, run AFTER `remove_empty(body)` — see docs/api.md). The ONLY reason
-to skip a spacer is that adding it would push the build past the agreed page target; when it does,
-drop the spacer, never the JD-matched content. Fixed precedence: (1) JD-aligned content, (2) the
-page target, (3) spacing — but (3) loses only to (2), never to inertia.
+Spacer insertion is specified in Step 7A and happens only after the theme, ATS, seniority, page,
+and word decisions are closed. Use `measure_resume.py`'s **SPACER OPPORTUNITIES** and
+`validate_resume.py`'s GUIDANCE output, run `clone_after(body, find_p(ps, "<Tools line>"), "")`
+after `remove_empty(body)`, and omit any spacer that would create a new page.
 ### 9. Fix grammar and typos in the same pass
 Common catches: `to improving` → `improving` (infinitive), `companies goal` → `company's goal`,
 `HIPPA` → `HIPAA`, `evangalist` → `evangelist`, `testzing` → `testing`, `Github` → `GitHub`

@@ -9,9 +9,10 @@ under a hard per-role bullet cap of 8 kept bullets; whole-role cuts come
 from the oldest roles when seniority alignment calls for them. JD alignment
 first, readability second; time-in-role and recency are only tiebreakers.
 
-The full 11-step workflow — reading inputs, rewriting the Summary, weaving
-JD-required tools into role bullets, measuring before cutting, grammar passes,
-and PDF verification — is documented in [`SKILL.md`](SKILL.md).
+The full workflow — including the executable prune/theme/ATS gates, theme-scoped
+seniority and budget passes, grammar checks, and PDF verification — is documented
+in [`SKILL.md`](SKILL.md). Theme text passed to `auto_prune.py` is provenance only;
+the required agent reviews are recorded and ordered by `scripts/workflow_gate.py`.
 
 ## Directory layout
 
@@ -26,7 +27,8 @@ and PDF verification — is documented in [`SKILL.md`](SKILL.md).
 | `scripts/diff_resume.py` | Diffs a user-edited tailored `.docx` against a fresh regenerate so manual edits surface as text and can be folded back into the tailor script. `--tailor <script>` auto-regenerates to a temp file and diffs in one command. |
 | `scripts/validate_resume.py` | Structural validator: catches orphan job titles, company blocks without titles, orphaned content after a Tools line, **role-integrity violations** (kept roles missing title or bullets; removed roles whose bullets survive), roles over the **8-bullet hard cap** (SKILL Step 8; the master as input is exempt), the **whole-resume word cap** (≤1000 words for a tailored deliverable — `--max-words N` overrides, `0` disables; the master input is exempt), unapproved whole-role elimination, and quantified-claim mismatches against the master. With `--jd` it also warns when the resume headline is **MORE SENIOR** than the JD's named title (SKILL Step 4 title alignment; advisory) and gates Education drops against degree-requiring JDs. Enforces the punctuation rule (periods and commas only in Summary/job-history prose — no em dashes, double hyphens, semicolons, colons, or ellipses; compound hyphens, date-range en dashes, and the Tools line's `Label: values` colon exempt). Advisory **GUIDANCE** section: word-count cap — no prose paragraph or individual bullet over 40 words, ≤40 acceptable (SKILL Step 4) — and sections between Summary & Technical Proficiencies (SKILL Step 5). `render_pdf.sh` runs it before rendering and refuses broken output. |
 | `scripts/read_profile.sh` | Dumps the LinkedIn data-export folder (`Basic_LinkedInDataExport_*/` CSVs) as one readable stream, used as a content cross-reference. |
-| `scripts/ats_audit.py` | **ATS verification backstop (SKILL Step 11)**: the internal JD matchers are term/concept-based, but ATS screeners match literal phrases — this tool runs the ATS-style check on the rendered PDF (pdftotext), not the .docx. Checks the whole-resume word cap with its own counting (mirrors external scorers by stripping page furniture), literal hosting of the JD's qualification-line skill phrases (`--jd`), and optionally externally supplied phrase lists (`--phrases-file`, one per line) or an external scan report (`--report-json` — the report's per-skill hit counts are the authoritative host signal; the report's `contactEmail` finding is IGNORED by rule: the compact hyperlinked contact block is deliberate design). Zero-hit hard-skill terms fail — host the exact phrase truthfully or raise the gap, never fabricate. Exit 0 clean, 1 findings, 2 usage/IO error. |
+| `scripts/ats_audit.py` | **ATS baseline/final audit (SKILL Steps 3A/11)**: checks literal phrases and the rendered-PDF word cap. `--baseline --workflow-state <state>` requires Theme Review A and records the ordered ATS gate; later audits are verification only. Zero-hit terms still require agent theme disposition, not automatic keyword edits. Exit 0 clean, 1 findings, 2 usage/IO error. |
+| `scripts/workflow_gate.py` | Per-target ordered state machine. Records prune/theme/ATS reviews, requires structured dispositions, enforces the 1,000-word cap, enforces the ≤5-line page-removal rule, and refuses spacer closure when spacers create a new page. |
 | `scripts/ats_check.py` | **External scan runner (SKILL Step 11, optional)**: submits the rendered deliverable (PDF preferred — it is the submitted format) to the user's ATS scan service and saves the match-report JSON next to the resume for `ats_audit.py --report-json`. Reconstructs the upload → job-description → opportunity → report chain from the user's OWN saved cURL exports in the skill root's `.ats-check/curl.txt` (gitignored, durable across session cleanup) — no service specifics are hardcoded — rotating session cookies through a curl cookie jar and re-deriving the CSRF header from the jar before every request. When scans return 401/403, re-export the four requests from a logged-in browser session and delete the skill root's `.ats-check/cookies.txt` to re-seed. `ats_check.py check` validates the saved config without scanning. Identifying the target company's ATS requires the job posting URL persisted with the JD (`Posting URL: <url>` as the first line of `jd_<target>.txt`, SKILL Step 1). |
 | `scripts/test_docx_edit.py` | Unit tests for `docx_edit.py`. |
 | `scripts/test_measure_resume.py` | Unit tests pinning `measure_resume.py`'s default format assumptions and proving the constants adapt to a different resume. |
@@ -34,11 +36,12 @@ and PDF verification — is documented in [`SKILL.md`](SKILL.md).
 | `scripts/test_validate_resume.py` | Unit tests for `validate_resume.py`'s structural checks, role-integrity lint, word cap, and seniority-gate logic. |
 | `scripts/test_ats_audit.py` | Unit tests for the literal-phrase audit (hosting rules, phrase mining, word counting, report consumption). |
 | `scripts/test_ats_check.py` | Offline unit tests for the scan chain (config parsing/classification, cookie-jar rotation handling, response shapes) — no network. |
+| `scripts/test_workflow_gate.py` | Tests the ordered phase transitions, review-record contract, word/page gates, and final spacer gate. |
 
 Run the full suite from the `scripts` directory:
 
 ```bash
-python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test_squeeze_resume test_ats_audit test_ats_check
+python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test_squeeze_resume test_ats_audit test_ats_check test_workflow_gate
 ```
 
 ## Requirements
@@ -66,40 +69,53 @@ python3 -m unittest test_docx_edit test_measure_resume test_validate_resume test
    cp scripts/tailor_resume.py scripts/tailor_<target>.py
    ```
 
-4. **Run it from the skill root** (so the relative `SRC`/`DST` paths resolve):
+4. **Run Phase A once**, then record the state emitted beside the build. Create
+   the prune theme review JSON and advance it before any Phase 2 script run:
 
    ```bash
-   python3 scripts/tailor_<target>.py
+   python3 scripts/workflow_gate.py review \
+       "<userName> Resume - <Target>.docx.workflow.json" theme_review_<target>.json
    ```
 
-   Every run copies the master to `<userName> Resume - <Target>.docx` and
-   edits that copy — the master is never overwritten.
-5. **Verify every edit applied** — `DOCX_EDIT_STRICT=1` makes any skipped
-   edit fail the run (exit 2) instead of shipping a partial resume. After a
-   fold into the master (or a user edit between sessions), the next run is
-   auto-strict: the `MASTER CHANGED:` gate exits 2 on any skipped edit even
-   without the env var.
-6. **Render and size-check** the PDF, iterating until the last page is full:
+5. **Run the baseline ATS audit only after Theme Review A**, then record Theme
+   Review B. Phase 2 script runs require the state sidecar through
+   `ats-theme-reviewed`:
 
    ```bash
-   TARGET_PAGES=2 ./scripts/render_pdf.sh "<userName> Resume - <Target>.docx"
+   RESUME_RENDER_PHASE=baseline \
+   RESUME_WORKFLOW_STATE="<userName> Resume - <Target>.docx.workflow.json" \
+   RESUME_VALIDATE_ARGS="--jd jd_<target>.txt --max-words 0" \
+       ./scripts/render_pdf.sh "<userName> Resume - <Target>.docx"
+   python3 scripts/ats_audit.py "<userName> Resume - <Target>.pdf" \
+       --jd jd_<target>.txt --max-words 0 --baseline \
+       --workflow-state "<userName> Resume - <Target>.docx.workflow.json"
+   python3 scripts/workflow_gate.py review \
+       "<userName> Resume - <Target>.docx.workflow.json" theme_review_<target>_ats.json
    ```
 
-   Measure before cutting with `measure_resume.py` to plan every role's cuts
-   as a batch (its weak-match listing names generic-term matches that no
-   longer protect); `--simulate "<company prefix>"` what-ifs a whole-role
-   drop (seniority alignment) without touching the file. Verification is
-   text-only — `--verbose` page map, page-fill table, `pdftotext` — never
-   rendered page images.
-6. **Verify the ATS view of the deliverable** after the final render — the
-   internal matchers are term/concept-based and overestimate alignment:
+6. **Record the approved seniority decision, then run Phase 2 edits with the
+   state gate. Close budgets and spacers programmatically. Use the measured
+   rendered word count and page spill:
 
    ```bash
-   python3 scripts/ats_audit.py "<userName> Resume - <Target>.pdf" --jd jd_<target>.txt
+   python3 scripts/workflow_gate.py advance \
+       "<userName> Resume - <Target>.docx.workflow.json" seniority-approved
+   RESUME_WORKFLOW_STATE="<userName> Resume - <Target>.docx.workflow.json" \
+       ./scripts/run_tailor.sh "<userName> Master Resume.docx" scripts/tailor_<target>.py
+   python3 scripts/workflow_gate.py budgets \
+       "<userName> Resume - <Target>.docx.workflow.json" \
+       --words <rendered-word-count> --spill-lines <spill-lines>
+   python3 scripts/workflow_gate.py spacers \
+       "<userName> Resume - <Target>.docx.workflow.json"
+   RESUME_RENDER_PHASE=final \
+   RESUME_WORKFLOW_STATE="<userName> Resume - <Target>.docx.workflow.json" \
+       TARGET_PAGES=2 ./scripts/render_pdf.sh --verbose \
+       "<userName> Resume - <Target>.docx"
    ```
 
-   checks the 1000-word cap and every JD qualification phrase literally on
-   the rendered text; fix zero-hit phrases truthfully or raise the gap.
+   The workflow is text-only — use the verbose page map, page-fill table, and
+   `pdftotext`; never render page images. Final `ats_audit.py` and any external
+   scan are verification, not permission to reopen score-driven edits.
    For the external ground truth, save the scan service's four cURL
    exports to the skill root's `.ats-check/curl.txt` (see `scripts/ats_check.py`
    for the format), then run:
