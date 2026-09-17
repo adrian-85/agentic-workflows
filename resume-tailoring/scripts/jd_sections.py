@@ -42,8 +42,7 @@ ASK_SECTIONS = (
     "education",
 )
 
-# The trailing colon is mandatory: a bare "title" or "role" in the
-# posting body must never read as a section header.
+# The trailing colon is mandatory (rationale: module docstring).
 _HEADER_RE = {
     h: re.compile(r"^\s*" + re.escape(h) + r"\s*:\s*$", re.I)
     for h in SECTION_HEADERS

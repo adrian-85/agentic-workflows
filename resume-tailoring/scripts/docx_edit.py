@@ -548,14 +548,16 @@ def set_labeled(p, label, value):
 
     The label is NORMALIZED to end with ``": "`` — a bare label
     (``"Tools & Technologies"``) or a bare-colon one gets the separator
-    appended, so label and values can never glue together (two sessions
-    lost repair rounds to a bare label; the library owns the separator
-    now). A label already ending in ``": "`` is written verbatim.
+    appended, so label and values can never glue together. A label
+    already ending in ``": "`` is written verbatim.
     """
     if p is None:
         _warn_missing(label)
         return
-    label += "" if label.endswith(": ") else (" " if label.endswith(":") else ": ")
+    label = label.rstrip()
+    if not label.endswith(":"):
+        label += ":"
+    label += " "
     rs = _runs(p)
     bold_rPr = None
     val_rPr = None
