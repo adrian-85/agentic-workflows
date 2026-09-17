@@ -56,6 +56,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import jd_asks  # noqa: E402
+import workflow_gate  # noqa: E402
 from script_args import (MAX_WORDS, MATCH_RATE_TARGET, flag_value,
                          maybe_help, match_target_met)  # noqa: E402
 
@@ -345,6 +346,8 @@ def _parse_ats_args(argv):
         "report_json": flag_value(argv, "--report-json"),
         "match_target": flag_value(argv, "--match-target", cast=int,
                                    default=MATCH_RATE_TARGET),
+        "workflow_state": flag_value(argv, "--workflow-state"),
+        "baseline": "--baseline" in argv,
     }
 
 
@@ -356,6 +359,7 @@ class _AuditResult:
     errors: list = field(default_factory=list)
     warns: list = field(default_factory=list)
     ok_lines: list = field(default_factory=list)
+    findings: list = field(default_factory=list)
 
 
 def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result):
@@ -364,6 +368,7 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result):
         with open(jd_path, encoding="utf-8", errors="replace") as f:
             jd_text = f.read()
         ok_n, missing = _audit_jd(text_low, jd_text)
+        result.findings.extend(missing)
         if missing:
             result.errors.append(
                 "JD literal terms with NO host in the rendered text: "
@@ -383,6 +388,7 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result):
         with open(phrases_file, encoding="utf-8", errors="replace") as f:
             phrases = [ln.strip() for ln in f if ln.strip()]
         missing = _audit_phrases(text_low, phrases)
+        result.findings.extend(missing)
         if missing:
             result.errors.append("phrases with NO literal host: "
                                  + ", ".join(missing))
@@ -404,6 +410,8 @@ def _audit_report_skills(report_data, text_low, text, result):
                  if not cnt and not _hosted(text_low, p.strip().lower())]
     soft_miss = [p for p, cnt in soft
                  if not cnt and not _hosted(text_low, p.strip().lower())]
+    result.findings.extend(hard_miss)
+    result.findings.extend(soft_miss)
     if hard_miss:
         errors.append(
             "report hard skills with NO literal host: "
@@ -425,12 +433,30 @@ def _audit_report_skills(report_data, text_low, text, result):
         warns.append(line)
 
 
+def _check_baseline_gate(args):
+    """Require the prune theme review before a stateful baseline audit."""
+    if not args["baseline"]:
+        return True
+    if not args["workflow_state"]:
+        print("error: --baseline requires --workflow-state", file=sys.stderr)
+        return False
+    try:
+        workflow_gate.require(args["workflow_state"],
+                              "prune-theme-reviewed")
+    except workflow_gate.GateError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return False
+    return True
+
+
 def main(argv=None):
 
     """ATS-audit CLI entry point."""
     args = _parse_ats_args(argv)
     if args is None:
         print(__doc__)
+        return 2
+    if not _check_baseline_gate(args):
         return 2
     text = _extract_text(args["path"])
     text_low = text.lower().replace("\n", " ")
@@ -466,6 +492,13 @@ def main(argv=None):
         print(f"  WARNING: {line}")
     for line in result.errors:
         print(f"  FAIL: {line}")
+    if args["baseline"]:
+        try:
+            workflow_gate.record_audit(
+                args["workflow_state"], result.findings, args["path"])
+        except workflow_gate.GateError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     if result.errors:
         print(f"RESULT: {len(result.errors)} finding(s) — fix or raise")
         return 1

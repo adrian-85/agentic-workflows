@@ -3,7 +3,10 @@
 #
 # Usage:
 #   ./scripts/render_pdf.sh <input.docx> [output.pdf] [outdir]
-#   ./scripts/render_pdf.sh --verbose <input.docx>  # full output for final verify
+#   RESUME_RENDER_PHASE=baseline RESUME_WORKFLOW_STATE=<state> \
+#       ./scripts/render_pdf.sh <input.docx>
+#   RESUME_RENDER_PHASE=final RESUME_WORKFLOW_STATE=<state> \
+#       ./scripts/render_pdf.sh --verbose <input.docx>
 #   TARGET_PAGES=2 ./scripts/render_pdf.sh <input.docx> [output.pdf] [outdir]
 #
 # Defaults:
@@ -55,6 +58,29 @@ if [ ! -f "$INPUT" ]; then
 fi
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Baseline rendering is allowed only after Theme Review A; final rendering
+# is allowed only after budgets and spacers are closed. The phase variable is
+# optional for legacy/manual renders, but the documented workflow always sets
+# it so render order cannot be bypassed accidentally.
+case "${RESUME_RENDER_PHASE:-}" in
+    baseline)
+        [ -n "${RESUME_WORKFLOW_STATE:-}" ] || {
+            echo "Error: baseline render requires RESUME_WORKFLOW_STATE" >&2
+            exit 2
+        }
+        python3 "$SELF_DIR/workflow_gate.py" require \
+            "$RESUME_WORKFLOW_STATE" prune-theme-reviewed
+        ;;
+    final)
+        [ -n "${RESUME_WORKFLOW_STATE:-}" ] || {
+            echo "Error: final render requires RESUME_WORKFLOW_STATE" >&2
+            exit 2
+        }
+        python3 "$SELF_DIR/workflow_gate.py" require \
+            "$RESUME_WORKFLOW_STATE" spacers-closed
+        ;;
+esac
 
 # Structural/claim lint gate (A: validate_resume.py). Aborts the render on
 # structural errors (orphan job titles, company blocks without titles,

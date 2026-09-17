@@ -59,6 +59,7 @@ from measure_resume_format import (BULLET_STYLES, COMPANY_STYLE,
                                    SECTION_PROFICIENCIES, _roles)
 import jd_asks  # noqa: E402
 import jd_sections  # noqa: E402
+import workflow_gate  # noqa: E402
 from script_args import (extract_flag, extract_flag_all, maybe_help,  # noqa: E402
                          read_jd_text)
 
@@ -75,8 +76,9 @@ scripts/tailor_<target>.py, and runs it through run_tailor.sh's gates.
 --target names the deliverable (default: derived from the JD filename).
 --theme records the agent's characterization of the whole JD — company
 focus, differentiator, role mission/outcomes, and the capability
-connection — in the emitted script's docstring for traceability (SKILL
-Step 1's theme read; seniority is handled separately in Step 4).
+connection — in the emitted script's docstring for provenance only. It is
+NON-OPERATIVE: the machine prune ignores it; Theme Review A is the required
+post-prune judgment gate (SKILL Step 3).
 --equivalence (repeatable) adds a JD-specific terminology equivalence —
 e.g. --equivalence "IV&V=testing,quality validation" — extending the
 ONE ask/evidence matcher for this run only: a master bullet evidencing
@@ -435,8 +437,9 @@ def emit_script(plan, src, dst, meta):
         f'    cd "$(dirname "$0")/.." && python3 '
         f'scripts/{meta["script_name"]}',
         "",
-        f'Gates: scripts/run_tailor.sh "{src}" '
-        f'scripts/{meta["script_name"]}',
+        f'Gates after Theme Review B: RESUME_WORKFLOW_STATE='
+        f'"{meta.get("state_name", dst + ".workflow.json")}" '
+        f'scripts/run_tailor.sh "{src}" scripts/{meta["script_name"]}',
         '"""',
         "",
         _EMITTED_IMPORTS,
@@ -588,11 +591,17 @@ def _emit_and_run(plan, meta):
     runner = os.path.join(skill_root, "scripts", "run_tailor.sh")
     proc = subprocess.run(["bash", runner, os.path.basename(docx),
                            f"scripts/{script_name}"],
-                          cwd=skill_root, check=False)
+                          cwd=skill_root, check=False,
+                          env={**os.environ, "RESUME_TAILOR_PHASE": "prune"})
     if proc.returncode != 0:
         print(f"error: run_tailor.sh gates failed (exit {proc.returncode})",
               file=sys.stderr)
         sys.exit(proc.returncode)
+    state_path = os.path.join(skill_root, meta["state_name"])
+    workflow_gate.create_state(
+        state_path, meta["target"], os.path.basename(meta["jd_file"]),
+        meta.get("theme", ""))
+    print(f"WORKFLOW STATE: {meta['state_name']} (phase: pruned)")
 
 
 def _build_meta(docx, jd_file, target, skill_root):
@@ -602,7 +611,7 @@ def _build_meta(docx, jd_file, target, skill_root):
     dst = f"{user} Resume - {target}.docx"
     meta = {"target": target, "jd_name": os.path.basename(jd_file),
             "jd_file": jd_file, "docx": docx, "dst": dst,
-            "skill_root": skill_root}
+            "skill_root": skill_root, "state_name": dst + ".workflow.json"}
     meta["script_name"] = "tailor_" + re.sub(
         r"[^a-z0-9]+", "_", target.lower()).strip("_") + ".py"
     return dst, meta

@@ -18,26 +18,39 @@
 #        passes through)
 #
 # usage:
+#   RESUME_WORKFLOW_STATE="Name Resume - Target.docx.workflow.json" \
 #   RESUME_VALIDATE_ARGS="--jd jd_x.txt --jd-years 6 --seniority-approved" \
-#       scripts/run_tailor.sh "Adrian Alan Master Resume.docx" scripts/tailor_x.py
+#       scripts/run_tailor.sh "Name Master Resume.docx" scripts/tailor_x.py
 #
+# auto_prune sets RESUME_TAILOR_PHASE=prune for its own Phase A run. All
+# later runs require a state sidecar at least through ats-theme-reviewed.
 # Both paths resolve from the skill root (the script's parent's parent);
 # the wrapper cd's there so relative --jd paths in RESUME_VALIDATE_ARGS work.
 set -euo pipefail
 
 if [ "$#" -lt 2 ]; then
     echo "usage: run_tailor.sh <master.docx> <tailor_script.py>" >&2
-    echo "  env: RESUME_VALIDATE_ARGS passes through to the script" >&2
+    echo "  env: RESUME_WORKFLOW_STATE and RESUME_VALIDATE_ARGS" >&2
     exit 2
 fi
 
 SCRIPT_PATH="$2"
+WORKFLOW_STATE="${RESUME_WORKFLOW_STATE:-}"
 SKILL_ROOT="$(cd "$(dirname "$SCRIPT_PATH")/.." && pwd)"
 DOCX="$1"
 
 cd "$SKILL_ROOT"
 [ -f "$DOCX" ] || { echo "error: docx not found: $DOCX" >&2; exit 2; }
 [ -f "$SCRIPT_PATH" ] || { echo "error: script not found: $SCRIPT_PATH" >&2; exit 2; }
+
+if [ "${RESUME_TAILOR_PHASE:-}" != "prune" ]; then
+    [ -n "$WORKFLOW_STATE" ] || {
+        echo "error: Phase 2 tailoring requires RESUME_WORKFLOW_STATE" >&2
+        exit 2
+    }
+    python3 scripts/workflow_gate.py require-at-least "$WORKFLOW_STATE" \
+        ats-theme-reviewed
+fi
 
 python3 -c "import ast; ast.parse(open('$SCRIPT_PATH').read())" \
     || { echo "run_tailor: syntax error in $SCRIPT_PATH" >&2; exit 1; }
