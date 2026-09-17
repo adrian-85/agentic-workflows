@@ -41,7 +41,7 @@ authoring:
   wrong under real use (a boundary check placed after the append swallowed the following
   `SectionHeading`, silently eating Education). Handles duplicate job titles with no
   `after=`/`nth=` anchor (the block is contiguous from the role's OWN header). Seniority alignment
-  (Step 4) is a sequence of these. **Preferred order when extending an emitted script:** remove
+  (Step 5) is a sequence of these. **Preferred order when extending an emitted script:** remove
   all `set_text`/`set_labeled` edits for the dropped role, including its Tools-line edits. The
   prune gate associates Tools-line candidates with their owning role, so `drop_role()` covers them
   as well as bullet candidates. If generated edits are temporarily retained, place `drop_role()`
@@ -65,60 +65,6 @@ authoring:
 
 Paragraphs are XML elements — read their text with `text_of(p)`, never `p.text`/`p.text_`.
 
-### workflow_gate.py — ordered workflow state
-
-`workflow_gate.py` stores `<Target>.docx.workflow.json` beside the tailored build and enforces the
-mechanical phase order. The state transitions are:
-
-```text
-created → pruned → prune-theme-reviewed → ats-audited → ats-theme-reviewed
-        → seniority-approved → budgets-closed → spacers-closed
-```
-
-`auto_prune.py` creates the state at `pruned`; its `--theme` value is recorded as provenance only and
-does not alter machine pruning. The two agent reviews are JSON records, not free-form notes:
-
-```json
-{"kind":"prune", "theme_anchors":["..."],
- "dispositions":[{"item":"...", "decision":"restore|cut|keep",
-                    "rationale":"..."}]}
-{"kind":"ats", "findings":[{"phrase":"...", "decision":"host|ignore|raise",
-                               "rationale":"..."}]}
-```
-
-Record them in order:
-
-```bash
-python3 scripts/workflow_gate.py review <state> theme_review_<target>.json
-python3 scripts/ats_audit.py <pdf> --jd <JD.txt> --baseline --workflow-state <state>
-python3 scripts/workflow_gate.py review <state> theme_review_<target>_ats.json
-python3 scripts/workflow_gate.py advance <state> seniority-approved
-python3 scripts/workflow_gate.py budgets <state> --words <N> --spill-lines <N>
-python3 scripts/workflow_gate.py spacers <state>
-```
-
-The baseline audit records every no-host phrase and the ATS review must disposition exactly that
-set. `budgets` enforces the 1,000-word cap and permits a page-removal attempt only for a positive
-spill of five rendered lines or fewer. `spacers` rejects a pass that creates a new page. Theme
-quality and truthful wording remain agent/user judgments; the gate enforces that those judgments are
-recorded and occur in order.
-
-### State-aware shell gates
-
-Phase 2 `run_tailor.sh` requires `RESUME_WORKFLOW_STATE` at least through `ats-theme-reviewed`.
-Baseline rendering is explicitly separate from final rendering:
-
-```bash
-RESUME_RENDER_PHASE=baseline RESUME_WORKFLOW_STATE=<state> \
-    ./scripts/render_pdf.sh <build.docx>
-RESUME_RENDER_PHASE=final RESUME_WORKFLOW_STATE=<state> \
-    ./scripts/render_pdf.sh --verbose <build.docx>
-```
-
-Baseline rendering and baseline `ats_audit.py --baseline` skip the word-cap gate internally because
-word closure is later. Final rendering and the non-baseline ATS audit enforce the normal 1,000-word
-cap. The workflow does not use a user-supplied word-cap bypass flag for this phase distinction.
-
 Inspect/author with:
 
 ```bash
@@ -140,6 +86,64 @@ python3 scripts/docx_edit.py "<userName> Master Resume.docx" \
     --set-text "<ref prefix>" --with "<new bullet text>"
 ```
 
+## Workflow state gates
+
+### workflow_gate.py — ordered workflow state
+
+`workflow_gate.py` stores `<Target>.docx.workflow.json` beside the tailored build and enforces the
+mechanical phase order. The state transitions are:
+
+```text
+pruned → prune-theme-reviewed → ats-audited → ats-theme-reviewed
+       → seniority-approved → budgets-closed → spacers-closed
+```
+
+`auto_prune.py` creates the state at `pruned`; its `--theme` value is recorded as provenance only and
+does not alter machine pruning. The two agent reviews are JSON records, not free-form notes:
+
+```json
+{"kind":"prune", "theme_anchors":["..."],
+ "dispositions":[{"item":"...", "decision":"restore|cut|keep",
+                    "rationale":"..."}]}
+{"kind":"ats", "findings":[{"phrase":"...", "decision":"host|ignore|raise",
+                               "rationale":"..."}]}
+```
+
+Record them in order:
+
+```bash
+python3 scripts/workflow_gate.py review <state> theme_review_<target>.json
+python3 scripts/ats_audit.py <pdf> --jd <JD.txt> --baseline --workflow-state <state>
+python3 scripts/workflow_gate.py review <state> theme_review_<target>_ats.json
+python3 scripts/workflow_gate.py advance <state> seniority-approved
+python3 scripts/workflow_gate.py budgets <state> --words <N> --spill-lines <N> \
+    [--attempted-page-removal]
+python3 scripts/workflow_gate.py spacers <state>
+```
+
+The baseline audit records every no-host phrase and the ATS review must disposition exactly that
+set. `budgets` enforces the 1,000-word cap (`MAX_WORDS`) and permits a page-removal attempt only for
+a positive spill of five rendered lines or fewer. `spacers` rejects a pass that creates a new page.
+Theme quality and truthful wording remain agent/user judgments; the gate enforces that those
+judgments are recorded and occur in order.
+
+### State-aware shell gates
+
+Phase 2 `run_tailor.sh` requires `RESUME_WORKFLOW_STATE` at least through `ats-theme-reviewed`
+(`auto_prune.py` sets `RESUME_TAILOR_PHASE=prune` for its own Phase A run, which precedes the state).
+Baseline rendering is explicitly separate from final rendering:
+
+```bash
+RESUME_RENDER_PHASE=baseline RESUME_WORKFLOW_STATE=<state> \
+    ./scripts/render_pdf.sh <build.docx>
+RESUME_RENDER_PHASE=final RESUME_WORKFLOW_STATE=<state> \
+    ./scripts/render_pdf.sh --verbose <build.docx>
+```
+
+Baseline rendering and baseline `ats_audit.py --baseline` skip the word-cap gate internally because
+word closure is later. Final rendering and the non-baseline ATS audit enforce the normal 1,000-word
+cap. The workflow does not use a user-supplied word-cap bypass flag for this phase distinction.
+
 ## Reference template
 
 `scripts/tailor_resume.py` is a **generic template** (placeholder content, no company or recruiter
@@ -157,7 +161,7 @@ or re-tailor later: it re-runs from the untouched master and is a diff-able reco
 **Caveat:** it pins to the master's bullet-text prefixes; when the master is rewritten, `find_p`
 prefixes may drift (review warnings, or run with `DOCX_EDIT_STRICT=1` to fail on any skip).
 
-## Step 4 procedures — Seniority alignment (run on the PRUNED copy)
+## Step 5 procedures — Seniority alignment (run on the PRUNED copy)
 
 ### Simulation (what-if whole-role drops)
 
@@ -230,11 +234,11 @@ approved" or the user naming the target span). Passing `--seniority-approved` on
 is not a judgment call — it is a bypass that turns the gate into decoration. Same rule for
 `--education-approved`. In a single-turn/autonomous session (the whole task arrived in one message
 and no user turn is available): present the proposed span with the numbers and STOP — the
-deliverable gate (Step 10) refuses to write the .docx itself without the token, so there is no file
+deliverable gate (Step 11) refuses to write the .docx itself without the token, so there is no file
 to hand over and nothing to convert by hand. After the user approves, re-run the tailor script with
 the token in `RESUME_VALIDATE_ARGS` (it writes then), then render.
 
-## Step 7A procedures — Theme-scoped page and word closure (measure the TAILORED copy, never the master)
+## Step 9 procedures — Theme-scoped page and word closure (measure the TAILORED copy, never the master)
 
 ### Reading measure output
 
@@ -251,10 +255,13 @@ merge bullets so the next role starts cleanly at the top of a page.
 
 ### Applying the DROP PLAN
 
-**Apply the DROP PLAN, not your own instinct.** The BATCH RECLAIM PLAN says *how many* bullets to
-cut per role; the **DROP PLAN** section names *which*, as copy-pasteable `find_p(ps, "…")` lines —
-ranked weakest-first by a deterministic scorer (generic/no-number bullets first; quantified ones
-last; ties toward longer text since it saves more lines).
+**Treat the DROP PLAN as input to Step 9's theme judgment, not as the decision.** The BATCH RECLAIM
+PLAN says *how many* bullets to cut per role; the **DROP PLAN** section names *candidates*, as
+copy-pasteable `find_p(ps, "…")` lines — ranked weakest-first by a deterministic scorer
+(generic/no-number bullets first; quantified ones last; ties toward longer text since it saves more
+lines). Theme judgment decides which candidates actually go: never cut a theme anchor (Theme Review
+A's list) to follow the rank order, and never keep a bullet the rank protects when it reads
+off-theme.
 
 **Run `--jd <raw-JD.txt>` so the DROP PLAN is JD-aware.** The scorer alone is JD-blind: it ranks by
 numbers and generic phrasing, so a bullet like "Championed the adoption of Cypress" (a named JD
@@ -293,7 +300,7 @@ when the JD asks for API work), and singular/plural pairs ("integration" ↔ "pa
 
 ### Squeezing the residual gap
 
-When only a few lines over after the planned theme-scoped cuts, run `squeeze_resume.py` (Step 7A) to
+When only a few lines over after the planned theme-scoped cuts, run `squeeze_resume.py` (Step 9) to
 close the residual gap automatically instead of trimming by hand.
 
 **Harvest the plan with `--plan-only` BEFORE the tailor script's first run.** Apply mode rewrites
@@ -343,7 +350,7 @@ python3 scripts/measure_resume.py "<userName> Master Resume.docx" --jd jd_<targe
 ```
 
 The master without `--jd` exits 2; `--simulate` on the master exits 2 (seniority what-ifs run on the
-base build, Step 4). An explicit page target is ignored with a note. **The agent does not run this
+base build, Step 5). An explicit page target is ignored with a note. **The agent does not run this
 mode** — Phase 1's `auto_prune.py` (SKILL Step 2) is the machine prune's only consumer: it
 machine-dispositions every candidate (no agent keeps, no overrides, no cut report), emits the first
 tailor script, and runs it through `run_tailor.sh`. A `# kept:` line in an emitted script is always
@@ -375,7 +382,7 @@ kept bullets and list lines (Technical Proficiencies, role Tools lines) that sur
 row/sentence/ whole-category pruning but still carry irrelevant tool mentions or dead sentences.
 Phase 1 (`auto_prune.py`) never rewrites a surviving sentence or line at the word/phrase level — it
 only drops whole dead sentences and keeps or cuts a list line whole; anything this section flags is
-backstop cleanup for the agent to apply by hand in the theme-scoped Phase 2 budget pass (Step 7A),
+backstop cleanup for the agent to apply by hand in the theme-scoped Phase 2 budget pass (Step 9),
 not something the machine already did.
 
 **Bullet-level output:**
@@ -384,7 +391,7 @@ WORD-LEVEL TRIM CANDIDATES (kept bullets and list lines still
 carrying non-JD content after the row/sentence prune — cut the
 flagged sentence WHOLE; a list line hosting any JD evidence stays
 whole, never reduced to a subset. Sub-sentence wording changes are
-Phase 2 agent work during Theme Review B or Step 7A, done only when already adding a
+Phase 2 agent work during Theme Review B or Step 9, done only when already adding a
 host to that line — never strip a term the JD names or one that
 hosts a [weak]/covered ask):
   Acme, City:
@@ -426,7 +433,7 @@ truthful bullet — at AUTHORING time, from the master-measure's list — not to
 weave the literal phrase into a bullet where used — hosting from that evidence needs no user
 confirmation. Self-assessment-adjective qual lines ("Excellent communication, ...") extract no skill
 terms and print `[by hand]` with the soft-skill inference rule — judge them on kept action-verb
-evidence (SKILL Step 8), never by chasing the adjective.
+evidence (the Hosting reference in SKILL.md), never by chasing the adjective.
 
 ### INFERENCE MAP — evidence for no-host JD terms
 
@@ -543,7 +550,7 @@ clone_after(body, tools_ref_2, "")
 Re-run `render_pdf.sh` (compact) to verify — measuring replaces iteration, it does not replace the
 final verification render.
 
-## Step 11 procedures — Render and verify
+## Step 12 procedures — Render and verify
 
 The `.docx` is the editing format; **the `.pdf` is the deliverable** — render and verify with
 `render_pdf.sh` (compact by default; `--verbose` for the final verification render: validation
@@ -556,7 +563,7 @@ RESUME_RENDER_PHASE=final RESUME_WORKFLOW_STATE=<state> \
   ./scripts/render_pdf.sh --target-pages 3 --verbose "<output>.docx"  # final verification
 ```
 
-The render's default page target is 2; pass `--target-pages N` matching the target agreed in Step 4,
+The render's default page target is 2; pass `--target-pages N` matching the target agreed in Step 5,
 so the overflow report measures against the goal you actually agreed on (3 for senior/Staff, not the
 2-page default).
 
@@ -575,7 +582,7 @@ gates); `validate_resume.py` invoked DIRECTLY takes the same flags as CLI argume
 scripts/validate_resume.py "<docx>" 2 --jd <JD.txt> --seniority-approved`). Putting the flags in the
 env for a direct validate call (or vice versa) silently drops them.
 
-**When the JD specifies years of experience** (Step 4), confirm alignment and record approval in one
+**When the JD specifies years of experience** (Step 5), confirm alignment and record approval in one
 command:
 
 ```bash
@@ -584,12 +591,12 @@ RESUME_VALIDATE_ARGS="--jd <JD.txt> --jd-years <N> --seniority-approved" \
 ```
 
 `--jd-years <N>` reports the visible span vs the JD's ask ("~7.4 years vs the JD's 5+ — aligned"),
-warns if under (underqualified), and notes a large overshoot — the signal to offer Step 4's gapless
+warns if under (underqualified), and notes a large overshoot — the signal to offer Step 5's gapless
 oldest-role elimination. `--seniority-approved` is the gate token: REQUIRED only when whole roles
 were eliminated — without it the render is blocked, so the user-approved decision is recorded, not
 assumed. **Pass it only with the user's authority** (their chat reply, or pre-authorization in the
-original request — Step 4.5). Without that authority, the deliverable gate has already refused to
-write the .docx (Step 10) — present the plan, and after the user's reply re-run the tailor script
+original request — Step 5). Without that authority, the deliverable gate has already refused to
+write the .docx (Step 11) — present the plan, and after the user's reply re-run the tailor script
 with the token in `RESUME_VALIDATE_ARGS`, then render. The two flags are independent: `--jd-years`
 is an optional advisory; the gate reads only the approval token. `--jd-years` is ONLY for a JD that
 states a number of years. If the posting names no years ask, do NOT pass it: every span comparison
@@ -597,14 +604,14 @@ is then measured against a fabricated ask, producing false *underqualified* verd
 load-bearing education warning. `validate_resume.py` warns when `--jd-years` is passed but the JD
 text states no "N+ years" ask.
 
-**Whole-resume word cap** (SKILL Step 7A): the validator counts every paragraph's alphanumeric
+**Whole-resume word cap** (SKILL Step 9): the validator counts every paragraph's alphanumeric
 tokens and blocks over `MAX_WORDS` (1,000) for tailored resumes — the master input is exempt, like
 the bullet cap. The baseline render/audit phase suppresses this check internally because page and
 word closure occur later. The final render and non-baseline `ats_audit.py` enforce the cap; the
 workflow never passes a user-facing bypass flag. The cap's authoritative measurement on the
 RENDERED text is `ats_audit.py` (below), whose counting strips page furniture a text extractor emits.
 
-## Step 11 procedures — ATS verification (literal phrases + external scan)
+## Step 12 procedures — ATS verification (literal phrases + external scan)
 
 The internal matchers are term/concept-based; external ATS screeners match literal phrases against
 the rendered text. A resume can pass every internal gate and lose ATS points (a real session: 9 of
@@ -626,7 +633,7 @@ are extracted only from the text following skill-introducing cues like "experien
 rules); zero-host terms mean a cut killed the last host (the machine protects JD-named chunks, Step
 2) or the phrase was never mirrored — host the exact phrase truthfully or raise the gap, never
 fabricate; and before raising a no-host term as a genuine gap, grep the MASTER for it (including
-bullets the first pass cut — see SKILL Step 11 for the rationale and an example); (3) with
+bullets the first pass cut — see SKILL Step 12 for the rationale and an example); (3) with
 `--phrases-file` (one phrase per line) or `--report-json` (an external scan report, below), literal
 checks of externally supplied phrases — a skill's `resumeCount` from the report is the authoritative
 host signal, the literal check is the fallback. Report soft-skill no-hosts warn as ACTIONABLE (SKILL
@@ -642,13 +649,13 @@ score-driven edits resume only when the user explicitly asks.
 `<resume>.ceiling.json` (written best-effort, never blocks the audit; any score change resets it).
 When two consecutive audits report the SAME score below target, the audit prints **CEILING
 DETECTED** — the remaining hard/soft skill checklist must be presented to the user before declaring
-the honest ceiling (SKILL Step 11); delete the sidecar to clear the state. Its counterpart on the
+the honest ceiling (SKILL Step 12); delete the sidecar to clear the state. Its counterpart on the
 measure side is the **REQUIREMENTS SUMMARY** one-liner (`measure_resume.py`): the
 unconfirmed-hard-skills call-to-action prints ONLY when that count is above 0 — a fully-covered run
 prints the counts alone. Exit 0 clean, 1 findings, 2 usage/IO error.
 
 IGNORED by rule: the report's contactEmail searchability finding — the compact hyperlinked contact
-block is a deliberate design (Step 11, SKILL.md); never alter the contact block to satisfy a literal
+block is a deliberate design (Step 12, SKILL.md); never alter the contact block to satisfy a literal
 text parser.
 
 ### ats_check.py — the external scan (when configured)

@@ -245,7 +245,7 @@ def _jd_requirement_coverage(roles, body, jd_text):
                             "soft-skill ask — covered by kept action-verb "
                             "evidence (presented, demoed, led, mentored, "
                             "trained); never the literal adjective "
-                            "(SKILL Step 8)"))
+                            "(SKILL Step 4)"))
             else:
                 out.append((label, "by_hand", ""))
             continue
@@ -262,7 +262,7 @@ def _jd_requirement_coverage(roles, body, jd_text):
             out.append((label, "weak",
                         "proficiency/Tools line only — the ask is "
                         "demonstrably the user's: weave the literal "
-                        "phrase into a bullet where used (SKILL Step 6); "
+                        "phrase into a bullet where used (SKILL Step 8); "
                         "hosting needs no user confirmation"))
             continue
         out.append((label, "uncovered",
@@ -273,7 +273,7 @@ def _jd_requirement_coverage(roles, body, jd_text):
 
 def _boundaries_without_spacer(body):
     """Inter-role boundaries with no blank spacer paragraph before the
-    next company header — the readability pause of SKILL Step 8's
+    next company header — the readability pause of SKILL Step 9's
     spacing step, reported instead of remembered. Returns
     (next_role_header, anchor_text) per gap: the anchor is the previous
     role's last non-empty paragraph (usually its Tools line), the
@@ -443,7 +443,7 @@ def _print_coverage_lines(coverage, term_map):
 
 def _requirements_summary_line(coverage, counts, hard_uncovered):
     """The compact one-line REQUIREMENTS SUMMARY signal for the agent —
-    when unanswered_hard > 0, the two-state checklist (SKILL Step 8)
+    when unanswered_hard > 0, the two-state checklist (SKILL Step 4)
     MUST be presented to the user before claiming done."""
     summary = (f"REQUIREMENTS SUMMARY: {counts['covered']}/{len(coverage)} "
                f"quals covered, {counts['weak']} weak, "
@@ -451,16 +451,16 @@ def _requirements_summary_line(coverage, counts, hard_uncovered):
                f"{counts['by_hand']} by-hand")
     if hard_uncovered:
         summary += (f" ({hard_uncovered} unanswered hard skill(s) — "
-                    "present two-state checklist to user, SKILL Step 8)")
+                    "present two-state checklist to user, SKILL Step 4)")
     if counts["by_hand"]:
         # Soft-skill asks extract no terms ([by hand]) — without a
-        # directive they sat unhosted until the Step-11 scan flagged the
+        # directive they sat unhosted until the Step-12 scan flagged the
         # absence and the score paid for it. Host them in the authoring
         # pass, where the action-verb evidence and the literal-phrase
         # bullet are both in hand (SKILL Step 2's default-inference rule).
         summary += (f" ({counts['by_hand']} soft-skill line(s) [by hand] — "
                     "host the literal phrases in THIS pass; soft skills are "
-                    "safe to infer from action-verb evidence, SKILL Step 8)")
+                    "safe to infer from action-verb evidence, SKILL Step 4)")
     return summary
 
 
@@ -483,7 +483,7 @@ def _print_jd_coverage(roles, body, jd_text, jd_terms):
     if counts["weak"]:
         print(f"  {counts['weak']} requirement(s) [weak] — hosted only on "
               "proficiencies/Tools lines; weave into a bullet "
-              "where used (SKILL Step 6).")
+              "where used (SKILL Step 8).")
     print(_requirements_summary_line(coverage, counts, hard_uncovered))
     print()
 
@@ -505,7 +505,7 @@ def _adjacent_master_body(docx):
 def _fail_without_master(queue_label):
     """Exit 2 when the master is not adjacent to the tailored copy.
 
-    The master leg of SKILL Step 8's source-first loop is mandatory,
+    The master leg of SKILL Step 4's source-first loop is mandatory,
     not optional: content Phase 1 cut lives ONLY in the master, so a
     mining queue run against the pruned tailored copy silently
     overstates gaps (two real sessions asked the user about evidence
@@ -514,7 +514,7 @@ def _fail_without_master(queue_label):
     print(
         f"error: {queue_label} found, but the master resume is not "
         "adjacent to the tailored copy — the JD gap mining queue cannot "
-        "be run without searching the full master (SKILL Step 8: the "
+        "be run without searching the full master (SKILL Step 4: the "
         "master leg of the source-first loop is mandatory; content "
         "Phase 1 cut lives only there). Place '<userName> Master "
         "Resume.docx' next to the tailored copy and re-run.",
@@ -619,7 +619,7 @@ def _inference_map(missing_terms, body, sources=None):
         "host without asking about the skill; RAISE = ask about the "
         "skill itself. If no role is identifiable, use Summary/Technical "
         "Proficiencies or ask only about role placement. Host AUTO-HOST "
-        "terms first, then present the RAISE checklist (SKILL Step 8).",
+        "terms first, then present the RAISE checklist (SKILL Step 4).",
         width=76, initial_indent="    ", subsequent_indent="    "))
     return out
 
@@ -679,7 +679,7 @@ def _headline_text(body):
 
 
 def title_alignment_notes(body, jd_text):
-    """SKILL Step 5 signal: (severity, message) comparing the resume
+    """SKILL Step 6 signal: (severity, message) comparing the resume
     headline against the JD's named title. Severity in warn|ok|note; never
     blocks: extraction and the ladder are heuristics, and a posting may use
     a generic title for a senior role (the message says when to keep the
@@ -694,7 +694,7 @@ def title_alignment_notes(body, jd_text):
         return ("note", f"JD title not extractable (first line or a "
                          f"'Job Title:'-style label, <= {TITLE_MAX_WORDS} "
                          f"words); resume headline {headline!r} left "
-                         "unchanged — apply SKILL Step 5 by hand if the "
+                         "unchanged — apply SKILL Step 6 by hand if the "
                          "posting names a less-senior title")
     if headline.strip().lower() == jd_title.lower():
         return ("ok", f"resume headline {headline!r} matches the JD title "
@@ -702,7 +702,7 @@ def title_alignment_notes(body, jd_text):
     j_rank, h_rank = _title_rank(jd_title), _title_rank(headline)
     if j_rank < h_rank:
         return ("warn", f"resume headline {headline!r} is MORE SENIOR than "
-                         f"the JD title {jd_title!r} — apply SKILL Step 5: "
+                         f"the JD title {jd_title!r} — apply SKILL Step 6: "
                          "set the top title to the JD's exact title and "
                          "level the Summary's first-sentence echo. Never "
                          "adopt a MORE senior JD title. A generic posting "

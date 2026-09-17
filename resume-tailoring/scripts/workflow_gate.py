@@ -9,9 +9,10 @@ import json
 import os
 import tempfile
 
+from script_args import MAX_WORDS
+
 
 PHASES = (
-    "created",
     "pruned",
     "prune-theme-reviewed",
     "ats-audited",
@@ -25,8 +26,6 @@ REVIEW_PHASES = {
     "prune": ("pruned", "prune-theme-reviewed"),
     "ats": ("ats-audited", "ats-theme-reviewed"),
 }
-
-DECISIONS = {"restore", "cut", "keep", "host", "ignore", "raise"}
 
 
 class GateError(RuntimeError):
@@ -56,18 +55,16 @@ def _write(path, data):
 
 
 def create_state(path, target, jd, theme):
-    """Create a fresh state sidecar after the machine prune succeeds."""
-    state = {
+    """Create the state sidecar at phase ``pruned`` (auto_prune calls this)."""
+    _write(path, {
         "version": 1,
         "target": target,
         "jd": jd,
         "theme": theme or "",
-        "phase": "created",
-        "history": [],
+        "phase": "pruned",
+        "history": [{"phase": "pruned"}],
         "reviews": {},
-    }
-    _write(path, state)
-    advance(path, "pruned")
+    })
 
 
 def load_state(path):
@@ -82,7 +79,7 @@ def load_state(path):
     return state
 
 
-def advance(path, phase, details=None):
+def advance(path, phase, details=None, state_updates=None):
     """Advance exactly one phase, rejecting skips and repeats."""
     state = load_state(path)
     current = PHASES.index(state["phase"])
@@ -95,6 +92,8 @@ def advance(path, phase, details=None):
             f"cannot advance {state['phase']} to {phase}; "
             f"next phase is {PHASES[current + 1] if current + 1 < len(PHASES) else 'none'}")
     state["phase"] = phase
+    if state_updates:
+        state.update(state_updates)
     state.setdefault("history", []).append({"phase": phase, **(details or {})})
     _write(path, state)
 
@@ -139,15 +138,11 @@ def validate_review(review):
     for index, entry in enumerate(entries, 1):
         if not isinstance(entry, dict):
             raise ReviewError(f"{kind} review entry {index} must be an object")
-        if kind == "prune":
-            _nonempty(entry.get("item"), f"dispositions[{index}].item")
-            decision_key = "decision"
-        else:
-            _nonempty(entry.get("phrase"), f"findings[{index}].phrase")
-            decision_key = "decision"
-        allowed = {"restore", "cut", "keep"} if kind == "prune" \
-            else {"host", "ignore", "raise"}
-        if entry.get(decision_key) not in allowed:
+        _nonempty(entry.get("item" if kind == "prune" else "phrase"),
+                  f"{kind} review entry {index} subject")
+        allowed = ({"restore", "cut", "keep"} if kind == "prune"
+                   else {"host", "ignore", "raise"})
+        if entry.get("decision") not in allowed:
             raise ReviewError(f"{kind} review entry {index} has invalid decision")
         _nonempty(entry.get("rationale"), f"{kind} review entry {index}.rationale")
     return kind
@@ -160,13 +155,10 @@ def record_audit(path, findings, audit_path=None):
         raise GateError("baseline audit findings must be a list")
     normalized = sorted({str(item).strip().lower() for item in findings
                          if str(item).strip()})
-    state = load_state(path)
-    state["finding_phrases"] = normalized
-    _write(path, state)
     details = {"finding_phrases": normalized, "findings": len(normalized)}
     if audit_path:
         details["audit"] = os.path.basename(audit_path)
-    advance(path, "ats-audited", details)
+    advance(path, "ats-audited", details, {"finding_phrases": normalized})
 
 
 def record_review(state_path, review_path):
@@ -178,8 +170,7 @@ def record_review(state_path, review_path):
         raise ReviewError(f"cannot read review {review_path}: {exc}") from exc
     kind = validate_review(review)
     expected, next_phase = REVIEW_PHASES[kind]
-    require(state_path, expected)
-    state = load_state(state_path)
+    state = require(state_path, expected)
     if kind == "ats":
         expected_findings = set(state.get("finding_phrases", []))
         actual_findings = {entry["phrase"].strip().lower()
@@ -203,8 +194,9 @@ def page_removal_allowed(spill_lines):
 def close_budgets(path, words, spill_lines, attempted_page_removal):
     """Close measurable budgets after seniority and positioning edits."""
     require(path, "seniority-approved")
-    if words > 1000:
-        raise GateError(f"word budget remains open: {words} words exceeds 1000")
+    if words > MAX_WORDS:
+        raise GateError(
+            f"word budget remains open: {words} words exceeds {MAX_WORDS}")
     if attempted_page_removal and not page_removal_allowed(spill_lines):
         raise GateError(
             "page removal is allowed only for a positive spill of five lines "
@@ -227,11 +219,6 @@ def close_spacers(path, creates_new_page):
 def _main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
-    init = sub.add_parser("init")
-    init.add_argument("state")
-    init.add_argument("target")
-    init.add_argument("jd")
-    init.add_argument("--theme", default="")
     review = sub.add_parser("review")
     review.add_argument("state")
     review.add_argument("review")
@@ -254,9 +241,7 @@ def _main(argv=None):
     spacer_parser.add_argument("--creates-new-page", action="store_true")
     args = parser.parse_args(argv)
     try:
-        if args.command == "init":
-            create_state(args.state, args.target, args.jd, args.theme)
-        elif args.command == "review":
+        if args.command == "review":
             record_review(args.state, args.review)
         elif args.command == "advance":
             advance(args.state, args.phase)

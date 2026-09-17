@@ -63,24 +63,19 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # is allowed only after budgets and spacers are closed. The phase variable is
 # optional for legacy/manual renders, but the documented workflow always sets
 # it so render order cannot be bypassed accidentally.
+REQUIRED_PHASE=""
 case "${RESUME_RENDER_PHASE:-}" in
-    baseline)
-        [ -n "${RESUME_WORKFLOW_STATE:-}" ] || {
-            echo "Error: baseline render requires RESUME_WORKFLOW_STATE" >&2
-            exit 2
-        }
-        python3 "$SELF_DIR/workflow_gate.py" require \
-            "$RESUME_WORKFLOW_STATE" prune-theme-reviewed
-        ;;
-    final)
-        [ -n "${RESUME_WORKFLOW_STATE:-}" ] || {
-            echo "Error: final render requires RESUME_WORKFLOW_STATE" >&2
-            exit 2
-        }
-        python3 "$SELF_DIR/workflow_gate.py" require \
-            "$RESUME_WORKFLOW_STATE" spacers-closed
-        ;;
+    baseline) REQUIRED_PHASE="prune-theme-reviewed" ;;
+    final)    REQUIRED_PHASE="spacers-closed" ;;
 esac
+if [ -n "$REQUIRED_PHASE" ]; then
+    [ -n "${RESUME_WORKFLOW_STATE:-}" ] || {
+        echo "Error: $RESUME_RENDER_PHASE render requires RESUME_WORKFLOW_STATE" >&2
+        exit 2
+    }
+    python3 "$SELF_DIR/workflow_gate.py" require \
+        "$RESUME_WORKFLOW_STATE" "$REQUIRED_PHASE"
+fi
 
 # Structural/claim lint gate (A: validate_resume.py). Aborts the render on
 # structural errors (orphan job titles, company blocks without titles,

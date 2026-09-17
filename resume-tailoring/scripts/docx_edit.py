@@ -265,7 +265,7 @@ def _drift_sidecar(path, drift, applied, root):
             f"last time but now has {para_count} — content was removed. "
             "Folds must be ADDITIVE only: new bullets (clone_after), "
             "proficiency additions, and in-place appends — never "
-            "removals (SKILL Step 12).",
+            "removals (SKILL Step 13).",
             file=sys.stderr,
         )
     baseline[drift_key] = {"edits": applied, "master_sha": master_sha,
@@ -892,7 +892,7 @@ def drop_section(body, heading_prefix, heading_style=SECTION_STYLE,
     """Remove a whole SECTION: the SectionHeading found by
     ``heading_prefix`` through every paragraph up to (excluding) the next
     section heading — e.g. dropping Education when the JD gives the degree
-    no evidentiary weight (SKILL Step 4.4). The boundary heading is excluded
+    no evidentiary weight (SKILL Step 5.4). The boundary heading is excluded
     for the same reason as :func:`drop_role`'s. The prefix is the section
     heading's STRING; a ``find_p`` element is accepted (see
     :func:`_prefix_arg`). Returns the refreshed paragraph list; a
@@ -912,7 +912,7 @@ def merge_into(body, target, source, text):
     """Merge ``source`` into ``target`` in ONE op: rewrite ``target`` with
     ``text`` and remove ``source``.
 
-    Use this for "merge, don't append" edits (Skill workflow Step 7) where
+    Use this for "merge, don't append" edits (Skill workflow Step 8) where
     new content overlaps an existing bullet: the source's old text is
     removed in the same op, so a merge can never leave the source's original
     text sitting next to the rewritten target as a near-duplicate residue

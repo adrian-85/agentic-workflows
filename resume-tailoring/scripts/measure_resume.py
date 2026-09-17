@@ -36,7 +36,7 @@ A tailored copy (non-master input) measures the full page math::
 are excluded from cut suggestions and listed as "JD-evidenced (kept)",
 so the plan never fights an explicit JD ask. It also compares
 the JD's title against the resume headline and flags a headline that is
-MORE SENIOR (SKILL Step 5 title alignment) — advisory only. And it prints
+MORE SENIOR (SKILL Step 6 title alignment) — advisory only. And it prints
 a per-role JD-FIT AUDIT for EVERY role — unevidenced bullets —
 because the DROP PLAN only fires under page pressure and JD alignment is
 the first priority: weak bullets get cut even when the resume is already
@@ -310,7 +310,7 @@ def _print_usage():
           "With --jd it also reports JD-matched bullets each drop would "
           "lose — trim those roles to their JD bullets instead of "
           "dropping whole. Refused on the master: seniority what-ifs run "
-          "on the PRUNED copy (SKILL Step 4), never on the master.",
+          "on the PRUNED copy (SKILL Step 5), never on the master.",
           file=sys.stderr)
     print("  Master input (X Master Resume.docx) runs in PRUNE-PLAN mode: "
           "--jd required, page/word math suppressed — the JD assessment "
@@ -368,7 +368,7 @@ def _print_simulate(docx, simulate, jd_file, jd_text, td):
               "cannot be assessed; pass --jd <JD.txt> to see it)")
     print("  Compare the TIMELINE below against the JD's ask; apply "
           "the drops for real via drop_role() in the per-target "
-          "tailor script (SKILL Step 4).")
+          "tailor script (SKILL Step 5).")
     print()
     return docx, sim_jd_terms
 
@@ -579,7 +579,7 @@ def _word_tokens(text):
 def _print_word_budget(body):
     """WORD BUDGET — validator-equivalent whole-resume word count with a
     per-role breakdown and the wordiest bullets. The deliverable gate
-    blocks over MAX_WORDS (SKILL Step 7A); this section surfaces the
+    blocks over MAX_WORDS (SKILL Step 9); this section surfaces the
     arithmetic BEFORE the gate does, so cuts are planned in one pass
     instead of hand-estimated across blocked re-run cycles. Prints only
     near the cap (85%+) — under it the section is noise."""

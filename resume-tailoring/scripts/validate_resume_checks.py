@@ -135,7 +135,7 @@ def _prose_paragraphs(region, summary):
 
 
 def _bullet_cap_errors(region):
-    """Roles keeping more than MAX_BULLETS_PER_ROLE bullets (SKILL Step 8).
+    """Roles keeping more than MAX_BULLETS_PER_ROLE bullets (SKILL Step 9).
 
     The cap is enforced by count, not judgment: recency and accomplishment
     never exempt a role — a 1-year Staff role whose master block carries
@@ -151,7 +151,7 @@ def _bullet_cap_errors(region):
     def _over():
         return (
             f"role {company_text!r} keeps {count} bullets — over the hard "
-            f"cap of {MAX_BULLETS_PER_ROLE} (SKILL Step 8): prune to the "
+            f"cap of {MAX_BULLETS_PER_ROLE} (SKILL Step 9): prune to the "
             f"strongest JD-aligned bullets; time-in-role and volume of "
             f"accomplishment never exempt a role"
         )
@@ -468,7 +468,7 @@ def _readability_guidance(body, summary, *, region=None,
                 f"keyword-mirror sections here; weave skills into role "
                 f"bullets instead"))
 
-    # Inter-role readability spacers: SKILL Step 8's DEFAULT is to add
+    # Inter-role readability spacers: SKILL Step 9's DEFAULT is to add
     # one blank spacer paragraph at every role boundary, skipping only
     # when adding them would push the build past the agreed page target.
     # Five consecutive real sessions printed SPACER OPPORTUNITIES and
@@ -483,7 +483,7 @@ def _readability_guidance(body, summary, *, region=None,
             f"{len(spacer_gaps)} role boundary/boundaries lack the "
             f"readability spacer ({names}) — add them via clone_after"
             f'(body, find_p(ps, "<Tools line>"), "") unless doing so '
-            f"pushes the build past the page target (SKILL Step 8)"))
+            f"pushes the build past the page target (SKILL Step 9)"))
     return notes
 
 

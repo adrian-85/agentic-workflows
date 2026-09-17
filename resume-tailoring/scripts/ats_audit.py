@@ -11,7 +11,7 @@ match literal phrases against the rendered text (abbreviations and
 paraphrases frequently do not count). A resume can pass every internal
 gate and still lose ATS points — a real session kept topically relevant
 bullets while 9 of 24 hard skills had zero literal hits, and the ATS
-score DROPPED (SKILL Step 11). This tool is the ground-truth backstop:
+score DROPPED (SKILL Step 12). This tool is the ground-truth backstop:
 it runs the ATS-style literal check on the same text a parser sees.
 
 usage:
@@ -19,7 +19,7 @@ usage:
         [--phrases-file <f>] [--report-json <f>] [--max-words N]
 
 Checks (exit 0 clean, 1 findings, 2 usage/IO error):
-  1. WORD COUNT — the whole-resume <=1000-word cap (SKILL Steps 3/8),
+  1. WORD COUNT — the whole-resume <=1000-word cap (SKILL Steps 3/9),
      counted with the tool's own logic (see _count_words). `--max-words 0`
      disables. With --report-json, the report's wordCount is shown as a
      cross-check — the cap itself uses OUR count.
@@ -34,15 +34,15 @@ Checks (exit 0 clean, 1 findings, 2 usage/IO error):
      literal check decides. Hard-skill zero-hits fail; soft-skill
      zero-hits warn as ACTIONABLE (soft skills are safe to infer — host
      the literal phrase where the action-verb evidence lives, SKILL
-     Steps 2/11).
+     Steps 2/4).
 
 Run on the PDF (pdftotext), not the .docx — the deliverable is what the
 screener parses. Three classes of external finding are IGNORED by rule
-(SKILL Step 11): contactEmail (the compact hyperlinked contact block is
+(SKILL Step 12): contactEmail (the compact hyperlinked contact block is
 deliberate design), specialCharacters (the typographic characters are
 deliberate formatting the user chose — never reformat to satisfy a text
 parser), and the education findings when the rendered resume has no
-Education section (the drop was a Step 4.4 predicate decision the render
+Education section (the drop was a Step 5.4 predicate decision the render
 gate already sanctioned; the scan's generic advice does not re-open it).
 """
 
@@ -132,7 +132,7 @@ def _ceiling_check(score, target, resume_path, result):
     """Detect a stalled match rate: when two consecutive scans report the
     same score below target, the hosting loop has hit a ceiling and the
     agent MUST present the remaining skill checklist to the user before
-    declaring the honest ceiling (SKILL Step 11). Score is persisted in
+    declaring the honest ceiling (SKILL Step 12). Score is persisted in
     a sidecar next to the resume PDF; on the first run there is no prior
     score, so no warning fires."""
     if score is None or target is None or not resume_path:
@@ -149,7 +149,7 @@ def _ceiling_check(score, target, resume_path, result):
             f"CEILING DETECTED: match rate {score} unchanged from the "
             f"last scan — present the remaining hard/soft skill checklist "
             f"to the user before declaring the honest ceiling "
-            f"(SKILL Step 11)")
+            f"(SKILL Step 12)")
     try:
         sidecar.write_text(json.dumps({"score": score}), encoding="utf-8")
     except OSError:
@@ -162,7 +162,7 @@ def _audit_word_count(text, max_words):
     if max_words and count > max_words:
         return count, [f"{count} words exceeds the {max_words}-word cap by "
                        f"{count - max_words} — cut content, do not shrink "
-                       "fonts (SKILL Steps 3/8)"]
+                       "fonts (SKILL Steps 3/9)"]
     return count, []
 
 
@@ -275,7 +275,7 @@ def _has_education_heading(text):
 
 def _report_findings(data, resume_text=""):
     """Report findings[] summary. Three classes are IGNORED by rule
-    (SKILL Step 11):
+    (SKILL Step 12):
 
     - contactEmail — the hyperlinked contact block is deliberate design;
       a raw-text parser's fail is the known, accepted tradeoff.
@@ -284,7 +284,7 @@ def _report_findings(data, resume_text=""):
       better with the current formatting"); NEVER reformat the resume
       to satisfy a text parser's character check.
     - the education findings (headingEducation, educationMatch) when the
-      rendered resume has no Education section — the drop was a Step 4.4
+      rendered resume has no Education section — the drop was a Step 5.4
       predicate decision, and validate_resume's education gate already
       blocks any UNSANCTIONED drop at render time; a PDF without
       Education therefore reached the audit only through an approved
@@ -310,19 +310,19 @@ def _report_findings(data, resume_text=""):
             lines.append(
                 f"  IGNORED contactEmail ({status}): the compact "
                 "hyperlinked contact block is deliberate design — do not "
-                "alter it (SKILL Step 11)")
+                "alter it (SKILL Step 12)")
             continue
         if key == "specialcharacters":
             lines.append(
                 f"  IGNORED specialCharacters ({status}): the typographic "
                 "characters are the user's deliberate formatting — never "
-                "reformat to satisfy a text parser (SKILL Step 11)")
+                "reformat to satisfy a text parser (SKILL Step 12)")
             continue
         if key in ("headingeducation", "educationmatch") \
                 and not education_present:
             lines.append(
                 f"  IGNORED {name} ({status}): Education was dropped "
-                "deliberately (Step 4.4 predicate; the render gate "
+                "deliberately (Step 5.4 predicate; the render gate "
                 "sanctioned it) — the scan's generic advice does not "
                 "re-open that decision")
             continue
@@ -424,7 +424,7 @@ def _audit_report_skills(report_data, text_low, text, result):
         warns.append(
             "report soft skills with NO literal host (ACTIONABLE — "
             "soft skills are safe to infer: host each literal phrase "
-            "where the action-verb evidence lives, SKILL Steps 2/11; "
+            "where the action-verb evidence lives, SKILL Steps 2/4; "
             "hosting these moved a real session's live match rate "
             "59→86): " + ", ".join(soft_miss))
     elif soft:

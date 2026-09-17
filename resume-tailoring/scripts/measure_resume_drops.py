@@ -280,7 +280,7 @@ def _role_jd_evidence_lines(roles, header_text, jd_terms):
     lines = [
         f"JD EVIDENCE LOST: this role carries {len(kept)} JD-matched "
         f"bullet(s) — trimming it to those bullets may beat dropping it "
-        f"whole (SKILL Step 4):",
+        f"whole (SKILL Step 5):",
     ]
     for b in kept:
         lines.append(f"    - {b[:90]}")
@@ -446,7 +446,7 @@ def _list_trim_lines(lists):
         else:
             lines.append("      - JD does not name: "
                          f"{', '.join(chunks)} — line kept whole; reword "
-                         "only when adding a host here (SKILL Step 8)")
+                         "only when adding a host here (SKILL Step 4)")
     return lines
 
 
@@ -459,7 +459,7 @@ def _keep_trim_section(roles, jd_terms, body, protect=()):
     list line (Technical Proficiencies, role Tools lines) the non-JD
     items riding along — the line itself stays whole, and a sub-sentence
     reword is Phase 2 agent work done only when adding a host there
-    (SKILL Step 8). Copy-pasteable ``find_p`` anchors match the DROP
+    (Theme Review B, SKILL Step 4). Copy-pasteable ``find_p`` anchors match the DROP
     PLAN's form. Skipped entirely: protected bullets (--protect),
     sentences and list lines carrying a JD practice phrase (their tokens
     may host the concept).
@@ -481,7 +481,7 @@ def _keep_trim_section(roles, jd_terms, body, protect=()):
             "still carrying non-JD content after the row/sentence prune — "
             "cut the flagged sentence WHOLE; a list line hosting any JD "
             "evidence stays whole, never reduced to a subset. Sub-sentence "
-            "wording changes are Phase 2 agent work (SKILL Step 8), done "
+            "wording changes are Phase 2 agent work (Theme Review B, SKILL Step 4), done "
             "only when already adding a host to that line — never strip a "
             "term the JD names or one that hosts a [weak]/covered ask):\n"
             + "\n".join(lines))
@@ -864,7 +864,7 @@ def _page_removal_note(total_pages, target, overflow_lines):
     return (f"PAGE REMOVAL NOTE: {overflow_lines} rendered line(s) spill "
             f"past target {target}; a theme-scoped trim pass is allowed. "
             "Do not launch broad compression when the spill exceeds five "
-            "lines (SKILL Step 7A).")
+            "lines (SKILL Step 9).")
 
 
 def _measured_lines_per_bullet(matched):

@@ -11,7 +11,7 @@ checklist, and never page/word-measures the master.
 Machine disposition rules (deterministic, no judgment). Every disposition
 is row/sentence/whole-category granular — the machine never edits words or
 phrases inside a surviving sentence or a surviving list line; that kind of
-wording change is Phase 2 agent work (SKILL Step 8), done only when the
+wording change is Phase 2 agent work (Theme Review B, SKILL Step 4), done only when the
 agent is already touching the line to host something:
   - bullet-cut (unevidenced by the unified ask engine): CUT every one.
   - word-trim (kept bullet with dead sentences): drop whole sentences that
@@ -64,7 +64,7 @@ from script_args import (extract_flag, extract_flag_all, maybe_help,  # noqa: E4
                          read_jd_text)
 
 WORD_CAP = 40      # a trimmed bullet carries at most this many words
-PER_ROLE_CAP = 8   # hard per-role kept-bullet cap (SKILL Step 8)
+PER_ROLE_CAP = 8   # hard per-role kept-bullet cap (SKILL Step 9)
 
 USAGE = """usage: auto_prune.py "<userName> Master Resume.docx" \\
         jd_<target>.txt [--target "<Target Name>"] \\
@@ -123,7 +123,8 @@ def _trim_bullet_text(text, jd_terms):
     """The bullet rewritten without dead SENTENCES, capped at WORD_CAP.
 
     Row/sentence granular only — never rewrites words or phrases within a
-    surviving sentence (that is Phase 2 agent work, SKILL Step 8). A
+    surviving sentence (that is Phase 2 agent work, Theme Review B or the
+    Step 9 budget pass). A
     sentence survives when it carries a JD term or a practice-phrase
     concept; survivors over the word cap are dropped whole (fewest-JD-hits
     first, ties: longest first — removes the most words). Never returns a

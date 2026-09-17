@@ -12,12 +12,12 @@ import sys
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
 # the specific rationale at each site where one is retained.
 
-# Whole-resume word cap for a tailored deliverable (SKILL Step 8).
+# Whole-resume word cap for a tailored deliverable (SKILL Step 9).
 # Home here (not validate_resume) so docx_edit's deliverable gate can
 # apply the default without importing validate_resume (cycle break).
 MAX_WORDS = 1000
 
-# The match-rate target for the external ATS scan (SKILL Step 11): at or
+# The match-rate target for the external ATS scan (SKILL Step 12): at or
 # above it the literal-hosting work is done — stop adding hard/soft
 # skills. A target to know when to stop, never a hard gate (a JD with
 # genuinely-unhostable tools may top out below it). Override with
@@ -40,7 +40,7 @@ def maybe_help(argv, usage_text=None):
 def match_target_met(score, target):
     """True when the score meets or exceeds the target. None when the
     check is not applicable (missing score or target disabled via 0).
-    Centralizes the ≥75 match-rate target (SKILL Step 11) so ats_audit
+    Centralizes the ≥75 match-rate target (SKILL Step 12) so ats_audit
     and ats_check agree on the verdict without duplicating the logic."""
     if not target or not isinstance(score, (int, float)):
         return None

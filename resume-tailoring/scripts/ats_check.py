@@ -599,7 +599,7 @@ def _poll_report(url, headers, timeout, interval):
 
 
 def _print_match_target(score):
-    """The scan print's match-rate target line (SKILL Step 11 stop signal).
+    """The scan print's match-rate target line (SKILL Step 12 stop signal).
     At/above target the hosting loop is CLOSED — a hard stop, not advice."""
     print(f"    matchRate: {score}")
     verdict = match_target_met(score, MATCH_RATE_TARGET)

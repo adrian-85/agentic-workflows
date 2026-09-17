@@ -80,10 +80,10 @@ def _main_prune_plan(args):
     (and measuring the full master invites keeping it). The PDF is not
     even rendered — relevance needs no layout. After the prune pass,
     measure the tailored copy for the length/seniority decision
-    (SKILL Step 4)."""
+    (SKILL Step 5)."""
     if args.simulate:
         print("error: --simulate answers a seniority question (which whole "
-              "roles to drop) — decided on the PRUNED copy in SKILL Step 4, "
+              "roles to drop) — decided on the PRUNED copy in SKILL Step 5, "
               "after the prune pass. The master only answers 'what is "
               "irrelevant'.", file=sys.stderr)
         sys.exit(2)
@@ -106,7 +106,7 @@ def _main_prune_plan(args):
           "pass, before any page target, role drop, seniority, or word "
           "count is decided. Page/word math on the unpruned master is "
           "never measured; prune, then measure the tailored copy "
-          "(SKILL Step 4).")
+          "(SKILL Step 5).")
     print()
     _print_jd_report(args.jd_file, args.jd_text, jd_terms, body,
                      InferenceSources(linkedin_text=args.evidence_text))
@@ -137,7 +137,7 @@ def _write_prune_sidecar(docx_path, jd_file, candidates):
 
 def _print_disposition_checklist(sidecar_path, candidates):
     """The fill-in disposition table for the ONE-message plan (SKILL
-    Steps 2-4) — the fix for the motivating session's 'Prune plan
+    Steps 2-5) — the fix for the motivating session's 'Prune plan
     highlights' summary, which listed only the bullet cuts and left the
     word/sentence-level trims out of the user's approval entirely."""
     print()
