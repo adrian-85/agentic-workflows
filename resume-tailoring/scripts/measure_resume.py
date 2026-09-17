@@ -219,7 +219,7 @@ from measure_resume_drops import (
     _protected_top_role_section,
     _reclaim_batch,
     _role_jd_evidence_lines,
-    _sparse_last_page_note,
+    _page_removal_note,
     _suggest_drops,
     _top_role_batch,
     prune_candidates)
@@ -579,7 +579,7 @@ def _word_tokens(text):
 def _print_word_budget(body):
     """WORD BUDGET — validator-equivalent whole-resume word count with a
     per-role breakdown and the wordiest bullets. The deliverable gate
-    blocks over MAX_WORDS (SKILL Step 8); this section surfaces the
+    blocks over MAX_WORDS (SKILL Step 7A); this section surfaces the
     arithmetic BEFORE the gate does, so cuts are planned in one pass
     instead of hand-estimated across blocked re-run cycles. Prints only
     near the cap (85%+) — under it the section is noise."""
@@ -620,16 +620,16 @@ def _print_word_budget(body):
 
 
 def _print_layout_summary(ctx):
-    """Page fill, layout hints, sparse-last-page note, spacer opportunities."""
+    """Page fill, layout hints, page-removal note, spacer opportunities."""
     print()
     print("Page fill (capacity = fullest page from this render):")
     for line in _layout_hints(ctx.matched, ctx.pages_text, ctx.capacity):
         print(line)
     fills = _page_fill(ctx.pages_text)
-    sparse = _sparse_last_page_note(ctx.total_pages, ctx.target, fills,
-                                    ctx.capacity, ctx.overflow_lines)
-    if sparse:
-        print(sparse)
+    page_note = _page_removal_note(ctx.total_pages, ctx.target,
+                                   ctx.overflow_lines)
+    if page_note:
+        print(page_note)
     if ctx.over <= 0 and fills and fills[-1] < ctx.capacity:
         gaps = _boundaries_without_spacer(ctx.body)
         if gaps:

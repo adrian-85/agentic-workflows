@@ -857,59 +857,14 @@ def _widow_notes(matched, pages_text):
     return out
 
 
-def _sparse_last_page_note(total_pages, target, fills, capacity,
-                           overflow_lines=0):
-    """Signal to reconsider the page target when the last page is sparse.
-
-    The failure mode (a real session): a senior/Staff resume was built to
-    the agreed 3-page target — "ON target" — and the page-fill table showed
-    the last page at 43%, then 20%, then 13% as compression passes landed.
-    SKILL Step 3's "target 2; accept 3 for senior/Staff" gave no rule for
-    WHEN to accept 3, so the agent waffled through ~8 extra measure/render
-    cycles re-deciding the target mid-flight. The tool CAN see the one
-    signal that settles it: a sparse final page. SKILL Step 4's rule (added
-    alongside this note): re-target one page lower and re-measure BEFORE
-    cutting any JD-matched bullet — cutting JD-matched content to fill a
-    sparse page is the trap.
-
-    Fires whenever the last page fills <50% of capacity on a multi-page
-    document. SOFT guidance, never a hard gate (2026-09-11 user rule):
-    fewer pages aid readability, but never at the expense of showing how
-    the applicant meets the JD — re-targeting one page lower is a
-    judgment call gated on costing no JD-matched evidence. Cutting
-    JD-matched bullets to fill or shrink a page stays the trap either
-    way; over target the message points out that the reclaim gap is
-    roughly the sparse tail itself and a dead-ending DROP PLAN means the
-    target-vs-JD tradeoff is a user decision.
-    """
-    if not capacity or len(fills) < 2:
+def _page_removal_note(total_pages, target, overflow_lines):
+    """Allow a page-removal trim only for a small rendered spill."""
+    if total_pages <= target or not 0 < overflow_lines <= 5:
         return None
-    last = fills[-1]
-    pct = 100 * last // capacity
-    if pct >= 50:
-        return None
-    if total_pages > target:
-        return (f"TARGET NOTE: last page is only {pct}% full ({last} of "
-                f"~{capacity} lines). The ~{overflow_lines}-line gap to "
-                f"{target} page(s) is roughly this sparse tail itself; if "
-                f"the DROP PLAN dead-ends on JD-matched content, weigh "
-                f"re-targeting one page lower against the JD evidence "
-                f"further cuts would lose — fewer pages aid readability, "
-                f"but showing qualification outranks page count, and a "
-                f"sparse tail is a judgment call, never a mandate to cut "
-                f"JD-matched bullets (SKILL Step 4).")
-    lower = (f" Consider re-targeting one page lower ({target - 1}) — a "
-             f"judgment call: only if the cuts cost no JD-matched "
-             f"evidence"
-             if target > 1 else
-             " Consider re-measuring against a lower target — a judgment "
-             "call: only if the cuts cost no JD-matched evidence")
-    return (f"TARGET NOTE: last page is only {pct}% full ({last} of "
-            f"~{capacity} lines) — a sparse final page reads as "
-            f"unpolished, and fewer pages aid readability, but never at "
-            f"the expense of showing how the applicant meets the JD."
-            f"{lower}; never cut JD-matched bullets to fill or shrink a "
-            f"page (SKILL Step 4).")
+    return (f"PAGE REMOVAL NOTE: {overflow_lines} rendered line(s) spill "
+            f"past target {target}; a theme-scoped trim pass is allowed. "
+            "Do not launch broad compression when the spill exceeds five "
+            "lines (SKILL Step 7A).")
 
 
 def _measured_lines_per_bullet(matched):

@@ -337,17 +337,18 @@ def _parse_ats_args(argv):
     maybe_help(argv, __doc__)
     if not argv or argv[0].startswith("-"):
         return None
+    baseline = "--baseline" in argv
     return {
         "path": argv[0],
-        "max_words": flag_value(argv, "--max-words", cast=int,
-                                 default=MAX_WORDS),
+        "max_words": 0 if baseline else flag_value(
+            argv, "--max-words", cast=int, default=MAX_WORDS),
         "jd_path": flag_value(argv, "--jd"),
         "phrases_file": flag_value(argv, "--phrases-file"),
         "report_json": flag_value(argv, "--report-json"),
         "match_target": flag_value(argv, "--match-target", cast=int,
                                    default=MATCH_RATE_TARGET),
         "workflow_state": flag_value(argv, "--workflow-state"),
-        "baseline": "--baseline" in argv,
+        "baseline": baseline,
     }
 
 
