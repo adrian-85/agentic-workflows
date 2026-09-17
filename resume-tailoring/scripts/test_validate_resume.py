@@ -1281,5 +1281,19 @@ class HelpFlagTests(unittest.TestCase):
         self.assertIsNone(sa.maybe_help(["resume.docx", "3"]))
 
 
+class BaselinePhaseTests(unittest.TestCase):
+    def test_baseline_phase_disables_word_cap_without_cli_bypass(self):
+        old = os.environ.get("RESUME_RENDER_PHASE")
+        os.environ["RESUME_RENDER_PHASE"] = "baseline"
+        try:
+            _path, _strict, opts = vr._parse_validate_args(["resume.docx"])
+        finally:
+            if old is None:
+                os.environ.pop("RESUME_RENDER_PHASE", None)
+            else:
+                os.environ["RESUME_RENDER_PHASE"] = old
+        self.assertIsNone(opts.max_words)
+
+
 if __name__ == "__main__":
     unittest.main()

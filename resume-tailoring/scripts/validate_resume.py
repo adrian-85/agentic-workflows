@@ -502,8 +502,9 @@ def _parse_validate_args(argv):
     jd_years = float(_extract_flag(argv, "--jd-years")) if "--jd-years" in argv else None
     jd_path = _extract_flag(argv, "--jd")
     protect = _extract_flag_all(argv, "--protect")
-    max_words = _flag_value(argv, "--max-words", cast=int,
-                            default=MAX_WORDS) or None
+    max_words = (None if os.environ.get("RESUME_RENDER_PHASE") == "baseline"
+                 else _flag_value(argv, "--max-words", cast=int,
+                                  default=MAX_WORDS) or None)
     seniority_approved = _parse_flag(argv, "--seniority-approved")
     education_approved = _parse_flag(argv, "--education-approved")
     opts = TreeOptions(master_path=master, jd_path=jd_path, jd_years=jd_years,

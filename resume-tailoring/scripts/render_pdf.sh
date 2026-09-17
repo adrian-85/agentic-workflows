@@ -99,14 +99,10 @@ esac
 # JD unless --education-approved records the override:
 #   RESUME_VALIDATE_ARGS="--jd <JD.txt> --jd-years 5 --seniority-approved" \
 #       ./scripts/render_pdf.sh "<out>.docx"
-RENDER_VALIDATE_ARGS="${RESUME_VALIDATE_ARGS:-}"
-if [ "${RESUME_RENDER_PHASE:-}" = "baseline" ]; then
-    # Word closure is a later workflow phase; baseline rendering validates
-    # structure and claims without enforcing the final word cap.
-    RENDER_VALIDATE_ARGS="$RENDER_VALIDATE_ARGS --max-words 0"
-fi
+# validate_resume reads RESUME_RENDER_PHASE=baseline and suppresses the
+# word cap internally; no command-line bypass flag is needed.
 VALIDATE_OUT="$(python3 "$SELF_DIR/validate_resume.py" "$INPUT" \
-    $RENDER_VALIDATE_ARGS 2>&1)" \
+    ${RESUME_VALIDATE_ARGS:-} 2>&1)" \
     && VALIDATE_RC=0 \
     || VALIDATE_RC=$?
 
