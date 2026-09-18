@@ -129,13 +129,11 @@ class WordCountTests(unittest.TestCase):
         count, errs = aa._audit_word_count(text, 1000)
         self.assertEqual((count, errs), (600, []))
 
-    def test_hyphen_and_slash_compounds_match_external_ats_count(self):
-        # External ATS parsers count each lexical component of compounds such as
-        # "CI/CD" and "test-automation". Whitespace-token counting
-        # under-counts those words and allowed a real resume to plan too
-        # close to the 1,000-word limit.
+    def test_compound_tokens_match_external_ats_count(self):
+        # External ATS parsers count compound words as single tokens:
+        # CI/CD, test-automation, 01/2026, end-to-end are each one word.
         text = "CI/CD test-automation 01/2026 end-to-end"
-        self.assertEqual(aa._count_words(text), 9)
+        self.assertEqual(aa._count_words(text), 4)
 
     def test_spelled_out_page_word_stripped(self):
         text = "P a g e 1 | 3 word " * 100

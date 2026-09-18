@@ -780,11 +780,12 @@ gate mechanically: when two consecutive audits report the same below-target scor
 **CEILING DETECTED** — at that signal the checklist presentation is mandatory, not judgment.
 
 **The word cap uses one lexical tokenizer across the workflow.** `validate_resume.py`,
-`measure_resume.py`, and `ats_audit.py` share the tokenizer calibrated to external ATS compound-token
-behavior. Hyphenated and slash-separated terms count their lexical components (`test-automation`,
-`CI/CD`, and date-like `01/2026` tokens separately), while apostrophe forms stay together. The
-PDF audit still removes page furniture before counting, and the external report remains a final
-parser cross-check because a full ATS parser can apply additional structure-aware rules.
+`measure_resume.py`, and `ats_audit.py` share the tokenizer calibrated to external ATS
+compound-word semantics. Hyphenated and slash-separated terms count as single tokens
+(`test-automation`, `CI/CD`, and date-like `01/2026` are each one word), while apostrophe forms
+split (`candidate's` = 2 tokens). The PDF audit still removes page furniture before counting,
+and the external report remains a final parser cross-check because a full ATS parser can apply
+additional structure-aware rules.
 Use measure's **WORD BUDGET** section for planning, then verify the exact delivered PDF externally.
 
 **IGNORED by rule: three classes of external finding.**

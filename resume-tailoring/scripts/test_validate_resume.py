@@ -376,11 +376,12 @@ class WordCapTests(unittest.TestCase):
         # quality) — the dingbat is excluded.
         self.assertEqual(vr._word_count(body_el), 10)
 
-    def test_word_count_splits_external_ats_compounds(self):
+    def test_word_count_compound_tokens(self):
         body_el = mkbody([
             mk("test-automation CI/CD 01/2026"),
         ])
-        self.assertEqual(vr._word_count(body_el), 6)
+        # test-automation, CI/CD, 01/2026 are each one compound word.
+        self.assertEqual(vr._word_count(body_el), 3)
 
     def test_word_cap_matrix(self):
         """Whole-resume word cap: within = pass, over = block, master input

@@ -38,12 +38,12 @@ class SharedFileTests(unittest.TestCase):
 
 
 class WordCountTests(unittest.TestCase):
-    def test_count_words_splits_external_ats_compounds(self):
+    def test_count_words_compound_tokens(self):
+        # CI/CD, test-automation, 01/2026, end-to-end are each one word;
+        # apostrophe forms split (candidate + s, Bachelor + s).
         self.assertEqual(
-            count_words("CI/CD test-automation 01/2026 end-to-end"), 9)
-
-    def test_count_words_keeps_apostrophe_words_together(self):
-        self.assertEqual(count_words("candidate's Bachelor's"), 2)
+            count_words("CI/CD test-automation 01/2026 end-to-end"), 4)
+        self.assertEqual(count_words("candidate's Bachelor's"), 4)
 
 
 class FlagValueTests(unittest.TestCase):

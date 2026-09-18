@@ -89,9 +89,9 @@ def _extract_text(path):
 def _count_words(text):
     """Count the rendered text after removing PDF-only artifacts.
 
-    The shared tokenizer matches external ATS lexical boundaries: hyphenated
-    and slash-separated components count separately, while apostrophe
-    forms remain one word.
+    The shared tokenizer uses external ATS compound-word semantics:
+    hyphenated and slash-separated terms are single tokens, while
+    apostrophe forms split into two tokens.
     """
     clean = _PAGE_WORD_RE.sub(" ", _ARTIFACT_RE.sub(" ", text))
     return count_words(clean)

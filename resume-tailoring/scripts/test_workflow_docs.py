@@ -31,7 +31,7 @@ class WorkflowDocumentationTests(unittest.TestCase):
 
     def test_word_count_claim_matches_measured_behavior(self):
         self.assertIn(
-            "tokenizer calibrated to external ATS compound-token",
+            "compound-word semantics",
             self.skill)
         self.assertNotIn("same word boundaries used by a specific vendor", self.skill)
 

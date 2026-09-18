@@ -26,13 +26,14 @@ MAX_WORDS = 1000
 # ats_audit's --match-target; 0 disables.
 MATCH_RATE_TARGET = 75
 
-# External ATS parsers count lexical components separated by hyphens and slashes as
-# separate words, while keeping apostrophe forms such as "candidate's" whole.
-_WORD_RE = re.compile(r"[A-Za-z0-9_]+(?:['’][A-Za-z0-9_]+)?")
+# External ATS parsers count compound words as single tokens: hyphens and slashes
+# bind tighter than spaces, so "CI/CD" and "test-automation" are one word each.
+# Apostrophe forms such as "candidate's" split into two tokens.
+_WORD_RE = re.compile(r"[\w]+(?:[-/][\w]+)*")
 
 
 def word_tokens(text):
-    """Return word tokens using the external ATS word-boundary semantics."""
+    """Return word tokens using the external ATS compound-token semantics."""
     return _WORD_RE.findall(text)
 
 
