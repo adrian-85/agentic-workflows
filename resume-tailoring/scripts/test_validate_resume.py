@@ -37,6 +37,27 @@ mkbody = test_helpers._body
 import script_args as sa  # noqa: E402
 
 
+def _save_body_docx(body):
+    """Write ``body``'s paragraphs into a fresh temp .docx; caller unlinks.
+
+    Returns (path, body_element) so tests can hand both to validate_tree.
+    """
+    fd, path = tempfile.mkstemp(suffix=".docx")
+    os.close(fd)
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("word/document.xml",
+            '<?xml version="1.0"?><w:document xmlns:w="'
+            + de.XMLNS + '"><w:body/></w:document>')
+        z.writestr("[Content_Types].xml", "<Types/>")
+    root, body_el, names, data, _ = de.load(path)
+    for p in list(body):
+        body_el.append(p)
+    with contextlib.redirect_stdout(io.StringIO()):
+        de.save(path, root, names, data)
+    return path, body_el
+
+
+
 def _write_docx(path, company_dates, education=True):
     """Write a minimal resume docx whose roles carry the given dates."""
     with zipfile.ZipFile(path, "w") as z:
@@ -1084,23 +1105,12 @@ class GuidanceTests(unittest.TestCase):
         # the gate recorded as omitted does not block the deliverable.
         b, _s = self._two_role_body(with_spacer=False)
         header = mr._boundaries_without_spacer(b)[0][0]
-        fd, path = tempfile.mkstemp(suffix=".docx")
-        os.close(fd)
         state_fd, state_path = tempfile.mkstemp(suffix=".workflow.json")
         os.close(state_fd)
         saved_env = (os.environ.get("RESUME_RENDER_PHASE"),
                      os.environ.get("RESUME_WORKFLOW_STATE"))
         try:
-            with zipfile.ZipFile(path, "w") as z:
-                z.writestr("word/document.xml",
-                    '<?xml version="1.0"?><w:document xmlns:w="'
-                    + de.XMLNS + '"><w:body/></w:document>')
-                z.writestr("[Content_Types].xml", "<Types/>")
-            root, body_el, names, data, _ = de.load(path)
-            for p in list(b):
-                body_el.append(p)
-            with contextlib.redirect_stdout(io.StringIO()):
-                de.save(path, root, names, data)
+            path, body_el = _save_body_docx(b)
             with open(state_path, "w", encoding="utf-8") as stream:
                 json.dump({"phase": "spacers-closed",
                            "spacers_omitted": [header]}, stream)
