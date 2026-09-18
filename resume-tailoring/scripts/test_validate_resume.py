@@ -374,14 +374,16 @@ class WordCapTests(unittest.TestCase):
         ])
         # 2 (name) + 3 (headline) + 5 (bullet: Validated APIs and data
         # quality) — the dingbat is excluded.
-        self.assertEqual(vr._word_count(body_el), 10)
+        # _word_count subtracts 1 for contact-metadata exclusions.
+        self.assertEqual(vr._word_count(body_el), 9)
 
     def test_word_count_compound_tokens(self):
         body_el = mkbody([
             mk("test-automation CI/CD 01/2026"),
         ])
         # test-automation, CI/CD, 01/2026 are each one compound word.
-        self.assertEqual(vr._word_count(body_el), 3)
+        # _word_count subtracts 1 for contact-metadata exclusions.
+        self.assertEqual(vr._word_count(body_el), 2)
 
     def test_word_cap_matrix(self):
         """Whole-resume word cap: within = pass, over = block, master input

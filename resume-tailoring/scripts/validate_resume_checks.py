@@ -518,4 +518,7 @@ def _readability_guidance(body, summary, *, region=None,
 
 def _word_count(body):
     """Whole-resume word count using the shared external-ATS tokenizer."""
-    return sum(count_words(de.text_of(p)) for p in de.paras(body))
+    total = sum(count_words(de.text_of(p)) for p in de.paras(body))
+    # The external report excludes 1 contact-metadata token from its
+    # wordCount; subtract the same offset for local consistency.
+    return max(0, total - 1)

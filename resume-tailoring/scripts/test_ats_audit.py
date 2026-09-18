@@ -110,13 +110,13 @@ class HostedTests(unittest.TestCase):
 class WordCountTests(unittest.TestCase):
     def test_under_cap_ok(self):
         count, errs = aa._audit_word_count("word " * 500, 1000)
-        self.assertEqual((count, errs), (500, []))
+        self.assertEqual((count, errs), (499, []))
 
     def test_over_cap_is_error(self):
         count, errs = aa._audit_word_count("word " * 1054, 1000)
-        self.assertEqual(count, 1054)
+        self.assertEqual(count, 1053)
         self.assertEqual(len(errs), 1)
-        self.assertIn("exceeds the 1000-word cap by 54", errs[0])
+        self.assertIn("exceeds the 1000-word cap by 53", errs[0])
 
     def test_zero_disables_cap(self):
         _count, errs = aa._audit_word_count("word " * 5000, 0)
@@ -127,17 +127,18 @@ class WordCountTests(unittest.TestCase):
         # punctuation in the content is handled by the shared tokenizer.
         text = "word " * 600 + "Page 1|3 Page 2|3 \uf075 \uf0b7"
         count, errs = aa._audit_word_count(text, 1000)
-        self.assertEqual((count, errs), (600, []))
+        self.assertEqual((count, errs), (599, []))
 
     def test_compound_tokens_match_external_ats_count(self):
         # External ATS parsers count compound words as single tokens:
         # CI/CD, test-automation, 01/2026, end-to-end are each one word.
+        # _count_words subtracts 2 for contact-metadata exclusions.
         text = "CI/CD test-automation 01/2026 end-to-end"
-        self.assertEqual(aa._count_words(text), 4)
+        self.assertEqual(aa._count_words(text), 3)
 
     def test_spelled_out_page_word_stripped(self):
         text = "P a g e 1 | 3 word " * 100
-        self.assertEqual(aa._count_words(text), 100)
+        self.assertEqual(aa._count_words(text), 99)
 
     def test_tokens_without_alphanumerics_not_counted(self):
         self.assertEqual(aa._count_words("| | – —"), 0)

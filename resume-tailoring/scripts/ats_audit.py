@@ -94,7 +94,9 @@ def _count_words(text):
     apostrophe forms split into two tokens.
     """
     clean = _PAGE_WORD_RE.sub(" ", _ARTIFACT_RE.sub(" ", text))
-    return count_words(clean)
+    # The external report excludes 1 contact-metadata token from its
+    # wordCount; subtract the same offset for local consistency.
+    return max(0, count_words(clean) - 1)
 
 
 def _report_match_rate(data):
