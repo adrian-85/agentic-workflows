@@ -135,6 +135,7 @@ def validate_review(review):
         entries = review.get("findings")
     if not isinstance(entries, list):
         raise ReviewError(f"{kind} review needs a list of dispositions")
+    invalid_decisions = []
     for index, entry in enumerate(entries, 1):
         if not isinstance(entry, dict):
             raise ReviewError(f"{kind} review entry {index} must be an object")
@@ -144,10 +145,12 @@ def validate_review(review):
                    else {"host", "ignore", "raise"})
         if entry.get("decision") not in allowed:
             choices = ", ".join(sorted(allowed))
-            raise ReviewError(
+            invalid_decisions.append(
                 f"{kind} review entry {index} has invalid decision "
                 f"{entry.get('decision')!r}; allowed decisions: {choices}")
         _nonempty(entry.get("rationale"), f"{kind} review entry {index}.rationale")
+    if invalid_decisions:
+        raise ReviewError("; ".join(invalid_decisions))
     return kind
 
 

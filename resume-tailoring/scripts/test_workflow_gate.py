@@ -79,6 +79,22 @@ class ReviewValidationTests(unittest.TestCase):
         self.assertIn("entry 1", message)
         self.assertIn("allowed decisions", message)
 
+    def test_reports_all_invalid_review_decisions(self):
+        review = {
+            "kind": "ats",
+            "findings": [
+                {"phrase": "python", "decision": "keep",
+                 "rationale": "invalid for ATS reviews"},
+                {"phrase": "sql", "decision": "restore",
+                 "rationale": "invalid for ATS reviews"},
+            ],
+        }
+        with self.assertRaises(wg.ReviewError) as caught:
+            wg.validate_review(review)
+        message = str(caught.exception)
+        self.assertIn("entry 1", message)
+        self.assertIn("entry 2", message)
+
     def test_ats_review_must_cover_every_baseline_finding(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "target.workflow.json")
