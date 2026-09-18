@@ -39,17 +39,26 @@ header is the URL-decoded token cookie value).
 
 usage:
     python3 scripts/ats_check.py scan <resume.pdf|docx> <jd.txt>
+        [--jd <jd.txt>] [--source-jd <verbatim-jd.txt>]
         [--out <report.json>] [--timeout 300] [--interval 6]
     python3 scripts/ats_check.py check
 
 Exit codes: 0 report saved; 1 report not ready in time; 2 config/HTTP
 error (401/403 -> credentials expired, re-save curl.txt).
 
+When ``jd_<target>_source.txt`` exists beside the normalized JD, the
+verbatim source is uploaded to the external parser automatically. Use
+``--source-jd`` to select another source explicitly. The saved report
+records hashes for the resume, normalized JD, uploaded JD, opportunity,
+and report URL; ``ats_audit.py`` rejects a report tied to different local
+inputs.
+
 Auth note: the jar is seeded once from curl.txt and then only rotated.
 When the scan starts returning 401/403, re-export the requests from a
 logged-in browser session — the cookie values are the only secret.
 """
 
+import hashlib
 import json
 from dataclasses import dataclass
 import os
@@ -366,7 +375,7 @@ def _company_from_jd(jd_text):
     for line in jd_text.splitlines():
         m = re.match(r"\s*company:\s*(\S.*)", line, re.I)
         if m:
-            first = re.split(r"\.\s+", m.group(1).strip(), 1)[0]
+            first = re.split(r"\.\s+", m.group(1).strip(), maxsplit=1)[0]
             first = first.rstrip(".").strip()
             return first or None
     return None
@@ -448,6 +457,30 @@ def _opportunity_update_body(saved_body, opp_id, resume_id, job_id):
 # ATS poll/match/report orchestration
 
 
+def resolve_scan_jd(normalized_jd, source_jd=None):
+    """Choose the verbatim JD for external scanning when one is available.
+
+    Internal workflow tools use the normalized eight-section JD. Jobscan must
+    receive the original posting structure, so an explicit source path wins,
+    followed by the conventional ``*_source.txt`` sibling.
+    """
+    candidate = source_jd or os.path.splitext(normalized_jd)[0] + "_source.txt"
+    if os.path.exists(candidate):
+        return candidate
+    if source_jd:
+        raise SystemExit(f"error: source JD file not found: {source_jd}")
+    return normalized_jd
+
+
+def _sha256(path):
+    """Return the SHA-256 digest of a scan input file."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 @dataclass
 class _ScanOpts:
     """Scan options (out, timeout, interval, config, company) bundled so
@@ -459,6 +492,7 @@ class _ScanOpts:
     interval: int = 6
     config: str = CURL_FILE
     company: str | None = None
+    source_jd: str | None = None
 
 
 
@@ -502,15 +536,15 @@ def _attach_posting(kinds, opp_id, posting_url, company):
           f"(url={posting_url}{', company=' + company if company else ''})")
 
 
-def _scan_submit(kinds, resume_path, jd_path, company, posting_url=None):
-    """Execute the create flow: upload resume, create JD + opportunity,
-    re-point at the fresh resume, attach posting metadata.
+def _scan_submit(kinds, resume_path, jd_path, company, posting_url=None,
+                 upload_jd_path=None):
+    """Execute the create flow with the verbatim JD for the external scan.
 
-    ``posting_url`` (optional) is a pre-resolved URL — the JD's own
-    Posting URL line, or the known-ATS reuse from :func:`scan`. When
-    None here, the JD file is re-read for the line (the historical
-    behavior). Returns (opp_id, posting_url_used). Raises SystemExit
-    via _fail on a blocking API error."""
+    ``jd_path`` is the normalized internal JD used for provenance and
+    metadata. ``upload_jd_path`` is the original posting text sent to the
+    external parser. When omitted, the normalized path is retained for
+    backwards compatibility.
+    """
     mime = MIME_BY_EXT[os.path.splitext(resume_path)[1].lower()]
     code, data, body = request(kinds["resume"]["url"],
                                _browser_headers(kinds["resume"]["headers"]),
@@ -521,7 +555,8 @@ def _scan_submit(kinds, resume_path, jd_path, company, posting_url=None):
     if not resume_id:
         _fail(code, body)
 
-    with open(jd_path, encoding="utf-8", errors="replace") as f:
+    upload_jd_path = upload_jd_path or jd_path
+    with open(upload_jd_path, encoding="utf-8", errors="replace") as f:
         jd_text = f.read()
     code, data, body = request(kinds["job"]["url"],
                                _browser_headers(kinds["job"]["headers"]),
@@ -647,9 +682,10 @@ def _print_missing_skills(report, score):
               + (", ".join(names) if names else "none"))
 
 
-def _save_report(report, company, posting_url, out):
-    """Persist the report JSON, record the company→ATS knowledge, and
-    print the human summary (match target, word cross-check, target ATS)."""
+def _save_report(report, company, posting_url, out, provenance=None):
+    """Persist the report and its exact scan-input provenance."""
+    if provenance:
+        report["_scan_provenance"] = provenance
     with open(out, "w", encoding="utf-8") as f:
         json.dump(report, f)
     fm = {f["key"]: f for f in report.get("findings", [])
@@ -681,8 +717,12 @@ def scan(resume_path, jd_path, opts=None):
     kinds, _ = _scan_setup(resume_path, jd_path, opts.config)
 
     _jd_text, company, posting_url = _resolve_posting(jd_path, opts.company)
-    opp_id, posting_url = _scan_submit(kinds, resume_path, jd_path,
-                                       company, posting_url=posting_url)
+    upload_jd_path = resolve_scan_jd(jd_path, opts.source_jd)
+    if upload_jd_path != jd_path:
+        print(f"[2] external scan JD: verbatim source {upload_jd_path}")
+    opp_id, posting_url = _scan_submit(
+        kinds, resume_path, jd_path, company, posting_url=posting_url,
+        upload_jd_path=upload_jd_path)
     report_url = kinds["report"]["url"].replace("{id}", str(opp_id))
     report = _poll_report(report_url,
                           _browser_headers(kinds["report"]["headers"]),
@@ -694,7 +734,18 @@ def scan(resume_path, jd_path, opts=None):
         return 1
 
     out = opts.out or os.path.splitext(resume_path)[0] + ".ats-check.json"
-    _save_report(report, company, posting_url, out)
+    _save_report(
+        report, company, posting_url, out,
+        provenance={
+            "resume_path": os.path.abspath(resume_path),
+            "resume_sha256": _sha256(resume_path),
+            "normalized_jd_path": os.path.abspath(jd_path),
+            "normalized_jd_sha256": _sha256(jd_path),
+            "uploaded_jd_path": os.path.abspath(upload_jd_path),
+            "uploaded_jd_sha256": _sha256(upload_jd_path),
+            "opportunity_id": opp_id,
+            "report_url": report_url,
+        })
     print(f"    next: ats_audit.py {resume_path} --jd {jd_path} "
           f"--report-json {out}")
     return 0
@@ -738,7 +789,7 @@ def main(argv=None):
     if cmd == "scan":
         # Flags may appear before or after the positionals.
         flag_names = ("--config", "--out", "--timeout", "--interval",
-                      "--company")
+                      "--company", "--jd", "--source-jd")
         positional, skip_next = [], False
         for a in rest:
             if skip_next:
@@ -748,6 +799,13 @@ def main(argv=None):
                 skip_next = True
                 continue
             positional.append(a)
+        jd_flag = flag_value(rest, "--jd")
+        source_jd = flag_value(rest, "--source-jd")
+        if jd_flag:
+            if len(positional) > 1:
+                raise SystemExit("error: provide the JD either positionally "
+                                 "or with --jd, not both")
+            positional.append(jd_flag)
         if len(positional) < 2:
             print(__doc__)
             return 2
@@ -756,7 +814,8 @@ def main(argv=None):
             timeout=flag_value(rest, "--timeout", cast=int, default=300),
             interval=flag_value(rest, "--interval", cast=int, default=6),
             config=flag_value(rest, "--config") or CURL_FILE,
-            company=flag_value(rest, "--company")))
+            company=flag_value(rest, "--company"),
+            source_jd=source_jd))
     print(__doc__)
     return 2
 

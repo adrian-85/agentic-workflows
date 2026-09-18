@@ -230,10 +230,13 @@ the residual page gap automatically.
   re-supply the corrected sections. The colon is mandatory precisely because the one-word headers
   must not match a bare body word. A recruiter's "top skills" message uses the same template (the
   named skills go under `required:`) — one input format everywhere.
-- **Persist the JD in the skill root, not /tmp.** Save it as `jd_<target>.txt` (e.g.
-  `jd_acme.txt`) before anything else. Every downstream tool references that path for the whole
-  session, and re-run instructions outlive it. The code warns when `--jd` points at `/tmp`; the
-  tailor script's docstring records the JD path used.
+- **Persist both JD forms in the skill root, not /tmp.** Save the fixed eight-section internal JD as
+  `jd_<target>.txt` (e.g. `jd_acme.txt`) before anything else. When the supplied posting has nested
+  headings or other structure that must remain verbatim for an external parser, also save the exact
+  unmodified posting as `jd_<target>_source.txt`. Internal prune/audit tools use the normalized file.
+  `ats_check.py` automatically uploads the `_source.txt` sibling, so the external scan receives the
+  original posting structure. Every downstream tool references durable skill-root paths. The code
+  warns when `--jd` points at `/tmp`; the tailor script's docstring records the internal JD path.
 - **Persist the job posting URL with the JD.** Ask for it ONCE, when the user provides only
   posting text — if the reply doesn't include it, omit the line and proceed (the scan always runs
   without it); never re-ask mid-session. Put `Posting URL: <url>` as the FIRST line of
@@ -749,8 +752,9 @@ Below the 75 target, feed the saved report back through the current-build measur
 master/LinkedIn inference map over the combined queue, and writes a fingerprinted
 `<resume>.gap.json`. Those lists are the next source-mining queue (Step 4's loop) — not optional,
 and not displaced by a different `ats_audit.py` no-host list. The report's `wordCount` is a
-CROSS-CHECK only — the service's PDF parser inflates counts, so the cap is always `ats_audit.py`'s
-own count.
+final external cross-check for the exact uploaded PDF. Local planning and validation use the shared
+Jobscan-aligned lexical tokenizer, while PDF extraction can still create a material difference that
+must be investigated against the delivered file.
 
 **The match-rate target is 75.** `ats_audit.py` and `ats_check.py` enforce the stop: at or above it,
 the hosting loop closes and score-driven edits halt — the residual actionable no-host list at that
@@ -766,13 +770,13 @@ this target", name the confirmed gaps, and let the user weigh applying. `ats_aud
 gate mechanically: when two consecutive audits report the same below-target score it prints
 **CEILING DETECTED** — at that signal the checklist presentation is mandatory, not judgment.
 
-**The word cap has TWO counters — keep headroom for the stricter one.** `validate_resume.py` counts
-the .docx paragraphs; `ats_audit.py` counts the RENDERED PDF text (its count is authoritative for
-the cap). The two drift ±1–2% on header/footer and hyphenation handling, so a .docx count of 999 can
-render at 1001 and FAIL the audit. Keep the validator count at ~990 or below so the render-time
-audit count stays under 1000; when planning cuts, use measure's **WORD BUDGET** section
-(validator-equivalent per-role totals + wordiest bullets) instead of hand-counting across blocked
-re-run cycles.
+**The word cap uses one lexical tokenizer across the workflow.** `validate_resume.py`,
+`measure_resume.py`, and `ats_audit.py` share the same word boundaries used by Jobscan for ordinary
+text, including counting the components of hyphenated and slash-separated terms (`test-automation`,
+`CI/CD`, and date-like `01/2026` tokens separately) while keeping apostrophe forms together. The
+PDF audit still removes page furniture before counting, and the external report remains a final
+parser cross-check because PDF extraction can alter line wrapping. Use measure's **WORD BUDGET**
+section for planning, then verify the exact delivered PDF with the external scan before submission.
 
 **IGNORED by rule: three classes of external finding.**
 
@@ -889,7 +893,7 @@ sidecar, `merge_into`; Steps 4, 9 & 12). What's left is judgment:
 | Reformatting typography to clear the scan's Special Characters finding | IGNORED by rule — Wingdings bullets, en-dash dates, curly quotes are the user's deliberate formatting; never reformat to satisfy a text parser (Step 12) |
 | Restoring Education because the scan wants an Education section | IGNORED by rule when Education was dropped per Step 5.4 — the render gate sanctioned the drop; the scan's generic advice does not re-open it (Step 12) |
 | Treating "no literal host" as "no evidence" and declaring honest gaps, or re-asking the user about evidence-backed terms | Follow the INFERENCE MAP's verdicts (Hosting reference): AUTO-HOST terms are hosted without asking — debugging/UI/data-management asks are usually demonstrated, just lexically invisible; the user's checklist contains exactly the RAISE terms |
-| Treating the external report's wordCount as the cap | The service's PDF parser inflates counts — the cap is `ats_audit.py`'s own count; the report's number is a cross-check only (Step 12) |
+| Treating the external report's wordCount as interchangeable with the local count | The workflow uses one Jobscan-aligned lexical tokenizer, but PDF extraction can still differ. Compare the report against the exact delivered PDF and investigate a material mismatch rather than applying a fixed cushion (Step 12) |
 | Storing scan-service credentials in the repo | They live in the skill root's `.ats-check/` dot-directory (user's saved cURL exports; gitignored, 0600, invisible to `git add *`); refresh from a logged-in browser when scans 401 (Step 12) |
 | Punctuation in prose (em dash, semicolon, colon, ellipsis) | Periods and commas ONLY — no em dashes, double hyphens, semicolons, colons, or ellipses (`...`); split into a new sentence or use a comma. The Tools line's `Label: values` colon is the one exempt structural colon (Step 10) |
 | JD asks for fewer years than the candidate has | Offer Step 5 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it. The token needs the user's authority: their chat reply or pre-authorization in the request; never pass it on your own |

@@ -2,7 +2,8 @@
 # Render a .docx resume to PDF and verify the result.
 #
 # Usage:
-#   ./scripts/render_pdf.sh <input.docx> [output.pdf] [outdir]
+#   ./scripts/render_pdf.sh [--verbose] [--target-pages N] <input.docx> [output.pdf] [outdir]
+#   Options may appear before or after the input path.
 #   RESUME_RENDER_PHASE=baseline RESUME_WORKFLOW_STATE=<state> \
 #       ./scripts/render_pdf.sh <input.docx>
 #   RESUME_RENDER_PHASE=final RESUME_WORKFLOW_STATE=<state> \
@@ -24,6 +25,7 @@ set -euo pipefail
 
 VERBOSE=0
 TARGET_PAGES_ARG=""
+POSITIONAL=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --verbose)
@@ -31,14 +33,25 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         --target-pages)
+            [ "$#" -ge 2 ] || {
+                echo "Error: --target-pages needs a value" >&2
+                exit 2
+            }
             TARGET_PAGES_ARG="$2"
             shift 2
             ;;
-        *)
+        --)
+            shift
+            POSITIONAL+=("$@")
             break
+            ;;
+        *)
+            POSITIONAL+=("$1")
+            shift
             ;;
     esac
 done
+set -- "${POSITIONAL[@]}"
 
 if [ "$#" -lt 1 ]; then
     echo "Usage: $0 [--verbose] [--target-pages N] <input.docx> [output.pdf] [outdir]" >&2

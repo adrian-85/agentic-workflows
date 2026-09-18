@@ -18,6 +18,7 @@ import sys
 import tempfile
 import unittest
 import urllib.parse
+from unittest import mock
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
@@ -263,6 +264,39 @@ class PostingUrlTests(unittest.TestCase):
                 result = ac._posting_url(
                     f"Posting URL: {placeholder}\nEngineer")
                 self.assertIsNone(result)
+
+
+class SourceJdTests(unittest.TestCase):
+    def test_adjacent_source_jd_is_selected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            normalized = os.path.join(tmp, "jd_target.txt")
+            source = os.path.join(tmp, "jd_target_source.txt")
+            for path in (normalized, source):
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(path)
+            self.assertEqual(ac.resolve_scan_jd(normalized), source)
+
+    def test_explicit_source_jd_wins(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            normalized = os.path.join(tmp, "jd_target.txt")
+            source = os.path.join(tmp, "verbatim.txt")
+            open(normalized, "w", encoding="utf-8").close()
+            open(source, "w", encoding="utf-8").close()
+            self.assertEqual(ac.resolve_scan_jd(normalized, source), source)
+
+    def test_missing_source_jd_falls_back_to_normalized(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            normalized = os.path.join(tmp, "jd_target.txt")
+            open(normalized, "w", encoding="utf-8").close()
+            self.assertEqual(ac.resolve_scan_jd(normalized), normalized)
+
+    def test_scan_accepts_documented_jd_flag(self):
+        with mock.patch.object(ac, "scan", return_value=0) as scan:
+            self.assertEqual(
+                ac.main(["scan", "resume.pdf", "--jd", "jd.txt"]), 0)
+            scan.assert_called_once()
+            self.assertEqual(scan.call_args.args[:2],
+                             ("resume.pdf", "jd.txt"))
 
 
 class KnownAtsTests(unittest.TestCase):

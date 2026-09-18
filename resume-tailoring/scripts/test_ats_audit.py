@@ -409,6 +409,34 @@ class FindingsReportTests(unittest.TestCase):
         self.assertEqual(lines, ["  FAIL: Education Heading"])
 
 
+class ProvenanceTests(unittest.TestCase):
+    def test_report_provenance_rejects_different_resume(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            resume = os.path.join(tmp, "resume.pdf")
+            jd = os.path.join(tmp, "jd.txt")
+            with open(resume, "w", encoding="utf-8") as f:
+                f.write("resume")
+            with open(jd, "w", encoding="utf-8") as f:
+                f.write("jd")
+            data = {"_scan_provenance": {
+                "resume_sha256": "wrong",
+                "normalized_jd_sha256": aa._sha256(jd)}}
+            errors = aa._provenance_errors(data, resume, jd)
+            self.assertTrue(any("resume" in error for error in errors))
+
+    def test_report_provenance_accepts_matching_inputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            resume = os.path.join(tmp, "resume.pdf")
+            jd = os.path.join(tmp, "jd.txt")
+            for path, text in ((resume, "resume"), (jd, "jd")):
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+            data = {"_scan_provenance": {
+                "resume_sha256": aa._sha256(resume),
+                "normalized_jd_sha256": aa._sha256(jd)}}
+            self.assertEqual(aa._provenance_errors(data, resume, jd), [])
+
+
 class MainTests(unittest.TestCase):
     def _run(self, *args):
         out = io.StringIO()

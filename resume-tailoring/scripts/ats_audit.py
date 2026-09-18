@@ -47,6 +47,7 @@ Education section (the drop was a Step 5.4 predicate decision the render
 gate already sanctioned; the scan's generic advice does not re-open it).
 """
 
+import hashlib
 import json
 from dataclasses import dataclass, field
 import os
@@ -248,6 +249,39 @@ def _audit_phrases(text_low, phrases):
     list."""
     return [p for p in phrases if p.strip()
             and not _hosted(text_low, p.strip().lower())]
+
+
+def _sha256(path):
+    """Return the SHA-256 digest of an audit input file."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _provenance_errors(data, resume_path, jd_path):
+    """Reject an external report tied to different local scan inputs."""
+    provenance = data.get("_scan_provenance") if isinstance(data, dict) else None
+    if not isinstance(provenance, dict):
+        return []
+    errors = []
+    for label, path, key in (
+            ("resume", resume_path, "resume_sha256"),
+            ("normalized JD", jd_path, "normalized_jd_sha256")):
+        expected = provenance.get(key)
+        if not expected or not path:
+            continue
+        try:
+            actual = _sha256(path)
+        except OSError as exc:
+            errors.append(f"cannot verify report provenance for {label}: {exc}")
+            continue
+        if actual != expected:
+            errors.append(
+                f"external report provenance mismatch for {label}: "
+                "the report belongs to a different input")
+    return errors
 
 
 def _report_word_count(data):
@@ -469,6 +503,8 @@ def main(argv=None):
     if args["report_json"]:
         with open(args["report_json"], encoding="utf-8", errors="replace") as f:
             report_data = json.load(f)
+        result.errors.extend(_provenance_errors(
+            report_data, args["path"], args["jd_path"]))
 
     count, wc_errors = _audit_word_count(text, args["max_words"])
     result.ok_lines.append(f"words: {count}")

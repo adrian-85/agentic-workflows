@@ -670,21 +670,26 @@ text parser.
 ### ats_check.py — the external scan (when configured)
 
 ```bash
-python3 scripts/ats_check.py scan "<output>.pdf" <JD.txt> [--out <report.json>]
+python3 scripts/ats_check.py scan "<output>.pdf" <JD.txt> \
+    [--jd <JD.txt>] [--source-jd <verbatim-JD.txt>] [--out <report.json>]
 python3 scripts/ats_check.py check      # validate the saved config, no scan
 ```
 
 Submits the deliverable (PDF preferred — it is the submitted format) to the user's ATS scan service,
 waits for the match report, and saves its JSON next to the resume (`<resume>.ats-check.json`); feed
 that back into `ats_audit.py --report-json` for the authoritative cross-check. The chain is
-reconstructed from the user's OWN saved cURL exports in the skill root's `.ats-check/curl.txt` (four
-requests: resume upload, job description, opportunity, report GET) — the tool classifies them by
+reconstructed from the user's OWN saved cURL exports in the skill root's `.ats-check/curl.txt` (five
+requests: resume upload, job description, opportunity, opportunity update, report GET) — the tool classifies them by
 shape, templates fresh ids, rotates the session cookies through a curl cookie jar, and re-derives
 the CSRF header from the jar before every request. No service specifics are hardcoded; when a scan
-returns 401/403 the credentials expired — the user re-exports the four requests from a logged-in
+returns 401/403 the credentials expired — the user re-exports the five requests from a logged-in
 browser session and deletes `.ats-check/cookies.txt` to re-seed. The service dedupes an identical
-resume + JD pair (409) and the tool reuses the returned opportunity. The scan output prints the
-match rate, the report's wordCount (cross-check only — its PDF parser inflates counts), and the
+resume + JD pair (409) and the tool reuses the returned opportunity. When `jd_<target>_source.txt`
+exists beside the normalized JD, it is uploaded to preserve the posting's original structure;
+`--source-jd` selects another source. The report records hashes for the resume, normalized JD,
+and uploaded JD, plus the opportunity and report URL. `ats_audit.py --report-json` rejects a report
+whose resume or normalized JD hash does not match the current inputs. The scan output prints the
+match rate, the report's wordCount cross-check, and the
 identified target ATS; the latter requires the job posting URL persisted with the JD (Step 1) — a
 real URL on the `Posting URL:` line, never a placeholder: the function returns whatever is on the
 line, but the caller PATCHes only when the line is present and truthy. A placeholder PATCHed to the
