@@ -34,6 +34,48 @@ class StateTransitionTests(unittest.TestCase):
                 wg.advance(path, "pruned")
 
 
+    def test_record_audit_is_idempotent_on_re_audit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            wg.advance(path, "prune-theme-reviewed")
+            wg.record_audit(path, ["gemini", "consulting"])
+            self.assertEqual(wg.load_state(path)["phase"], "ats-audited")
+            # Post-host re-audit after later reviews: accepted, no rewind.
+            wg.advance(path, "ats-theme-reviewed")
+            wg.record_audit(path, ["gemini"])
+            self.assertEqual(wg.load_state(path)["phase"], "ats-theme-reviewed")
+
+    def test_record_audit_rejects_early_phase(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            with self.assertRaises(wg.GateError):
+                wg.record_audit(path, ["gemini"])
+
+
+class RequireAtLeastTests(unittest.TestCase):
+    """require_at_least accepts later phases (post-host baseline re-render)."""
+
+    def test_require_at_least_passes_on_later_phase(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            wg.advance(path, "prune-theme-reviewed")
+            wg.advance(path, "ats-audited")
+            wg.advance(path, "ats-theme-reviewed")
+            # Baseline re-render after Theme Review B: phase has moved past
+            # prune-theme-reviewed; the gate must still accept it.
+            wg.require_at_least(path, "prune-theme-reviewed")
+
+    def test_require_at_least_rejects_earlier_phase(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            with self.assertRaises(wg.GateError):
+                wg.require_at_least(path, "prune-theme-reviewed")
+
+
 class ReviewValidationTests(unittest.TestCase):
     """Review records contain explicit, non-empty judgment evidence."""
 
@@ -176,6 +218,25 @@ class BudgetRuleTests(unittest.TestCase):
             self.assertEqual(state["history"][-1]["spacers_omitted"],
                              ["Globex, CA (Remote)"])
 
+    def test_spacer_close_rerecords_omissions_after_close(self):
+        # Render feedback can reveal an omitted-header string that never
+        # matched (e.g. a full header recorded without its dates). Re-closing
+        # must update the omissions without rewinding the phase.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            for phase in ("prune-theme-reviewed", "ats-audited",
+                          "ats-theme-reviewed", "seniority-approved",
+                          "budgets-closed"):
+                wg.advance(path, phase)
+            wg.close_spacers(path, False, omitted=["Symbols"])
+            wg.close_spacers(path, False,
+                             omitted=["Symbols, Tbilisi, Georgia (Remote)02/2025"])
+            state = wg.load_state(path)
+            self.assertEqual(state["phase"], "spacers-closed")
+            self.assertEqual(state["spacers_omitted"],
+                             ["Symbols, Tbilisi, Georgia (Remote)02/2025"])
+
     def test_spacers_cli_splits_the_omitted_flag(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "target.workflow.json")
@@ -184,9 +245,28 @@ class BudgetRuleTests(unittest.TestCase):
                           "ats-theme-reviewed", "seniority-approved",
                           "budgets-closed"):
                 wg.advance(path, phase)
-            wg._main(["spacers", path, "--omitted", "Alpha, Beta "])
+            # No ';' present: legacy comma split for header-free names.
+            wg._main(["spacers", path, "--omitted", "Alpha, Beta"])
             self.assertEqual(wg.load_state(path)["spacers_omitted"],
-                             ["Alpha", "Beta"])
+                             ["Alpha", "Beta"]
+                             )
+
+    def test_spacers_cli_semicolon_keeps_commas_inside_headers(self):
+        # Regression: real role headers contain commas ("GEICO, Chevy Chase,
+        # MD (Remote)06/2025 – 07/2026"), so the CLI separator is ';' — a
+        # comma split garbled every recorded header into fragments that
+        # never matched, and final validation blocked the deliverable.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            for phase in ("prune-theme-reviewed", "ats-audited",
+                          "ats-theme-reviewed", "seniority-approved",
+                          "budgets-closed"):
+                wg.advance(path, phase)
+            headers = ["GEICO, Chevy Chase, MD (Remote)06/2025 – 07/2026",
+                       "Symbols, Tbilisi, Georgia (Remote)02/2025 – 06/2025"]
+            wg._main(["spacers", path, "--omitted", ";".join(headers)])
+            self.assertEqual(wg.load_state(path)["spacers_omitted"], headers)
 
 
 if __name__ == "__main__":

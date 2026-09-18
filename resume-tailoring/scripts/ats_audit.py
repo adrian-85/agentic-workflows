@@ -442,8 +442,10 @@ def _check_baseline_gate(args):
         print("error: --baseline requires --workflow-state", file=sys.stderr)
         return False
     try:
-        workflow_gate.require(args["workflow_state"],
-                              "prune-theme-reviewed")
+        # require_at_least, not exact: the post-host baseline re-audit
+        # (SKILL Step 4) runs after Theme Review B advanced the phase.
+        workflow_gate.require_at_least(args["workflow_state"],
+                                       "prune-theme-reviewed")
     except workflow_gate.GateError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return False

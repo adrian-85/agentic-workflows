@@ -73,7 +73,9 @@ if [ -n "$REQUIRED_PHASE" ]; then
         echo "Error: $RESUME_RENDER_PHASE render requires RESUME_WORKFLOW_STATE" >&2
         exit 2
     }
-    python3 "$SELF_DIR/workflow_gate.py" require \
+    # require-at-least, not exact: the post-host baseline re-render (SKILL
+    # Step 4) legitimately runs after Theme Review B advanced the phase.
+    python3 "$SELF_DIR/workflow_gate.py" require-at-least \
         "$RESUME_WORKFLOW_STATE" "$REQUIRED_PHASE"
 fi
 

@@ -22,6 +22,28 @@ import unittest
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
 import ats_audit as aa  # noqa: E402
+import workflow_gate as wgate  # noqa: E402
+
+
+class BaselineGateTests(unittest.TestCase):
+    """Baseline audit gate accepts phases at or past prune-theme-reviewed."""
+
+    def test_baseline_gate_accepts_later_phase(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = os.path.join(tmp, "t.workflow.json")
+            wgate.create_state(state, "t", "jd_t.txt", "theme")
+            wgate.advance(state, "prune-theme-reviewed")
+            wgate.advance(state, "ats-audited")
+            wgate.advance(state, "ats-theme-reviewed")
+            self.assertTrue(aa._check_baseline_gate(
+                {"baseline": True, "workflow_state": state}))
+
+    def test_baseline_gate_rejects_earlier_phase(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = os.path.join(tmp, "t.workflow.json")
+            wgate.create_state(state, "t", "jd_t.txt", "theme")
+            self.assertFalse(aa._check_baseline_gate(
+                {"baseline": True, "workflow_state": state}))
 
 
 def _tmp(text, suffix=".txt"):

@@ -155,8 +155,13 @@ def validate_review(review):
 
 
 def record_audit(path, findings, audit_path=None):
-    """Record the baseline audit findings before its agent review."""
-    require(path, "prune-theme-reviewed")
+    """Record the baseline audit findings before its agent review.
+
+    Re-audits after hosting land (SKILL Step 4) run when the phase has
+    already moved past prune-theme-reviewed; accept those and do not rewind
+    the phase by re-advancing.
+    """
+    require_at_least(path, "prune-theme-reviewed")
     if not isinstance(findings, list):
         raise GateError("baseline audit findings must be a list")
     normalized = sorted({str(item).strip().lower() for item in findings
@@ -164,7 +169,8 @@ def record_audit(path, findings, audit_path=None):
     details = {"finding_phrases": normalized, "findings": len(normalized)}
     if audit_path:
         details["audit"] = os.path.basename(audit_path)
-    advance(path, "ats-audited", details, {"finding_phrases": normalized})
+    if load_state(path)["phase"] == "prune-theme-reviewed":
+        advance(path, "ats-audited", details, {"finding_phrases": normalized})
 
 
 def record_review(state_path, review_path):
@@ -222,10 +228,19 @@ def close_spacers(path, creates_new_page, omitted=None):
     content). The record is what final-phase validation exempts — an
     unrecorded missing spacer still blocks the deliverable.
     """
-    require(path, "budgets-closed")
+    require_at_least(path, "budgets-closed")
     if creates_new_page:
         raise GateError("spacers would create a new page")
     omitted = [name.strip() for name in (omitted or []) if name.strip()]
+    if load_state(path)["phase"] == "spacers-closed":
+        # Re-record omissions (e.g. correcting a header string after render
+        # feedback) without rewinding the phase.
+        state = load_state(path)
+        state["spacers_omitted"] = omitted
+        state.setdefault("history", []).append(
+            {"phase": "spacers-closed", "spacers_omitted": omitted})
+        _write(path, state)
+        return
     advance(path, "spacers-closed",
             {"creates_new_page": False, "spacers_omitted": omitted},
             state_updates={"spacers_omitted": omitted})
@@ -256,8 +271,9 @@ def _main(argv=None):
     spacer_parser.add_argument("--creates-new-page", action="store_true")
     spacer_parser.add_argument(
         "--omitted", default="",
-        help="comma-separated role headers where page pressure kept the "
-             "spacer out; recorded so final validation exempts them")
+        help="role headers where page pressure kept the spacer out, "
+             "separated by ';' (headers themselves contain commas); a "
+             "comma-separated list is still accepted for header-free names")
     args = parser.parse_args(argv)
     try:
         if args.command == "review":
@@ -268,8 +284,16 @@ def _main(argv=None):
             close_budgets(args.state, args.words, args.spill_lines,
                           args.attempted_page_removal)
         elif args.command == "spacers":
-            close_spacers(args.state, args.creates_new_page,
-                          args.omitted.split(",") if args.omitted else None)
+            omitted = args.omitted
+            if omitted:
+                # Role headers contain commas ("GEICO, Chevy Chase, MD"), so
+                # the documented separator is ';'; fall back to ',' only when
+                # no ';' is present (header-free names).
+                sep = ";" if ";" in omitted else ","
+                omitted = omitted.split(sep)
+            else:
+                omitted = None
+            close_spacers(args.state, args.creates_new_page, omitted)
         elif args.command == "require-at-least":
             require_at_least(args.state, args.phase)
         else:
