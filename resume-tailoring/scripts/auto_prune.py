@@ -164,6 +164,11 @@ def _hosts_jd_chunk(text, jd_terms):
                   for chunk in re.split(r"[,;]", value)))
 
 
+def _is_tools_line(text):
+    """Whether a list candidate is the per-role Tools presentation row."""
+    return text.strip().lower().startswith("tools & technologies:")
+
+
 def _top_sections(body):
     """(heading_text, [non-blank content texts]) per SectionHeading
     section from Technical Proficiencies to the career region — the
@@ -265,6 +270,11 @@ def _disposition(c, anchors, role_state, jd_terms):
                             "bullet kept whole — every sentence carries "
                             "JD evidence (auto-prune; nothing to cut)")
     elif kind == "list-trim":
+        if _is_tools_line(text):
+            return "keep", (prefix if prefix else text[:24],
+                            "Tools & Technologies row kept for every "
+                            "retained role (auto-prune; preserve at least "
+                            "one presentation value row)")
         if _hosts_jd_chunk(text, jd_terms):
             return "keep", (prefix if prefix else text[:24],
                             "list line kept whole — hosts at least one "

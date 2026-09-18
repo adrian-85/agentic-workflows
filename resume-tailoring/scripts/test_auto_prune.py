@@ -234,6 +234,26 @@ class TestPlanDispositions(_AutoPruneBase):
         self.assertFalse(
             any(a[1] == c["text"] for a, _new in self.plan["trims"]))
 
+    def test_tools_line_without_jd_evidence_keeps_a_value_row(self):
+        # Tools & Technologies is part of every retained role's presentation.
+        # It may not host a JD term, but pruning it entirely leaves an
+        # inconsistent role block and an empty heading cannot render as a
+        # usable skills row.
+        body = _master_paras()
+        tools = next(p for p in de.paras(body)
+                     if de.text_of(p).startswith("Tools & Technologies:"))
+        de.set_text(tools, "Tools & Technologies: COBOL, Fortran")
+        roles = mr._roles(body)
+        terms = mr._jd_terms(JD, body)
+        candidates = mrd.prune_candidates(roles, terms, body, protect=())
+        candidates.extend(auto_prune._intro_candidates(
+            body, roles, terms, [de.text_of(p) for p in de.paras(body)]))
+        plan = auto_prune.plan_phase_a(candidates, roles, terms, body)
+        dropped = {text for _prefix, text in plan["drops"]}
+        self.assertNotIn(de.text_of(tools), dropped)
+        self.assertTrue(any(head == "Tools "
+                            for head, _why in plan["keeps"]))
+
     def test_languages_line_hosting_jd_evidence_is_kept_whole(self):
         # 'Python' (a capitalized mention) and 'python scripting' (the
         # cue-tail phrase) are BOTH asks under the engine; the Languages
