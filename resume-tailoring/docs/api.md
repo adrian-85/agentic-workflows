@@ -59,7 +59,8 @@ authoring:
   without `DOCX_EDIT_STRICT=1`, so a mid-flight master edit can never silently strand drifted
   prefixes. Re-dump `--prefixes`, review what changed (respect the user's edits — never re-fold
   over them), fix any drifted prefix in the tailor script, re-run.
-- **`clone_after(body, ref_p, text)`**: add a NEW bullet to the master, inheriting numbering.
+- **`clone_after(body, ref_p, text)`**: add a NEW bullet to the master, inheriting numbering. With
+  `text=""`, it adds a managed blank spacer that survives a later `remove_empty(body)` pass.
 - **`merge_into(body, target, source, text)`**: rewrite `target` AND remove `source` in one op —
   prevents near-dup residue from a two-step `set_text` + `remove`.
 
@@ -526,8 +527,9 @@ spacer, never theme-aligned content.
 
 **Ordering when the script also contains list/word trims:**
 
-1. `remove_empty(body)` deletes every blank paragraph, including one this script just cloned. Run
-   the spacer clones after `remove_empty()`.
+1. `clone_after(..., "")` registers managed blank spacers, so a later `remove_empty(body)` pass
+   no longer deletes them. Adding spacer clones after cleanup remains the clearest ordering and
+   keeps the script easy to read.
 2. `find_p` lint resolves prefixes against the MASTER before rewrites. An anchor based on
    shortened Tools-line text may resolve at runtime but fail lint; `after=` does not change that
    lint-time check.
@@ -569,8 +571,12 @@ so the overflow report measures against the goal you actually agreed on (3 for s
 
 `render_pdf.sh` **validates first** (runs `validate_resume.py`): it refuses to render on blocking
 errors — an orphan job title, a company without a title, content orphaned after a Tools line,
-**unapproved whole-role elimination**, or **Education dropped against a degree-requiring JD** (when
-`--jd` is passed). Fix the errors, then render. The rendered PDF lands next to the `.docx`.
+**unapproved whole-role elimination**, **a retained role without a Tools value row**, **a missing
+persisted inter-role spacer**, or **Education dropped against a degree-requiring JD** (when `--jd`
+is passed). Tools rows are presentation invariants even when their values are not JD terms. The
+spacer and Tools-row checks apply to final-phase renders; baseline renders remain available while
+those final layout decisions are still open. Fix the errors, then render. The rendered PDF lands
+next to the `.docx`.
 
 **The two gates have different trigger conditions.** The seniority gate runs unconditionally; the
 education gate runs ONLY when `--jd` is passed (via `RESUME_VALIDATE_ARGS`) — `render_pdf.sh` prints

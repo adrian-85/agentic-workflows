@@ -53,8 +53,10 @@ conflict. Time-in-role and recency are only tiebreakers, never a cut signal and 
 
 **Phase 1 — relevance assembly.** `auto_prune.py` builds a JD-relevant base from the master. It
 removes unevidenced content, whole dead sentences from a kept bullet, and whole non-JD
-proficiency/Tools lines — never a sub-sentence word/phrase edit and never a partial value list
-within a kept line. It never drops a whole role and does not perform page/word-budget iteration. Its
+proficiency lines — never a sub-sentence word/phrase edit and never a partial value list
+within a kept line. A retained role's `Tools & Technologies` presentation row is always preserved,
+with at least one value row, even when none of its values host a JD term. It never drops a whole
+role and does not perform page/word-budget iteration. Its
 dispositions are deterministic and complete — Step 3 theme-reviews them against the Step-1 brief and
 overrides where warranted (Core principle).
 
@@ -406,8 +408,9 @@ capability evidence, even when that evidence has few literal JD matches.
   never whether the most-recent role is exempt from pruning.
 - Don't bloat the top to "add content" — instead *reallocate*: expand the senior role with
   JD-aligned content AND keep every role pruned under the per-role cap, then trim off-JD
-  proficiencies, Tools lines, and spacers to make room. Done right, the resume gets *shorter*
-  while the important part gets stronger. Measure the tailored copy with the agreed target (Step 9
+  proficiencies and spacer paragraphs to make room. Tools values may be trimmed, but every retained
+  role keeps its Tools & Technologies row and at least one value. Done right, the resume gets
+  *shorter* while the important part gets stronger. Measure the tailored copy with the agreed target (Step 9
   re-measures it on the build after the content edits).
 
 **Seniority alignment — when the JD specifies fewer years than the candidate has** (e.g. a mid-level
@@ -569,9 +572,12 @@ page-removal attempt unless its positive spill is five rendered lines or fewer) 
 `workflow_gate.py spacers` (rejects a pass that creates a new page) — command syntax and flags:
 [docs/api.md](docs/api.md). Spacers use measure's **SPACER OPPORTUNITIES** and
 `validate_resume.py`'s GUIDANCE output, cloned via `clone_after(body, find_p(ps, "<Tools line>"),
-"")` AFTER `remove_empty(body)` — see docs/api.md. When `squeeze_resume.py --protect` closes a
-residual gap here, review every fold-back line against the theme before applying it. The final
-render and ATS audit are verification only.
+"")` — see docs/api.md. Blank spacer clones are tracked by the editor and survive a later
+`remove_empty(body)` pass; adding them after cleanup remains the clearest ordering. Final-phase
+validation blocks a delivered PDF when any retained role lacks a Tools value row or any required
+role boundary lacks its persisted spacer. When `squeeze_resume.py --protect` closes a residual gap
+here, review every fold-back line against the theme before applying it. The final render and ATS
+audit are verification only.
 
 ### Hosting reference — source-first mining (executed during Step 4)
 **This reference is executed during Step 4 (Theme Review B), before seniority or budget work.** The
