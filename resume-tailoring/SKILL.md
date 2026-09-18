@@ -409,8 +409,9 @@ capability evidence, even when that evidence has few literal JD matches.
 - Don't bloat the top to "add content" — instead *reallocate*: expand the senior role with
   JD-aligned content AND keep every role pruned under the per-role cap, then trim off-JD
   proficiencies and spacer paragraphs to make room. Tools values may be trimmed, but every retained
-  role keeps its Tools & Technologies row and at least one value. Done right, the resume gets
-  *shorter* while the important part gets stronger. Measure the tailored copy with the agreed target (Step 9
+  role keeps its Tools & Technologies row and at least one value; a spacer dropped for page space
+  must be recorded at the spacers gate (below), or the final render blocks. Done right, the resume
+  gets *shorter* while the important part gets stronger. Measure the tailored copy with the agreed target (Step 9
   re-measures it on the build after the content edits).
 
 **Seniority alignment — when the JD specifies fewer years than the candidate has** (e.g. a mid-level
@@ -573,9 +574,11 @@ page-removal attempt unless its positive spill is five rendered lines or fewer) 
 [docs/api.md](docs/api.md). Spacers use measure's **SPACER OPPORTUNITIES** and
 `validate_resume.py`'s GUIDANCE output, cloned via `clone_after(body, find_p(ps, "<Tools line>"),
 "")` — see docs/api.md. Blank spacer clones are tracked by the editor and survive a later
-`remove_empty(body)` pass; adding them after cleanup remains the clearest ordering. Final-phase
-validation blocks a delivered PDF when any retained role lacks a Tools value row or any required
-role boundary lacks its persisted spacer. When `squeeze_resume.py --protect` closes a residual gap
+`remove_empty(body)` pass; adding them after cleanup remains the clearest ordering. When page
+pressure legitimately keeps a spacer out, record the boundary at the gate —
+`workflow_gate.py spacers <state> --omitted "<next role header>[,...]"` — otherwise final-phase
+validation blocks a delivered PDF that lacks a Tools value row on any retained role or a persisted
+spacer at any unrecorded role boundary. When `squeeze_resume.py --protect` closes a residual gap
 here, review every fold-back line against the theme before applying it. The final render and ATS
 audit are verification only.
 

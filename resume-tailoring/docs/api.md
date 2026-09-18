@@ -119,14 +119,17 @@ python3 scripts/workflow_gate.py review <state> theme_review_<target>_ats.json
 python3 scripts/workflow_gate.py advance <state> seniority-approved
 python3 scripts/workflow_gate.py budgets <state> --words <N> --spill-lines <N> \
     [--attempted-page-removal]
-python3 scripts/workflow_gate.py spacers <state>
+python3 scripts/workflow_gate.py spacers <state> \
+    [--omitted "<next role header>[,<next role header>...]"]
 ```
 
 The baseline audit records every no-host phrase and the ATS review must disposition exactly that
 set. `budgets` enforces the 1,000-word cap (`MAX_WORDS`) and permits a page-removal attempt only for
-a positive spill of five rendered lines or fewer. `spacers` rejects a pass that creates a new page.
-Theme quality and truthful wording remain agent/user judgments; the gate enforces that those
-judgments are recorded and occur in order.
+a positive spill of five rendered lines or fewer. `spacers` rejects a pass that creates a new page;
+`--omitted` records boundaries where page pressure legitimately kept the spacer out (SKILL Step 9 —
+omit the spacer, never theme-aligned content), and final-phase validation exempts exactly the
+recorded boundaries. Theme quality and truthful wording remain agent/user judgments; the gate
+enforces that those judgments are recorded and occur in order.
 
 ### State-aware shell gates
 
@@ -572,11 +575,11 @@ so the overflow report measures against the goal you actually agreed on (3 for s
 `render_pdf.sh` **validates first** (runs `validate_resume.py`): it refuses to render on blocking
 errors — an orphan job title, a company without a title, content orphaned after a Tools line,
 **unapproved whole-role elimination**, **a retained role without a Tools value row**, **a missing
-persisted inter-role spacer**, or **Education dropped against a degree-requiring JD** (when `--jd`
-is passed). Tools rows are presentation invariants even when their values are not JD terms. The
-spacer and Tools-row checks apply to final-phase renders; baseline renders remain available while
-those final layout decisions are still open. Fix the errors, then render. The rendered PDF lands
-next to the `.docx`.
+persisted inter-role spacer** (unless the spacers gate recorded that boundary via `--omitted`), or
+**Education dropped against a degree-requiring JD** (when `--jd` is passed). Tools rows are
+presentation invariants even when their values are not JD terms. The spacer and Tools-row checks
+apply to final-phase renders; baseline renders remain available while those final layout decisions
+are still open. Fix the errors, then render. The rendered PDF lands next to the `.docx`.
 
 **The two gates have different trigger conditions.** The seniority gate runs unconditionally; the
 education gate runs ONLY when `--jd` is passed (via `RESUME_VALIDATE_ARGS`) — `render_pdf.sh` prints
