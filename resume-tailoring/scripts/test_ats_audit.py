@@ -429,13 +429,34 @@ class ProvenanceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             resume = os.path.join(tmp, "resume.pdf")
             jd = os.path.join(tmp, "jd.txt")
-            for path, text in ((resume, "resume"), (jd, "jd")):
+            source = os.path.join(tmp, "jd_source.txt")
+            for path, text in ((resume, "resume"), (jd, "jd"),
+                               (source, "verbatim jd")):
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(text)
             data = {"_scan_provenance": {
                 "resume_sha256": sha256_file(resume),
-                "normalized_jd_sha256": sha256_file(jd)}}
+                "normalized_jd_sha256": sha256_file(jd),
+                "uploaded_jd_path": source,
+                "uploaded_jd_sha256": sha256_file(source)}}
             self.assertEqual(aa._provenance_errors(data, resume, jd), [])
+
+    def test_report_provenance_rejects_different_uploaded_jd(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            resume = os.path.join(tmp, "resume.pdf")
+            jd = os.path.join(tmp, "jd.txt")
+            source = os.path.join(tmp, "jd_source.txt")
+            for path, text in ((resume, "resume"), (jd, "jd"),
+                               (source, "changed")):
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+            data = {"_scan_provenance": {
+                "resume_sha256": sha256_file(resume),
+                "normalized_jd_sha256": sha256_file(jd),
+                "uploaded_jd_path": source,
+                "uploaded_jd_sha256": "wrong"}}
+            errors = aa._provenance_errors(data, resume, jd)
+            self.assertTrue(any("uploaded JD" in error for error in errors))
 
 
 class MainTests(unittest.TestCase):

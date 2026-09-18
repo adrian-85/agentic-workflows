@@ -259,7 +259,9 @@ def _provenance_errors(data, resume_path, jd_path):
     errors = []
     for label, path, key in (
             ("resume", resume_path, "resume_sha256"),
-            ("normalized JD", jd_path, "normalized_jd_sha256")):
+            ("normalized JD", jd_path, "normalized_jd_sha256"),
+            ("uploaded JD", provenance.get("uploaded_jd_path"),
+             "uploaded_jd_sha256")):
         expected = provenance.get(key)
         if not expected or not path:
             continue

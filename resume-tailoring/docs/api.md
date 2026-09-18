@@ -687,8 +687,8 @@ browser session and deletes `.ats-check/cookies.txt` to re-seed. The service ded
 resume + JD pair (409) and the tool reuses the returned opportunity. When `jd_<target>_source.txt`
 exists beside the normalized JD, it is uploaded to preserve the posting's original structure;
 `--source-jd` selects another source. The report records hashes for the resume, normalized JD,
-and uploaded JD, plus the opportunity and report URL. `ats_audit.py --report-json` rejects a report
-whose resume or normalized JD hash does not match the current inputs. The scan output prints the
+and uploaded JD. `ats_audit.py --report-json` rejects a report whose local input hashes do not
+match the current inputs. The scan output prints the
 match rate, the report's wordCount cross-check, and the
 identified target ATS; the latter requires the job posting URL persisted with the JD (Step 1) — a
 real URL on the `Posting URL:` line, never a placeholder: the function returns whatever is on the

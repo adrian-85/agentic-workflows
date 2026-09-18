@@ -77,7 +77,7 @@ Core principle's theme check; there is no separate restore phase.
 
 | Step | Action | Tool |
 |---|---|---|
-| 1 | Read the WHOLE JD in the fixed 8-section template (persist + posting URL); write the company-focus theme brief + equivalences. Master and LinkedIn stay UNREAD | `jd_sections.py` contract |
+| 1 | Save the normalized JD and, when needed, the verbatim source as `jd_<target>_source.txt`; read the WHOLE JD in the fixed 8-section template, persist the posting URL, and write the theme brief + equivalences. Master and LinkedIn stay UNREAD | `jd_sections.py` contract |
 | 2 | PHASE A — the independent machine prune (`--theme` is provenance only): emits the first tailor script through the gates, writes the lean base build + workflow state. No cut report | `auto_prune.py` |
 | 3 | Theme Review A: measure the base build, diff master vs build, disposition the prune against the theme; record the review | `measure_resume.py`, `docx_edit.py --prefixes`, `workflow_gate.py review` |
 | 4 | Baseline ATS audit, then Theme Review B: disposition every finding through the theme; host or raise via the Hosting reference | `ats_audit.py --baseline`, `read_profile.sh`, `workflow_gate.py review` |
@@ -744,9 +744,18 @@ ACTIONABLE (the Hosting reference's inference rule; soft skills are safe to infe
 Its findings summary auto-IGNOREs the by-rule noise (contactEmail, specialCharacters, education
 findings on an Education-free PDF — see below), so the remaining findings are the actionable ones.
 
-**External ATS scan (when configured).** `ats_check.py scan` submits the deliverable to the user's
-ATS scan service and saves the match-report JSON next to the resume; feed it back for the
-authoritative cross-check (commands, chain, and URL requirements: [docs/api.md](docs/api.md)).
+**External ATS scan (when configured).** Use one canonical command. The normalized JD feeds internal
+checks, while the verbatim source feeds Jobscan:
+
+```bash
+python3 scripts/ats_check.py scan "<output>.pdf" jd_<target>.txt \
+    --source-jd jd_<target>_source.txt
+```
+
+`ats_check.py` submits the deliverable to the ATS scan service and saves the match-report JSON next
+to the resume; feed it back for the authoritative cross-check (commands, chain, and URL requirements:
+[docs/api.md](docs/api.md)). If the conventional `_source.txt` sibling exists, the explicit flag may
+be omitted.
 Below the 75 target, feed the saved report back through the current-build measure run
 (`--ats-report`) — it merges the external hard/soft gaps with the internal no-host list, runs the
 master/LinkedIn inference map over the combined queue, and writes a fingerprinted
@@ -771,12 +780,12 @@ gate mechanically: when two consecutive audits report the same below-target scor
 **CEILING DETECTED** — at that signal the checklist presentation is mandatory, not judgment.
 
 **The word cap uses one lexical tokenizer across the workflow.** `validate_resume.py`,
-`measure_resume.py`, and `ats_audit.py` share the same word boundaries used by Jobscan for ordinary
-text, including counting the components of hyphenated and slash-separated terms (`test-automation`,
-`CI/CD`, and date-like `01/2026` tokens separately) while keeping apostrophe forms together. The
+`measure_resume.py`, and `ats_audit.py` share the tokenizer calibrated to Jobscan's compound-token
+behavior. Hyphenated and slash-separated terms count their lexical components (`test-automation`,
+`CI/CD`, and date-like `01/2026` tokens separately), while apostrophe forms stay together. The
 PDF audit still removes page furniture before counting, and the external report remains a final
-parser cross-check because PDF extraction can alter line wrapping. Use measure's **WORD BUDGET**
-section for planning, then verify the exact delivered PDF with the external scan before submission.
+parser cross-check because Jobscan's full PDF parser can apply additional structure-aware rules.
+Use measure's **WORD BUDGET** section for planning, then verify the exact delivered PDF externally.
 
 **IGNORED by rule: three classes of external finding.**
 

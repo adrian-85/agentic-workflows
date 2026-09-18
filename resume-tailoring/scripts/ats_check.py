@@ -49,9 +49,8 @@ error (401/403 -> credentials expired, re-save curl.txt).
 When ``jd_<target>_source.txt`` exists beside the normalized JD, the
 verbatim source is uploaded to the external parser automatically. Use
 ``--source-jd`` to select another source explicitly. The saved report
-records hashes for the resume, normalized JD, uploaded JD, opportunity,
-and report URL; ``ats_audit.py`` rejects a report tied to different local
-inputs.
+records hashes for the resume, normalized JD, and uploaded JD;
+``ats_audit.py`` rejects a report tied to different local inputs.
 
 Auth note: the jar is seeded once from curl.txt and then only rotated.
 When the scan starts returning 401/403, re-export the requests from a
@@ -720,14 +719,10 @@ def scan(resume_path, jd_path, opts=None):
     _save_report(
         report, company, posting_url, out,
         provenance={
-            "resume_path": os.path.abspath(resume_path),
             "resume_sha256": sha256_file(resume_path),
-            "normalized_jd_path": os.path.abspath(jd_path),
             "normalized_jd_sha256": sha256_file(jd_path),
             "uploaded_jd_path": os.path.abspath(upload_jd_path),
             "uploaded_jd_sha256": sha256_file(upload_jd_path),
-            "opportunity_id": opp_id,
-            "report_url": report_url,
         })
     print(f"    next: ats_audit.py {resume_path} --jd {jd_path} "
           f"--report-json {out}")
