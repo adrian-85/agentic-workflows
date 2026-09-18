@@ -16,6 +16,7 @@ import unicodedata
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 import measure_resume as mr  # noqa: E402
+from script_args import count_words  # noqa: E402
 
 # (constant) TITLE_STYLE
 TITLE_STYLE = "JobTitleBlock"   # job-title paragraph style; adapt per resume
@@ -440,7 +441,7 @@ def _editable_word_cap_errors(region, summary):
     for paragraph, text in _prose_paragraphs(region, summary):
         if paragraph is summary or _is_tools(paragraph):
             continue
-        words = len(text.split())
+        words = count_words(text)
         if words > PARA_WORD_CAP:
             errors.append(
                 f"editable paragraph has {words} words (cap "
@@ -516,11 +517,5 @@ def _readability_guidance(body, summary, *, region=None,
 
 
 def _word_count(body):
-    """Whole-resume word count: every paragraph's whitespace tokens with
-    at least one alphanumeric character (a bullet dingbat or a stray
-    ornament is not a word)."""
-    total = 0
-    for p in de.paras(body):
-        total += sum(1 for t in de.text_of(p).split()
-                     if re.search(r"[A-Za-z0-9]", t))
-    return total
+    """Whole-resume word count using the shared external-ATS tokenizer."""
+    return sum(count_words(de.text_of(p)) for p in de.paras(body))

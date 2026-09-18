@@ -20,7 +20,8 @@ usage:
 
 Checks (exit 0 clean, 1 findings, 2 usage/IO error):
   1. WORD COUNT — the whole-resume <=1000-word cap (SKILL Steps 3/9),
-     counted with the tool's own logic (see _count_words). `--max-words 0`
+     counted with the shared external-ATS tokenizer (see _count_words).
+     `--max-words 0`
      disables. With --report-json, the report's wordCount is shown as a
      cross-check — the cap itself uses OUR count.
   2. --jd LITERAL TERMS — qualification-line phrases mined from the JD
@@ -57,8 +58,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import jd_asks  # noqa: E402
 import workflow_gate  # noqa: E402
-from script_args import (MAX_WORDS, MATCH_RATE_TARGET, flag_value,
-                         maybe_help, match_target_met)  # noqa: E402
+from script_args import (MAX_WORDS, MATCH_RATE_TARGET, count_words,
+                         flag_value, maybe_help, match_target_met)  # noqa: E402
 
 # Private-use glyphs (bullet dingbats) and page footers ("Page 1|3",
 # "P a g e 1 | 3") are tokens a text extractor emits that word-count
@@ -84,15 +85,14 @@ def _extract_text(path):
 
 
 def _count_words(text):
-    """Our own whole-resume word count, mirroring external ATS scorers:
-    strip bullet glyphs and page footers, then count whitespace tokens
-    containing at least one alphanumeric character. Calibrated against an
-    external report on a real deliverable: raw pdftotext 1054 -> 989 with
-    this logic, vs the report's own 949 (the residual spread is the
-    parser's header/hyphenation handling; treat our count as primary and
-    a report's wordCount as the cross-check)."""
+    """Count the rendered text after removing PDF-only artifacts.
+
+    The shared tokenizer matches Jobscan's lexical boundaries: hyphenated
+    and slash-separated components count separately, while apostrophe
+    forms remain one word.
+    """
     clean = _PAGE_WORD_RE.sub(" ", _ARTIFACT_RE.sub(" ", text))
-    return sum(1 for t in clean.split() if re.search(r"[A-Za-z0-9]", t))
+    return count_words(clean)
 
 
 def _report_match_rate(data):

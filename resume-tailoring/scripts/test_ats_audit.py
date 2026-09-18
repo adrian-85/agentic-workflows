@@ -122,13 +122,19 @@ class WordCountTests(unittest.TestCase):
         self.assertEqual(errs, [])
 
     def test_parser_artifacts_stripped(self):
-        # Page footers and bullet glyphs are not words: the count mirrors
-        # the external scorers (calibration: a real deliverable counted
-        # 1054 raw pdftotext tokens, 949 by the external report, 989 with
-        # this logic).
+        # Page footers and bullet glyphs are not words, and lexical
+        # punctuation in the content is handled by the shared tokenizer.
         text = "word " * 600 + "Page 1|3 Page 2|3 \uf075 \uf0b7"
         count, errs = aa._audit_word_count(text, 1000)
         self.assertEqual((count, errs), (600, []))
+
+    def test_hyphen_and_slash_compounds_match_jobscan_word_count(self):
+        # Jobscan counts each lexical component of compounds such as
+        # "CI/CD" and "test-automation". Whitespace-token counting
+        # under-counts those words and allowed a real resume to plan too
+        # close to the 1,000-word limit.
+        text = "CI/CD test-automation 01/2026 end-to-end"
+        self.assertEqual(aa._count_words(text), 9)
 
     def test_spelled_out_page_word_stripped(self):
         text = "P a g e 1 | 3 word " * 100

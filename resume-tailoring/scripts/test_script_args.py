@@ -17,7 +17,16 @@ import sys
 import unittest
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
-from script_args import extract_common, flag_value
+from script_args import count_words, extract_common, flag_value
+
+
+class WordCountTests(unittest.TestCase):
+    def test_count_words_splits_jobscan_compounds(self):
+        self.assertEqual(
+            count_words("CI/CD test-automation 01/2026 end-to-end"), 9)
+
+    def test_count_words_keeps_apostrophe_words_together(self):
+        self.assertEqual(count_words("candidate's Bachelor's"), 2)
 
 
 class FlagValueTests(unittest.TestCase):

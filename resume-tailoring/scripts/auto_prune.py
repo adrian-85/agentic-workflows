@@ -60,8 +60,8 @@ from measure_resume_format import (BULLET_STYLES, COMPANY_STYLE,
 import jd_asks  # noqa: E402
 import jd_sections  # noqa: E402
 import workflow_gate  # noqa: E402
-from script_args import (extract_flag, extract_flag_all, maybe_help,  # noqa: E402
-                         read_jd_text)
+from script_args import (count_words, extract_flag, extract_flag_all,
+                         maybe_help, read_jd_text)  # noqa: E402
 
 WORD_CAP = 40      # a trimmed bullet carries at most this many words
 PER_ROLE_CAP = 8   # hard per-role kept-bullet cap (SKILL Step 9)
@@ -141,7 +141,7 @@ def _trim_bullet_text(text, jd_terms):
         return None
 
     def _words(sents):
-        return len(" ".join(sents).split())
+        return count_words(" ".join(sents))
 
     while _words(keep) > WORD_CAP and len(keep) > 1:
         victim = min(range(len(keep)),
@@ -658,7 +658,7 @@ def _intro_candidates(body, _roles, _jd_terms, all_texts):
         if is_bullet or (txt.lower().startswith("tool") and
                          "technolog" in txt.lower()):
             continue
-        if len(txt.split()) <= WORD_CAP:
+        if count_words(txt) <= WORD_CAP:
             continue
         try:
             prefix = de.shortest_unique_prefix(all_texts,

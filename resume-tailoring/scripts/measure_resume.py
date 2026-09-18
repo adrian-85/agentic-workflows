@@ -89,7 +89,8 @@ sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 import script_args  # noqa: E402
 from script_args import (MAX_WORDS, extract_common, extract_flag,  # noqa: E402
-                         extract_flag_all, maybe_help, read_jd_text)
+                         extract_flag_all, maybe_help, read_jd_text,
+                         word_tokens)
 
 
 W = de.W
@@ -571,9 +572,8 @@ def _print_reclaim_sections(ctx, state):
 
 
 def _word_tokens(text):
-    """Whitespace tokens containing at least one alphanumeric character —
-    the validator's word-count semantics (a dingbat is not a word)."""
-    return [t for t in text.split() if re.search(r"[A-Za-z0-9]", t)]
+    """Word tokens using the shared external-ATS semantics."""
+    return word_tokens(text)
 
 
 def _print_word_budget(body):

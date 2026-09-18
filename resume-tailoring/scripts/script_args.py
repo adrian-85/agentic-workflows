@@ -7,6 +7,7 @@ standard --protect/--jd/positional loop, extract_flag/extract_flag_all/
 parse_flag consume flags, flag_value reads without consuming.
 """
 
+import re
 import sys
 # pylint: disable=import-outside-toplevel
 # Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
@@ -23,6 +24,20 @@ MAX_WORDS = 1000
 # genuinely-unhostable tools may top out below it). Override with
 # ats_audit's --match-target; 0 disables.
 MATCH_RATE_TARGET = 75
+
+# Jobscan counts lexical components separated by hyphens and slashes as
+# separate words, while keeping apostrophe forms such as "candidate's" whole.
+_WORD_RE = re.compile(r"[A-Za-z0-9_]+(?:['’][A-Za-z0-9_]+)?")
+
+
+def word_tokens(text):
+    """Return word tokens using the external ATS word-boundary semantics."""
+    return _WORD_RE.findall(text)
+
+
+def count_words(text):
+    """Count lexical word tokens shared by DOCX, PDF, and planning checks."""
+    return len(word_tokens(text))
 
 
 def maybe_help(argv, usage_text=None):

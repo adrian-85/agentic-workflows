@@ -376,6 +376,12 @@ class WordCapTests(unittest.TestCase):
         # quality) — the dingbat is excluded.
         self.assertEqual(vr._word_count(body_el), 10)
 
+    def test_word_count_splits_jobscan_compounds(self):
+        body_el = mkbody([
+            mk("test-automation CI/CD 01/2026"),
+        ])
+        self.assertEqual(vr._word_count(body_el), 6)
+
     def test_word_cap_matrix(self):
         """Whole-resume word cap: within = pass, over = block, master input
         exempt, --max-words None disables. One table drives the repeated
