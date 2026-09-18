@@ -617,8 +617,14 @@ text states no "N+ years" ask.
 tokens and blocks over `MAX_WORDS` (1,000) for tailored resumes — the master input is exempt, like
 the bullet cap. The baseline render/audit phase suppresses this check internally because page and
 word closure occur later. The final render and non-baseline `ats_audit.py` enforce the cap; the
-workflow never passes a user-facing bypass flag. The cap's authoritative measurement on the
-RENDERED text is `ats_audit.py` (below), whose counting strips page furniture a text extractor emits.
+workflow never passes a user-facing bypass flag.
+
+**Tokenizer details.** `validate_resume.py`, `measure_resume.py`, and `ats_audit.py` share the
+same word-count logic. Hyphenated and slash-separated terms count as single tokens
+(`test-automation`, `CI/CD`, and date-like `01/2026` are each one word), while apostrophe forms
+split (`candidate's` = 2 tokens). Page furniture ("Page 1|3", bullet glyphs) is stripped before
+counting. The result matches the external ATS report's `wordCount` for the exact uploaded PDF,
+so local planning, validation, and the external scan all agree on the count.
 
 ## Step 12 procedures — ATS verification (literal phrases + external scan)
 
@@ -689,7 +695,8 @@ exists beside the normalized JD, it is uploaded to preserve the posting's origin
 `--source-jd` selects another source. The report records hashes for the resume, normalized JD,
 and uploaded JD. `ats_audit.py --report-json` rejects a report whose local input hashes do not
 match the current inputs. The scan output prints the
-match rate, the report's wordCount cross-check, and the
+match rate, the report's wordCount (matches the local count — feed it to
+`ats_audit.py --report-json` for the cap check), and the
 identified target ATS; the latter requires the job posting URL persisted with the JD (Step 1) — a
 real URL on the `Posting URL:` line, never a placeholder: the function returns whatever is on the
 line, but the caller PATCHes only when the line is present and truthy. A placeholder PATCHed to the

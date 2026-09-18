@@ -680,8 +680,7 @@ def _save_report(report, company, posting_url, out, provenance=None):
     score = (report.get("matchRate") or {}).get("score")
     _print_match_target(score)
     _print_missing_skills(report, score)
-    print(f"    wordCount: {wc} (external parser count — feed the report "
-          "to ats_audit for cap verification)")
+    print(f"    wordCount: {wc}")
     if ats:
         print(f"    target ATS: {ats}")
     elif posting_url:
