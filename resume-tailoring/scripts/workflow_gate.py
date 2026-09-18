@@ -214,12 +214,21 @@ def close_budgets(path, words, spill_lines, attempted_page_removal):
     })
 
 
-def close_spacers(path, creates_new_page):
-    """Close the final spacer pass without allowing a new page."""
+def close_spacers(path, creates_new_page, omitted=None):
+    """Close the final spacer pass without allowing a new page.
+
+    ``omitted`` records boundaries where page pressure legitimately kept the
+    spacer out (SKILL Step 9: omit the spacer, never theme-aligned
+    content). The record is what final-phase validation exempts — an
+    unrecorded missing spacer still blocks the deliverable.
+    """
     require(path, "budgets-closed")
     if creates_new_page:
         raise GateError("spacers would create a new page")
-    advance(path, "spacers-closed", {"creates_new_page": False})
+    omitted = [name.strip() for name in (omitted or []) if name.strip()]
+    advance(path, "spacers-closed",
+            {"creates_new_page": False, "spacers_omitted": omitted},
+            state_updates={"spacers_omitted": omitted})
 
 
 def _main(argv=None):
@@ -245,6 +254,10 @@ def _main(argv=None):
     spacer_parser = sub.add_parser("spacers")
     spacer_parser.add_argument("state")
     spacer_parser.add_argument("--creates-new-page", action="store_true")
+    spacer_parser.add_argument(
+        "--omitted", default="",
+        help="comma-separated role headers where page pressure kept the "
+             "spacer out; recorded so final validation exempts them")
     args = parser.parse_args(argv)
     try:
         if args.command == "review":
@@ -255,7 +268,8 @@ def _main(argv=None):
             close_budgets(args.state, args.words, args.spill_lines,
                           args.attempted_page_removal)
         elif args.command == "spacers":
-            close_spacers(args.state, args.creates_new_page)
+            close_spacers(args.state, args.creates_new_page,
+                          args.omitted.split(",") if args.omitted else None)
         elif args.command == "require-at-least":
             require_at_least(args.state, args.phase)
         else:

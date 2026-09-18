@@ -103,6 +103,7 @@ Usage:
 
 
 
+import json
 import os
 import re
 import sys
@@ -183,13 +184,35 @@ class TreeOptions:
     max_words: int = MAX_WORDS
 
 
+def _omitted_spacers():
+    """Spacer omissions recorded by ``workflow_gate.py spacers --omitted``.
+
+    Read from the RESUME_WORKFLOW_STATE sidecar (same env the render gate
+    already requires for a final render). A missing, unreadable, or
+    pre-spacer-phase state yields no exemptions — fail closed.
+    """
+    state_path = os.environ.get("RESUME_WORKFLOW_STATE")
+    if not state_path:
+        return []
+    try:
+        with open(state_path, encoding="utf-8") as stream:
+            state = json.load(stream)
+    except (OSError, ValueError):
+        return []
+    omitted = state.get("spacers_omitted") if isinstance(state, dict) else None
+    if not isinstance(omitted, list):
+        return []
+    return [str(name) for name in omitted if str(name).strip()]
+
+
 def _run_structural(ctx, region, body, max_words):
     """Run structural, punctuation, integrity, cap, and word-count checks.
     Fills ctx in place."""
     ctx["errors"] = _structural_errors(region)
     if (not ctx["is_master_input"]
             and os.environ.get("RESUME_RENDER_PHASE") == "final"):
-        ctx["errors"].extend(_final_presentation_errors(body))
+        ctx["errors"].extend(
+            _final_presentation_errors(body, _omitted_spacers()))
     ctx["punct_errors"] = _punctuation_errors(region, _summary_paragraph(body))
     ctx["integrity_errors"] = _text_integrity_errors(
         region, _summary_paragraph(body))

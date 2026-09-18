@@ -225,8 +225,13 @@ def _structural_errors(region):
     return errors
 
 
-def _final_presentation_errors(body):
-    """Blocking final-output checks for role presentation invariants."""
+def _final_presentation_errors(body, omitted_spacers=()):
+    """Blocking final-output checks for role presentation invariants.
+
+    ``omitted_spacers`` carries the boundaries the workflow gate recorded
+    as legitimately spacer-less (page pressure) — those are exempt; an
+    unrecorded missing spacer still blocks.
+    """
     errors = []
     roles = mr._roles(body)
     for role in roles:
@@ -241,6 +246,8 @@ def _final_presentation_errors(body):
         if not value:
             errors.append("Tools & Technologies row has no value row")
     for header, _anchor in mr._boundaries_without_spacer(body):
+        if header in omitted_spacers:
+            continue
         errors.append(
             f"role boundary before {header!r} lacks a persisted spacer")
     return errors

@@ -14,6 +14,7 @@ Run from the scripts directory:
 import contextlib
 import inspect
 import io
+import json
 import os
 import sys
 import tempfile
@@ -1065,6 +1066,60 @@ class GuidanceTests(unittest.TestCase):
         b, _s = self._two_role_body(with_spacer=True)
         b.append(mk("Tools & Technologies: Python", style="BodyText"))
         self.assertEqual(vrc._final_presentation_errors(b), [])
+
+    def test_recorded_spacer_omission_exempt_but_tools_still_blocks(self):
+        # A boundary whose spacer was legitimately omitted (page pressure,
+        # recorded via workflow_gate spacers --omitted) is exempt; an
+        # unrecorded one still blocks.
+        b, _s = self._two_role_body(with_spacer=False)
+        header = mr._boundaries_without_spacer(b)[0][0]
+        errors = vrc._final_presentation_errors(b, omitted_spacers=[header])
+        self.assertFalse(any("spacer" in e for e in errors), errors)
+        self.assertTrue(any("Tools & Technologies" in e for e in errors),
+                        errors)
+
+    def test_final_omission_read_from_workflow_state_env(self):
+        # The final render (RESUME_RENDER_PHASE=final) reads recorded
+        # omissions from the RESUME_WORKFLOW_STATE sidecar, so a spacer
+        # the gate recorded as omitted does not block the deliverable.
+        b, _s = self._two_role_body(with_spacer=False)
+        header = mr._boundaries_without_spacer(b)[0][0]
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        state_fd, state_path = tempfile.mkstemp(suffix=".workflow.json")
+        os.close(state_fd)
+        saved_env = (os.environ.get("RESUME_RENDER_PHASE"),
+                     os.environ.get("RESUME_WORKFLOW_STATE"))
+        try:
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("word/document.xml",
+                    '<?xml version="1.0"?><w:document xmlns:w="'
+                    + de.XMLNS + '"><w:body/></w:document>')
+                z.writestr("[Content_Types].xml", "<Types/>")
+            root, body_el, names, data, _ = de.load(path)
+            for p in list(b):
+                body_el.append(p)
+            with contextlib.redirect_stdout(io.StringIO()):
+                de.save(path, root, names, data)
+            with open(state_path, "w", encoding="utf-8") as stream:
+                json.dump({"phase": "spacers-closed",
+                           "spacers_omitted": [header]}, stream)
+            os.environ["RESUME_RENDER_PHASE"] = "final"
+            os.environ["RESUME_WORKFLOW_STATE"] = state_path
+            result = vr.validate_tree(path, body_el)
+        finally:
+            os.unlink(path)
+            os.unlink(state_path)
+            for key, value in (("RESUME_RENDER_PHASE", saved_env[0]),
+                               ("RESUME_WORKFLOW_STATE", saved_env[1])):
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+        report = "\n".join(result["lines"])
+        self.assertNotIn("lacks a persisted spacer", report)
+        self.assertIn("lacks a Tools & Technologies row", report)
+        self.assertEqual(result["blocking"], 1)
 
     def test_guidance_appears_in_report(self):
         """The GUIDANCE section renders in the validate_tree output."""

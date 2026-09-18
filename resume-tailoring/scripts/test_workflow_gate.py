@@ -157,6 +157,36 @@ class BudgetRuleTests(unittest.TestCase):
                 wg.close_spacers(path, True)
             wg.close_spacers(path, False)
             self.assertEqual(wg.load_state(path)["phase"], "spacers-closed")
+            self.assertEqual(wg.load_state(path)["spacers_omitted"], [])
+
+    def test_spacer_close_records_omitted_boundaries(self):
+        # SKILL Step 9: a spacer that would create a new page is omitted —
+        # but the omission must be RECORDED so final validation can exempt
+        # exactly those boundaries instead of blocking the deliverable.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            for phase in ("prune-theme-reviewed", "ats-audited",
+                          "ats-theme-reviewed", "seniority-approved",
+                          "budgets-closed"):
+                wg.advance(path, phase)
+            wg.close_spacers(path, False, omitted=["Globex, CA (Remote)"])
+            state = wg.load_state(path)
+            self.assertEqual(state["spacers_omitted"], ["Globex, CA (Remote)"])
+            self.assertEqual(state["history"][-1]["spacers_omitted"],
+                             ["Globex, CA (Remote)"])
+
+    def test_spacers_cli_splits_the_omitted_flag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            for phase in ("prune-theme-reviewed", "ats-audited",
+                          "ats-theme-reviewed", "seniority-approved",
+                          "budgets-closed"):
+                wg.advance(path, phase)
+            wg._main(["spacers", path, "--omitted", "Alpha, Beta "])
+            self.assertEqual(wg.load_state(path)["spacers_omitted"],
+                             ["Alpha", "Beta"])
 
 
 if __name__ == "__main__":
