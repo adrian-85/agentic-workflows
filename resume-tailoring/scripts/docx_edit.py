@@ -116,6 +116,7 @@ def prune_sidecar_path(docx, jd_file=None):
 # first, so it never spans documents and paragraphs stay alive via `body`
 # for the run — stale entries cannot clash.
 _ORIG = {}
+_MANAGED_SPACERS = set()
 
 # Applied/skipped edit accounting for save()'s end-of-run report.
 _APPLIED = 0
@@ -192,6 +193,7 @@ def load(path):
     # order-independently: a script's own later edits can't make one
     # paragraph's current text start with another target's prefix and collide.
     _ORIG.clear()
+    _MANAGED_SPACERS.clear()
     for p in paras(body):
         _ORIG[id(p)] = (p, text_of(p))
     return root, body, names, data, W
@@ -691,7 +693,7 @@ def remove_empty(body, startswith=None):
         targets = ps
     n = 0
     for p in targets:
-        if text_of(p).strip() == "":
+        if text_of(p).strip() == "" and p not in _MANAGED_SPACERS:
             body.remove(p)
             n += 1
     return n
@@ -724,6 +726,8 @@ def clone_after(body, ref_p, text):
     idx = list(body).index(ref_p)
     body.insert(idx + 1, new)
     _ORIG[id(new)] = (new, text)  # register so find_p can resolve it
+    if text == "":
+        _MANAGED_SPACERS.add(new)
     global _APPLIED
     _APPLIED += 1
     return new

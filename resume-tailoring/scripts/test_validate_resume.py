@@ -26,6 +26,7 @@ import docx_edit as de  # noqa: E402
 import test_helpers
 import measure_resume as mr  # noqa: E402
 import validate_resume as vr  # noqa: E402
+import validate_resume_checks as vrc  # noqa: E402
 
 W = de.W
 
@@ -1052,6 +1053,18 @@ class GuidanceTests(unittest.TestCase):
         notes = vr._readability_guidance(b, s, is_master=True)
         self.assertFalse(any("readability spacer" in c
                              for _lvl, c in notes), notes)
+
+    def test_final_presentation_errors_block_missing_tools_and_spacers(self):
+        b, _s = self._two_role_body(with_spacer=False)
+        errors = vrc._final_presentation_errors(b)
+        self.assertTrue(any("Tools & Technologies" in error
+                            for error in errors), errors)
+        self.assertTrue(any("spacer" in error for error in errors), errors)
+
+    def test_final_presentation_passes_complete_role_blocks(self):
+        b, _s = self._two_role_body(with_spacer=True)
+        b.append(mk("Tools & Technologies: Python", style="BodyText"))
+        self.assertEqual(vrc._final_presentation_errors(b), [])
 
     def test_guidance_appears_in_report(self):
         """The GUIDANCE section renders in the validate_tree output."""

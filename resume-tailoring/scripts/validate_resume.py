@@ -138,6 +138,7 @@ from validate_resume_checks import (
     _TOOLS_LABEL_RE,
     _bullet_cap_errors,
     _editable_word_cap_errors,
+    _final_presentation_errors,
     _claim_years,
     _is_bullet,
     _near_duplicates,
@@ -186,6 +187,9 @@ def _run_structural(ctx, region, body, max_words):
     """Run structural, punctuation, integrity, cap, and word-count checks.
     Fills ctx in place."""
     ctx["errors"] = _structural_errors(region)
+    if (not ctx["is_master_input"]
+            and os.environ.get("RESUME_RENDER_PHASE") == "final"):
+        ctx["errors"].extend(_final_presentation_errors(body))
     ctx["punct_errors"] = _punctuation_errors(region, _summary_paragraph(body))
     ctx["integrity_errors"] = _text_integrity_errors(
         region, _summary_paragraph(body))

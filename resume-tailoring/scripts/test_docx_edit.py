@@ -510,6 +510,19 @@ class CloneAfterTests(unittest.TestCase):
             de.clone_after(body, None, "x")
         self.assertIn("target paragraph not found", err.getvalue())
 
+    def test_blank_clone_survives_remove_empty(self):
+        # A spacer cloned before cleanup must not be deleted by the same
+        # script's remove_empty() pass. This was the TD Bank session bug.
+        body = ET.Element(W + "body")
+        ref = ET.SubElement(body, W + "p")
+        r = ET.SubElement(ref, W + "r")
+        t = ET.SubElement(r, W + "t")
+        t.text = "Tools & Technologies: Java"
+        spacer = de.clone_after(body, ref, "")
+        self.assertIsNotNone(spacer)
+        self.assertEqual(de.remove_empty(body), 0)
+        self.assertIn(spacer, list(body))
+
 
 class RemoveTests(unittest.TestCase):
     """remove drops a paragraph from the body."""

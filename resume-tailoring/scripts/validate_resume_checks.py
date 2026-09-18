@@ -225,6 +225,27 @@ def _structural_errors(region):
     return errors
 
 
+def _final_presentation_errors(body):
+    """Blocking final-output checks for role presentation invariants."""
+    errors = []
+    roles = mr._roles(body)
+    for role in roles:
+        if not role["has_tools"]:
+            errors.append(
+                f"role {role['raw']!r} lacks a Tools & Technologies row")
+    for p in _region(body):
+        if not _is_tools(p):
+            continue
+        text = de.text_of(p).strip()
+        value = text.split(":", 1)[1].strip() if ":" in text else ""
+        if not value:
+            errors.append("Tools & Technologies row has no value row")
+    for header, _anchor in mr._boundaries_without_spacer(body):
+        errors.append(
+            f"role boundary before {header!r} lacks a persisted spacer")
+    return errors
+
+
 def _near_duplicates(region):
     """Yield (bullet_a[:60], bullet_b[:60], description) for bullet pairs
     that read as repeats — a merge that left the source's old text beside
