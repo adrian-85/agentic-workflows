@@ -58,7 +58,6 @@ When the scan starts returning 401/403, re-export the requests from a
 logged-in browser session — the cookie values are the only secret.
 """
 
-import hashlib
 import json
 from dataclasses import dataclass
 import os
@@ -71,7 +70,8 @@ import urllib.parse
 import gap_queue  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from script_args import MATCH_RATE_TARGET, flag_value, maybe_help, match_target_met  # noqa: E402
+from script_args import (MATCH_RATE_TARGET, flag_value, maybe_help,
+                         match_target_met, sha256_file)  # noqa: E402
 
 # Config lives in the SKILL ROOT (this repo's resume-tailoring/), next
 # to the master resume and JD files it belongs to — gitignored, durable
@@ -472,15 +472,6 @@ def resolve_scan_jd(normalized_jd, source_jd=None):
     return normalized_jd
 
 
-def _sha256(path):
-    """Return the SHA-256 digest of a scan input file."""
-    digest = hashlib.sha256()
-    with open(path, "rb") as source:
-        for chunk in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 @dataclass
 class _ScanOpts:
     """Scan options (out, timeout, interval, config, company) bundled so
@@ -536,15 +527,8 @@ def _attach_posting(kinds, opp_id, posting_url, company):
           f"(url={posting_url}{', company=' + company if company else ''})")
 
 
-def _scan_submit(kinds, resume_path, jd_path, company, posting_url=None,
-                 upload_jd_path=None):
-    """Execute the create flow with the verbatim JD for the external scan.
-
-    ``jd_path`` is the normalized internal JD used for provenance and
-    metadata. ``upload_jd_path`` is the original posting text sent to the
-    external parser. When omitted, the normalized path is retained for
-    backwards compatibility.
-    """
+def _scan_submit(kinds, resume_path, jd_path, company, posting_url=None):
+    """Execute the create flow using ``jd_path`` for the external scan."""
     mime = MIME_BY_EXT[os.path.splitext(resume_path)[1].lower()]
     code, data, body = request(kinds["resume"]["url"],
                                _browser_headers(kinds["resume"]["headers"]),
@@ -555,8 +539,7 @@ def _scan_submit(kinds, resume_path, jd_path, company, posting_url=None,
     if not resume_id:
         _fail(code, body)
 
-    upload_jd_path = upload_jd_path or jd_path
-    with open(upload_jd_path, encoding="utf-8", errors="replace") as f:
+    with open(jd_path, encoding="utf-8", errors="replace") as f:
         jd_text = f.read()
     code, data, body = request(kinds["job"]["url"],
                                _browser_headers(kinds["job"]["headers"]),
@@ -721,8 +704,8 @@ def scan(resume_path, jd_path, opts=None):
     if upload_jd_path != jd_path:
         print(f"[2] external scan JD: verbatim source {upload_jd_path}")
     opp_id, posting_url = _scan_submit(
-        kinds, resume_path, jd_path, company, posting_url=posting_url,
-        upload_jd_path=upload_jd_path)
+        kinds, resume_path, upload_jd_path, company,
+        posting_url=posting_url)
     report_url = kinds["report"]["url"].replace("{id}", str(opp_id))
     report = _poll_report(report_url,
                           _browser_headers(kinds["report"]["headers"]),
@@ -738,11 +721,11 @@ def scan(resume_path, jd_path, opts=None):
         report, company, posting_url, out,
         provenance={
             "resume_path": os.path.abspath(resume_path),
-            "resume_sha256": _sha256(resume_path),
+            "resume_sha256": sha256_file(resume_path),
             "normalized_jd_path": os.path.abspath(jd_path),
-            "normalized_jd_sha256": _sha256(jd_path),
+            "normalized_jd_sha256": sha256_file(jd_path),
             "uploaded_jd_path": os.path.abspath(upload_jd_path),
-            "uploaded_jd_sha256": _sha256(upload_jd_path),
+            "uploaded_jd_sha256": sha256_file(upload_jd_path),
             "opportunity_id": opp_id,
             "report_url": report_url,
         })

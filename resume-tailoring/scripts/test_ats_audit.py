@@ -23,6 +23,7 @@ sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
 import ats_audit as aa  # noqa: E402
 import workflow_gate as wgate  # noqa: E402
+from script_args import sha256_file  # noqa: E402
 
 
 class BaselineGateTests(unittest.TestCase):
@@ -420,7 +421,7 @@ class ProvenanceTests(unittest.TestCase):
                 f.write("jd")
             data = {"_scan_provenance": {
                 "resume_sha256": "wrong",
-                "normalized_jd_sha256": aa._sha256(jd)}}
+                "normalized_jd_sha256": sha256_file(jd)}}
             errors = aa._provenance_errors(data, resume, jd)
             self.assertTrue(any("resume" in error for error in errors))
 
@@ -432,8 +433,8 @@ class ProvenanceTests(unittest.TestCase):
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(text)
             data = {"_scan_provenance": {
-                "resume_sha256": aa._sha256(resume),
-                "normalized_jd_sha256": aa._sha256(jd)}}
+                "resume_sha256": sha256_file(resume),
+                "normalized_jd_sha256": sha256_file(jd)}}
             self.assertEqual(aa._provenance_errors(data, resume, jd), [])
 
 

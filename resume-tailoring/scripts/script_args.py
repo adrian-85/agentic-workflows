@@ -7,6 +7,7 @@ standard --protect/--jd/positional loop, extract_flag/extract_flag_all/
 parse_flag consume flags, flag_value reads without consuming.
 """
 
+import hashlib
 import re
 import sys
 # pylint: disable=import-outside-toplevel
@@ -38,6 +39,15 @@ def word_tokens(text):
 def count_words(text):
     """Count lexical word tokens shared by DOCX, PDF, and planning checks."""
     return len(word_tokens(text))
+
+
+def sha256_file(path):
+    """Return the SHA-256 digest of a file's binary contents."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def maybe_help(argv, usage_text=None):

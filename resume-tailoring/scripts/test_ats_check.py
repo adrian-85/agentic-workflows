@@ -280,14 +280,17 @@ class SourceJdTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             normalized = os.path.join(tmp, "jd_target.txt")
             source = os.path.join(tmp, "verbatim.txt")
-            open(normalized, "w", encoding="utf-8").close()
-            open(source, "w", encoding="utf-8").close()
+            with open(normalized, "w", encoding="utf-8"):
+                pass
+            with open(source, "w", encoding="utf-8"):
+                pass
             self.assertEqual(ac.resolve_scan_jd(normalized, source), source)
 
     def test_missing_source_jd_falls_back_to_normalized(self):
         with tempfile.TemporaryDirectory() as tmp:
             normalized = os.path.join(tmp, "jd_target.txt")
-            open(normalized, "w", encoding="utf-8").close()
+            with open(normalized, "w", encoding="utf-8"):
+                pass
             self.assertEqual(ac.resolve_scan_jd(normalized), normalized)
 
     def test_scan_accepts_documented_jd_flag(self):

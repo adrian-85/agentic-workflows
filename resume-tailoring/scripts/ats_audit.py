@@ -47,7 +47,6 @@ Education section (the drop was a Step 5.4 predicate decision the render
 gate already sanctioned; the scan's generic advice does not re-open it).
 """
 
-import hashlib
 import json
 from dataclasses import dataclass, field
 import os
@@ -60,7 +59,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import jd_asks  # noqa: E402
 import workflow_gate  # noqa: E402
 from script_args import (MAX_WORDS, MATCH_RATE_TARGET, count_words,
-                         flag_value, maybe_help, match_target_met)  # noqa: E402
+                         flag_value, maybe_help, match_target_met,
+                         sha256_file)  # noqa: E402
 
 # Private-use glyphs (bullet dingbats) and page footers ("Page 1|3",
 # "P a g e 1 | 3") are tokens a text extractor emits that word-count
@@ -251,15 +251,6 @@ def _audit_phrases(text_low, phrases):
             and not _hosted(text_low, p.strip().lower())]
 
 
-def _sha256(path):
-    """Return the SHA-256 digest of an audit input file."""
-    digest = hashlib.sha256()
-    with open(path, "rb") as source:
-        for chunk in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _provenance_errors(data, resume_path, jd_path):
     """Reject an external report tied to different local scan inputs."""
     provenance = data.get("_scan_provenance") if isinstance(data, dict) else None
@@ -273,7 +264,7 @@ def _provenance_errors(data, resume_path, jd_path):
         if not expected or not path:
             continue
         try:
-            actual = _sha256(path)
+            actual = sha256_file(path)
         except OSError as exc:
             errors.append(f"cannot verify report provenance for {label}: {exc}")
             continue

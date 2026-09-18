@@ -13,11 +13,28 @@ flag_value, the single read-without-consuming variant).
 # pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring
 # unittest/pytest method names are self-documenting.
 
+import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
-from script_args import count_words, extract_common, flag_value
+from script_args import (count_words, extract_common, flag_value,
+                         sha256_file)
+
+
+class SharedFileTests(unittest.TestCase):
+    def test_sha256_file_reads_binary_content(self):
+        with tempfile.NamedTemporaryFile(delete=False) as source:
+            source.write(b"resume input")
+            path = source.name
+        try:
+            self.assertEqual(
+                sha256_file(path),
+                "41ce2763bb0444fab9e97863074e848ca"
+                "0501dd7d37320ffadacbae45977a576")
+        finally:
+            os.unlink(path)
 
 
 class WordCountTests(unittest.TestCase):
