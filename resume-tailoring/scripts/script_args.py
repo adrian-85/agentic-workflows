@@ -26,7 +26,7 @@ MAX_WORDS = 1000
 # ats_audit's --match-target; 0 disables.
 MATCH_RATE_TARGET = 75
 
-# Jobscan counts lexical components separated by hyphens and slashes as
+# External ATS parsers count lexical components separated by hyphens and slashes as
 # separate words, while keeping apostrophe forms such as "candidate's" whole.
 _WORD_RE = re.compile(r"[A-Za-z0-9_]+(?:['’][A-Za-z0-9_]+)?")
 

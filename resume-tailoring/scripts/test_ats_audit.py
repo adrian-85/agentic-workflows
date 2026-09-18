@@ -129,8 +129,8 @@ class WordCountTests(unittest.TestCase):
         count, errs = aa._audit_word_count(text, 1000)
         self.assertEqual((count, errs), (600, []))
 
-    def test_hyphen_and_slash_compounds_match_jobscan_word_count(self):
-        # Jobscan counts each lexical component of compounds such as
+    def test_hyphen_and_slash_compounds_match_external_ats_count(self):
+        # External ATS parsers count each lexical component of compounds such as
         # "CI/CD" and "test-automation". Whitespace-token counting
         # under-counts those words and allowed a real resume to plan too
         # close to the 1,000-word limit.
@@ -482,6 +482,19 @@ class MainTests(unittest.TestCase):
             self.assertEqual(rc, 0, out)
         finally:
             os.unlink(path)
+
+    def test_external_report_word_count_is_cap_authority(self):
+        resume = _tmp("word " * 1001)
+        report = _tmp(json.dumps({
+            "findings": [{"key": "wordCount", "status": "pass",
+                          "variables": {"wordCount": 999}}]}))
+        try:
+            rc, out = self._run(resume, "--report-json", report)
+            self.assertEqual(rc, 0, out)
+            self.assertIn("words (report cross-check): 999", out)
+        finally:
+            os.unlink(resume)
+            os.unlink(report)
 
     def test_jd_mode_reports_missing_terms(self):
         resume = _tmp("Scripting language automation experience.")

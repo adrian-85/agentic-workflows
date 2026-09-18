@@ -745,7 +745,7 @@ Its findings summary auto-IGNOREs the by-rule noise (contactEmail, specialCharac
 findings on an Education-free PDF — see below), so the remaining findings are the actionable ones.
 
 **External ATS scan (when configured).** Use one canonical command. The normalized JD feeds internal
-checks, while the verbatim source feeds Jobscan:
+checks, while the verbatim source feeds the external ATS parser:
 
 ```bash
 python3 scripts/ats_check.py scan "<output>.pdf" jd_<target>.txt \
@@ -762,7 +762,7 @@ master/LinkedIn inference map over the combined queue, and writes a fingerprinte
 `<resume>.gap.json`. Those lists are the next source-mining queue (Step 4's loop) — not optional,
 and not displaced by a different `ats_audit.py` no-host list. The report's `wordCount` is a
 final external cross-check for the exact uploaded PDF. Local planning and validation use the shared
-Jobscan-aligned lexical tokenizer, while PDF extraction can still create a material difference that
+external-ATS-aligned lexical tokenizer, while PDF extraction can still create a material difference that
 must be investigated against the delivered file.
 
 **The match-rate target is 75.** `ats_audit.py` and `ats_check.py` enforce the stop: at or above it,
@@ -780,11 +780,11 @@ gate mechanically: when two consecutive audits report the same below-target scor
 **CEILING DETECTED** — at that signal the checklist presentation is mandatory, not judgment.
 
 **The word cap uses one lexical tokenizer across the workflow.** `validate_resume.py`,
-`measure_resume.py`, and `ats_audit.py` share the tokenizer calibrated to Jobscan's compound-token
+`measure_resume.py`, and `ats_audit.py` share the tokenizer calibrated to external ATS compound-token
 behavior. Hyphenated and slash-separated terms count their lexical components (`test-automation`,
 `CI/CD`, and date-like `01/2026` tokens separately), while apostrophe forms stay together. The
 PDF audit still removes page furniture before counting, and the external report remains a final
-parser cross-check because Jobscan's full PDF parser can apply additional structure-aware rules.
+parser cross-check because a full ATS parser can apply additional structure-aware rules.
 Use measure's **WORD BUDGET** section for planning, then verify the exact delivered PDF externally.
 
 **IGNORED by rule: three classes of external finding.**
@@ -902,7 +902,7 @@ sidecar, `merge_into`; Steps 4, 9 & 12). What's left is judgment:
 | Reformatting typography to clear the scan's Special Characters finding | IGNORED by rule — Wingdings bullets, en-dash dates, curly quotes are the user's deliberate formatting; never reformat to satisfy a text parser (Step 12) |
 | Restoring Education because the scan wants an Education section | IGNORED by rule when Education was dropped per Step 5.4 — the render gate sanctioned the drop; the scan's generic advice does not re-open it (Step 12) |
 | Treating "no literal host" as "no evidence" and declaring honest gaps, or re-asking the user about evidence-backed terms | Follow the INFERENCE MAP's verdicts (Hosting reference): AUTO-HOST terms are hosted without asking — debugging/UI/data-management asks are usually demonstrated, just lexically invisible; the user's checklist contains exactly the RAISE terms |
-| Treating the external report's wordCount as interchangeable with the local count | The workflow uses one Jobscan-aligned lexical tokenizer, but PDF extraction can still differ. Compare the report against the exact delivered PDF and investigate a material mismatch rather than applying a fixed cushion (Step 12) |
+| Treating the external report's wordCount as interchangeable with the local count | The workflow uses one external-ATS-aligned lexical tokenizer, but PDF extraction can still differ. Compare the report against the exact delivered PDF and investigate a material mismatch rather than applying a fixed cushion (Step 12) |
 | Storing scan-service credentials in the repo | They live in the skill root's `.ats-check/` dot-directory (user's saved cURL exports; gitignored, 0600, invisible to `git add *`); refresh from a logged-in browser when scans 401 (Step 12) |
 | Punctuation in prose (em dash, semicolon, colon, ellipsis) | Periods and commas ONLY — no em dashes, double hyphens, semicolons, colons, or ellipses (`...`); split into a new sentence or use a comma. The Tools line's `Label: values` colon is the one exempt structural colon (Step 10) |
 | JD asks for fewer years than the candidate has | Offer Step 5 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it. The token needs the user's authority: their chat reply or pre-authorization in the request; never pass it on your own |

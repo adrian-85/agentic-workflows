@@ -376,7 +376,7 @@ class WordCapTests(unittest.TestCase):
         # quality) — the dingbat is excluded.
         self.assertEqual(vr._word_count(body_el), 10)
 
-    def test_word_count_splits_jobscan_compounds(self):
+    def test_word_count_splits_external_ats_compounds(self):
         body_el = mkbody([
             mk("test-automation CI/CD 01/2026"),
         ])

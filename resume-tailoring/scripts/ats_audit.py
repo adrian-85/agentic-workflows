@@ -22,8 +22,9 @@ Checks (exit 0 clean, 1 findings, 2 usage/IO error):
   1. WORD COUNT — the whole-resume <=1000-word cap (SKILL Steps 3/9),
      counted with the shared external-ATS tokenizer (see _count_words).
      `--max-words 0`
-     disables. With --report-json, the report's wordCount is shown as a
-     cross-check — the cap itself uses OUR count.
+     disables. With --report-json, the external report's wordCount is the
+     cap authority for that exact uploaded file; without it, OUR count is
+     used as the preflight authority.
   2. --jd LITERAL TERMS — qualification-line phrases mined from the JD
      (measure_resume's own qualification-line detection) checked literally
      against the rendered text. Zero-host terms include any hard skill
@@ -88,7 +89,7 @@ def _extract_text(path):
 def _count_words(text):
     """Count the rendered text after removing PDF-only artifacts.
 
-    The shared tokenizer matches Jobscan's lexical boundaries: hyphenated
+    The shared tokenizer matches external ATS lexical boundaries: hyphenated
     and slash-separated components count separately, while apostrophe
     forms remain one word.
     """
@@ -157,14 +158,15 @@ def _ceiling_check(score, target, resume_path, result):
         pass  # best-effort; never blocks the audit
 
 
-def _audit_word_count(text, max_words):
-    """Whole-resume word cap. Returns (count, errors)."""
-    count = _count_words(text)
+def _audit_word_count(text, max_words, report_count=None):
+    """Apply the cap to an external report count when one is available."""
+    local_count = _count_words(text)
+    count = report_count if report_count is not None else local_count
     if max_words and count > max_words:
-        return count, [f"{count} words exceeds the {max_words}-word cap by "
-                       f"{count - max_words} — cut content, do not shrink "
-                       "fonts (SKILL Steps 3/9)"]
-    return count, []
+        return local_count, [f"{count} words exceeds the {max_words}-word cap by "
+                             f"{count - max_words} — cut content, do not "
+                             "shrink fonts (SKILL Steps 3/9)"]
+    return local_count, []
 
 
 def _hosted(text_low, phrase_low):
@@ -499,16 +501,16 @@ def main(argv=None):
         result.errors.extend(_provenance_errors(
             report_data, args["path"], args["jd_path"]))
 
-    count, wc_errors = _audit_word_count(text, args["max_words"])
+    report_wc = _report_word_count(report_data)
+    count, wc_errors = _audit_word_count(
+        text, args["max_words"], report_count=report_wc)
     result.ok_lines.append(f"words: {count}")
     result.errors.extend(wc_errors)
-    if report_data is not None:
-        report_wc = _report_word_count(report_data)
-        if report_wc is not None:
-            drift = count - report_wc
-            result.ok_lines.append(
-                f"words (report cross-check): {report_wc} "
-                f"({drift:+d} vs our count)")
+    if report_wc is not None:
+        drift = count - report_wc
+        result.ok_lines.append(
+            f"words (report cross-check): {report_wc} "
+            f"({drift:+d} vs our count)")
 
     _audit_jd_and_phrases(args["jd_path"], args["phrases_file"], text_low,
                           result)

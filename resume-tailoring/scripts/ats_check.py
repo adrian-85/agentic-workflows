@@ -459,8 +459,8 @@ def _opportunity_update_body(saved_body, opp_id, resume_id, job_id):
 def resolve_scan_jd(normalized_jd, source_jd=None):
     """Choose the verbatim JD for external scanning when one is available.
 
-    Internal workflow tools use the normalized eight-section JD. Jobscan must
-    receive the original posting structure, so an explicit source path wins,
+    Internal workflow tools use the normalized eight-section JD. The external
+    ATS parser must receive the original posting structure, so an explicit source path wins,
     followed by the conventional ``*_source.txt`` sibling.
     """
     candidate = source_jd or os.path.splitext(normalized_jd)[0] + "_source.txt"
@@ -680,8 +680,8 @@ def _save_report(report, company, posting_url, out, provenance=None):
     score = (report.get("matchRate") or {}).get("score")
     _print_match_target(score)
     _print_missing_skills(report, score)
-    print(f"    wordCount: {wc} (cross-check only — the cap uses "
-          "ats_audit's own count)")
+    print(f"    wordCount: {wc} (external parser count — feed the report "
+          "to ats_audit for cap verification)")
     if ats:
         print(f"    target ATS: {ats}")
     elif posting_url:

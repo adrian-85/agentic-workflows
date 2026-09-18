@@ -38,7 +38,7 @@ class SharedFileTests(unittest.TestCase):
 
 
 class WordCountTests(unittest.TestCase):
-    def test_count_words_splits_jobscan_compounds(self):
+    def test_count_words_splits_external_ats_compounds(self):
         self.assertEqual(
             count_words("CI/CD test-automation 01/2026 end-to-end"), 9)
 

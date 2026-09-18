@@ -31,9 +31,9 @@ class WorkflowDocumentationTests(unittest.TestCase):
 
     def test_word_count_claim_matches_measured_behavior(self):
         self.assertIn(
-            "tokenizer calibrated to Jobscan's compound-token",
+            "tokenizer calibrated to external ATS compound-token",
             self.skill)
-        self.assertNotIn("same word boundaries used by Jobscan", self.skill)
+        self.assertNotIn("same word boundaries used by a specific vendor", self.skill)
 
 
 if __name__ == "__main__":
