@@ -138,7 +138,7 @@ def parse_curl_file(path=CURL_FILE):
     """
     if not os.path.exists(path):
         raise SystemExit(
-            f"error: {path} not found — save the four 'Copy as cURL' "
+            f"error: {path} not found — save the five 'Copy as cURL' "
             "exports there (see the module docstring's Setup section)")
     with open(path, encoding="utf-8", errors="replace") as f:
         text = f.read()
@@ -754,14 +754,14 @@ def scan(resume_path, jd_path, opts=None):
 def _fail(code, body):
     if code in (401, 403):
         raise SystemExit(
-            f"error: {code} — credentials expired. Re-export the four "
+            f"error: {code} — credentials expired. Re-export the five "
             f"requests from a logged-in browser session into "
             f"{CURL_FILE} (delete {JAR_FILE} to re-seed).")
     raise SystemExit(f"error: unexpected {code}: {body[:300]}")
 
 
 def check(config=CURL_FILE):
-    """Validate the saved config without scanning: classify the four
+    """Validate the saved config without scanning: classify the five
     requests, verify the jar/CSRF state."""
     kinds = classify(parse_curl_file(config))
     print("config ok — requests found:")
