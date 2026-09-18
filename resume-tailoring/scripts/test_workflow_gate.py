@@ -65,7 +65,7 @@ class ReviewValidationTests(unittest.TestCase):
             wg.validate_review({"kind": "prune", "theme_anchors": []})
 
     def test_review_decisions_match_review_kind(self):
-        with self.assertRaises(wg.ReviewError):
+        with self.assertRaises(wg.ReviewError) as caught:
             wg.validate_review({
                 "kind": "prune",
                 "theme_anchors": ["quality"],
@@ -75,6 +75,9 @@ class ReviewValidationTests(unittest.TestCase):
                     "rationale": "wrong review vocabulary",
                 }],
             })
+        message = str(caught.exception)
+        self.assertIn("entry 1", message)
+        self.assertIn("allowed decisions", message)
 
     def test_ats_review_must_cover_every_baseline_finding(self):
         with tempfile.TemporaryDirectory() as tmp:

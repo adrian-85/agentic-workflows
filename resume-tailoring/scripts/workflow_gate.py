@@ -143,7 +143,10 @@ def validate_review(review):
         allowed = ({"restore", "cut", "keep"} if kind == "prune"
                    else {"host", "ignore", "raise"})
         if entry.get("decision") not in allowed:
-            raise ReviewError(f"{kind} review entry {index} has invalid decision")
+            choices = ", ".join(sorted(allowed))
+            raise ReviewError(
+                f"{kind} review entry {index} has invalid decision "
+                f"{entry.get('decision')!r}; allowed decisions: {choices}")
         _nonempty(entry.get("rationale"), f"{kind} review entry {index}.rationale")
     return kind
 
