@@ -623,8 +623,7 @@ workflow never passes a user-facing bypass flag.
 same word-count logic. Hyphenated and slash-separated terms count as single tokens
 (`test-automation`, `CI/CD`, and date-like `01/2026` are each one word), while apostrophe forms
 split (`candidate's` = 2 tokens). Page furniture ("Page 1|3", bullet glyphs) is stripped before
-counting. The result matches the external ATS report's `wordCount` for the exact uploaded PDF,
-so local planning, validation, and the external scan all agree on the count.
+counting. The result matches the external ATS report's `wordCount` for the exact uploaded PDF.
 
 ## Step 12 procedures — ATS verification (literal phrases + external scan)
 

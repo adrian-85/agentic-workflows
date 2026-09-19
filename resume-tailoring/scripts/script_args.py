@@ -31,6 +31,10 @@ MATCH_RATE_TARGET = 75
 # Apostrophe forms such as "candidate's" split into two tokens.
 _WORD_RE = re.compile(r"[\w]+(?:[-/][\w]+)*")
 
+# The external ATS report excludes one contact-metadata token from its wordCount;
+# whole-resume counters subtract the same offset so local and external agree.
+ATS_CONTACT_OFFSET = 1
+
 
 def word_tokens(text):
     """Return word tokens using the external ATS compound-token semantics."""

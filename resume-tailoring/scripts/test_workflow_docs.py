@@ -30,9 +30,11 @@ class WorkflowDocumentationTests(unittest.TestCase):
         self.assertIn("--source-jd jd_<target>_source.txt", self.skill)
 
     def test_word_count_claim_matches_measured_behavior(self):
+        # SKILL.md states the exact-match invariant; the compound-token
+        # detail lives in docs/api.md (heavy reference, not the skill).
         self.assertIn(
-            "compound-word semantics",
-            self.skill)
+            "matches the external ATS report's wordCount", self.skill)
+        self.assertIn("count as single tokens", self.api)
         self.assertNotIn("same word boundaries used by a specific vendor", self.skill)
 
 

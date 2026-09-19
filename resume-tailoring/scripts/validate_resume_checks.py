@@ -16,7 +16,7 @@ import unicodedata
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 import measure_resume as mr  # noqa: E402
-from script_args import count_words  # noqa: E402
+from script_args import ATS_CONTACT_OFFSET, count_words  # noqa: E402
 
 # (constant) TITLE_STYLE
 TITLE_STYLE = "JobTitleBlock"   # job-title paragraph style; adapt per resume
@@ -519,6 +519,4 @@ def _readability_guidance(body, summary, *, region=None,
 def _word_count(body):
     """Whole-resume word count using the shared external-ATS tokenizer."""
     total = sum(count_words(de.text_of(p)) for p in de.paras(body))
-    # The external report excludes 1 contact-metadata token from its
-    # wordCount; subtract the same offset for local consistency.
-    return max(0, total - 1)
+    return max(0, total - ATS_CONTACT_OFFSET)

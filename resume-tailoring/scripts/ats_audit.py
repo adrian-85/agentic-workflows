@@ -59,9 +59,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import jd_asks  # noqa: E402
 import workflow_gate  # noqa: E402
-from script_args import (MAX_WORDS, MATCH_RATE_TARGET, count_words,
-                         flag_value, maybe_help, match_target_met,
-                         sha256_file)  # noqa: E402
+from script_args import (ATS_CONTACT_OFFSET, MAX_WORDS, MATCH_RATE_TARGET,
+                         count_words, flag_value, maybe_help,
+                         match_target_met, sha256_file)  # noqa: E402
 
 # Private-use glyphs (bullet dingbats) and page footers ("Page 1|3",
 # "P a g e 1 | 3") are tokens a text extractor emits that word-count
@@ -94,9 +94,7 @@ def _count_words(text):
     apostrophe forms split into two tokens.
     """
     clean = _PAGE_WORD_RE.sub(" ", _ARTIFACT_RE.sub(" ", text))
-    # The external report excludes 1 contact-metadata token from its
-    # wordCount; subtract the same offset for local consistency.
-    return max(0, count_words(clean) - 1)
+    return max(0, count_words(clean) - ATS_CONTACT_OFFSET)
 
 
 def _report_match_rate(data):

@@ -40,11 +40,6 @@ while [ $# -gt 0 ]; do
             TARGET_PAGES_ARG="$2"
             shift 2
             ;;
-        --)
-            shift
-            POSITIONAL+=("$@")
-            break
-            ;;
         *)
             POSITIONAL+=("$1")
             shift

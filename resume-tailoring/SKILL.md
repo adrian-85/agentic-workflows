@@ -777,9 +777,9 @@ gate mechanically: when two consecutive audits report the same below-target scor
 **CEILING DETECTED** — at that signal the checklist presentation is mandatory, not judgment.
 
 **The word cap uses one lexical tokenizer across the workflow.** `validate_resume.py`,
-`measure_resume.py`, and `ats_audit.py` share the same word-count logic — local planning,
-validation, and the external ATS report all agree on the count. Use measure's **WORD BUDGET**
-section for planning, then verify the exact delivered PDF externally (tokenizer details:
+`measure_resume.py`, and `ats_audit.py` share the same word-count logic — the local count
+matches the external ATS report's wordCount. Use measure's **WORD BUDGET** section for
+planning, then verify the exact delivered PDF externally (tokenizer details:
 [docs/api.md](docs/api.md)).
 
 **IGNORED by rule: three classes of external finding.**
