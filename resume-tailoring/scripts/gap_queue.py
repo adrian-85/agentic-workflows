@@ -4,6 +4,8 @@ import hashlib
 import json
 import re
 
+from script_args import sha256_file  # flat-namespace sibling helper
+
 
 def _key(term):
     return re.sub(r"\s+", " ", term.strip()).casefold()
@@ -63,14 +65,6 @@ def gap_fingerprint(gaps):
     return hashlib.sha256(payload).hexdigest()
 
 
-def _file_fingerprint(path):
-    digest = hashlib.sha256()
-    with open(path, "rb") as source:
-        for chunk in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def write_artifact(report_path, resume_path, internal_terms, output_path):
     """Write a normalized, freshness-bound external gap artifact."""
     with open(report_path, encoding="utf-8") as source:
@@ -80,8 +74,8 @@ def write_artifact(report_path, resume_path, internal_terms, output_path):
         "schema": 1,
         "reportPath": report_path,
         "resumePath": resume_path,
-        "reportFingerprint": _file_fingerprint(report_path),
-        "resumeFingerprint": _file_fingerprint(resume_path),
+        "reportFingerprint": sha256_file(report_path),
+        "resumeFingerprint": sha256_file(resume_path),
         "gapFingerprint": gap_fingerprint(gaps),
         "gaps": gaps,
     }

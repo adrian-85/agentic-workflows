@@ -5,6 +5,10 @@
 # self-contained workflows:
 #   - lint: only the Python files this branch touches
 #   - tests: the FULL suite of each workflow the change set touches
+#   - last check: CI's exact pylint command scoped to each touched
+#     top-level folder — cross-file findings (R0801 duplicate-code) only
+#     fire when BOTH files are in the analyzed set, so changed-file
+#     linting alone cannot catch them
 # A workflow's changes NEVER run another workflow's tests. A change set
 # touching several workflows runs each one's full suite. Docs-only or
 # config-only changes touch no workflow and run no tests.
@@ -194,6 +198,32 @@ verify)
     else
         echo "p2p-qa-lab not touched — skipping its suite"
     fi
+
+    echo "== verify-worktree: CI-equivalent pylint per touched folder (LAST check) =="
+    # duplicate-code (R0801) is cross-file: pylint only emits it when BOTH
+    # similar files are in the analyzed set, so the changed-files lint above
+    # stays green while CI's full-repo run fails (a real red: gap_queue.py
+    # duplicated script_args.sha256_file and only one was in the change set).
+    # Run the exact CI command scoped to each touched top-level folder: same
+    # file-selection semantics as CI, cross-file findings cannot hide. Runs
+    # LAST on purpose — cheap failures surface first and this is the ~30s step.
+    for dir in $(printf '%s\n' "$CHANGED" | grep '\.py$' | cut -d/ -f1 | sort -u); do
+        # single glob pathspec — adding `-- dir` as a second pathspec ORs
+        # them and sweeps in .md/.sh files for pylint to choke on
+        files="$(git ls-files -- "$dir/*.py")"
+        [ -n "$files" ] || continue
+        echo "-- [$dir] pylint $(printf '%s\n' "$files" | wc -l) tracked files --"
+        set +e
+        pylint_out="$(pylint $files 2>&1)"
+        rc=$?
+        set -e
+        printf '%s\n' "$pylint_out"
+        if [ "$rc" -ne 0 ]; then
+            echo "✗ [$dir] pylint exited $rc — CI runs this exact command with fail-on C,W,R,E,F: ANY message fails the build" >&2
+            exit "$rc"
+        fi
+        echo "✓ [$dir] pylint exit 0"
+    done
     echo "== verify-worktree: PASS =="
     record_pass
     ;;

@@ -358,8 +358,12 @@ scripts/setup-worktree.sh <workflow-name> [base-path]
 
 ### verify-worktree.sh
 Runs the change set's quality gates inside the worktree: pylint on changed
-Python files (including test files) plus the full test suite of each touched
-workflow. On success it records the worktree HEAD in the checkpoint state —
+Python files (including test files), the full test suite of each touched
+workflow, and — as the LAST check — CI's exact pylint command
+(`git ls-files '*.py'`) scoped to each touched top-level folder. Cross-file
+findings (R0801 duplicate-code) only fire when BOTH files are in the analyzed
+set, so changed-file linting alone cannot catch them. On success it records
+the worktree HEAD in the checkpoint state —
 this record is what authorizes gate 4. Run it inside the worktree after the
 last commit of a phase.
 
