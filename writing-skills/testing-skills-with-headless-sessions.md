@@ -197,7 +197,7 @@ pi --no-skills --tools read -p "$(cat scenario.md)"
 
 **Programmatic harness (5+ reps per variant):** For the micro-test methodology
 below, wrap the above in a shell loop, or use the pi SDK's `createAgentSession()`
-to build a repeaesting harness that runs N fresh sessions per variant and
+to build a repeat testing harness that runs N fresh sessions per variant and
 collects results. See the pi SDK docs (`docs/sdk.md`) for `createAgentSession()`.
 
 ## REFACTOR Phase: Close Loopholes (Stay Green)
