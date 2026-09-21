@@ -84,7 +84,7 @@ def requirement_lines(jd_text):
 # --------------------------------------------------------------------- #
 # Function words: an n-gram containing one is not a phrase. Unlike the
 # single-word JD_STOP, "quality" must stay usable here — "data quality"
-# and "quality assurance" were a real session's top literal misses.
+# and "quality assurance" are common literal JD asks.
 _STRUCTURE_STOP = frozenset({
     "and", "the", "for", "a", "an", "or", "of", "in", "to", "on",
     "with", "from", "into", "them", "they", "their", "each", "when",
@@ -209,8 +209,8 @@ def _single_token_terms(line):
                 len(low) >= 2 and low.isupper()):
             terms.add(low)
     # camelCase/mixed-case tokens (macOS, iOS, PyAutoGUI) start lowercase
-    # — invisible to the Capitalized-token regex (a real session's
-    # no-host list missed 'macOS' for exactly this reason).
+    # — invisible to the Capitalized-token regex (this is why mixed-case
+    # tokens such as 'macOS' get missed).
     for m in re.finditer(
             r"(?<![A-Za-z0-9+#])([A-Za-z][a-z0-9+#]*[A-Z][A-Za-z0-9+#]*)",
             line):

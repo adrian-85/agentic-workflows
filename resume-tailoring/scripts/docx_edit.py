@@ -371,9 +371,8 @@ def find_p(paragraphs, startswith, *, after=None, nth=None):
         if nth < 1:
             raise ValueError(
                 f"find_p nth is 1-BASED (got nth={nth!r}). nth=0 is always "
-                "a bug: a real session's nth=0 silently matched the LAST "
-                "paragraph (a history-block job title) instead of the "
-                "headline and crossed the two. Use nth=1 for the first "
+                "a bug: nth=0 silently matches the LAST paragraph (e.g. a "
+                "history-block job title) instead of the headline. Use nth=1 for the first "
                 "match, or drop nth for the unique-paragraph behavior.")
         if len(cur) < nth:
             _warn_missing(f"{startswith} (nth={nth})", record=False)

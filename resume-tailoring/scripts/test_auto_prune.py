@@ -208,10 +208,9 @@ class TestPlanDispositions(_AutoPruneBase):
 
     def test_cap_dropped_bullets_carry_the_reason_in_the_emitted_script(self):
         # A JD-evidenced bullet cut only by the 8-bullet cap is Theme
-        # Review A's restore signal (a session spent ~10 calls source-diving
-        # the weakness ranking to learn the cap — not the evidence filter —
-        # had cut the JD-central bullets). The mark lands in the emitted
-        # script, no archaeology needed.
+        # Review A's restore signal; without the mark, telling a cap cut
+        # from an evidence cut needs a source-level read of the weakness
+        # ranking. The mark lands in the emitted script.
         plan = dict(self.plan)
         plan["drops"] = list(self.plan["drops"]) + [
             ("Delivered testing outc", "Delivered testing outcome.")]

@@ -247,10 +247,10 @@ def _target_from_args(kept):
 def _default_target_note(total_pages, target, is_default):
     """Reminder when the reclaim gap is measured against the default target.
 
-    The failure mode (a real session): the agreed Step-4 target was 3 for a
-    senior/Staff resume, but measure ran without an explicit target and
-    reported "OVER by 2 pages / drop ~117 lines" against the 2-page default
-    — an irrelevant reading that invites over-cutting. The tool cannot know
+    The failure mode: an agreed Step-4 target of 3 for a senior/Staff
+    resume is contradicted when measure runs without an explicit target
+    and reports "OVER by 2 pages / drop ~117 lines" against the 2-page
+    default — an irrelevant reading that invites over-cutting. The tool cannot know
     the agreed target, so it flags the one thing it CAN detect: the default
     is in play while the document is over it. Nothing prints when the target
     was passed explicitly (positionally or via TARGET_PAGES) or the document

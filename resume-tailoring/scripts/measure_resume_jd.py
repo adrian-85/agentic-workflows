@@ -502,9 +502,9 @@ def _fail_without_master(queue_label):
     The master leg of SKILL Step 4's source-first loop is mandatory,
     not optional: content Phase 1 cut lives ONLY in the master, so a
     mining queue run against the pruned tailored copy silently
-    overstates gaps (two real sessions asked the user about evidence
-    the master still hosted). A warning was scrollable past; this
-    failure makes it impossible to mine without the master present."""
+    overstates gaps (the user gets asked about evidence the master still
+    hosts). A warning was scrollable past; this failure makes it
+    impossible to mine without the master present."""
     print(
         f"error: {queue_label} found, but the master resume is not "
         "adjacent to the tailored copy — the JD gap mining queue cannot "

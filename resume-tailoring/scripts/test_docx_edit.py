@@ -410,9 +410,9 @@ class FindPTests(unittest.TestCase):
         self.assertIsNone(de.find_p(ps, "Title", nth=5))
 
     def test_nth_zero_raises(self):
-        # nth is 1-based; nth=0 is always a bug. A real session's nth=0
-        # silently matched cur[-1] (a history-block job title) instead of
-        # the headline, crossing the two — caught only by a lucky re-read.
+        # nth is 1-based; nth=0 is always a bug. nth=0 silently matches
+        # cur[-1] (a history-block job title) instead of the headline,
+        # crossing the two.
         ps = [mkp(("Staff Engineer", True)), mkp(("Staff Engineer", True))]
         with self.assertRaises(ValueError) as ctx:
             de.find_p(ps, "Staff Engineer", nth=0)
@@ -1306,10 +1306,8 @@ class PruneCoverageTests(unittest.TestCase):
     """--lint-prune: every <master>.prune.json candidate (the PRUNE PLAN's
     machine-readable twin) must be addressed by the tailor script — an
     edit anchor (CUT/TRIM) or a recorded ``# kept:`` reason (KEEP) —
-    before the script may run. The motivating session skipped the plan's
-    word/sentence-level trims, asserted 'trims are in', and needed two
-    user prompts; this gate makes the coverage claim checked, not
-    asserted."""
+    before the script may run. Without this gate a skipped trim is an
+    assertion; the gate makes the coverage claim checked."""
 
     _docx_with = staticmethod(test_helpers._docx_with_texts)
 
@@ -1407,8 +1405,7 @@ class PruneCoverageTests(unittest.TestCase):
 
     def test_null_role_candidate_does_not_crash(self):
         # A sidecar candidate with "role": null (JSON null, e.g. a
-        # section-level cut) must not crash the coverage gate — the
-        # motivating session's auto_prune run died on
+        # section-level cut) must not crash the coverage gate with
         # 'NoneType' object has no attribute 'replace'.
         docx = self._docx_with(
             "Led testing efforts for the API releases")
@@ -1612,12 +1609,11 @@ class PruneCoverageTests(unittest.TestCase):
 
 class LintScriptTests(unittest.TestCase):
     """--lint-script: every find_p target in a tailor script must resolve
-    against a docx BEFORE the script runs. A real session hand-typed two
-    prefixes that missed the master ('Monitoring & Logging: Datadog' vs
-    the master's '...Prometheus, Grafana, New Relic, Datadog'; 'Performed
-    contract testing usi' vs '...contract testing to ') — each a
-    run-crash-fix cycle that DOCX_EDIT_STRICT only catches AFTER
-    execution. The lint verifies the whole edit set pre-run."""
+    against a docx BEFORE the script runs. A hand-typed prefix that does
+    not resolve as intended ('Monitoring & Logging: Datadog' vs the
+    master's '...Prometheus, Grafana, New Relic, Datadog') is otherwise a
+    run-crash-fix cycle DOCX_EDIT_STRICT catches only AFTER execution.
+    The lint verifies the whole edit set pre-run."""
 
     _docx_with = staticmethod(test_helpers._docx_with_texts)
 
@@ -1664,8 +1660,8 @@ class LintScriptTests(unittest.TestCase):
     def test_miss_fails_with_line_number(self):
         docx = self._docx_with(
             "Monitoring & Logging: Prometheus, Grafana, New Relic, Datadog")
-        # The real session's bug: a hand-typed prefix that skipped ahead
-        # to a value the master's line does not START with.
+        # The bug class: a hand-typed prefix that skips ahead to a value
+        # the master's line does not START with.
         script = self._script(
             'from docx_edit import find_p\n', 'ps = None\n',
             'find_p(ps, "Monitoring & Logging: Datadog")\n',
@@ -1734,9 +1730,9 @@ class LintScriptTests(unittest.TestCase):
             os.unlink(script)
 
     def test_dynamic_find_p_reason_teaches_unrolling(self):
-        # Spacer loops over a prefix list produced a dynamic find_p the lint
-        # cannot verify; two sessions discovered the unroll fix only after a
-        # failed gate run — the message now carries the idiom.
+        # Spacer loops over a prefix list produce a dynamic find_p the lint
+        # cannot verify; the message now carries the unroll idiom so the fix
+        # does not take a failed gate run.
         docx = self._docx_with("Tools & Technologies: Python, Playwright")
         script = self._script(
             'from docx_edit import find_p\n', 'ps = None\n',
@@ -1754,8 +1750,8 @@ class LintScriptTests(unittest.TestCase):
     def test_nth_disambiguated_duplicate_passes(self):
         # A headline and a role title can share one prefix; nth=1 selects
         # the first match. The lint must honor a literal nth= keyword —
-        # a real session's legit disambiguated target read as an
-        # ambiguity MISS because the lint resolved the prefix bare.
+        # resolving the prefix bare would read a legit disambiguated
+        # target as an ambiguity MISS.
         docx = self._docx_with("Jane Doe", "Software Engineer",
                                "Software Engineer – Platform Team")
         script = self._script(
@@ -1972,8 +1968,7 @@ class MergeIntoTests(unittest.TestCase):
 class PrefixesRoleCapTests(unittest.TestCase):
     """--prefixes annotates each role header with its bullet count vs the
     hard 8-cap, so hosting rounds see overflow at AUTHORING time instead
-    of at run_tailor/validate time (a session added 3 hosts, then cut
-    over-cap bullets in three discovery cycles)."""
+    of at run_tailor/validate time."""
 
     def test_counts_bullets_per_role_and_flags_over_cap(self):
         body = ET.Element(W + "body")
@@ -2017,9 +2012,8 @@ class PrefixesRoleCapTests(unittest.TestCase):
 class PrefixesHeadlineTests(unittest.TestCase):
     """--prefixes marks the positioning headline so the script author does
     not have to re-derive the name-vs-headline distinction from the skill
-    text (a session anchored set_text on the wrong Title — the name line
-    and the headline share the Title style — and spent two calls reading
-    find_p's source to recover)."""
+    text (the name line and the headline share the Title style, so the
+    index alone is ambiguous)."""
 
     def _lines(self, styled):
         # styled: (text, style) pairs; None style = no pPr

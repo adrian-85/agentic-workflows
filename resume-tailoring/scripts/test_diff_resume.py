@@ -15,14 +15,18 @@ import test_helpers  # noqa: E402
 import diff_resume  # noqa: E402
 
 
+def _base_paras():
+    """Header, Summary, and role header shared by both cut-set fixtures."""
+    return [test_helpers._para("Adrian Alan", style="Title"),
+            test_helpers._para("Staff Engineer", style="Title"),
+            test_helpers._para("Summary of a long career.", style="Normal"),
+            test_helpers._para("GEICO, Chevy Chase, MD", style="CompanyBlock"),
+            test_helpers._para("Staff Engineer", style="JobTitleBlock")]
+
+
 def _master_fixture(path):
     """Summary, one role with two bullets, one section heading below."""
-    paras = [
-        test_helpers._para("Adrian Alan", style="Title"),
-        test_helpers._para("Staff Engineer", style="Title"),
-        test_helpers._para("Summary of a long career.", style="Normal"),
-        test_helpers._para("GEICO, Chevy Chase, MD", style="CompanyBlock"),
-        test_helpers._para("Staff Engineer", style="JobTitleBlock"),
+    paras = _base_paras() + [
         test_helpers._para("Owned testing, CI, and release for payments.",
                             style="ListParagraph", numId=3),
         test_helpers._para("Introduced mutation testing into CI.", style="ListParagraph", numId=3),
@@ -34,12 +38,7 @@ def _master_fixture(path):
 
 def _build_fixture(path):
     """Same minus one bullet and the Education section; one rewritten bullet."""
-    paras = [
-        test_helpers._para("Adrian Alan", style="Title"),
-        test_helpers._para("Staff Engineer", style="Title"),
-        test_helpers._para("Summary of a long career.", style="Normal"),
-        test_helpers._para("GEICO, Chevy Chase, MD", style="CompanyBlock"),
-        test_helpers._para("Staff Engineer", style="JobTitleBlock"),
+    paras = _base_paras() + [
         # rewritten: appears as BOTH cut (old text) and added (new text)
         test_helpers._para("Owned testing, CI, and release for the payments platform.",
                             style="ListParagraph", numId=3),

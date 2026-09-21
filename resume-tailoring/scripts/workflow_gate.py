@@ -153,11 +153,10 @@ def validate_review(review):
 def print_review_template(kind, state_path):
     """Print a ready-to-fill review skeleton for ``review`` (stdout).
 
-    Sessions reverse-engineered the review JSON schema from api.md and the
-    module source on every run, then hand-built the phrase set and failed
-    the exact-set match (ATS reviews must disposition EXACTLY the recorded
-    baseline). The template pre-fills what the machine knows — every
-    baseline finding phrase, in the state's normalized form — so the agent
+    The review JSON schema is easy to get wrong by hand, and an ATS
+    review must disposition EXACTLY the recorded baseline set. The
+    template pre-fills what the machine knows — every baseline finding
+    phrase, in the state's normalized form — so the agent
     fills only decision/rationale and the set match is guaranteed by
     construction. Usage hints go to stderr so stdout stays redirectable:
 
@@ -166,9 +165,9 @@ def print_review_template(kind, state_path):
     if kind not in REVIEW_PHASES:
         raise GateError(
             f"template kind must be one of {sorted(REVIEW_PHASES)}, got {kind!r}")
-    load_state(state_path)  # existence/typo check before any authoring
+    state = load_state(state_path)  # also the path/typo check
     if kind == "ats":
-        phrases = load_state(state_path).get("finding_phrases") or []
+        phrases = state.get("finding_phrases") or []
         if not phrases:
             raise GateError(
                 f"{state_path} records no baseline findings — run the baseline audit "

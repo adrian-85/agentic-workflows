@@ -1484,8 +1484,8 @@ class ApplySimulateTests(unittest.TestCase):
 class RoleJdEvidenceTests(unittest.TestCase):
     """_role_jd_evidence_lines: --simulate must surface the JD evidence a
     whole-role drop would lose, so the trade-off is visible before approval
-    (a real session dropped the strongest-evidence role for a JD that named
-    that evidence). Generic data throughout: these tests verify the
+    (a whole-role drop can otherwise lose the strongest evidence for a JD
+    that named it). Generic data throughout: these tests verify the
     function's behavior, not any particular person's resume."""
 
     ROLES = [
@@ -1531,9 +1531,9 @@ class ResolvedJdTermsTests(unittest.TestCase):
     Regression: main computed jd_terms only inside the --simulate block,
     so a plain `measure --jd` silently fell back to the JD-blind DROP
     PLAN (the "falling back to the JD-blind ranking" message looked like
-    a file problem, not a tool bug). A real session misdiagnosed it as an
-    extractor limitation and burned several tool calls debugging the
-    wrong layer; the next session re-hit it."""
+    a file problem, not a tool bug). The wrong layer is easy to debug by
+    mistake — the failure presents as an extractor limitation rather than
+    a JD-terms wiring bug."""
 
     def _body(self):
         path = _docx_with_roles()
@@ -1756,10 +1756,10 @@ class JdReportTests(unittest.TestCase):
         self.assertNotIn("e.g.", joined)
 
     def test_tmp_jd_path_gets_persistence_note(self):
-        # R1 regression: the /tmp note once crashed with NameError
-        # (appended before `lines` existed) — no test exercised a /tmp
-        # path. Both the ranked path and the no-terms early return must
-        # carry the note.
+        # R1 regression: the /tmp note must never crash with NameError
+        # (it is appended after `lines` exists) — this test exercises a /tmp
+        # path on both the ranked path and the no-terms early return.
+        # Both must carry the note.
         lines = mr._jd_report("/tmp/somejd.txt", "word " * 400,
                               {"playwright"})
         self.assertTrue(
@@ -1807,11 +1807,11 @@ class InferenceMapTests(unittest.TestCase):
     search over the master (and an optional LinkedIn dump) via term
     variants and skill-family roots. Each no-host term gets a verdict:
     AUTO-HOST (evidence found — host it, no user confirmation needed) or
-    RAISE (no evidence — ask the user). A real session left six
-    demonstrated skills (debugging, data management, aws services, UI,
-    LLMs, Solving Problems) at zero because absence was read as absence
-    of evidence, and re-asked the user about three evidence-backed terms
-    (SQL queries, defects, advanced) the map had already answered."""
+    RAISE (no evidence — ask the user). Reading 'no literal host' as 'no
+    evidence' leaves demonstrated skills at zero (debugging, data
+    management, aws services, UI, LLMs, problem solving) and re-asks the
+    user about evidence-backed terms (SQL queries, defects, advanced) the
+    map had already answered."""
 
     def _body(self):
         return _body([
@@ -2095,8 +2095,8 @@ class JdMissingTermsTests(unittest.TestCase):
 
 
 class JdTermRecallTests(unittest.TestCase):
-    """JD term-mining recall, regression-tested on a HubSync-shaped JD
-    (real session 2026-09-11): the prune plan missed 'agents', 'context',
+    """JD term-mining recall, regression-tested on a HubSync-shaped JD:
+    the prune plan missed 'agents', 'context',
     'sdlc', 'spec', 'V1', 'MCP', 'RCA', 'cycle time', 'review latency' —
     the JD's core asks — because lowercase mid-sentence nouns, compound
     metric phrases, short acronyms, and intro-hosted vocabulary were all
@@ -2699,10 +2699,10 @@ class CoverageTermsVisibilityTests(unittest.TestCase):
 
 
 class InferenceFamilyTests(unittest.TestCase):
-    """Families added after a real session: 'software engineering' and
-    'programming skills' carried strong master evidence (languages,
-    production test code) but no family mapped them, so the INFERENCE MAP
-    reported them as genuine gaps."""
+    """Families added for terms with strong master evidence: 'software
+    engineering' and 'programming skills' carry master evidence (languages,
+    production test code) but no family maps them, so the INFERENCE MAP
+    reports them as genuine gaps."""
 
     def test_programming_family(self):
         roots = mr._family_roots("programming skills")
@@ -2773,8 +2773,8 @@ class MasterRequiredForMiningTests(unittest.TestCase):
     """The master leg of Step 8's source-first loop is mandatory: when a
     mining queue exists (JD terms with no host) and the master is not
     adjacent to the tailored copy, measure_resume exits 2 rather than
-    silently fall back to the pruned copy — two real sessions asked the
-    user about evidence the master still hosted."""
+    silently fall back to the pruned copy — without the master, the user
+    gets asked about evidence the master still hosts."""
 
     def _tailored_paras(self):
         return [

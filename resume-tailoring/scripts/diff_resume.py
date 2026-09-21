@@ -74,10 +74,8 @@ def _grouped_texts(path):
 def cutset(master_path, build_path):
     """Print the master-vs-build paragraph cut set (Theme Review A's diff).
 
-    Sessions hand-rolled this diff differently every run (comm -23 on
-    prefix dumps, grep -vxF, python set arithmetic) after discovering that
-    raw index-based diffs are noise — the prune renumbers everything. This
-    normalizes whitespace, compares by text, and groups each side by the
+    A raw index-based diff is noise here — the prune renumbers everything.
+    This normalizes whitespace, compares by text, and groups each side by the
     role or section header above it. A rewritten paragraph appears on BOTH
     sides (old text cut, new text added) — that is the trim/host signal.
     """

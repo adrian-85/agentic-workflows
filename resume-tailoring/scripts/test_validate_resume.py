@@ -541,10 +541,10 @@ class JdYearsTests(unittest.TestCase):
         self.assertIn("aligned", out)
 
     def test_jd_years_without_jd_years_in_text_warns_invented(self):
-        # Regression (real session): with no years line in the JD, an
-        # agent invented --jd-years 10 'as a test value' and got a false
-        # underqualified verdict plus a load-bearing education warning.
-        # The validator now flags the invented ask.
+        # Regression: with no years line in the JD, an invented
+        # --jd-years 10 would produce a false underqualified verdict plus
+        # a load-bearing education warning. The validator flags the
+        # invented ask.
         fd, path = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         fd2, jd = tempfile.mkstemp(suffix=".txt")
@@ -910,10 +910,9 @@ class EducationGateTests(unittest.TestCase):
         self.assertNotIn("Education", out)
 
     def test_prose_degree_word_is_not_a_degree_requirement(self):
-        # Regression (real session): the JD's 'a high degree of autonomy'
-        # matched the old bare \bdegree\b, so a JD with NO degree
-        # requirement entered the education gate and warned about the
-        # dropped Education section.
+        # Regression: a prose 'a high degree of autonomy' matched the old
+        # bare \bdegree\b, so a JD with NO degree requirement entered the
+        # education gate and warned about the dropped Education section.
         jd = self._jd(
             "Able to operate with a high degree of autonomy and identify "
             "where your input will create the most value. 5+ years of "
@@ -931,9 +930,9 @@ class EducationGateTests(unittest.TestCase):
         self.assertNotIn("Education", out)
 
     def test_language_equivalence_is_not_an_education_clause(self):
-        # Regression (real session): 'CEFR C2 or equivalent' matched the
-        # old bare `or equivalent` branch, fabricating a load-bearing
-        # education clause on a JD with no degree ask.
+        # Regression: 'CEFR C2 or equivalent' matched the old bare
+        # `or equivalent` branch, fabricating a load-bearing education
+        # clause on a JD with no degree ask.
         jd = self._jd(
             "Exceptional written and verbal communication skills in "
             "English (CEFR C2 or equivalent), as most collaboration "
@@ -965,10 +964,10 @@ class EducationGateTests(unittest.TestCase):
             "education and experience."))
 
     def test_curly_apostrophe_degree_still_detected(self):
-        # Regression (real session): a JD pasted from a PDF carried the
-        # curly apostrophe — "Master’s degree" — which the ASCII-only
-        # (?:'s)? group missed, so a degree-REQUIRING JD skipped the
-        # education gate entirely and a dropped Education survived
+        # Regression: a JD pasted from a PDF carries the curly apostrophe —
+        # "Master’s degree" — which the ASCII-only (?:'s)? group misses,
+        # so a degree-REQUIRING JD skips the education gate entirely and a
+        # dropped Education can survive
         # validation until --jd-years forced a second look.
         self.assertTrue(vr.DEGREE_RE.search(
             "Employer will accept a Master\u2019s degree in Computer "
@@ -1055,8 +1054,8 @@ class GuidanceTests(unittest.TestCase):
 
     def test_missing_role_spacers_warn(self):
         # SKILL Step 8's default: spacers are ALWAYS added unless the
-        # page target conflicts — five real sessions never applied one.
-        # The render gate now surfaces the boundary list directly.
+        # page target conflicts. The render gate surfaces the boundary list
+        # directly.
         b, s = self._two_role_body(with_spacer=False)
         notes = vr._readability_guidance(b, s)
         warns = [c for lvl, c in notes if lvl == "warn"]
@@ -1362,8 +1361,7 @@ class SessionLoopTests(unittest.TestCase):
 class HelpFlagTests(unittest.TestCase):
     """Bare --help/-h must print usage and exit 0 — the hand-rolled argv
     loops used to consume it as the positional .docx and die with a
-    FileNotFoundError (a real session lost several tool calls to
-    'measure_resume.py --help')."""
+    FileNotFoundError (e.g. 'measure_resume.py --help')."""
 
     def test_maybe_help_exits_zero(self):
         buf = io.StringIO()

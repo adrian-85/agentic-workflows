@@ -75,8 +75,7 @@ def drift_sidecar(path, drift, applied, root):
             )
         else:
             # The master is unchanged, so cause (b) is impossible: the
-            # edit set itself changed. One line, not the two-cause block
-            # a real session printed on EVERY mid-authoring run.
+            # edit set itself changed — one line, not the two-cause block.
             print(
                 f"DRIFT: {drift_key} edit set changed ({prev_edits} -> "
                 f"{applied} applied); baseline rebaselined (warn-once)",

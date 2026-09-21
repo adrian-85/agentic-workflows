@@ -147,9 +147,9 @@ class NextBatchTests(unittest.TestCase):
 
 class FoldbackTests(unittest.TestCase):
     """_print_foldback: the paste-ready drop() block replaces the old
-    hand-transcription step (a real session hand-copied 7 prefixes from
-    squeeze.json into the tailor script — an unguarded step where one
-    typo'd prefix silently skips). The full bullet text in each comment is
+    hand-transcription step (hand-copying prefixes from squeeze.json into
+    the tailor script is unguarded — one typo'd prefix silently skips).
+    The full bullet text in each comment is
     what makes the block reviewable before pasting."""
 
     def test_block_is_paste_ready_with_reviewable_comments(self):

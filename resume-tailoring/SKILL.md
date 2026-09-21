@@ -178,8 +178,8 @@ are:
    ast.parse(open('scripts/tailor_<target>.py').read())"`. On corruption, do not repair
    incrementally with `edit` — rewrite the whole file in one bash heredoc and re-check.
 7. **Before each `edit` of a script, view only the target region** (`sed -n 'A,Bp'`, or `grep -n`
-   to find it) — not a full re-read. A session re-read its 300-line tailor script seventeen times
-   across edit rounds; targeted views keep the edit anchors exact at a fraction of the tokens.
+   to find it) — not a full re-read. Targeted views keep the edit anchors exact at a fraction of
+   the tokens a full re-read costs.
    Full re-read only when paragraph/script indices shifted and the anchor's position is genuinely
    unknown. And never hand-shorten a prefix from the dump: the `--prefixes` string is
    uniqueness-checked as printed — a hand-coined shorter one can match two paragraphs and fail
@@ -758,7 +758,7 @@ last-page tail, and `measure_resume.py` prints the page-fill table with widow/un
 
 **ATS verification — the internal matchers are not the ground truth.** The workflow's term/concept
 matching overestimates alignment — a build can pass every internal gate while its hard skills carry
-zero literal hits and the external ATS score drops (one scan: 9 of 24 hard skills at zero hits).
+zero literal hits and the external ATS score drops.
 After the final render, run the literal-phrase audit on the PDF a screener parses (command:
 [docs/api.md](docs/api.md)).
 

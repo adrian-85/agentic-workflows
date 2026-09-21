@@ -136,9 +136,9 @@ def _write_prune_sidecar(docx_path, jd_file, candidates):
 
 def _print_disposition_checklist(sidecar_path, candidates):
     """The fill-in disposition table for the ONE-message plan (SKILL
-    Steps 2-5) — the fix for the motivating session's 'Prune plan
-    highlights' summary, which listed only the bullet cuts and left the
-    word/sentence-level trims out of the user's approval entirely."""
+    Steps 2-5) so the user approves the bullet cuts AND the
+    word/sentence-level trims in one message, instead of trims slipping
+    out of the approval."""
     print()
     print(f"PRUNE COVERAGE SIDECAR: {sidecar_path}")
     print("PRUNE DISPOSITION CHECKLIST — EVERY candidate needs exactly one "

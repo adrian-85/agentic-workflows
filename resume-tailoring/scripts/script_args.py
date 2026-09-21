@@ -60,8 +60,8 @@ def maybe_help(argv, usage_text=None):
 
     The resume-tailoring scripts parse argv by hand (extract_common &
     friends), so without this a bare ``--help`` is consumed as the
-    positional .docx path and dies as FileNotFoundError — a real session
-    lost several tool calls to ``measure_resume.py --help``. Call this
+    positional .docx path and dies as FileNotFoundError — e.g.
+    ``measure_resume.py --help``. Call this
     FIRST, before any positional scan."""
     if "--help" in argv or "-h" in argv:
         print(usage_text if usage_text is not None else __doc__ or "")

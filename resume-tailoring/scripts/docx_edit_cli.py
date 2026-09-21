@@ -52,8 +52,8 @@ def _headline_index(styles):
     first Title is the NAME, not the headline. Marking it in the
     ``--prefixes`` dump moves the name-vs-headline distinction out of the
     skill text and into the tool output the script author is actually
-    reading (a session authored the anchor against the wrong Title and
-    spent two calls inspecting find_p's source to recover). Returns None
+    reading (the name line and the headline share the Title style, so the
+    index alone is ambiguous). Returns None
     when the document does not open with a Title run."""
     if not styles or styles[0] != TITLE_STYLE:
         return None
@@ -121,9 +121,8 @@ def prefixes(body, min_len=30, max_len=70):
     styles = [style_and_numid(p)[0] for p in ps]
     headline_idx = _headline_index(styles)
     # Per-role kept-bullet counts vs the hard cap, annotated on each role
-    # header line: hosting rounds saw the cap only at run_tailor/validate
-    # time ("GEICO now exceeds the 8-bullet cap (3 hosts added)" — three
-    # discovery cycles), so the dump surfaces it at AUTHORING time.
+    # header line so the cap is visible at AUTHORING time instead of only
+    # when run_tailor/validate rejects an over-cap role.
     bullet_counts = _role_bullet_counts(ps)
     out = []
     for i, txt in enumerate(texts):
@@ -239,7 +238,6 @@ def _script_drop_blocks(tree, body):
     """[(lineno, api, prefix, paragraph_ids)] for every literal
     drop_role()/drop_section() call — the blocks the script removes."""
     out = []
-    ps = paras(body)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or len(node.args) < 2:
             continue
@@ -255,7 +253,6 @@ def _script_drop_blocks(tree, body):
             block = _block(body, prefix, anchor_style, _BLOCK_BOUNDARY_STYLES)
         if block:
             out.append((node.lineno, name, prefix, {id(p) for p in block}))
-        del ps  # paras(body) computed once above; kept for clarity
     return out
 
 
@@ -306,11 +303,10 @@ def lint_script(docx_path, script_path):
     """Validate a tailor script's find_p targets against a .docx BEFORE
     running it.
 
-    A real session hand-typed two prefixes that missed the master
-    ('Monitoring & Logging: Datadog' vs the master's '...Prometheus,
-    Grafana, New Relic, Datadog'; 'Performed contract testing usi' vs
-    'Performed contract testing to ') — each a run-crash-and-fix cycle
-    that DOCX_EDIT_STRICT only catches AFTER execution. This lint runs
+    A hand-typed prefix that does not resolve as intended ('Monitoring &
+    Logging: Datadog' vs the master's '...Prometheus, Grafana, New Relic,
+    Datadog') is otherwise caught only AFTER execution by DOCX_EDIT_STRICT,
+    as a run-crash-and-fix cycle. This lint runs
     the same resolution (find_p, smart punctuation included) against the
     master and reports every miss/ambiguity with line numbers, so the
     whole edit set is verified in one pre-run. Returns exit code 0 clean,
@@ -495,8 +491,8 @@ def _report_uncovered(uncovered, total):
         'no "# kept: <JD reason>" comment records them. Address each '
         "(CUT: drop(); TRIM: set_text/replace_text on the flagged "
         "sentence/clause/chunk) or record the keep — the plan is final "
-        "on WHICH, and a skipped trim is the motivating session's "
-        "two-prompt failure:", file=sys.stderr)
+        "on WHICH; a skipped trim is caught by this gate, not by the "
+        "user:", file=sys.stderr)
     for c in uncovered:
         prefix = c["prefix"]
         anchor = f'find_p(ps, "{prefix}")' if prefix \
@@ -531,10 +527,9 @@ def lint_prune_coverage(docx_path, script_path):
     (find_p/drop/set_text literal on the same paragraph: a CUT or TRIM),
     an enclosing ``drop_role()`` (a whole-role DROP), or a recorded
     ``# kept: <JD reason>`` comment (a KEEP). A candidate with none is
-    UNCOVERED and fails the run: the motivating session skipped the plan's
-    word/sentence-level trims entirely, asserted 'trims are in', and needed
-    two user prompts — this turns 'they are in' from an assertion into a
-    checked claim.
+    UNCOVERED and fails the run: every planned trim must be actually
+    addressed, so 'the trims are in' is a checked claim, not an
+    assertion.
 
     The sidecar must exist (run the prune plan first — SKILL Step 3) and
     every candidate anchor must still resolve against this docx: a master

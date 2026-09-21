@@ -84,10 +84,9 @@ CURL_FILE = os.path.join(CONFIG_DIR, "curl.txt")
 JAR_FILE = os.path.join(CONFIG_DIR, "cookies.txt")
 # Company → {url, ats} knowledge from prior scans: when a later JD for
 # the same company omits the Posting URL line, the mapping lets the scan
-# identify the ATS anyway (a real session scanned two postings at the
-# same company; the second — URL-less — ran with NO ATS identified and a
-# degraded keyword-matching mode even though the first scan had just
-# identified Ashby for that company).
+# identify the ATS anyway (a URL-less later posting for a company already
+# scanned would otherwise run with NO ATS identified and a degraded
+# keyword-matching mode).
 KNOWN_ATS_FILE = os.path.join(CONFIG_DIR, "known-ats.json")
 CSRF_COOKIE = "XSRF-TOKEN"
 CSRF_HEADER = "x-xsrf-token"
@@ -349,8 +348,8 @@ def _posting_url(jd_text):
     'Posting URL: <url>' first line), or None.
 
     When the URL is unknown, SKILL Step 1 says omit the line entirely —
-    never write a placeholder: a real session's '(not provided)' reached
-    the scan service as 'url=(not)' in the report metadata. The caller
+    never write a placeholder: a placeholder on the line reaches the scan
+    service as 'url=(not)' in the report metadata. The caller
     skips the PATCH when None, so no garbage is sent. As a second guard,
     anything on the line that does not LOOK like a URL (must start with
     http:// or https://) is treated as a placeholder and dropped — a

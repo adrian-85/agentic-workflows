@@ -347,8 +347,8 @@ python3 scripts/squeeze_resume.py "<Target>.docx" 3 --jd "<JD>.txt" \
 ```
 
 `--protect` works exactly as in measure — pass it for JD asks that are real responsibilities but
-name no extractable term (a real session's squeeze plan cut an ETL data-layer bullet, a
-security-posture bullet, and a test-data bullet: all JD responsibilities no JD term named).
+name no extractable term (squeeze plans cut ETL data-layer, security-posture, and test-data
+bullets: all JD responsibilities no JD term names).
 
 (Without `--plan-only`, it backs up to `<docx>.pre-squeeze.docx` and logs every cut to
 `<docx>.squeeze.json`; reserve apply mode for a doc you will NOT regenerate from the tailor script.)
@@ -529,8 +529,8 @@ INFERENCE MAP for no-host terms (deterministic evidence search over the
 ```
 
 **LinkedIn evidence.** Pass `--linkedin <profile-dump.txt>` (the `read_profile.sh` output) so the
-map also searches the LinkedIn export — the richer source for content the resume compressed away (a
-real session justified the Elasticsearch fold from Skills.csv via this path):
+map also searches the LinkedIn export — the richer source for content the resume compressed away (the
+Elasticsearch fold, for example, is justified from Skills.csv via this path):
 
 ```bash
 python3 scripts/measure_resume.py "<Target>.docx" 3 --jd "<JD>.txt" \
@@ -656,8 +656,8 @@ counting. The result matches the external ATS report's `wordCount` for the exact
 ## Step 12 procedures — ATS verification (literal phrases + external scan)
 
 The internal matchers are term/concept-based; external ATS screeners match literal phrases against
-the rendered text. A resume can pass every internal gate and lose ATS points (a real session: 9 of
-24 hard skills at zero literal hits, external score DROPPED). Two tools close the gap:
+the rendered text. A resume can pass every internal gate and lose ATS points (e.g. 9 of
+24 hard skills at zero literal hits while the external score drops). Two tools close the gap:
 
 ### ats_audit.py — the local ground-truth audit (always run)
 
@@ -732,16 +732,16 @@ match rate, the report's wordCount (matches the local count — feed it to
 identified target ATS; the latter requires the job posting URL persisted with the JD (Step 1) — a
 real URL on the `Posting URL:` line, never a placeholder: the function returns whatever is on the
 line, but the caller PATCHes only when the line is present and truthy. A placeholder PATCHed to the
-service is garbage in the report (`url=(not)` in a real session); SKILL Step 1: own the line
+service is garbage in the report (`url=(not)`); SKILL Step 1: own the line
 entirely when the URL is unknown.
 
 **URL-optional: ATS knowledge reuse across scans.** The URL is optional — the scan always runs
 without it. Its job is ATS identification, and that is company-scoped knowledge: when this JD has no
 Posting URL line but a prior scan (this session or an earlier one) identified the ATS for the same
 company, `ats_check.py` reuses the known posting URL for the metadata PATCH and prints the reuse. A
-real session scanned two postings at one company; the URL-less second ran with NO ATS identified and
-NO keyword-matching mode at all — `matchRate: 66` where the URL'd first scored 84 against the same
-Ashby system. The known-ATS mapping is persisted in `.ats-check/known-ats.json` (gitignored, durable
+URL-less second posting for an already-scanned company would run with NO ATS identified and
+NO keyword-matching mode at all — a large match-rate drop against the same system. The known-ATS
+mapping is persisted in `.ats-check/known-ats.json` (gitignored, durable
 across sessions). `--company` overrides the company detection from the JD's `Company:` line.
 
 **Fix tool bugs in the session that finds them.** If a script in this skill misbehaves or
@@ -750,7 +750,7 @@ test in the same session (then continue the tailoring run on the fixed tool). A 
 the bug armed for the next session.
 
 **Verification is TEXT-ONLY — never render pages to images.** This harness reads no images, so
-converting the PDF to PNGs and "viewing" them fails every time (observed in two sessions). The text
+converting the PDF to PNGs and "viewing" them fails every time. The text
 path already covers what a visual check would: `render_pdf.sh --verbose` prints the page-boundary
 map and last-page tail, and `measure_resume.py` prints the page-fill table with widow/underfill
 detection. Read those, plus `pdftotext` per page if you need to inspect content placement.

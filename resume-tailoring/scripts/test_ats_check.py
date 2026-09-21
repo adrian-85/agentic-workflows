@@ -233,8 +233,8 @@ class JarTests(unittest.TestCase):
 class PostingUrlTests(unittest.TestCase):
     """SKILL Step 1 persists 'Posting URL: <url>' as the JD's first line —
     the scan attaches it to the opportunity so the service can identify
-    the target ATS (a session saw both browser and API scans fail the
-    match because the URL was missing)."""
+    the target ATS (a missing URL can make both browser and API scans
+    fail the match)."""
 
     def test_posting_url_extracted(self):
         self.assertEqual(
@@ -252,11 +252,10 @@ class PostingUrlTests(unittest.TestCase):
 
     def test_placeholder_posting_url_is_dropped(self):
         # SKILL Step 1 says omit the line entirely when the URL is unknown;
-        # never write a placeholder. A real session's '(ask user — not
-        # provided)' leaked to the scan service as url=(ask ...) — the doc
-        # rule alone proved insufficient, so the guard now also drops any
-        # value that does not start with http(s):// (regression: the
-        # Humana PSE-IQS session, 2026).
+        # never write a placeholder. A placeholder like '(ask user — not
+        # provided)' leaks to the scan service as url=(ask ...) — the doc
+        # rule alone is insufficient, so the guard also drops any value
+        # that does not start with http(s)://.
         for placeholder in ("(not provided)", "(ask user)", "TBD"):
             with self.subTest(placeholder=placeholder):
                 result = ac._posting_url(

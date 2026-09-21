@@ -105,9 +105,8 @@ def _protected_count(bullets, protect=(), jd_terms=()):
     suggested for cutting while weaker bullets remain). Weak matches — a
     term that hits half the role's own bullets — do not protect: every
     bullet in the role carries them, so counting them would shield the
-    whole role from the plan (the exact over-protection two real sessions
-    hit, where a 1-year role kept 16+ bullets and old JD-relevant bullets
-    died instead)."""
+    whole role from the plan (the over-protection to avoid: a 1-year role
+    keeping 16+ bullets while old JD-relevant bullets die)."""
     return sum(1 for b in bullets
                if _is_protected(b, protect)
                or _evidenced(b, jd_terms))

@@ -9,9 +9,9 @@ The workflow's internal matchers (measure_resume.py, validate_resume.py)
 judge JD alignment with stemmed/concept matching. Real ATS screeners
 match literal phrases against the rendered text (abbreviations and
 paraphrases frequently do not count). A resume can pass every internal
-gate and still lose ATS points — a real session kept topically relevant
-bullets while 9 of 24 hard skills had zero literal hits, and the ATS
-score DROPPED (SKILL Step 12). This tool is the ground-truth backstop:
+gate and still lose ATS points: topically relevant bullets can carry
+zero literal hits for many hard skills, and the ATS score drops (SKILL
+Step 12). This tool is the ground-truth backstop:
 it runs the ATS-style literal check on the same text a parser sees.
 
 usage:
@@ -450,8 +450,8 @@ def _audit_report_skills(report_data, text_low, text, result):
             "report soft skills with NO literal host (ACTIONABLE — "
             "soft skills are safe to infer: host each literal phrase "
             "where the action-verb evidence lives, SKILL Steps 2/4; "
-            "hosting these moved a real session's live match rate "
-            "59→86): " + ", ".join(soft_miss))
+            "hosting them is what closes the soft-skill gap): "
+            + ", ".join(soft_miss))
     elif soft:
         ok_lines.append(f"report soft skills: {len(soft)}/{len(soft)} "
                         "hosted")

@@ -141,8 +141,8 @@ def _bullet_cap_errors(region):
     The cap is enforced by count, not judgment: recency and accomplishment
     never exempt a role — a 1-year Staff role whose master block carries
     20+ bullets selects its strongest JD-aligned ones like everyone else
-    (two real sessions let the most-recent role keep 16-19 bullets while
-    JD-relevant older-role bullets died under page pressure). Returns one
+    (a most-recent role can keep 16-19 bullets while JD-relevant
+    older-role bullets die under page pressure — recency is no exemption). Returns one
     error per over-cap role, named by its company header.
     """
     errors = []
@@ -223,6 +223,11 @@ def _structural_errors(region):
     return errors
 
 
+def _norm_ws(text):
+    """Whitespace-collapsed string — the spacer-omission matching form."""
+    return " ".join(str(text).split())
+
+
 def _final_presentation_errors(body, omitted_spacers=()):
     """Blocking final-output checks for role presentation invariants.
 
@@ -244,25 +249,24 @@ def _final_presentation_errors(body, omitted_spacers=()):
         if not value:
             errors.append("Tools & Technologies row has no value row")
     missing = [header for header, _anchor in mr._boundaries_without_spacer(body)]
-    norm_omitted = {" ".join(str(o).split()) for o in omitted_spacers}
+    norm_omitted = {_norm_ws(o) for o in omitted_spacers}
     unrecorded = []
     for header in missing:
-        if " ".join(header.split()) in norm_omitted:
+        if _norm_ws(header) in norm_omitted:
             continue
         errors.append(
             f"role boundary before {header!r} lacks a persisted spacer")
         unrecorded.append(header)
     if unrecorded:
-        # One copy-ready fix line instead of a format-discovery loop (a
-        # session took three recording attempts + source reading).
+        # One copy-ready fix line, so the exact --omitted format is not
+        # something the caller has to discover.
         joined = ";".join(unrecorded)
         errors.append(
             "record these omissions with: workflow_gate.py spacers <state> "
             f"--omitted \"{joined}\" — ';'-separated FULL role headers, copied "
             "verbatim from the messages above (dates and en dashes included)")
-    matched = {" ".join(h.split()) for h in missing}
-    unmatched = [o for o in omitted_spacers
-                 if " ".join(str(o).split()) not in matched]
+    norm_missing = {_norm_ws(h) for h in missing}
+    unmatched = [o for o in omitted_spacers if _norm_ws(o) not in norm_missing]
     if unmatched:
         errors.append(
             f"recorded spacer omissions matched no boundary: {unmatched!r} — the "
@@ -512,8 +516,8 @@ def _readability_guidance(body, summary, *, region=None,
     # Inter-role readability spacers: SKILL Step 9's DEFAULT is to add
     # one blank spacer paragraph at every role boundary, skipping only
     # when adding them would push the build past the agreed page target.
-    # Five consecutive real sessions printed SPACER OPPORTUNITIES and
-    # never applied one — the default must be visible at the render
+    # Five consecutive printed SPACER OPPORTUNITIES reports went
+    # unapplied — the default must be visible at the render
     # gate, not only in measure's report (which fires only when the
     # last page has slack, so an agent skipping measure never saw it).
     spacer_gaps = ([] if is_master

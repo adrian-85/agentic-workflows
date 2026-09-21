@@ -64,8 +64,8 @@ Catches the error classes tailoring sessions actually hit:
 
 5. TEXT INTEGRITY — generated-prose mangling artifacts. Enforced on the
    same paragraphs as PUNCTUATION: non-ASCII characters that are not
-   Latin letters or standard typographic marks (a real session had a
-   mangled CJK char replace " and " inside a bullet), doubled punctuation
+   Latin letters or standard typographic marks (e.g. a mangled CJK char
+   replacing " and " inside a bullet), doubled punctuation
    (,, / ;;), and doubled words ("the the"). These are the artifact
    classes that reach the Summary and bullets through generated text;
    catching them mechanically replaces a user's manual proofread.
@@ -583,9 +583,9 @@ def _jd_checks(jd_path, body, span, opts, ctx):
         education_errors, education_notes = _education_gate(
             jd_text, body, span, jd_years, opts.education_approved)
         # A fabricated ask poisons every span comparison downstream (the
-        # underqualified warning, the education load-bearing check): a
-        # real session passed --jd-years 10 against a JD with no years
-        # line and got false 'underqualified' output. Warn so the number
+        # underqualified warning, the education load-bearing check): passing
+        # --jd-years 10 against a JD with no years line produces false
+        # 'underqualified' output. Warn so the number
         # is only ever the JD's own.
         if jd_years is not None and not _jd_states_years_ask(jd_text):
             claim_notes.append(("warn",
