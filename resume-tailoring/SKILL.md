@@ -236,13 +236,10 @@ the residual page gap automatically.
 - **Persist both JD forms in the skill root, not /tmp.** Save the fixed eight-section internal JD as
   `jd_<target>.txt` (e.g. `jd_acme.txt`) before anything else. **Copy the user's paste BYTE-FOR-BYTE
   into the file — never retype or reflow it.** The paste arrives with every header alone on its own
-  line; the parser failures that cost a failed auto_prune + repair round in four sessions came from
-  the agent RE-TYPING the paste and joining a header with its body (`title: Senior Quality
-  Architect` on one line). If you find yourself typing JD content, stop — copy it. The parser's
-  near-miss error names the offending lines when this happens anyway. When the supplied posting has
-  nested headings or other structure that must remain verbatim for an external parser, also save
-  the exact unmodified posting as `jd_<target>_source.txt`. Internal prune/audit tools use the
-  normalized file.
+  line. If you find yourself typing JD content, stop — copy it. The parser's near-miss error names
+  the offending lines when this happens anyway. When the supplied posting has nested headings or
+  other structure that must remain verbatim for an external parser, also save the exact unmodified
+  posting as `jd_<target>_source.txt`. Internal prune/audit tools use the normalized file.
   `ats_check.py` automatically uploads the `_source.txt` sibling, so the external scan receives the
   original posting structure. Every downstream tool references durable skill-root paths. The code
   warns when `--jd` points at `/tmp`; the tailor script's docstring records the internal JD path.
@@ -254,15 +251,14 @@ the residual page gap automatically.
   the match fails (the report degrades to generic advice). The line sits outside the qualification
   sections, so the internal matchers ignore it. **When the URL is unknown, OMIT the line entirely
   — never write a placeholder** (`Posting URL: (not provided)`, `…(ask user)`), and never ADD an
-  empty `Posting URL:` line when the user supplied no URL (an empty one leaked `url` into the
-  term lists in one session and had to be removed at Step 4): a placeholder
-  reaches the scan service as `url=(not)` and garbles the report. The function returns whatever is
-  on the line — the caller skips the PATCH when the line is absent, but a placeholder on the line
-  passes through. The doc rule is the guard, not a parser: line present means a real URL; omit the
-  line when unknown. **The URL is optional, not required — the scan always runs without it.** Its
-  job is ATS identification, and that is company-scoped knowledge: when this JD has no Posting URL
-  line but a prior scan (this session or an earlier one) identified the ATS for the same company,
-  `ats_check.py` reuses that known posting URL for the metadata PATCH and prints the reuse.
+  empty `Posting URL:` line when the user supplied no URL. A placeholder reaches the scan service as
+  `url=(not)` and garbles the report. The function returns whatever is on the line — the caller
+  skips the PATCH when the line is absent, but a placeholder on the line passes through. The doc
+  rule is the guard, not a parser: line present means a real URL; omit the line when unknown. **The
+  URL is optional, not required — the scan always runs without it.** Its job is ATS identification,
+  and that is company-scoped knowledge: when this JD has no Posting URL line but a prior scan (this
+  session or an earlier one) identified the ATS for the same company, `ats_check.py` reuses that
+  known posting URL for the metadata PATCH and prints the reuse.
 - **Characterize the JD's theme BEFORE Phase 1 — reading the ENTIRE JD, every section.** Theme
   cannot be assessed without taking the entire JD into context, so no section is skippable. Write
   a company-focus theme brief covering:
@@ -392,8 +388,7 @@ editing. For each finding, record one disposition:
   bullets' action verbs (presented, demoed, led, mentored, trained, researched) evidence them —
   the Hosting reference's inference rule makes them safe to host WITHOUT asking. An `ignore`
   disposition on a soft skill must say why NO bullet evidences the phrase — "sounds like posting
-  boilerplate" is not a reason (a session wrote off "willing to learn"/"trustworthy" that way and
-  the user had to challenge it; hosting them took the external scan's soft-skills score 60→100).
+  boilerplate" is not a reason.
 - **Unsupported:** search the master and complete LinkedIn export first, then raise it if no
   truthful evidence exists.
 
@@ -410,15 +405,14 @@ recorded baseline set (schema: [docs/api.md](docs/api.md)).
 ### 5. Decide seniority and positioning with the theme in view
 
 **Optional early external scan (when configured).** The internal matcher under-detects the external
-scanner's phrase set — in four of six scanned sessions the FIRST scan after the final render came
-back under the 75 target (53, 67, 69, 71), each reopening hosting after the polish/render tail
-(re-host, word-cap re-trim, re-render, re-scan). To convert that late rework into mid-flow work,
-run `ats_check.py scan` ONCE on the seniority-approved build rendered in baseline mode, right
-after the Step 6–8 positioning edits and BEFORE Step 9 budgets/spacers/polish — feed its report
-back through the same `--ats-report` mining loop (it merges with the internal no-host list). This
-is optional and user-priced: it costs one extra external scan per target; with no early scan, the
-Step 12 scan remains the loop's entry point. The early scan's report is NOT the final check —
-Step 12's post-render scan still runs.
+scanner's phrase set, each reopening hosting after the polish/render tail (re-host, word-cap
+re-trim, re-render, re-scan). To convert that late rework into mid-flow work, run
+`ats_check.py scan` ONCE on the seniority-approved build rendered in baseline mode, right after the
+Step 6–8 positioning edits and BEFORE Step 9 budgets/spacers/polish — feed its report back through
+the same `--ats-report` mining loop (it merges with the internal no-host list). This is optional and
+user-priced: it costs one extra external scan per target; with no early scan, the Step 12 scan
+remains the loop's entry point. The early scan's report is NOT the final check — Step 12's
+post-render scan still runs.
 Run this step only after Theme Review B closes the baseline ATS findings. Record the user's approved
 role-drop decision with `workflow_gate.py advance <state> seniority-approved` before editing the
 script.
@@ -706,10 +700,9 @@ resurrected master prose and never as a keyword list (Step 7). Every bullet stay
 cap. **Count the target role's bullets BEFORE authoring a host** — the `--prefixes` dump annotates
 every role header with `[N/8 bullets]` (and `[N/8 bullets — OVER CAP]`): a role at 8 needs a merge
 or an offsetting cut planned in the SAME edit round, not a post-run cap discovery. When no kept
-bullet can truthfully host the ask, author a fresh bullet in the role where the
-experience lives (merge, don't append). Do not trade or cut content inside this hosting loop to
-solve page or word budgets. Record the host, finish Theme Review B, and handle all budget changes
-later in Step 9.
+bullet can truthfully host the ask, author a fresh bullet in the role where the experience lives
+(merge, don't append). Do not trade or cut content inside this hosting loop to solve page or word
+budgets. Record the host, finish Theme Review B, and handle all budget changes later in Step 9.
 
 ### 10. Fix grammar and typos in the same pass
 Common catches: `to improving` → `improving` (infinitive), `companies goal` → `company's goal`,
