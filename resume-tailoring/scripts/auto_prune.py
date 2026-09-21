@@ -324,9 +324,13 @@ def _walk_candidates(candidates, anchors, role_state, jd_terms):
 
 def _add_cap_drops(cap_drops, anchors, all_texts, edits):
     """Add the per-role cap excess (candidate and non-candidate bullets)
-    to the plan's cut lists."""
+    to the plan's cut lists, marking each text in ``cap_dropped`` so the
+    emitted script can say WHY the bullet went — a JD-evidenced bullet cut
+    only by the 8-bullet cap is Theme Review A's restore signal, and the
+    mark makes it visible without source-diving the weakness ranking."""
     drop_keys = set(edits["drops"])
     for _role_key, text in cap_drops:
+        edits["cap_dropped"].add(text)
         prefix, nth = anchors.get(text) or _anchor_for(all_texts, text)
         if prefix is not None:
             if (prefix, text) not in drop_keys:
@@ -381,12 +385,14 @@ def plan_phase_a(candidates, roles, jd_terms, body):
                                              sentences dropped; never a
                                              sub-sentence word/phrase edit)
       section_drops [(heading_prefix, heading)] — drop_section calls
+      cap_dropped  {text}            — bullets cut only by the per-role cap
       stats        {cut, trim, stub, section}
     """
     all_texts = [text_of(p) for p in paras(body)]
     anchors = _anchor_map(candidates, all_texts)
     role_state = _role_cuts(candidates, roles, jd_terms)
     edits = _walk_candidates(candidates, anchors, role_state, jd_terms)
+    edits["cap_dropped"] = set()
     _add_cap_drops(role_state.cap_drops, anchors, all_texts, edits)
     _apply_section_cuts(body, all_texts, edits)
     edits["stats"] = {
@@ -405,7 +411,7 @@ def plan_phase_a(candidates, roles, jd_terms, body):
 # (set_labeled, drop_role, merge_into, ...); the full authoring-time
 # superset lives in the tailor_resume.py template.
 _EMITTED_IMPORTS = (
-    "import shutil\n\n" "from docx_edit import (\n"
+    "import shutil\n\nfrom docx_edit import (\n"
     "    DriftMeta, drop, drop_section, find_p, load, paras, remove,\n"
     "    remove_empty, save, set_text,\n" ")\n"
 )
@@ -450,12 +456,16 @@ def emit_script(plan, src, dst, meta):
     ]
     if plan["drops"]:
         lines.append("    ps = drop(body, [")
-        for prefix, _text in plan["drops"]:
-            lines.append(f"        {_py(prefix)},")
+        for prefix, text in plan["drops"]:
+            why = "  # 8-bullet cap (weakest-ranked survivor)" \
+                if text in plan.get("cap_dropped", ()) else ""
+            lines.append(f"        {_py(prefix)},{why}")
         lines.append("    ])")
     for text, nth in plan["removes"]:
+        why = "  # 8-bullet cap (weakest-ranked survivor)" \
+            if text in plan.get("cap_dropped", ()) else ""
         lines.append(f"    remove(body, find_p(ps, {_py(text[:40])}, "
-                     f"nth={nth}))")
+                     f"nth={nth})){why}")
     for head, why in plan["keeps"]:
         lines.append(f"    # kept: {head} — {why}")
     if plan["trims"]:

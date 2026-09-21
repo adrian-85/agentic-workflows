@@ -1974,6 +1974,51 @@ class MergeIntoTests(unittest.TestCase):
         self.assertIn(p, list(body))
 
 
+class PrefixesRoleCapTests(unittest.TestCase):
+    """--prefixes annotates each role header with its bullet count vs the
+    hard 8-cap, so hosting rounds see overflow at AUTHORING time instead
+    of at run_tailor/validate time (a session added 3 hosts, then cut
+    over-cap bullets in three discovery cycles)."""
+
+    def test_counts_bullets_per_role_and_flags_over_cap(self):
+        body = ET.Element(W + "body")
+        paras = [test_helpers._para("Jane Doe", style="Title"),
+                 test_helpers._para("Summary of a career.", style="Summary")]
+        paras.append(test_helpers._para("GEICO, Chevy Chase, MD", style="CompanyBlock"))
+        paras.append(test_helpers._para("Staff Engineer", style="JobTitleBlock"))
+        for i in range(9):
+            paras.append(test_helpers._para(f"Delivered testing outcome number {i}.",
+                                               style="ListParagraph", numId=3))
+        paras.append(test_helpers._para("Trove, Remote", style="CompanyBlock"))
+        paras.append(test_helpers._para("Engineer", style="JobTitleBlock"))
+        for i in range(3):
+            paras.append(test_helpers._para(f"Shipped feature number {i}.",
+                                               style="ListParagraph", numId=3))
+        paras.append(test_helpers._para("Education", style="SectionHeading"))
+        paras.append(test_helpers._para("BA, University", style="Normal"))
+        for p in paras:
+            body.append(p)
+        lines = dcli.prefixes(body)
+        geico = next(l for l in lines if "GEICO" in l)
+        trove = next(l for l in lines if "Trove" in l)
+        self.assertIn("[9/8 bullets — OVER CAP]", geico)
+        self.assertIn("[3/8 bullets]", trove)
+
+    def test_section_heading_ends_the_role_region(self):
+        # Bullets after the Education heading must not inflate the last
+        # role's count.
+        body = ET.Element(W + "body")
+        paras = [test_helpers._para("GEICO, Chevy Chase, MD", style="CompanyBlock"),
+                 test_helpers._para("Bullet one.", style="ListParagraph", numId=3),
+                 test_helpers._para("Education", style="SectionHeading"),
+                 test_helpers._para("BA, University", style="Normal")]
+        for p in paras:
+            body.append(p)
+        lines = dcli.prefixes(body)
+        geico = next(l for l in lines if "GEICO" in l)
+        self.assertIn("[1/8 bullets]", geico)
+
+
 class PrefixesHeadlineTests(unittest.TestCase):
     """--prefixes marks the positioning headline so the script author does
     not have to re-derive the name-vs-headline distinction from the skill

@@ -305,7 +305,11 @@ What the machine does (deterministic; the agent has no lever here):
 - **NEVER drops a whole role** — a role left with zero bullets keeps a one-bullet stub
   (header/title + strongest bullet), so the timeline stays gapless and the seniority gate (Step 5)
   sees every role.
-- **Enforces the per-role 8-bullet cap** on the survivors.
+- **Enforces the per-role 8-bullet cap** on the survivors. Cap-cut entries carry an explicit
+  `# 8-bullet cap (weakest-ranked survivor)` comment in the emitted script's drop list — so when a
+  JD-evidenced bullet died to the cap (not to missing evidence), Theme Review A sees the WHY
+  without source-diving the weakness ranking, and restores it as a fresh host or cuts a weaker
+  survivor to make room.
 - **Emits `scripts/tailor_<target>.py`** and runs it through `run_tailor.sh` (ast + find_p lint +
   prune-coverage gate + strict exec). A gate failure is a pipeline-input bug (JD file, master) —
   never hand-edit the emitted cuts.
@@ -673,7 +677,10 @@ skills backed by the candidate's own demonstrated history.
 **Host in-bullet first.** A mined host lands as a rewrite or extension of the kept bullet where the
 evidence lives — mirroring the JD's literal phrase only when Theme Review B approves it — never as
 resurrected master prose and never as a keyword list (Step 7). Every bullet stays under the 40-word
-cap. When no kept bullet can truthfully host the ask, author a fresh bullet in the role where the
+cap. **Count the target role's bullets BEFORE authoring a host** — the `--prefixes` dump annotates
+every role header with `[N/8 bullets]` (and `[N/8 bullets — OVER CAP]`): a role at 8 needs a merge
+or an offsetting cut planned in the SAME edit round, not a post-run cap discovery. When no kept
+bullet can truthfully host the ask, author a fresh bullet in the role where the
 experience lives (merge, don't append). Do not trade or cut content inside this hosting loop to
 solve page or word budgets. Record the host, finish Theme Review B, and handle all budget changes
 later in Step 9.

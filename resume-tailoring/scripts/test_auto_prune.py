@@ -207,6 +207,24 @@ class TestPlanDispositions(_AutoPruneBase):
              "script_name": "tailor_t.py"})
         self.assertNotIn("drop_role", script)
 
+    def test_cap_dropped_bullets_carry_the_reason_in_the_emitted_script(self):
+        # A JD-evidenced bullet cut only by the 8-bullet cap is Theme
+        # Review A's restore signal (a session spent ~10 calls source-diving
+        # the weakness ranking to learn the cap — not the evidence filter —
+        # had cut the JD-central bullets). The mark lands in the emitted
+        # script, no archaeology needed.
+        plan = dict(self.plan)
+        plan["drops"] = list(self.plan["drops"]) + [
+            ("Delivered testing outc", "Delivered testing outcome.")]
+        plan["cap_dropped"] = {"Delivered testing outcome."}
+        script = auto_prune.emit_script(
+            plan, "m.docx", "out.docx",
+            {"target": "T", "jd_name": "jd.txt", "script_name": "tailor_t.py"})
+        self.assertIn('"Delivered testing outc",  # 8-bullet cap (weakest-ranked survivor)', script)
+        # unmarked cuts carry no comment
+        for prefix, _text in self.plan["drops"]:
+            self.assertNotIn(f"{prefix}',  # 8-bullet", script)
+
     def test_word_trim_removes_dead_sentence(self):
         c = self._cand("Automated checkout flows", "word-trim")
         self.assertTrue(c)

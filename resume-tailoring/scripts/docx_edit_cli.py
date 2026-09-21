@@ -26,7 +26,8 @@ import sys
 from docx_edit import (ROLE_STYLE, SECTION_STYLE, TITLE_STYLE, _BLOCK_BOUNDARY_STYLES, _block,
                        clone_after, find_p, load, paras, prune_sidecar_path, save,
                        set_text, style_and_numid, text_of)
-from validate_resume_checks import SUMMARY_STYLE
+from validate_resume_checks import MAX_BULLETS_PER_ROLE, SUMMARY_STYLE
+from measure_resume_format import BULLET_STYLES
 
 
 def paragraph_map(body, width=90):
@@ -62,6 +63,42 @@ def _headline_index(styles):
     return i
 
 
+def _role_bullet_counts(ps):
+    """{role-header index: kept-bullet count} — the hard-cap visibility
+    behind the --prefixes dump's `[N/8 bullets]` annotation. A role runs
+    from its CompanyBlock header to the next role/section heading; bullets
+    are numbered paragraphs (numId set) or ListBullet-styled ones."""
+    texts = [text_of(p) for p in ps]
+    pairs = [style_and_numid(p) for p in ps]
+    counts = {}
+    role_idx = None
+    for i, txt in enumerate(texts):
+        style, numid = pairs[i]
+        if style == ROLE_STYLE and txt:
+            role_idx = i
+            counts[i] = 0
+        elif style in ("SectionHeading", "Heading1", "Heading2"):
+            role_idx = None  # a section heading ends the role region
+        elif role_idx is not None and txt:
+            if (numid is not None and numid != "0") or style in BULLET_STYLES:
+                counts[role_idx] += 1
+    return counts
+
+
+def _unique_prefix(texts, txt, min_len, max_len):
+    """(chosen, ambiguous) — the shortest unique prefix of ``txt`` among
+    ``texts``, or the ``max_len`` head marked ambiguous."""
+    for n in range(min_len, min(max_len, len(txt)) + 1):
+        cand = txt[:n]
+        if sum(1 for t in texts if t.startswith(cand)) == 1:
+            return cand, False
+    chosen = txt[:max_len] if len(txt) >= max_len else txt
+    ambiguous = len(txt) > max_len and sum(
+        1 for t in texts if t.startswith(chosen)
+    ) > 1
+    return chosen, ambiguous
+
+
 def prefixes(body, min_len=30, max_len=70):
     """Return copy-pasteable ``find_p(ps, "…")`` prefixes for every paragraph.
 
@@ -83,25 +120,23 @@ def prefixes(body, min_len=30, max_len=70):
     texts = [text_of(p) for p in ps]
     styles = [style_and_numid(p)[0] for p in ps]
     headline_idx = _headline_index(styles)
+    # Per-role kept-bullet counts vs the hard cap, annotated on each role
+    # header line: hosting rounds saw the cap only at run_tailor/validate
+    # time ("GEICO now exceeds the 8-bullet cap (3 hosts added)" — three
+    # discovery cycles), so the dump surfaces it at AUTHORING time.
+    bullet_counts = _role_bullet_counts(ps)
     out = []
     for i, txt in enumerate(texts):
         if not txt:
             out.append(f"{i:2} | (empty)")
             continue
-        chosen = None
-        ambiguous = False
-        for n in range(min_len, min(max_len, len(txt)) + 1):
-            cand = txt[:n]
-            if sum(1 for t in texts if t.startswith(cand)) == 1:
-                chosen = cand
-                break
-        if chosen is None:
-            chosen = txt[:max_len] if len(txt) >= max_len else txt
-            ambiguous = len(txt) > max_len and sum(
-                1 for t in texts if t.startswith(chosen)
-            ) > 1
+        chosen, ambiguous = _unique_prefix(texts, txt, min_len, max_len)
         note = "HEADLINE (positioning title, not the name): " \
             if i == headline_idx else ""
+        if i in bullet_counts:
+            n = bullet_counts[i]
+            note = f"[{n}/{MAX_BULLETS_PER_ROLE} bullets" \
+                   f"{' — OVER CAP' if n > MAX_BULLETS_PER_ROLE else ''}] " + note
         out.append(f'{i:2}{"*" if ambiguous else " "}| find_p(ps, {chosen!r})  # {note}{txt}')
     return out
 
