@@ -225,6 +225,12 @@ def main():
     remove_empty(body)
 
     # ------------------------------------------------------------------ #
+    # API GOTCHA: set_text/set_labeled/replace_text return None — never
+    # assign them. clone_after returns the NEW paragraph element (not a
+    # refreshed ps list): chain later edits off that element, and reach a
+    # script-created bullet through the variable, not find_p (its prefix
+    # lints as a MISS against the master — expected, see docs/api.md).
+    # ------------------------------------------------------------------ #
     # 7. LAST — readability spacing, only when the final measure leaves
     #    room: add one blank spacer between roles — for example:
     #    clone_after(body, find_p(ps, "<a NON-bullet paragraph near the

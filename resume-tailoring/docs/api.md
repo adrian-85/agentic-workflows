@@ -61,6 +61,22 @@ authoring:
   over them), fix any drifted prefix in the tailor script, re-run.
 - **`clone_after(body, ref_p, text)`**: add a NEW bullet to the master, inheriting numbering. With
   `text=""`, it adds a managed blank spacer that survives a later `remove_empty(body)` pass.
+
+  **Return-value idiom (the recurring gotcha):** `clone_after` returns the NEW paragraph element —
+  NOT a refreshed paragraph list. Two sessions poisoned `ps` with `ps = clone_after(...)` and spent
+  five debug calls recovering. The correct patterns:
+
+  ```python
+  # editing the clone LATER: chain off the RETURNED element, never find_p
+  new = clone_after(body, find_p(ps, "<ref bullet>"), "New bullet text")
+  set_text(new, "Rewritten text")            # or keep new for a later edit
+  # finding a clone you added earlier: find_p DOES resolve script-created
+  # paragraphs via the original-text registry, and it matches current text
+  # as a fallback — but prefer keeping the returned element in a variable.
+  # find_p / --lint-script resolve MASTER paragraphs; a prefix that only
+  # exists because YOUR script creates it lints as a MISS (expected) and
+  # must be reached through the returned element, not a literal prefix.
+  ```
 - **`merge_into(body, target, source, text)`**: rewrite `target` AND remove `source` in one op —
   prevents near-dup residue from a two-step `set_text` + `remove`.
 
