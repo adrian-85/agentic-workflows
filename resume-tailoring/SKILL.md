@@ -400,6 +400,17 @@ rationale per row, keeping exactly one row per phrase — the review must dispos
 recorded baseline set (schema: [docs/api.md](docs/api.md)).
 
 ### 5. Decide seniority and positioning with the theme in view
+
+**Optional early external scan (when configured).** The internal matcher under-detects the external
+scanner's phrase set — in four of six scanned sessions the FIRST scan after the final render came
+back under the 75 target (53, 67, 69, 71), each reopening hosting after the polish/render tail
+(re-host, word-cap re-trim, re-render, re-scan). To convert that late rework into mid-flow work,
+run `ats_check.py scan` ONCE on the seniority-approved build rendered in baseline mode, right
+after the Step 6–8 positioning edits and BEFORE Step 9 budgets/spacers/polish — feed its report
+back through the same `--ats-report` mining loop (it merges with the internal no-host list). This
+is optional and user-priced: it costs one extra external scan per target; with no early scan, the
+Step 12 scan remains the loop's entry point. The early scan's report is NOT the final check —
+Step 12's post-render scan still runs.
 Run this step only after Theme Review B closes the baseline ATS findings. Record the user's approved
 role-drop decision with `workflow_gate.py advance <state> seniority-approved` before editing the
 script.
@@ -766,8 +777,11 @@ ACTIONABLE (the Hosting reference's inference rule; soft skills are safe to infe
 Its findings summary auto-IGNOREs the by-rule noise (contactEmail, specialCharacters, education
 findings on an Education-free PDF — see below), so the remaining findings are the actionable ones.
 
-**External ATS scan (when configured).** Use one canonical command. The normalized JD feeds internal
-checks, while the verbatim source feeds the external ATS parser:
+**External ATS scan (when configured).** Use one canonical command. The optional early scan
+(Step 5) front-loads the external-only phrase gaps into the hosting loop; this Step-12 scan is
+the final cross-check on the finished PDF — it still closes the hosting loop below target per
+the honest-ceiling rule. The normalized JD feeds internal checks, while the verbatim source feeds
+the external ATS parser:
 
 ```bash
 python3 scripts/ats_check.py scan "<output>.pdf" jd_<target>.txt \

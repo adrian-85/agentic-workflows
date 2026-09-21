@@ -702,6 +702,11 @@ text parser.
 
 ### ats_check.py — the external scan (when configured)
 
+Runs at Step 12 as the final cross-check, and OPTIONALLY once earlier (SKILL Step 5): an early scan
+on the seniority-approved baseline-rendered build front-loads the external scanner's phrase gaps
+into the Step 4 mining loop (`measure --ats-report` merges them with the internal no-host list),
+converting post-final rework into mid-flow work at the cost of one extra scan.
+
 ```bash
 python3 scripts/ats_check.py scan "<output>.pdf" <JD.txt> \
     [--jd <JD.txt>] [--source-jd <verbatim-JD.txt>] [--out <report.json>]
