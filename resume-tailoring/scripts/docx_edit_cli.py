@@ -23,7 +23,8 @@ import os
 import re
 import sys
 
-from docx_edit import (TITLE_STYLE, clone_after, find_p, load, paras, prune_sidecar_path, save,
+from docx_edit import (ROLE_STYLE, SECTION_STYLE, TITLE_STYLE, _BLOCK_BOUNDARY_STYLES, _block,
+                       clone_after, find_p, load, paras, prune_sidecar_path, save,
                        set_text, style_and_numid, text_of)
 from validate_resume_checks import SUMMARY_STYLE
 
@@ -181,8 +182,10 @@ def _resolve_find_p_targets(targets, ps):
         for prefix, lineno, nth in targets:
             if prefix is None:
                 bad.append((lineno, "<dynamic>",
-                            "search string is not a literal — verify by "
-                            "hand"))
+                            "search string is not a literal (loop/variable) — the lint "
+                            "and DOCX_EDIT_STRICT cannot verify it; unroll the loop into "
+                            "literal find_p(ps, ...) calls (one per anchor, e.g. one "
+                            "clone_after per spacer boundary) so every target is checked"))
                 continue
             if nth is not None:
                 resolved = find_p(ps, prefix, nth=nth)
@@ -195,6 +198,73 @@ def _resolve_find_p_targets(targets, ps):
                 err_io.truncate(0)
                 err_io.seek(0)
     return bad
+
+
+def _script_drop_blocks(tree, body):
+    """[(lineno, api, prefix, paragraph_ids)] for every literal
+    drop_role()/drop_section() call — the blocks the script removes."""
+    out = []
+    ps = paras(body)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or len(node.args) < 2:
+            continue
+        func = node.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+        if name not in ("drop_role", "drop_section") \
+                or not isinstance(node.args[1], ast.Constant) \
+                or not isinstance(node.args[1].value, str):
+            continue
+        prefix = node.args[1].value
+        anchor_style = ROLE_STYLE if name == "drop_role" else SECTION_STYLE
+        with contextlib.redirect_stderr(io.StringIO()):
+            block = _block(body, prefix, anchor_style, _BLOCK_BOUNDARY_STYLES)
+        if block:
+            out.append((node.lineno, name, prefix, {id(p) for p in block}))
+        del ps  # paras(body) computed once above; kept for clarity
+    return out
+
+
+def _drop_block_skips(targets, drop_blocks, ps):
+    """(lineno, prefix, drop_line, drop_api, drop_prefix) for every find_p
+    target that resolves INSIDE a block a LATER drop_role()/drop_section()
+    removes — those edits WILL SKIP under DOCX_EDIT_STRICT (the paragraph
+    is gone by then). Edits placed BEFORE the drop are fine: they run, then
+    the drop removes the edited paragraph."""
+    skips = []
+    with contextlib.redirect_stderr(io.StringIO()):
+        for prefix, lineno, nth in targets:
+            if prefix is None:
+                continue
+            resolved = find_p(ps, prefix, nth=nth) if nth is not None else find_p(ps, prefix)
+            if resolved is None:
+                continue
+            for drop_line, drop_api, drop_prefix, ids in drop_blocks:
+                if id(resolved) in ids and lineno > drop_line:
+                    skips.append((lineno, prefix, drop_line, drop_api, drop_prefix))
+    return skips
+
+
+def _report_lint_findings(bad, will_skip, total):
+    """Print MISS/WILL-SKIP findings and summaries; True when any fired."""
+    for lineno, prefix, reason in bad:
+        print(f"  MISS  line {lineno}: find_p({prefix!r}) — {reason}", file=sys.stderr)
+    for lineno, prefix, drop_line, drop_api, drop_prefix in will_skip:
+        print(
+            f"  WILL-SKIP  line {lineno}: find_p({prefix!r}) — the paragraph is removed by "
+            f"{drop_api}({drop_prefix!r}) at line {drop_line}, and this edit runs AFTER the "
+            f"drop, so DOCX_EDIT_STRICT will fail the run. Delete this edit (and its "
+            f"'# kept:' comment) — an enclosing drop_role()/drop_section() is the whole-role "
+            f"disposition (SKILL Step 5)", file=sys.stderr)
+    if bad:
+        print(f"lint: {len(bad)} of {total} find_p target(s) "
+              "do NOT resolve against this docx — fix the prefixes "
+              "(see docx_edit.py <path> --prefixes) or confirm the "
+              "target is script-created before running", file=sys.stderr)
+    if will_skip:
+        print(f"lint: {len(will_skip)} find_p target(s) sit inside a later "
+              "drop_role()/drop_section() block — remove those edits before running",
+              file=sys.stderr)
+    return bool(bad or will_skip)
 
 
 def lint_script(docx_path, script_path):
@@ -239,14 +309,9 @@ def lint_script(docx_path, script_path):
     if summary_edits:
         return 1
     bad = _resolve_find_p_targets(targets, ps)
-    for lineno, prefix, reason in bad:
-        print(f"  MISS  line {lineno}: find_p({prefix!r}) — {reason}",
-              file=sys.stderr)
-    if bad:
-        print(f"lint: {len(bad)} of {len(targets)} find_p target(s) "
-              "do NOT resolve against this docx — fix the prefixes "
-              "(see docx_edit.py <path> --prefixes) or confirm the "
-              "target is script-created before running", file=sys.stderr)
+    drop_blocks = _script_drop_blocks(tree, body)
+    will_skip = _drop_block_skips(targets, drop_blocks, ps)
+    if _report_lint_findings(bad, will_skip, len(targets)):
         return 1
     print(f"lint: all {len(targets)} find_p target(s) resolve")
     return 0

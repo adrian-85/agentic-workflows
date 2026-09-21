@@ -181,7 +181,10 @@ are:
    to find it) — not a full re-read. A session re-read its 300-line tailor script seventeen times
    across edit rounds; targeted views keep the edit anchors exact at a fraction of the tokens.
    Full re-read only when paragraph/script indices shifted and the anchor's position is genuinely
-   unknown.
+   unknown. And never hand-shorten a prefix from the dump: the `--prefixes` string is
+   uniqueness-checked as printed — a hand-coined shorter one can match two paragraphs and fail
+   the whole run (sessions retried `Built a` → `Built au`, `Pioneered m` → `Pioneered mi` after
+   strict-mode ambiguity failures).
 8. **After any multi-edit round on a script, count the anchors before the syntax check.** `grep
    -c` the expected number of each anchor string that should now exist — an edit meant to ADD a
    `set_text` block can silently REPLACE its neighbor (a wasted repair round), and one
@@ -444,7 +447,10 @@ mid-compression when the page budget forces it:
    kept:` comments; the prune gate associates role Tools-line candidates with the owning role, so
    an enclosing `drop_role()` covers them as a whole-role disposition (docs/api.md). If generated
    edits are temporarily retained, place the `drop_role()` calls after those edits, immediately
-   before `save()`, so strict mode does not report skipped targets.
+   before `save()`, so strict mode does not report skipped targets — and know that `--lint-script`
+   enforces this pre-run now: an edit whose `find_p` sits inside a LATER `drop_role()`/`drop_section()`
+   block is reported as `WILL-SKIP` with line numbers, so delete those edits in the same round
+   instead of discovering them one strict-mode failure at a time.
 
    **Compute the resulting span BEFORE editing.** Pass each whole-role drop to measure as a
    what-if — it drops the roles in a temp copy, renders THAT, and prints the resulting TIMELINE,

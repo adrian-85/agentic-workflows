@@ -1683,6 +1683,79 @@ class LintScriptTests(unittest.TestCase):
             os.unlink(docx)
             os.unlink(script)
 
+    def test_edit_after_drop_role_will_skip(self):
+        # The seniority-drop failure mode: drop_role() placed before a
+        # leftover edit aimed at the dropped role's bullet — DOCX_EDIT_STRICT
+        # fails the run AFTER execution; the lint must catch it pre-run.
+        fd, docx = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        test_helpers._write_docx(docx, [
+            test_helpers._para("Old Co, Austin, TX", style="CompanyBlock"),
+            test_helpers._para("Tester", style="JobTitleBlock"),
+            test_helpers._para("Legacy bullet about testing.", style="ListParagraph", numId=3),
+            test_helpers._para("New Co, Austin, TX", style="CompanyBlock"),
+            test_helpers._para("Modern bullet about testing.", style="ListParagraph", numId=3),
+        ])
+        script = self._script(
+            'from docx_edit import find_p, drop_role, set_text\n', 'ps = None\n',
+            'drop_role(body, "Old Co")\n',
+            'set_text(find_p(ps, "Legacy bullet"), "rewritten")\n')
+        try:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = dcli.lint_script(docx, script)
+            self.assertEqual(rc, 1)
+            self.assertIn("WILL-SKIP", err.getvalue())
+            self.assertIn("drop_role('Old Co')", err.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_edit_before_drop_role_passes(self):
+        # The sanctioned layout (SKILL Step 5): keep the emitted edits, then
+        # drop_role immediately before save() — the edit runs first, the drop
+        # removes the edited paragraph afterwards. No WILL-SKIP.
+        fd, docx = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        test_helpers._write_docx(docx, [
+            test_helpers._para("Old Co, Austin, TX", style="CompanyBlock"),
+            test_helpers._para("Tester", style="JobTitleBlock"),
+            test_helpers._para("Legacy bullet about testing.", style="ListParagraph", numId=3),
+            test_helpers._para("New Co, Austin, TX", style="CompanyBlock"),
+            test_helpers._para("Modern bullet about testing.", style="ListParagraph", numId=3),
+        ])
+        script = self._script(
+            'from docx_edit import find_p, drop_role, set_text\n', 'ps = None\n',
+            'set_text(find_p(ps, "Legacy bullet"), "rewritten")\n',
+            'drop_role(body, "Old Co")\n')
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = dcli.lint_script(docx, script)
+            self.assertEqual(rc, 0)
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_dynamic_find_p_reason_teaches_unrolling(self):
+        # Spacer loops over a prefix list produced a dynamic find_p the lint
+        # cannot verify; two sessions discovered the unroll fix only after a
+        # failed gate run — the message now carries the idiom.
+        docx = self._docx_with("Tools & Technologies: Python, Playwright")
+        script = self._script(
+            'from docx_edit import find_p\n', 'ps = None\n',
+            'for pfx in ["Tools & Technologies"]:\n',
+            '    find_p(ps, pfx)\n')
+        try:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = dcli.lint_script(docx, script)
+            self.assertEqual(rc, 1)
+            self.assertIn("unroll", err.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
     def test_nth_disambiguated_duplicate_passes(self):
         # A headline and a role title can share one prefix; nth=1 selects
         # the first match. The lint must honor a literal nth= keyword —
