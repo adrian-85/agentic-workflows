@@ -91,6 +91,9 @@ python3 scripts/docx_edit.py "<userName> Master Resume.docx" \
 
 ### workflow_gate.py — ordered workflow state
 
+Also in this section: `diff_resume.py --cutset` (Theme Review A's master-vs-build cut set, one
+command — see [SKILL Step 3](../SKILL.md)).
+
 `workflow_gate.py` stores `<Target>.docx.workflow.json` beside the tailored build and enforces the
 mechanical phase order. The state transitions are:
 
