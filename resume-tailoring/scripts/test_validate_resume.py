@@ -1101,6 +1101,30 @@ class GuidanceTests(unittest.TestCase):
         self.assertTrue(any("Tools & Technologies" in e for e in errors),
                         errors)
 
+    def test_missing_spacer_error_carries_the_copy_ready_command(self):
+        # The Toast-session failure: three recording attempts + source
+        # reading to learn the expected string format. The error now
+        # includes the full header and the exact --omitted command.
+        b, _s = self._two_role_body(with_spacer=False)
+        errors = vrc._final_presentation_errors(b)
+        headers = [h for h, _a in mr._boundaries_without_spacer(b)]
+        hint = next(e for e in errors if "--omitted" in e)
+        self.assertIn("workflow_gate.py spacers", hint)
+        self.assertIn(";".join(headers), hint)
+
+    def test_whitespace_normalized_omission_matches_and_stale_one_flags(self):
+        # A recorded omission with doubled spaces still matches; a stale
+        # recorded entry that matches no boundary is named so it can be
+        # re-recorded instead of silently ignored.
+        b, _s = self._two_role_body(with_spacer=False)
+        header = mr._boundaries_without_spacer(b)[0][0]
+        padded = "  ".join(header.split())
+        errors = vrc._final_presentation_errors(b, omitted_spacers=[padded])
+        self.assertFalse(any("lacks a persisted spacer" in e for e in errors), errors)
+        stale = vrc._final_presentation_errors(
+            b, omitted_spacers=[padded, "Nonexistent Co, Nowhere"])
+        self.assertTrue(any("matched no boundary" in e for e in stale), stale)
+
     def test_final_omission_read_from_workflow_state_env(self):
         # The final render (RESUME_RENDER_PHASE=final) reads recorded
         # omissions from the RESUME_WORKFLOW_STATE sidecar, so a spacer

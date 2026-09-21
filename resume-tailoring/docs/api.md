@@ -148,7 +148,7 @@ python3 scripts/workflow_gate.py advance <state> seniority-approved
 python3 scripts/workflow_gate.py budgets <state> --words <N> --spill-lines <N> \
     [--attempted-page-removal]
 python3 scripts/workflow_gate.py spacers <state> \
-    [--omitted "<next role header>[,<next role header>...]"]
+    [--omitted "<full role header>;<full role header>..."]
 ```
 
 The baseline audit records every no-host phrase and the ATS review must disposition exactly that

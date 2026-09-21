@@ -243,11 +243,31 @@ def _final_presentation_errors(body, omitted_spacers=()):
         value = text.split(":", 1)[1].strip() if ":" in text else ""
         if not value:
             errors.append("Tools & Technologies row has no value row")
-    for header, _anchor in mr._boundaries_without_spacer(body):
-        if header in omitted_spacers:
+    missing = [header for header, _anchor in mr._boundaries_without_spacer(body)]
+    norm_omitted = {" ".join(str(o).split()) for o in omitted_spacers}
+    unrecorded = []
+    for header in missing:
+        if " ".join(header.split()) in norm_omitted:
             continue
         errors.append(
             f"role boundary before {header!r} lacks a persisted spacer")
+        unrecorded.append(header)
+    if unrecorded:
+        # One copy-ready fix line instead of a format-discovery loop (a
+        # session took three recording attempts + source reading).
+        joined = ";".join(unrecorded)
+        errors.append(
+            "record these omissions with: workflow_gate.py spacers <state> "
+            f"--omitted \"{joined}\" — ';'-separated FULL role headers, copied "
+            "verbatim from the messages above (dates and en dashes included)")
+    matched = {" ".join(h.split()) for h in missing}
+    unmatched = [o for o in omitted_spacers
+                 if " ".join(str(o).split()) not in matched]
+    if unmatched:
+        errors.append(
+            f"recorded spacer omissions matched no boundary: {unmatched!r} — the "
+            "gate expects the FULL role header exactly as it appears in the docx; "
+            "re-record with the headers named in the errors above")
     return errors
 
 
