@@ -1394,9 +1394,7 @@ class PruneCoverageTests(unittest.TestCase):
                 "Led testing efforts for the API releases")
             self._sidecar(docx, [self._cand(prefix=prefix)])
             script = self._script(
-                'from docx_edit import drop, find_p\n',
-                'ps = None\n',
-                'ps = drop(ps, [find_p(ps, '
+                'from docx_edit import drop, find_p\n', 'ps = None\n', 'ps = drop(ps, [find_p(ps, '
                 '"Led testing efforts for the API releases")])\n')
             try:
                 out = io.StringIO()
@@ -1417,9 +1415,7 @@ class PruneCoverageTests(unittest.TestCase):
             "Led testing efforts for the API releases")
         self._sidecar(docx, [self._cand(role=None)])
         script = self._script(
-            'from docx_edit import drop, find_p\n',
-            'ps = None\n',
-            'ps = drop(ps, [find_p(ps, '
+            'from docx_edit import drop, find_p\n', 'ps = None\n', 'ps = drop(ps, [find_p(ps, '
             '"Led testing efforts for the API releases")])\n')
         try:
             out = io.StringIO()
@@ -1440,8 +1436,7 @@ class PruneCoverageTests(unittest.TestCase):
             "Led testing efforts for the API releases")
         self._sidecar(docx, [self._cand(prefix="Led testing efforts")])
         script = self._script(
-            'from docx_edit import drop, find_p\n',
-            'ps = None\n',
+            'from docx_edit import drop, find_p\n', 'ps = None\n',
             'ps = drop(ps, [find_p(ps, "Led te")])\n')
         try:
             err = io.StringIO()
@@ -1470,8 +1465,7 @@ class PruneCoverageTests(unittest.TestCase):
             text="Configured the ASDLC integrations with Azure CLI and "
                  "Grafana", detail="strip: grafana")])
         script = self._script(
-            'from docx_edit import set_text, find_p\n',
-            'ps = None\n',
+            'from docx_edit import set_text, find_p\n', 'ps = None\n',
             'set_text(find_p(ps, "Configured the ASDLC"), '
             '"Configured the ASDLC integrations with Azure CLI.")\n')
         try:
@@ -1491,8 +1485,7 @@ class PruneCoverageTests(unittest.TestCase):
             text="Championed the adoption of Cypress across teams",
             detail="strip: cypress")])
         script = self._script(
-            'ps = None\n',
-            '# kept: find_p(ps, "Championed the adoption") — JD names '
+            'ps = None\n', '# kept: find_p(ps, "Championed the adoption") — JD names '
             'Cypress\n')
         try:
             out = io.StringIO()
@@ -1532,9 +1525,7 @@ class PruneCoverageTests(unittest.TestCase):
                        text="Refactored the existing Go integration test "
                             "framework", detail="strip: go")])
         script = self._script(
-            'from docx_edit import drop, find_p\n',
-            'ps = None\n',
-            'ps = drop(ps, [find_p(ps, '
+            'from docx_edit import drop, find_p\n', 'ps = None\n', 'ps = drop(ps, [find_p(ps, '
             '"Led testing efforts for the API releases")])\n')
         try:
             err = io.StringIO()
@@ -1558,8 +1549,7 @@ class PruneCoverageTests(unittest.TestCase):
             text="Supported the company\u2019s goal of rapid growth",
             detail="strip: growth")])
         script = self._script(
-            'ps = None\n',
-            '# kept: "Supported the comp" — soft-skill host, JD names '
+            'ps = None\n', '# kept: "Supported the comp" — soft-skill host, JD names '
             'leadership\n')
         try:
             out = io.StringIO()
@@ -1641,8 +1631,7 @@ class LintScriptTests(unittest.TestCase):
         # Adjacent string literals (implicit concat across lines) are one
         # Constant after parsing — multi-line find_p calls lint whole.
         script = self._script(
-            'from docx_edit import find_p\n',
-            'ps = None\n',
+            'from docx_edit import find_p\n', 'ps = None\n',
             'find_p(ps, "Monitoring & Logging: Promethe")\n',
             'find_p(ps,\n    "Monitoring & Logging: Prom")\n',
         )
@@ -1662,8 +1651,7 @@ class LintScriptTests(unittest.TestCase):
         test_helpers._write_docx(
             docx, [test_helpers._para("Original Summary", style="Summary")])
         script = self._script(
-            'from docx_edit import find_p, set_text\n',
-            'ps = None\n',
+            'from docx_edit import find_p, set_text\n', 'ps = None\n',
             'set_text(find_p(ps, "Original Summary"), "Changed Summary")\n')
         try:
             err = io.StringIO()
@@ -1681,8 +1669,7 @@ class LintScriptTests(unittest.TestCase):
         # The real session's bug: a hand-typed prefix that skipped ahead
         # to a value the master's line does not START with.
         script = self._script(
-            'from docx_edit import find_p\n',
-            'ps = None\n',
+            'from docx_edit import find_p\n', 'ps = None\n',
             'find_p(ps, "Monitoring & Logging: Datadog")\n',
         )
         try:
@@ -1704,8 +1691,7 @@ class LintScriptTests(unittest.TestCase):
         docx = self._docx_with("Jane Doe", "Software Engineer",
                                "Software Engineer – Platform Team")
         script = self._script(
-            'from docx_edit import find_p\n',
-            'ps = None\n',
+            'from docx_edit import find_p\n', 'ps = None\n',
             'find_p(ps, "Software Engineer", nth=1)\n',
         )
         try:
@@ -1726,8 +1712,7 @@ class LintScriptTests(unittest.TestCase):
         # reported (exit 1) so the author verifies it by hand, matching
         # the clone_after-then-find_p pattern some scripts use.
         script = self._script(
-            'from docx_edit import find_p, clone_after\n',
-            'ps = None\n',
+            'from docx_edit import find_p, clone_after\n', 'ps = None\n',
             'find_p(ps, clone_after(ps, find_p(ps, "Ref paragraph"), "x"))\n',
         )
         try:

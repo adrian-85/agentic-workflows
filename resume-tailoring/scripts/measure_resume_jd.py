@@ -365,8 +365,7 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None,
             out.append(tmp_note)
         return out
     lines = [
-        f"JD-aware ranking: {len(jd_terms)} term(s) matched from "
-        f"{jd_file} ({words} words)",
+        f"JD-aware ranking: {len(jd_terms)} term(s) matched from " f"{jd_file} ({words} words)",
         textwrap.fill(
             ", ".join(sorted(jd_terms)),
             width=76,
@@ -446,8 +445,7 @@ def _requirements_summary_line(coverage, counts, hard_uncovered):
     when unanswered_hard > 0, the two-state checklist (SKILL Step 4)
     MUST be presented to the user before claiming done."""
     summary = (f"REQUIREMENTS SUMMARY: {counts['covered']}/{len(coverage)} "
-               f"quals covered, {counts['weak']} weak, "
-               f"{counts['uncovered']} uncovered, "
+               f"quals covered, {counts['weak']} weak, " f"{counts['uncovered']} uncovered, "
                f"{counts['by_hand']} by-hand")
     if hard_uncovered:
         summary += (f" ({hard_uncovered} unanswered hard skill(s) — "

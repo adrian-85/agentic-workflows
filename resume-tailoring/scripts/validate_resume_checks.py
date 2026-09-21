@@ -185,8 +185,7 @@ def _structural_errors(region):
         if style == mr.COMPANY_STYLE:
             if waiting_title:
                 errors.append(
-                    f"company block has no job title before next company: "
-                    f"{company_text!r}"
+                    f"company block has no job title before next company: " f"{company_text!r}"
                 )
             waiting_title = True
             company_text = de.text_of(p).strip()
@@ -194,8 +193,7 @@ def _structural_errors(region):
         elif style == TITLE_STYLE:
             if not waiting_title and last_kind != 'title':
                 errors.append(
-                    f"job title without a preceding company block: "
-                    f"{de.text_of(p).strip()!r}"
+                    f"job title without a preceding company block: " f"{de.text_of(p).strip()!r}"
                 )
             waiting_title = False
             last_kind = 'title'
@@ -220,8 +218,7 @@ def _structural_errors(region):
             # intro paragraphs etc. keep state (last_kind unchanged)
     if waiting_title:
         errors.append(
-            f"company block has no job title (end of section): "
-            f"{company_text!r}"
+            f"company block has no job title (end of section): " f"{company_text!r}"
         )
     return errors
 
@@ -397,8 +394,7 @@ def _punctuation_errors(region, summary):
                 s = max(0, m.start() - 30)
                 e = min(len(probe), m.end() + 30)
                 errors.append(
-                    f"{name} in prose — use periods and commas: "
-                    f"...{probe[s:e]}..."
+                    f"{name} in prose — use periods and commas: " f"...{probe[s:e]}..."
                 )
     return errors
 
@@ -444,8 +440,7 @@ def _editable_word_cap_errors(region, summary):
         words = count_words(text)
         if words > PARA_WORD_CAP:
             errors.append(
-                f"editable paragraph has {words} words (cap "
-                f"{PARA_WORD_CAP}): "
+                f"editable paragraph has {words} words (cap " f"{PARA_WORD_CAP}): "
                 f"{' '.join(text.split())[:60]!r}... — split or trim to "
                 f"{PARA_WORD_CAP} words")
     return errors

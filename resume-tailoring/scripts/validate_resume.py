@@ -261,10 +261,8 @@ def _run_master_seniority(ctx, path, body, opts, span):
                     f"approve.")
             else:
                 ctx["claim_notes"].append((
-                    "ok",
-                    f"seniority alignment approved: ~{shrink:.1f}y of oldest "
-                    f"roles removed (visible ~{span:.1f}y vs master "
-                    f"~{master_span:.1f}y)",
+                    "ok", f"seniority alignment approved: ~{shrink:.1f}y of oldest "
+                    f"roles removed (visible ~{span:.1f}y vs master " f"~{master_span:.1f}y)",
                 ))
     ctx["seniority_errors"] = seniority_errors
 
@@ -274,8 +272,7 @@ def _run_quantified_claims(region, master_blob, claim_notes):
     for any number on a kept bullet absent from the master."""
     if master_blob is None:
         claim_notes.append((
-            "note",
-            "no master found next to the input (looking for '* Master "
+            "note", "no master found next to the input (looking for '* Master "
             "Resume.docx'); skipping the quantified-claims check and the "
             "seniority gate — pass --master <path> to enable it",
         ))
@@ -287,10 +284,8 @@ def _run_quantified_claims(region, master_blob, claim_notes):
             tok = m.group(0).strip()
             if tok not in master_blob:
                 claim_notes.append((
-                    "warn",
-                    f"quantified claim {tok!r} on a kept bullet is absent "
-                    f"from the master — possible fabrication: "
-                    f"{de.text_of(p)[:70]!r}",
+                    "warn", f"quantified claim {tok!r} on a kept bullet is absent "
+                    f"from the master — possible fabrication: " f"{de.text_of(p)[:70]!r}",
                 ))
 
 
@@ -305,15 +300,13 @@ def _run_years_claims(ctx, body, summary):
         if claim is not None and span is not None:
             if claim > span + 1.0:
                 claim_notes.append((
-                    "warn",
-                    f"summary claims ~{claim} years but the visible timeline "
+                    "warn", f"summary claims ~{claim} years but the visible timeline "
                     f"spans ~{span:.1f} years ({first:.0f}-{last:.0f}) "
                     f"— shorten the claim or restore roles",
                 ))
             else:
                 claim_notes.append((
-                    "ok",
-                    f"summary claims ~{claim} years; visible timeline spans "
+                    "ok", f"summary claims ~{claim} years; visible timeline spans "
                     f"~{span:.1f} years (start {first:.0f}) — OK",
                 ))
     if span is not None:
@@ -324,10 +317,8 @@ def _run_years_claims(ctx, body, summary):
             for m in YEARS_RE.finditer(t):
                 if int(m.group(1)) > span + 1.0:
                     claim_notes.append((
-                        "warn",
-                        f"years claim {m.group(0)!r} ({int(m.group(1))} "
-                        f"years) exceeds the visible timeline (~{span:.1f} "
-                        f"years): {t[:70]!r}",
+                        "warn", f"years claim {m.group(0)!r} ({int(m.group(1))} "
+                        f"years) exceeds the visible timeline (~{span:.1f} " f"years): {t[:70]!r}",
                     ))
 
 
@@ -341,25 +332,20 @@ def _run_jd_years_check(ctx, opts):
     claim_notes = ctx["claim_notes"]
     if span < jd_years - 1.0:
         claim_notes.append((
-            "warn",
-            f"resume shows ~{span:.1f} years, below the JD's "
+            "warn", f"resume shows ~{span:.1f} years, below the JD's "
             f"{jd_years:g}+ years — underqualified; restore roles or "
             f"reconsider the resume's framing",
         ))
     elif span > jd_years + 3.0:
         claim_notes.append((
-            "note",
-            f"resume shows ~{span:.1f} years vs the JD's {jd_years:g}+ — "
+            "note", f"resume shows ~{span:.1f} years vs the JD's {jd_years:g}+ — "
             f"well above the ask; for a mid-level title consider "
             f"trimming the oldest roles to align (see SKILL Step 4; a "
-            f"degree/education-substitution clause in the JD can "
-            f"complement the shorter span)",
+            f"degree/education-substitution clause in the JD can " f"complement the shorter span)",
         ))
     else:
         claim_notes.append((
-            "ok",
-            f"resume shows ~{span:.1f} years vs the JD's {jd_years:g}+ "
-            f"— aligned",
+            "ok", f"resume shows ~{span:.1f} years vs the JD's {jd_years:g}+ " f"— aligned",
         ))
 
 

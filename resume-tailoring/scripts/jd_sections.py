@@ -23,13 +23,7 @@ surface, handled by the caller, not this module.
 import re
 
 SECTION_HEADERS = (
-    "title",
-    "company",
-    "role",
-    "responsibilities",
-    "required",
-    "additional",
-    "education",
+    "title", "company", "role", "responsibilities", "required", "additional", "education",
     "expectations",
 )
 
@@ -37,9 +31,7 @@ SECTION_HEADERS = (
 # Title, Company, Role, Responsibilities, and Expectations are context for
 # the JD-theme read (SKILL Step 1), not qualification lines.
 ASK_SECTIONS = (
-    "required",
-    "additional",
-    "education",
+    "required", "additional", "education",
 )
 
 # The trailing colon is mandatory (rationale: module docstring).

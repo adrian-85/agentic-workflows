@@ -404,11 +404,8 @@ class ResponseTests(unittest.TestCase):
 class BrowserHeaderTests(unittest.TestCase):
     def test_per_request_headers_dropped(self):
         saved = [
-            "accept: application/json",
-            "content-type: multipart/form-data; boundary=X",
-            "x-xsrf-token: stale",
-            "cookie: k=v",
-            "origin: https://app.example.com",
+            "accept: application/json", "content-type: multipart/form-data; boundary=X",
+            "x-xsrf-token: stale", "cookie: k=v", "origin: https://app.example.com",
         ]
         out = ac._browser_headers(saved)
         # Rebuilt per request: multipart boundary, CSRF, cookie.

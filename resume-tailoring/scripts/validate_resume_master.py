@@ -151,8 +151,7 @@ def _role_integrity_errors(master_path, body):
                     )
                 if not og["bullets"]:
                     errors.append(
-                        f"role {mkey!r} kept but ALL its bullets were "
-                        f"removed (empty role)"
+                        f"role {mkey!r} kept but ALL its bullets were " f"removed (empty role)"
                     )
         else:
             for b in mbullets:
@@ -212,8 +211,7 @@ def _education_gate(jd_text, body, span, jd_years, approved):
     if EQUIV_CLAUSE_RE.search(jd_text):
         if jd_years is not None and span is not None and span > jd_years:
             notes.append((
-                "ok",
-                f"dropped, but the JD's equivalent-experience clause is "
+                "ok", f"dropped, but the JD's equivalent-experience clause is "
                 f"satisfied by the ~{span:.1f}-year visible span"
                 + (f" (vs {ask})" if ask else "") + " — the drop is safe",
             ))
@@ -224,8 +222,7 @@ def _education_gate(jd_text, body, span, jd_years, approved):
                         "the resume has no dated roles to satisfy"
                         + (f" {ask}" if ask else ""))
             notes.append((
-                "warn",
-                f"dropped while the JD's 'or equivalent' clause is "
+                "warn", f"dropped while the JD's 'or equivalent' clause is "
                 f"load-bearing: {span_txt} — the clause substitutes "
                 f"experience for the degree only, so keep the section "
                 f"prominent as the substitute evidence",
@@ -233,9 +230,8 @@ def _education_gate(jd_text, body, span, jd_years, approved):
         return errors, notes
     if approved:
         notes.append((
-            "ok",
-            "dropped although the JD requires a degree — "
-            "--education-approved recorded",
+            "ok", "dropped although the JD requires a degree — --education-approved recorded",
+
         ))
     else:
         errors.append(

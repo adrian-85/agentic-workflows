@@ -94,8 +94,7 @@ class NextBatchTests(unittest.TestCase):
                 "Estimated weekly process meetings",
             ]},
             {"key": "Oldest, City", "bullet_texts": [
-                "Championed the adoption of Cypress",
-                "Established weekly cross-team meetings",
+                "Championed the adoption of Cypress", "Established weekly cross-team meetings",
             ]},
         ]
         plan = [
@@ -135,8 +134,7 @@ class NextBatchTests(unittest.TestCase):
         # empty (signals the loop to stop and call for a whole-role
         # seniority decision rather than cutting JD-critical content).
         roles = [{"key": "Only, City", "bullet_texts": [
-            "Championed the adoption of Cypress",
-            "Created performance tests using Gatling",
+            "Championed the adoption of Cypress", "Created performance tests using Gatling",
         ]}]
         plan = [("Only, City", "drop 2 bullet(s) (saves ~5 lines)", 5.0)]
         batch = sq._next_batch(

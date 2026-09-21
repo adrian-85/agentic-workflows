@@ -87,12 +87,8 @@ class ParseSectionsTests(unittest.TestCase):
         may appear in any order in the file; each body simply runs until
         the next header line."""
         jd = ("required:\n5+ years QA\n"
-              "title:\nSenior QA Engineer\n"
-              "company:\nWe build things.\n"
-              "role:\nOwn quality.\n"
-              "responsibilities:\nWrite tests.\n"
-              "additional:\nDocker\n"
-              "education:\nBS\n"
+              "title:\nSenior QA Engineer\n" "company:\nWe build things.\n" "role:\nOwn quality.\n"
+              "responsibilities:\nWrite tests.\n" "additional:\nDocker\n" "education:\nBS\n"
               "expectations:\nShip fast\n")
         sections = js.parse_sections(jd)
         self.assertEqual(sections["title"], "Senior QA Engineer")

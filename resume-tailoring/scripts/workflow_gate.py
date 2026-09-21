@@ -13,13 +13,8 @@ from script_args import MAX_WORDS
 
 
 PHASES = (
-    "pruned",
-    "prune-theme-reviewed",
-    "ats-audited",
-    "ats-theme-reviewed",
-    "seniority-approved",
-    "budgets-closed",
-    "spacers-closed",
+    "pruned", "prune-theme-reviewed", "ats-audited", "ats-theme-reviewed", "seniority-approved",
+    "budgets-closed", "spacers-closed",
 )
 
 REVIEW_PHASES = {

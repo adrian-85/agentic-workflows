@@ -112,8 +112,7 @@ def main():
     set_text(
         find_p(ps, "<prefix of the Summary paragraph>"),
         "<Summary that leads with the JD's core ask, mirroring its language, "
-        "at the title's level set in 1a. Keep verbs truthful — see SKILL.md "
-        "Accuracy section.>",
+        "at the title's level set in 1a. Keep verbs truthful — see SKILL.md " "Accuracy section.>",
     )
 
     # ------------------------------------------------------------------ #
@@ -155,8 +154,7 @@ def main():
     # ------------------------------------------------------------------ #
     set_labeled(
         find_p(ps, "Programming Languages:"),
-        "Programming Languages: ",
-        "<languages, most JD-relevant first>",
+        "Programming Languages: ", "<languages, most JD-relevant first>",
     )
 
     # ------------------------------------------------------------------ #

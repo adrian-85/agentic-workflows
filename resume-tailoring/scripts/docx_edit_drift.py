@@ -90,8 +90,7 @@ def drift_sidecar(path, drift, applied, root):
             f"now land on rewritten text. Re-dump `docx_edit.py {src!r} "
             f"--prefixes` and run diff_resume.py --tailor before "
             f"rendering. Expected if you folded content into the master "
-            f"this session; this run is auto-strict — any skipped edit "
-            f"now exits 2.",
+            f"this session; this run is auto-strict — any skipped edit " f"now exits 2.",
             file=sys.stderr,
         )
     para_count = len(list(root.iter(f"{W}p")))
@@ -100,8 +99,7 @@ def drift_sidecar(path, drift, applied, root):
             f"FOLD CHECK: {drift_key} saved {prev_paras} paragraphs "
             f"last time but now has {para_count} — content was removed. "
             "Folds must be ADDITIVE only: new bullets (clone_after), "
-            "proficiency additions, and in-place appends — never "
-            "removals (SKILL Step 13).",
+            "proficiency additions, and in-place appends — never " "removals (SKILL Step 13).",
             file=sys.stderr,
         )
     baseline[drift_key] = {"edits": applied, "master_sha": master_sha,

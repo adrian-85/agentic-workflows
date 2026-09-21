@@ -62,8 +62,7 @@ def _write_docx(path, company_dates, education=True):
     """Write a minimal resume docx whose roles carry the given dates."""
     with zipfile.ZipFile(path, "w") as z:
         z.writestr(
-            "word/document.xml",
-            '<?xml version="1.0"?><w:document xmlns:w="'
+            "word/document.xml", '<?xml version="1.0"?><w:document xmlns:w="'
             + de.XMLNS + '"><w:body/></w:document>',
         )
         z.writestr("[Content_Types].xml", "<Types/>")
@@ -95,8 +94,7 @@ class PunctuationTests(unittest.TestCase):
               title_text="Staff Engineer", cert_text=None):
         with zipfile.ZipFile(path, "w") as z:
             z.writestr(
-                "word/document.xml",
-                '<?xml version="1.0"?><w:document xmlns:w="'
+                "word/document.xml", '<?xml version="1.0"?><w:document xmlns:w="'
                 + de.XMLNS + '"><w:body/></w:document>',
             )
             z.writestr("[Content_Types].xml", "<Types/>")
@@ -305,8 +303,7 @@ class BulletCapTests(unittest.TestCase):
         try:
             with zipfile.ZipFile(path, "w") as z:
                 z.writestr(
-                    "word/document.xml",
-                    '<?xml version="1.0"?><w:document xmlns:w="'
+                    "word/document.xml", '<?xml version="1.0"?><w:document xmlns:w="'
                     + de.XMLNS + '"><w:body/></w:document>',
                 )
                 z.writestr("[Content_Types].xml", "<Types/>")
@@ -342,8 +339,7 @@ class WordCapTests(unittest.TestCase):
         os.replace(real, path)
         with zipfile.ZipFile(path, "w") as z:
             z.writestr(
-                "word/document.xml",
-                '<?xml version="1.0"?><w:document xmlns:w="'
+                "word/document.xml", '<?xml version="1.0"?><w:document xmlns:w="'
                 + de.XMLNS + '"><w:body/></w:document>',
             )
             z.writestr("[Content_Types].xml", "<Types/>")
@@ -577,8 +573,7 @@ class TitleAlignmentValidateTests(unittest.TestCase):
     def _docx(self, path, headline="Staff Engineer"):
         with zipfile.ZipFile(path, "w") as z:
             z.writestr(
-                "word/document.xml",
-                '<?xml version="1.0"?><w:document xmlns:w="'
+                "word/document.xml", '<?xml version="1.0"?><w:document xmlns:w="'
                 + de.XMLNS + '"><w:body/></w:document>',
             )
             z.writestr("[Content_Types].xml", "<Types/>")
@@ -645,8 +640,7 @@ class RoleIntegrityTests(unittest.TestCase):
         """roles: list of (header, title_or_None, [bullet_texts])."""
         with zipfile.ZipFile(path, "w") as z:
             z.writestr(
-                "word/document.xml",
-                '<?xml version="1.0"?><w:document xmlns:w="'
+                "word/document.xml", '<?xml version="1.0"?><w:document xmlns:w="'
                 + de.XMLNS + '"><w:body/></w:document>',
             )
             z.writestr("[Content_Types].xml", "<Types/>")
@@ -943,8 +937,7 @@ class EducationGateTests(unittest.TestCase):
         jd = self._jd(
             "Exceptional written and verbal communication skills in "
             "English (CEFR C2 or equivalent), as most collaboration "
-            "happens asynchronously. 5+ years of test automation "
-            "experience required."
+            "happens asynchronously. 5+ years of test automation " "experience required."
         )
         fd, path = tempfile.mkstemp(suffix=".docx")
         os.close(fd)

@@ -311,10 +311,8 @@ class DropPlanTests(unittest.TestCase):
         # Quantified bullets are the strongest (hard numbers); generic
         # process phrasing without numbers is the weakest.
         bullets = [
-            "Established weekly cross-team meetings",
-            "Drove a 50% reduction in pipeline errors",
-            "Coordinated across engineering teams",
-            "Reduced open backlog by over 90%",
+            "Established weekly cross-team meetings", "Drove a 50% reduction in pipeline errors",
+            "Coordinated across engineering teams", "Reduced open backlog by over 90%",
         ]
         drops = mr._suggest_drops(bullets, 2)
         self.assertEqual(drops, ["Established weekly cross-team meetings",
@@ -678,8 +676,8 @@ class JDAwareTests(unittest.TestCase):
         # The motivating failure: Cypress (JD Required qual) ranked weak and
         # landed on the cut list. With --jd it must be excluded.
         bullets = [
-            "Championed the adoption of Cypress, co-architecting the initial "
-            "framework",
+            "Championed the adoption of Cypress, co-architecting the initial framework",
+
             "Established weekly cross-team meetings",
         ]
         drops = mr._suggest_drops(bullets, 1, jd_terms={"cypress"})
@@ -698,8 +696,7 @@ class JDAwareTests(unittest.TestCase):
         # Backward compat: no --jd means the old JD-blind ranking, where a
         # Cypress bullet (JD-relevant but unquantified) IS a cut candidate.
         bullets = [
-            "Championed the adoption of Cypress",
-            "Established weekly cross-team meetings",
+            "Championed the adoption of Cypress", "Established weekly cross-team meetings",
         ]
         drops = mr._suggest_drops(bullets, 2)
         # Both are cut candidates without --jd; the generic one ranks weaker.
@@ -714,8 +711,7 @@ class JDAwareTests(unittest.TestCase):
         # of the cut list.
         bullets = [
             "Mentored junior team member resulting in their successful "
-            "transition to an automation role",
-            "Established weekly cross-team meetings",
+            "transition to an automation role", "Established weekly cross-team meetings",
         ]
         drops = mr._suggest_drops(bullets, 1, jd_terms={"mentorship"})
         self.assertEqual(drops, [bullets[1]])
@@ -1128,14 +1124,12 @@ class JunkQualTokenTests(unittest.TestCase):
 
     JD_LINES = [
         "Required Qualifications:",
-        "Sound judgment on the test pyramid — where end-to-end coverage "
-        "pays for itself.",
+        "Sound judgment on the test pyramid — where end-to-end coverage pays for itself.",
+
         "Proficiency in Python and/or TypeScript, with Playwright.",
         "Hands-on with a virtualization and provisioning stack — Packer "
-        "image builds with QEMU/KVM.",
-        "Treat test infrastructure as production software.",
-        "Background in secure software development.",
-        "Comfort incorporating AI-assisted tooling.",
+        "image builds with QEMU/KVM.", "Treat test infrastructure as production software.",
+        "Background in secure software development.", "Comfort incorporating AI-assisted tooling.",
     ]
 
     def test_junk_words_never_mine(self):
@@ -1611,8 +1605,7 @@ class VisibleSpanTests(unittest.TestCase):
 
     def test_mm_yyyy_dates(self):
         first, last = mr._visible_span([
-            "Acme, MA (Remote)05/2021 – 02/2023",
-            "Globex, TX03/2017 – 04/2018",
+            "Acme, MA (Remote)05/2021 – 02/2023", "Globex, TX03/2017 – 04/2018",
         ])
         self.assertAlmostEqual(first, 2017 + 2 / 12, places=2)
         self.assertAlmostEqual(last, 2023 + 1 / 12, places=2)
@@ -2017,12 +2010,9 @@ class JdMissingTermsTests(unittest.TestCase):
     flags mechanical."""
 
     JD = ("title:\n"
-          "Senior QA Automation Engineer, E&I Commercial UW\n"
-          "company:\n"
-          "At AcmeCo, we build things.\n"
-          "responsibilities:\n"
-          "Take ownership of the automated test approach.\n"
-          "required:\n"
+          "Senior QA Automation Engineer, E&I Commercial UW\n" "company:\n"
+          "At AcmeCo, we build things.\n" "responsibilities:\n"
+          "Take ownership of the automated test approach.\n" "required:\n"
           "5+ years of experience using Selenium Web Driver, Java, "
           "TestNG, Cucumber, REST Assured, or similar IDE\n"
           "Experience with SoapUI or REST API testing tools\n"
@@ -2069,8 +2059,7 @@ class JdMissingTermsTests(unittest.TestCase):
         missing = {t.lower() for t in
                    mr._jd_missing_terms(
                        "Hi there, I'm recruiting for a Senior QA Engineer "
-                       "role. REST Assured and SoapUI experience would be "
-                       "great.",
+                       "role. REST Assured and SoapUI experience would be " "great.",
                        self._body(), set())}
         self.assertIn("rest assured", missing)
         self.assertIn("soapui", missing)
@@ -2148,21 +2137,16 @@ class JdTermRecallTests(unittest.TestCase):
           "We build AI into everything: internal agents should be treated "
           "like product. A QA agent tests every pull request; an AI "
           "reviewer earns merge authority. Agents that sharpen specs "
-          "before an engineer touches them; agents that watch production.\n"
-          "What you'll do\n"
+          "before an engineer touches them; agents that watch production.\n" "What you'll do\n"
           "Build internal agents as products, across the whole lifecycle: "
           "the shared harness layer (skills, context, MCP servers, "
           "per-repo configuration) that makes every engineer's agent "
           "dramatically better than stock, with the prompt and context "
-          "engineering to match. You build and maintain the harnesses "
-          "and playbooks.\n"
-          "Own the measurement. Cycle time, review latency, escaped "
-          "defects, cost per feature.\n"
-          "What makes you a fit\n"
-          "You ship a working V1 in a day and harden it in week two.\n"
+          "engineering to match. You build and maintain the harnesses " "and playbooks.\n"
+          "Own the measurement. Cycle time, review latency, escaped " "defects, cost per feature.\n"
+          "What makes you a fit\n" "You ship a working V1 in a day and harden it in week two.\n"
           "What this role is not\n"
-          "Not a research position, and not a decks-and-frameworks seat.\n"
-          "Level\n"
+          "Not a research position, and not a decks-and-frameworks seat.\n" "Level\n"
           "Staff or Senior depending on how much of the drive you can "
           "carry yourself.\n")
 
@@ -2277,12 +2261,8 @@ class JdTermRecallTests(unittest.TestCase):
         # (a single-occurrence capitalized mention before the first ask
         # section) is never mined as an ask.
         jd = ("title:\n"
-              "Software Engineer\n"
-              "company:\n"
-              "At AcmeCo, we build things.\n"
-              "responsibilities:\n"
-              "Build and maintain platform services.\n"
-              "required:\n"
+              "Software Engineer\n" "company:\n" "At AcmeCo, we build things.\n"
+              "responsibilities:\n" "Build and maintain platform services.\n" "required:\n"
               "Experience with Kotlin and Swift is preferred. Kotlin and "
               "Swift round out the mobile stack.\n")
         body = _body([
@@ -2564,8 +2544,8 @@ class JdFitAuditTests(unittest.TestCase):
         # even though the role is under any cap and the page math needs
         # nothing.
         roles = self._roles([
-            "Advised engineer working on the Playwright test framework on "
-            "best practices.",
+            "Advised engineer working on the Playwright test framework on best practices.",
+
             "Developed a semi-autonomous agentic workflow using sub-agents "
             "to improve test coverage.",
             "Coordinated across teams to establish meeting cadences and "
@@ -2583,10 +2563,10 @@ class JdFitAuditTests(unittest.TestCase):
         # One rule, no weak class: both bullets host an ask, so the audit
         # stays silent about this role.
         roles = self._roles([
-            "Configured CI pipelines to trigger tests based on cross "
-            "dependency changes.",
-            "Advised engineer working on the Playwright test framework on "
-            "best practices.",
+            "Configured CI pipelines to trigger tests based on cross dependency changes.",
+
+            "Advised engineer working on the Playwright test framework on best practices.",
+
         ])
         sections = mr._jd_fit_audit(roles, {"test", "playwright"})
         self.assertEqual(len(sections), 0)
@@ -2611,8 +2591,8 @@ class JdFitAuditTests(unittest.TestCase):
         # Each term hits exactly one of two bullets (not >half the role),
         # so both classify strong and the audit stays silent.
         roles = self._roles([
-            "Advised engineer working on the Playwright test framework on "
-            "best practices.",
+            "Advised engineer working on the Playwright test framework on best practices.",
+
             "Developed a semi-autonomous agentic workflow using sub-agents "
             "to improve test coverage.",
         ])
@@ -2628,8 +2608,8 @@ class JdFitAuditTests(unittest.TestCase):
         # sandbox duty, a named partner): the JD text cannot name them, so
         # zero term hits must NOT read as OFF-JD.
         roles = self._roles([
-            "Tested American Express partner integrations against their "
-            "sandbox.",
+            "Tested American Express partner integrations against their sandbox.",
+
         ])
         self.assertEqual(
             mr._jd_fit_audit(roles, {"playwright"},
@@ -3081,8 +3061,7 @@ class AuditAnchorTests(unittest.TestCase):
 
     def test_off_jd_line_carries_find_p_anchor(self):
         texts = ["Advised engineer working on the Playwright test "
-                 "framework on best practices.",
-                 "Coordinated across teams to establish meeting "
+                 "framework on best practices.", "Coordinated across teams to establish meeting "
                  "cadences."]
         sections = mr._jd_fit_audit(self._roles(), {"playwright"},
                                     all_texts=texts)

@@ -139,8 +139,7 @@ JD_METRIC_HEADS = frozenset({"time", "rate", "latency", "cost"})
 JD_SOFT_SKILL_RE = re.compile(
     r"\b(communication|stakeholder|leadership|mentorship|"
     r"collaboration|teamwork|interpersonal|presentation|reliability|"
-    r"dependability|ownership|accountability|adaptability|autonomy|"
-    r"patience|credibility)\b",
+    r"dependability|ownership|accountability|adaptability|autonomy|" r"patience|credibility)\b",
     re.I)
 
 # Resume-token vocabulary helpers used for structured list trimming and

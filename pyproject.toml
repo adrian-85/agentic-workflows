@@ -1,6 +1,13 @@
 [tool.pylint]
 reports = "no"
 
+# Wrap at pylint's default 100-char budget — made EXPLICIT so the
+# convention is enforced and documented rather than inherited (and so a
+# future pylint default change cannot silently move it). The historic
+# ~78-col wrapping was a leftover, not a rule; new code should use the
+# full 100-char width.
+max-line-length = 100
+
 [tool.pylint."messages control"]
 # Deterministic hard gate: exit non-zero on ANY emitted message
 # (convention through fatal). Pylint 4's `fail-under` is score-based and

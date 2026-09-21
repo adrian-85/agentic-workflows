@@ -158,8 +158,7 @@ def _warn_ambiguous(prefix, samples):
     lines = "\n".join(f"    [{i}] {s!r}" for i, s in samples)
     print(
         f"warning: find_p({prefix!r}) matches multiple paragraphs "
-        f"({len(samples)}); prefix not unique — returning None (edit skipped):\n"
-        f"{lines}\n"
+        f"({len(samples)}); prefix not unique — returning None (edit skipped):\n" f"{lines}\n"
         f"Use a longer prefix (see `docx_edit.py <docx> --prefixes`) or "
         f"capture targets before any rewrite.",
         file=sys.stderr,
@@ -253,8 +252,7 @@ def save(path, root, names, data, *, drift=None):
     if skipped:
         print(
             f"NOTICE: {applied} edits applied, {len(skipped)} skipped "
-            f"(see stderr warnings above); DOCX_EDIT_STRICT=1 fails on "
-            f"skipped edits",
+            f"(see stderr warnings above); DOCX_EDIT_STRICT=1 fails on " f"skipped edits",
             file=sys.stderr,
         )
     else:
@@ -275,8 +273,7 @@ def save(path, root, names, data, *, drift=None):
         print(
             f"output written to {path}; MASTER-CHANGED gate FAILED "
             f"({len(skipped)} skipped edit(s) against a changed master) — "
-            f"re-dump `docx_edit.py {src!r} --prefixes`, fix the skipped "
-            f"prefixes, and re-run",
+            f"re-dump `docx_edit.py {src!r} --prefixes`, fix the skipped " f"prefixes, and re-run",
             file=sys.stderr,
         )
         raise SystemExit(2)
@@ -545,8 +542,7 @@ def replace_text(p, old, new):
             f"warning: replace_text({old!r}) targeted a paragraph that does "
             f"not contain that text; paragraph starts:"
             f" {ptext[:50]!r} — this usually means the find_p prefix "
-            f"resolved to the wrong paragraph; check the prefix, not the "
-            f"text — edit skipped",
+            f"resolved to the wrong paragraph; check the prefix, not the " f"text — edit skipped",
             file=sys.stderr,
         )
         return
@@ -733,8 +729,7 @@ def _prefix_arg(prefix, api):
         return text_of(prefix)
     raise TypeError(
         f"{api}() takes a prefix STRING (a copy-pasteable find_p(ps, '…') "
-        f"line from the --prefixes dump / DROP PLAN), got "
-        f"{type(prefix).__name__}."
+        f"line from the --prefixes dump / DROP PLAN), got " f"{type(prefix).__name__}."
     )
 
 
@@ -848,8 +843,7 @@ def merge_into(body, target, source, text):
     if target is source:
         print(
             f"WARNING: merge_into target is the same paragraph as source "
-            f"({text[:40]!r}); skipping to avoid deleting the only "
-            f"paragraph.",
+            f"({text[:40]!r}); skipping to avoid deleting the only " f"paragraph.",
             file=sys.stderr,
         )
         return

@@ -288,13 +288,11 @@ def _print_usage():
     print("  --jd <file>: raw job-description text. Bullets whose text "
           "matches a candidate-tech term the JD asks for, or a named JD "
           "practice (mentorship, shift-left), are excluded from the DROP "
-          "PLAN and listed as 'JD-matched (kept)' — the scorer alone "
-          "cannot know the JD.",
+          "PLAN and listed as 'JD-matched (kept)' — the scorer alone " "cannot know the JD.",
           file=sys.stderr)
     print("  --linkedin <file>: a read_profile.sh dump of the LinkedIn "
           "export. Searched by the INFERENCE MAP (a no-host JD term's "
-          "variants and skill-family roots) for candidate evidence the "
-          "resume compressed away.",
+          "variants and skill-family roots) for candidate evidence the " "resume compressed away.",
           file=sys.stderr)
     print("  --ats-report <file>: merge the external scan's missing hard "
           "and soft skills with the internal no-host list, run the same "
@@ -552,8 +550,7 @@ def _print_reclaim_sections(ctx, state):
             sections.append(section)
         if not state.closes:
             sections.append(
-                f"NOTE: even with the top-role batch, "
-                f"~{state.residual - state.batch[2]:.0f} "
+                f"NOTE: even with the top-role batch, " f"~{state.residual - state.batch[2]:.0f} "
                 "line(s) remain — the gap cannot close without cutting "
                 "JD-matched content or revisiting the approved "
                 "whole-role drops with the user.")

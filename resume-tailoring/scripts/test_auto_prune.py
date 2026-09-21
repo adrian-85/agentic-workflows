@@ -504,20 +504,11 @@ class TestJdContractAndEquivalences(unittest.TestCase):
 
 def _full_contract_jd():
     return ("title:\n"
-            "Senior SDET\n"
-            "company:\n"
-            "We build things.\n"
-            "role:\n"
-            "Own test automation for the platform.\n"
-            "responsibilities:\n"
-            "Own the automated test approach.\n"
-            "required:\n"
-            "Python, Selenium\n"
-            "5+ years of test automation and IV&V experience\n"
-            "additional:\n"
-            "Docker\n"
-            "education:\n"
-            "Bachelor's degree\n"
+            "Senior SDET\n" "company:\n" "We build things.\n" "role:\n"
+            "Own test automation for the platform.\n" "responsibilities:\n"
+            "Own the automated test approach.\n" "required:\n" "Python, Selenium\n"
+            "5+ years of test automation and IV&V experience\n" "additional:\n" "Docker\n"
+            "education:\n" "Bachelor's degree\n"
             "expectations:\n")
 
 

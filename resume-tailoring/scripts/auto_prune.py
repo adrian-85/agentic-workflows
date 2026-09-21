@@ -405,12 +405,9 @@ def plan_phase_a(candidates, roles, jd_terms, body):
 # (set_labeled, drop_role, merge_into, ...); the full authoring-time
 # superset lives in the tailor_resume.py template.
 _EMITTED_IMPORTS = (
-    "import shutil\n"
-    "\n"
-    "from docx_edit import (\n"
+    "import shutil\n\n" "from docx_edit import (\n"
     "    DriftMeta, drop, drop_section, find_p, load, paras, remove,\n"
-    "    remove_empty, save, set_text,\n"
-    ")\n"
+    "    remove_empty, save, set_text,\n" ")\n"
 )
 
 
@@ -430,10 +427,8 @@ def emit_script(plan, src, dst, meta):
     """
     stats = plan["stats"]
     lines = [
-        f'"""Auto-pruned base build for {meta["target"]} — machine '
-        f'Phase 1 (auto_prune.py).',
-        "",
-        f"JD: {meta['jd_name']}. Every PRUNE-PLAN candidate is addressed "
+        f'"""Auto-pruned base build for {meta["target"]} — machine ' f'Phase 1 (auto_prune.py).',
+        "", f"JD: {meta['jd_name']}. Every PRUNE-PLAN candidate is addressed "
         f"here by the machine:",
         f"CUT {stats['cut']}, TRIM {stats['trim']}, stubs {stats['stub']}, "
         f"emptied sections {stats['section']}.",
@@ -441,29 +436,16 @@ def emit_script(plan, src, dst, meta):
     if meta.get("theme"):
         lines += [f"JD theme: {meta['theme']}"]
     lines += [
-        "No agent judgment and no cut report — the agent's work starts at "
-        "SKILL Phase 2",
-        "on this build. Re-run:",
-        "",
-        f'    cd "$(dirname "$0")/.." && python3 '
-        f'scripts/{meta["script_name"]}',
-        "",
-        f'Gates after Theme Review B: RESUME_WORKFLOW_STATE='
+        "No agent judgment and no cut report — the agent's work starts at SKILL Phase 2",
+
+        "on this build. Re-run:", "", f'    cd "$(dirname "$0")/.." && python3 '
+        f'scripts/{meta["script_name"]}', "", f'Gates after Theme Review B: RESUME_WORKFLOW_STATE='
         f'"{meta.get("state_name", dst + ".workflow.json")}" '
-        f'scripts/run_tailor.sh "{src}" scripts/{meta["script_name"]}',
-        '"""',
-        "",
+        f'scripts/run_tailor.sh "{src}" scripts/{meta["script_name"]}', '"""', "",
         _EMITTED_IMPORTS,
-        f"SRC = {_py(src)}",
-        f"DST = {_py(dst)}",
-        "",
-        "",
-        "def main():",
-        '    """Apply the machine prune and save the base build."""',
-        "    shutil.copy(SRC, DST)",
-        "    root, body, names, data, _ = load(DST)",
-        "    ps = paras(body)",
-        "",
+        f"SRC = {_py(src)}", f"DST = {_py(dst)}", "", "", "def main():",
+        '    """Apply the machine prune and save the base build."""', "    shutil.copy(SRC, DST)",
+        "    root, body, names, data, _ = load(DST)", "    ps = paras(body)", "",
         "    # ---- Phase 1 cuts (machine dispositions) ---------------- #",
     ]
     if plan["drops"]:
@@ -491,16 +473,9 @@ def emit_script(plan, src, dst, meta):
         for head, why in plan["section_keeps"]:
             lines.append(f"    # kept: {head} — {why}")
     lines += [
-        "",
-        "    remove_empty(body)",
-        "",
-        "    save(DST, root, names, data, drift=DriftMeta(src=SRC))",
-        '    print("WROTE", DST)',
-        "",
-        "",
-        'if __name__ == "__main__":',
-        "    main()",
-        "",
+        "", "    remove_empty(body)", "",
+        "    save(DST, root, names, data, drift=DriftMeta(src=SRC))", '    print("WROTE", DST)', "",
+        "", 'if __name__ == "__main__":', "    main()", "",
     ]
     return "\n".join(lines)
 

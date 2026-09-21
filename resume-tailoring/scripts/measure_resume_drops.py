@@ -279,8 +279,7 @@ def _role_jd_evidence_lines(roles, header_text, jd_terms):
                 f"a clean drop candidate"]
     lines = [
         f"JD EVIDENCE LOST: this role carries {len(kept)} JD-matched "
-        f"bullet(s) — trimming it to those bullets may beat dropping it "
-        f"whole (SKILL Step 5):",
+        f"bullet(s) — trimming it to those bullets may beat dropping it " f"whole (SKILL Step 5):",
     ]
     for b in kept:
         lines.append(f"    - {b[:90]}")
@@ -719,8 +718,7 @@ def _drop_entry_section(role, n, *, all_texts, protect, jd_terms):
         else:
             section.append(
                 f"  NOTE: budget={n} but only {unprotected_count} "
-                f"unprotected bullet(s) — {protected_count} excluded "
-                f"(JD-matched/protected)."
+                f"unprotected bullet(s) — {protected_count} excluded " f"(JD-matched/protected)."
             )
     if lines:
         section.append("  weakest-first (generic/no-number first — review each")
@@ -845,8 +843,7 @@ def _widow_notes(matched, pages_text):
                 f"  WIDOW: {r['key'][:44]} header is the last line of page "
                 f"{flat[idx][0]}; its body starts page {flat[idx + 1][0]} — "
                 f"reclaim ~2 line(s) from the {prev[:44]} block (the "
-                f"content preceding the widow) to pull the header up, "
-                f"or merge bullets"
+                f"content preceding the widow) to pull the header up, " f"or merge bullets"
             )
         else:
             out.append(

@@ -159,8 +159,7 @@ class JdLiteralTermsTests(unittest.TestCase):
         "company:\n\nWe combine healthcare expertise and "
         "artificial intelligence.\n\nrequired:\n\n"
         "Minimum of 5 years of experience in software quality assurance\n"
-        "Proficiency in Python or another scripting language used for test "
-        "automation\n"
+        "Proficiency in Python or another scripting language used for test " "automation\n"
         "Experience with Playwright, Selenium, and pytest\n"
     )
 
@@ -195,8 +194,7 @@ class JdLiteralTermsTests(unittest.TestCase):
         # The canonical company section's prose must not be
         # mined, while the ask section's lines are.
         jd = ("company:\n\nWe're the category leader in care "
-              "plan infrastructure for veterinary practices.\n\n"
-              "required:\n\n"
+              "plan infrastructure for veterinary practices.\n\n" "required:\n\n"
               "3+ years in a QA, SDET, or test automation role\n"
               "Strong proficiency in Dart and Flutter testing\n")
         terms = aa._jd_literal_terms(jd)
@@ -218,8 +216,7 @@ class JdLiteralTermsTests(unittest.TestCase):
         # Posting metadata and company names are not resume skills. They
         # must not turn an otherwise useful audit into a false failure.
         jd = ("Posting URL: https://example.com/job\n"
-              "title:\nSTAR Autism Support\n\n"
-              "required:\n"
+              "title:\nSTAR Autism Support\n\n" "required:\n"
               "Ability to set your own priorities without an existing "
               "playbook.\nExperience with Playwright.\n")
         terms = aa._jd_literal_terms(jd)

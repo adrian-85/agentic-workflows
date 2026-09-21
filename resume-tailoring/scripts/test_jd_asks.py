@@ -13,8 +13,7 @@ class RequirementLinesTests(unittest.TestCase):
     def test_collects_ask_section_lines(self):
         """required/Required/Additional/Education lines all collect."""
         jd = ("required:\n"
-              "5+ years of test automation\n"
-              "additional:\n"
+              "5+ years of test automation\n" "additional:\n"
               "Docker experience a plus\n")
         lines = jd_asks.requirement_lines(jd)
         self.assertIn("5+ years of test automation", lines)
@@ -24,8 +23,7 @@ class RequirementLinesTests(unittest.TestCase):
         """Context sections (title/overview/responsibilities) never
         contribute qualification lines."""
         jd = ("title:\nQA Engineer\n"
-              "company:\nWe build things.\n"
-              "responsibilities:\nWrite automated tests daily.\n"
+              "company:\nWe build things.\n" "responsibilities:\nWrite automated tests daily.\n"
               "required:\n5+ years QA\n")
         lines = jd_asks.requirement_lines(jd)
         self.assertEqual(lines, ["5+ years QA"])
