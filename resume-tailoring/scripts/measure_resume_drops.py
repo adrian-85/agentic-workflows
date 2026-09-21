@@ -643,13 +643,11 @@ def _jd_fit_section(role, jd_terms, protect, all_texts=None):
         lines.append(
             "  STUB CANDIDATE: most of this role is off-JD — cut the "
             "OFF-JD bullets; if the role then carries no JD evidence "
-            "at all, keep a 1-bullet stub ONLY to prevent an "
-            "employment gap (SKILL Step 3).")
+            "at all, keep a 1-bullet stub ONLY to prevent an " "employment gap (SKILL Step 3).")
     else:
         lines.append(
             "  Cut these even when on target — JD alignment outranks the "
-            "page math (SKILL Step 3); 40 words is a ceiling, never a "
-            "target.")
+            "page math (SKILL Step 3); 40 words is a ceiling, never a " "target.")
     return "\n".join(lines)
 
 
@@ -860,8 +858,7 @@ def _page_removal_note(total_pages, target, overflow_lines):
         return None
     return (f"PAGE REMOVAL NOTE: {overflow_lines} rendered line(s) spill "
             f"past target {target}; a theme-scoped trim pass is allowed. "
-            "Do not launch broad compression when the spill exceeds five "
-            "lines (SKILL Step 9).")
+            "Do not launch broad compression when the spill exceeds five " "lines (SKILL Step 9).")
 
 
 def _measured_lines_per_bullet(matched):

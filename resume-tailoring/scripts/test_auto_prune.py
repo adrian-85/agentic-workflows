@@ -127,8 +127,7 @@ class TestJdEvidenceFamilies(unittest.TestCase):
 
     def test_alternative_scripting_terms_protect_source_evidence(self):
         jd = ("additional:\n"
-              "Python scripting experience and scripting in Linux bash or "
-              "Windows batch.\n")
+              "Python scripting experience and scripting in Linux bash or " "Windows batch.\n")
         asks = {ask.phrase for ask in jd_asks.parse_asks(jd)}
         self.assertIn("linux bash", asks)
         text = "Wrote Python scripts and Linux WSL helpers for test data."
@@ -369,8 +368,7 @@ class TestEmittedScriptRuns(_AutoPruneBase):
             env["DOCX_EDIT_STRICT"] = "1"
             env["PYTHONPATH"] = src_dir
             code = (f"import sys; sys.path.insert(0, {src_dir!r}); "
-                    "import runpy; "
-                    f"runpy.run_path({script_path!r}, run_name='__main__')")
+                    "import runpy; " f"runpy.run_path({script_path!r}, run_name='__main__')")
             proc = subprocess.run([sys.executable, "-c", code], cwd=td,
                                   env=env, capture_output=True, text=True,
                                   check=False)

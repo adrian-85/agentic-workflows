@@ -554,8 +554,7 @@ class DropTests(unittest.TestCase):
     def setUp(self):
         body = ET.Element(W + "body")
         for text in ("Established a comprehensive test automation approach",
-                     "Established bi-monthly interdepartmental QA meetings",
-                     "Unrelated bullet"):
+                     "Established bi-monthly interdepartmental QA meetings", "Unrelated bullet"):
             p = ET.SubElement(body, W + "p")
             t = ET.SubElement(p, W + "t")
             t.text = text
@@ -1503,8 +1502,7 @@ class PruneCoverageTests(unittest.TestCase):
         self._sidecar(docx, [self._cand(
             role="Acme", prefix="Led testing efforts")])
         script = self._script(
-            'from docx_edit import drop_role\n',
-            'ps = drop_role(body, "Acme")\n')
+            'from docx_edit import drop_role\n', 'ps = drop_role(body, "Acme")\n')
         try:
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
@@ -1698,8 +1696,7 @@ class LintScriptTests(unittest.TestCase):
         ])
         script = self._script(
             'from docx_edit import find_p, drop_role, set_text\n', 'ps = None\n',
-            'drop_role(body, "Old Co")\n',
-            'set_text(find_p(ps, "Legacy bullet"), "rewritten")\n')
+            'drop_role(body, "Old Co")\n', 'set_text(find_p(ps, "Legacy bullet"), "rewritten")\n')
         try:
             err = io.StringIO()
             with contextlib.redirect_stderr(err):
@@ -1726,8 +1723,7 @@ class LintScriptTests(unittest.TestCase):
         ])
         script = self._script(
             'from docx_edit import find_p, drop_role, set_text\n', 'ps = None\n',
-            'set_text(find_p(ps, "Legacy bullet"), "rewritten")\n',
-            'drop_role(body, "Old Co")\n')
+            'set_text(find_p(ps, "Legacy bullet"), "rewritten")\n', 'drop_role(body, "Old Co")\n')
         try:
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
@@ -1744,8 +1740,7 @@ class LintScriptTests(unittest.TestCase):
         docx = self._docx_with("Tools & Technologies: Python, Playwright")
         script = self._script(
             'from docx_edit import find_p\n', 'ps = None\n',
-            'for pfx in ["Tools & Technologies"]:\n',
-            '    find_p(ps, pfx)\n')
+            'for pfx in ["Tools & Technologies"]:\n', '    find_p(ps, pfx)\n')
         try:
             err = io.StringIO()
             with contextlib.redirect_stderr(err):

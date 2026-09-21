@@ -366,8 +366,7 @@ def _print_simulate(docx, simulate, jd_file, jd_text, td):
         print("  (no --jd passed — JD evidence in the dropped roles "
               "cannot be assessed; pass --jd <JD.txt> to see it)")
     print("  Compare the TIMELINE below against the JD's ask; apply "
-          "the drops for real via drop_role() in the per-target "
-          "tailor script (SKILL Step 5).")
+          "the drops for real via drop_role() in the per-target " "tailor script (SKILL Step 5).")
     print()
     return docx, sim_jd_terms
 
@@ -491,8 +490,7 @@ def _print_reclaim_batch(ctx):
         print(f"  - residual ~{residual:.0f} line(s) after the feasible "
               f"cuts above — TOP-ROLE TRIM BATCH below "
               + ("closes it" if closes else
-                 "is the largest remaining safe source (its "
-                 "JD-protected bullets stay)"))
+                 "is the largest remaining safe source (its " "JD-protected bullets stay)"))
     elif remaining > 0:
         print(f"  (still ~{remaining:.0f} line(s) over plan — cut past the "
               f"listed bullet(s) or trim Tools lines)")
@@ -519,8 +517,7 @@ def _print_reclaim_sections(ctx, state):
         print("DEAD-END PLANS: " + ", ".join(dead) + " cannot meet "
               "their cut budget from unprotected bullets — prefer the "
               "TOP-BLOCK RECLAIM CANDIDATES, a Tools-line trim, or a "
-              "whole-role drop (seniority decision) over cutting "
-              "JD-matched bullets.")
+              "whole-role drop (seniority decision) over cutting " "JD-matched bullets.")
     if state.top:
         print()
         print("TOP-BLOCK RECLAIM CANDIDATES (Technical Proficiencies / "
@@ -552,8 +549,7 @@ def _print_reclaim_sections(ctx, state):
             sections.append(
                 f"NOTE: even with the top-role batch, " f"~{state.residual - state.batch[2]:.0f} "
                 "line(s) remain — the gap cannot close without cutting "
-                "JD-matched content or revisiting the approved "
-                "whole-role drops with the user.")
+                "JD-matched content or revisiting the approved " "whole-role drops with the user.")
     if state.batch is None and state.residual > 0:
         sections.append(
             f"NO SAFE PLAN: feasible removals cover ~{state.feasible:.0f} of "

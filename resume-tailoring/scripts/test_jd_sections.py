@@ -153,8 +153,7 @@ class FindSectionTests(unittest.TestCase):
         violation (merge the content into one block), not an
         accumulation."""
         jd = ("required:\nPython, Selenium\n"
-              "responsibilities:\nWrite tests.\n"
-              "required:\n5+ years QA\n")
+              "responsibilities:\nWrite tests.\n" "required:\n5+ years QA\n")
         with self.assertRaises(ValueError) as ctx:
             js.parse_sections(jd)
         self.assertIn("repeats canonical section header: required",

@@ -244,8 +244,7 @@ def _jd_requirement_coverage(roles, body, jd_text):
                 out.append((label, "by_hand",
                             "soft-skill ask — covered by kept action-verb "
                             "evidence (presented, demoed, led, mentored, "
-                            "trained); never the literal adjective "
-                            "(SKILL Step 4)"))
+                            "trained); never the literal adjective " "(SKILL Step 4)"))
             else:
                 out.append((label, "by_hand", ""))
             continue
@@ -266,8 +265,7 @@ def _jd_requirement_coverage(roles, body, jd_text):
                         "hosting needs no user confirmation"))
             continue
         out.append((label, "uncovered",
-                    "no host — restore from the master or raise to "
-                    "the user; never fabricate"))
+                    "no host — restore from the master or raise to the user; never fabricate"))
     return out
 
 
@@ -476,12 +474,10 @@ def _print_jd_coverage(roles, body, jd_text, jd_terms):
     _print_coverage_lines(coverage, _jd_line_terms_map(jd_text))
     if counts["uncovered"]:
         print(f"  {counts['uncovered']} requirement(s) UNCOVERED — a resume "
-              "that does not demonstrate a required qual reads as "
-              "unqualified for it.")
+              "that does not demonstrate a required qual reads as " "unqualified for it.")
     if counts["weak"]:
         print(f"  {counts['weak']} requirement(s) [weak] — hosted only on "
-              "proficiencies/Tools lines; weave into a bullet "
-              "where used (SKILL Step 8).")
+              "proficiencies/Tools lines; weave into a bullet " "where used (SKILL Step 8).")
     print(_requirements_summary_line(coverage, counts, hard_uncovered))
     print()
 
@@ -601,8 +597,7 @@ def _inference_map(missing_terms, body, sources=None):
         if ev:
             out.append(f"  - {term}: AUTO-HOST — host the JD's literal "
                        "phrase in the bullet/role where this evidence "
-                       "lives (merge, don't append); no skill "
-                       "confirmation needed")
+                       "lives (merge, don't append); no skill " "confirmation needed")
             out.extend(f"      {e}" for e in ev + misses)
         else:
             out.append(

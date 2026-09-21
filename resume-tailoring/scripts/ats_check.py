@@ -628,8 +628,7 @@ def _print_match_target(score):
               "or scans for score unless the user asks)")
     else:
         print(f"    target: below {MATCH_RATE_TARGET} — keep hosting "
-              "literal phrases truthfully (ats_audit's no-host lists "
-              "name what to host)")
+              "literal phrases truthfully (ats_audit's no-host lists " "name what to host)")
 
 
 def _resolve_posting(jd_path, company_flag=None):
@@ -648,8 +647,7 @@ def _resolve_posting(jd_path, company_flag=None):
         if known:
             posting_url = known["url"]
             print(f"[3c] no Posting URL in the JD file — reusing the "
-                  f"known {company!r} posting URL from a prior scan "
-                  f"(ATS: {known['ats']})")
+                  f"known {company!r} posting URL from a prior scan " f"(ATS: {known['ats']})")
     return jd_text, company, posting_url
 
 
@@ -685,8 +683,7 @@ def _save_report(report, company, posting_url, out, provenance=None):
         print(f"    target ATS: {ats}")
     elif posting_url:
         print("    target ATS: the service could not match this posting "
-              "URL to a known ATS — ATS-specific findings are unavailable "
-              "for this posting")
+              "URL to a known ATS — ATS-specific findings are unavailable " "for this posting")
     else:
         print("    target ATS: NOT identified — the JD file has no "
               "'Posting URL:' line (SKILL Step 1); add it and re-scan")
@@ -710,8 +707,7 @@ def scan(resume_path, jd_path, opts=None):
                           opts.timeout, opts.interval)
     if report is None:
         print(f"error: report not ready after {opts.timeout}s — the scan "
-              "may still be processing; retry the GET later or raise "
-              "--timeout")
+              "may still be processing; retry the GET later or raise " "--timeout")
         return 1
 
     out = opts.out or os.path.splitext(resume_path)[0] + ".ats-check.json"

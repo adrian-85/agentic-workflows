@@ -257,8 +257,7 @@ def _run_master_seniority(ctx, path, body, opts, span):
                     f"the original request — do NOT pass --seniority-approved "
                     f"on your own authority. Finish the .docx, present the "
                     f"proposed span with the numbers, and hand the user the "
-                    f"render command; the PDF stays blocked until they "
-                    f"approve.")
+                    f"render command; the PDF stays blocked until they " f"approve.")
             else:
                 ctx["claim_notes"].append((
                     "ok", f"seniority alignment approved: ~{shrink:.1f}y of oldest "
@@ -450,8 +449,7 @@ def _report_caps_section(ctx, lines):
     mw = ctx["max_words"]
     if ctx["is_master_input"]:
         lines.append(f"  note: input is a master ({wc} words) — the "
-                     f"{mw}-word deliverable cap applies to tailored "
-                     "resumes only")
+                     f"{mw}-word deliverable cap applies to tailored " "resumes only")
     elif not mw:
         lines.append("  note: word cap disabled (--max-words 0)")
     else:

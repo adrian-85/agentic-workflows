@@ -922,8 +922,7 @@ class CoreTechNounTests(unittest.TestCase):
     def test_partner_integration_bullet_is_jd_evidence(self):
         terms = mr._jd_terms(self._JD, self._body())
         partner_bullet = ("Tested partner integrations against "
-                "their sandbox, coordinating with vendor engineers on "
-                "unexpected response codes")
+                "their sandbox, coordinating with vendor engineers on " "unexpected response codes")
         self.assertTrue(mrd._evidenced(partner_bullet, terms),
                         "integration bullet must be JD-protected")
 
@@ -2081,8 +2080,7 @@ class JdMissingTermsTests(unittest.TestCase):
         # saw it — a real Endpoint session's no-host list missed the
         # JD's macOS ask entirely. Mixed-case qual tokens are tech names.
         terms = mr._jd_line_terms(
-            "Depth in operating-system behavior on at least two of "
-            "Windows, macOS, and Linux.")
+            "Depth in operating-system behavior on at least two of Windows, macOS, and Linux.")
         self.assertIn("macos", terms)
         self.assertIn("windows", terms)
         self.assertIn("linux", terms)
@@ -2092,8 +2090,7 @@ class JdMissingTermsTests(unittest.TestCase):
         # self-assessment adjective — never skill evidence (a session
         # chased "excellent" as a keyword across three user replies).
         terms = mr._jd_line_terms(
-            "Excellent communication, stakeholder management, and "
-            "technical leadership skills")
+            "Excellent communication, stakeholder management, and technical leadership skills")
         self.assertEqual(terms, set())
 
 
@@ -2120,8 +2117,7 @@ class JdTermRecallTests(unittest.TestCase):
                   style=mr.COMPANY_STYLE),
             _para("Staff Engineer", style="JobTitleBlock"),
             _para("AI adoption leader. Built the shared harness layer, "
-                  "contributing skills files, playbooks, and context "
-                  "configuration.", numId=2),
+                  "contributing skills files, playbooks, and context " "configuration.", numId=2),
             _para("Developed agentic workflows using sub-agents running in "
                   "parallel, shipping a working V1 in a day.", numId=2),
             _para("Triaged production incidents and helped track review "
@@ -2147,8 +2143,7 @@ class JdTermRecallTests(unittest.TestCase):
           "What makes you a fit\n" "You ship a working V1 in a day and harden it in week two.\n"
           "What this role is not\n"
           "Not a research position, and not a decks-and-frameworks seat.\n" "Level\n"
-          "Staff or Senior depending on how much of the drive you can "
-          "carry yourself.\n")
+          "Staff or Senior depending on how much of the drive you can " "carry yourself.\n")
 
     def test_lowercase_jd_asks_mine_at_frequency(self):
         # 'agents', 'context', 'sdlc' are lowercase mid-sentence in the JD —
@@ -2433,8 +2428,7 @@ class JdRequirementCoverageTests(unittest.TestCase):
         jd = ("required:\n"
               "5+ years of experience using Selenium Web Driver, Java, "
               "TestNG, Cucumber, REST Assured, or similar IDE\n"
-              "Experience with Kubernetes and Helm\n"
-              "Experience with Terraform and Ansible\n")
+              "Experience with Kubernetes and Helm\n" "Experience with Terraform and Ansible\n")
         body = _body([
             _para("Career Experience", style="SectionHeading"),
             _para("Acme, City" + _sample_date() + " \u2013 08/2016",
@@ -2856,8 +2850,7 @@ class RequirementsSummaryTests(unittest.TestCase):
 
     def test_summary_line_printed(self):
         jd = ("required:\n"
-              "Selenium and Java experience\n"
-              "Terraform and Ansible\n")
+              "Selenium and Java experience\n" "Terraform and Ansible\n")
         body = _body([
             _para("Career Experience", style="SectionHeading"),
             _para("Acme, City" + _sample_date() + " \u2013 08/2016",

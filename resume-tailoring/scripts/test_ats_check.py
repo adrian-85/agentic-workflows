@@ -81,8 +81,7 @@ class ConfigParsingTests(unittest.TestCase):
 
     def test_cookie_blob_separated_from_headers(self):
         self.assertEqual(self.reqs[0]["cookies"],
-                         "session_cookie=abc123; csrf_token=DEF456%3D; "
-                         "logged_in=1")
+                         "session_cookie=abc123; csrf_token=DEF456%3D; logged_in=1")
         # The -b blob must not leak into the -H header list.
         self.assertFalse(any("csrf_token" in h
                              for h in self.reqs[0]["headers"]))
@@ -132,8 +131,7 @@ class ClassifyTests(unittest.TestCase):
         # The saved GET's numeric id becomes {id}; the report endpoint is
         # one path segment below the opportunity.
         self.assertEqual(kinds["report"]["url"],
-                         "https://ats.example/api/v4/opportunities/{id}"
-                         "/report")
+                         "https://ats.example/api/v4/opportunities/{id}/report")
 
     def test_report_query_string_survives_templating(self):
         # The ATS-verification export carries query flags and its own
@@ -315,8 +313,7 @@ class KnownAtsTests(unittest.TestCase):
     def test_company_from_jd_first_sentence_chunk(self):
         self.assertEqual(
             ac._company_from_jd(
-                "Company: Ent. Founded by Lou Manousos and Brandon Dixon\n"
-                "Test Engineer\n"),
+                "Company: Ent. Founded by Lou Manousos and Brandon Dixon\nTest Engineer\n"),
             "Ent")
 
     def test_company_from_jd_absent(self):

@@ -206,8 +206,7 @@ def main():
         # header — see the --prefixes dump for each line's text). Trim to
         # the measured wrap budget (TOOLS LINES THAT WRAP in measure output).
         ("<Tools-line's own unique text start, e.g. 'Tools & Technologies: MVC,'>",
-         "Tools & Technologies: ",
-         "<tools trimmed to the measured wrap budget, one line>"),
+         "Tools & Technologies: ", "<tools trimmed to the measured wrap budget, one line>"),
         # ...
     ]
     for prefix, label, value in trims:

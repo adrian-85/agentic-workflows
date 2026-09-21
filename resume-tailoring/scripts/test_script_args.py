@@ -31,8 +31,7 @@ class SharedFileTests(unittest.TestCase):
         try:
             self.assertEqual(
                 sha256_file(path),
-                "41ce2763bb0444fab9e97863074e848ca"
-                "0501dd7d37320ffadacbae45977a576")
+                "41ce2763bb0444fab9e97863074e848ca0501dd7d37320ffadacbae45977a576")
         finally:
             os.unlink(path)
 

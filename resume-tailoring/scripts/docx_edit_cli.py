@@ -570,8 +570,7 @@ def lint_prune_coverage(docx_path, script_path):
         _report_uncovered(uncovered, len(candidates))
         return 1
     print(f"prune-coverage: all {len(candidates)} PRUNE-PLAN candidate(s) "
-          f"covered ({edits} edit(s), {drops} role-drop(s), "
-          f"{keeps_n} recorded keep(s))")
+          f"covered ({edits} edit(s), {drops} role-drop(s), " f"{keeps_n} recorded keep(s))")
     return 0
 
 

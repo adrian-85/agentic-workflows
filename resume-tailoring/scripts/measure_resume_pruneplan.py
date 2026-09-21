@@ -105,8 +105,7 @@ def _main_prune_plan(args):
           "non-JD clause, and non-JD list chunk below goes in the first "
           "pass, before any page target, role drop, seniority, or word "
           "count is decided. Page/word math on the unpruned master is "
-          "never measured; prune, then measure the tailored copy "
-          "(SKILL Step 5).")
+          "never measured; prune, then measure the tailored copy " "(SKILL Step 5).")
     print()
     _print_jd_report(args.jd_file, args.jd_text, jd_terms, body,
                      InferenceSources(linkedin_text=args.evidence_text))

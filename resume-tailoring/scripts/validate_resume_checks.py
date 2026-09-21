@@ -380,8 +380,7 @@ def _repeated_word_notes(region, summary):
                 notes.append(("warn",
                     f"{w!r} repeats within {_REPEAT_WINDOW} words of "
                     f"itself ({'Summary' if p is summary else 'bullet'}): "
-                    f"{text.strip()[:60]!r}... — reword one occurrence "
-                    "(Step 9 re-read)"))
+                    f"{text.strip()[:60]!r}... — reword one occurrence " "(Step 9 re-read)"))
             last[w] = i
     return notes
 
@@ -461,8 +460,7 @@ def _editable_word_cap_errors(region, summary):
         if words > PARA_WORD_CAP:
             errors.append(
                 f"editable paragraph has {words} words (cap " f"{PARA_WORD_CAP}): "
-                f"{' '.join(text.split())[:60]!r}... — split or trim to "
-                f"{PARA_WORD_CAP} words")
+                f"{' '.join(text.split())[:60]!r}... — split or trim to " f"{PARA_WORD_CAP} words")
     return errors
 
 
@@ -509,8 +507,7 @@ def _readability_guidance(body, summary, *, region=None,
                 f"section(s) between Summary and Technical Proficiencies "
                 f"({', '.join(repr(s) for s in inserted)}) — SKILL Step 6 "
                 f"forbids inserting Core Strengths, Top Skills, or "
-                f"keyword-mirror sections here; weave skills into role "
-                f"bullets instead"))
+                f"keyword-mirror sections here; weave skills into role " f"bullets instead"))
 
     # Inter-role readability spacers: SKILL Step 9's DEFAULT is to add
     # one blank spacer paragraph at every role boundary, skipping only

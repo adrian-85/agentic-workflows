@@ -126,8 +126,7 @@ def _audit_match_rate(score, target, result):
     else:
         result.warns.append(
             f"match rate: {score} (below the {target} target — keep "
-            "hosting literal phrases truthfully; see the no-host lists "
-            "below for what to host)")
+            "hosting literal phrases truthfully; see the no-host lists " "below for what to host)")
 
 
 def _ceiling_check(score, target, resume_path, result):
@@ -150,8 +149,7 @@ def _ceiling_check(score, target, resume_path, result):
         result.warns.append(
             f"CEILING DETECTED: match rate {score} unchanged from the "
             f"last scan — present the remaining hard/soft skill checklist "
-            f"to the user before declaring the honest ceiling "
-            f"(SKILL Step 12)")
+            f"to the user before declaring the honest ceiling " f"(SKILL Step 12)")
     try:
         sidecar.write_text(json.dumps({"score": score}), encoding="utf-8")
     except OSError:
@@ -352,8 +350,7 @@ def _report_findings(data, resume_text=""):
             lines.append(
                 f"  IGNORED {name} ({status}): Education was dropped "
                 "deliberately (Step 5.4 predicate; the render gate "
-                "sanctioned it) — the scan's generic advice does not "
-                "re-open that decision")
+                "sanctioned it) — the scan's generic advice does not " "re-open that decision")
             continue
         lines.append(f"  {status.upper()}: {name}")
     return lines
@@ -409,8 +406,7 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result):
             result.warns.append(
                 "JD literal phrase mining found NO skill phrases (this "
                 "JD's qualification lines use no cue syntax) — the literal "
-                "check is vacuous; supply --phrases-file with the JD's "
-                "named skills/tools")
+                "check is vacuous; supply --phrases-file with the JD's " "named skills/tools")
         else:
             result.ok_lines.append(
                 f"JD literal terms: {ok_n}/{ok_n + len(missing)} hosted")
@@ -509,8 +505,7 @@ def main(argv=None):
     if report_wc is not None:
         drift = count - report_wc
         result.ok_lines.append(
-            f"words (report cross-check): {report_wc} "
-            f"({drift:+d} vs our count)")
+            f"words (report cross-check): {report_wc} " f"({drift:+d} vs our count)")
 
     _audit_jd_and_phrases(args["jd_path"], args["phrases_file"], text_low,
                           result)

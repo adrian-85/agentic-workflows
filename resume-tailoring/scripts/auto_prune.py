@@ -278,8 +278,7 @@ def _disposition(c, anchors, role_state, jd_terms):
         if _hosts_jd_chunk(text, jd_terms):
             return "keep", (prefix if prefix else text[:24],
                             "list line kept whole — hosts at least one "
-                            "JD-evidenced item (auto-prune; never a "
-                            "partial value list)")
+                            "JD-evidenced item (auto-prune; never a " "partial value list)")
     if payload is None:
         # bullet-cut, a trim that cut whole, a list line with no JD chunk,
         # and top-block all collapse to CUT — the drop covers the candidate
@@ -361,8 +360,7 @@ def _apply_section_cuts(body, all_texts, edits):
                 removes[:] = [r for r in removes if r[0] != t]
             edits["section_keeps"].append(
                 (p2 if p2 else t[:24],
-                 f"removed with the emptied '{heading}' section "
-                 f"(drop_section; auto-prune)"))
+                 f"removed with the emptied '{heading}' section " f"(drop_section; auto-prune)"))
 
 
 def _anchor_map(candidates, all_texts):

@@ -191,8 +191,7 @@ def print_review_template(kind, state_path):
     print(json.dumps(skeleton, indent=2))
     print(
         f"fill decision + rationale, keep the phrases/items, then record:\n"
-        f"  workflow_gate.py review {state_path} <filled.json>\n"
-        f"({hint})", file=sys.stderr)
+        f"  workflow_gate.py review {state_path} <filled.json>\n" f"({hint})", file=sys.stderr)
 
 
 def record_audit(path, findings, audit_path=None):
@@ -252,8 +251,7 @@ def close_budgets(path, words, spill_lines, attempted_page_removal):
             f"word budget remains open: {words} words exceeds {MAX_WORDS}")
     if attempted_page_removal and not page_removal_allowed(spill_lines):
         raise GateError(
-            "page removal is allowed only for a positive spill of five lines "
-            "or fewer")
+            "page removal is allowed only for a positive spill of five lines or fewer")
     advance(path, "budgets-closed", {
         "words": words,
         "spill_lines": spill_lines,

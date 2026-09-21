@@ -85,11 +85,9 @@ class HostedTests(unittest.TestCase):
         # the mined "frameworks java" n-gram must still host (a real
         # deliverable failed on this parser artifact).
         self.assertTrue(aa._hosted(
-            "oversaw migration of test automation frameworks (java selenium",
-            "frameworks java"))
+            "oversaw migration of test automation frameworks (java selenium", "frameworks java"))
         self.assertTrue(aa._hosted(
-            "expertise with test automation frameworks (java)",
-            "automation frameworks java"))
+            "expertise with test automation frameworks (java)", "automation frameworks java"))
 
     def test_slash_normalized_fallback(self):
         # Standard spellings split with a slash: the JD says "CI/CD
@@ -208,8 +206,7 @@ class JdLiteralTermsTests(unittest.TestCase):
         # A responsibilities-style qual line is prose, not a skill list —
         # its fragments must not become literal terms.
         jd = ("required:\n\nAssess whether code changes make "
-              "sense for the product and collaborate effectively with "
-              "customer-facing teams.\n")
+              "sense for the product and collaborate effectively with " "customer-facing teams.\n")
         self.assertEqual(aa._jd_literal_terms(jd), [])
 
     def test_metadata_and_company_terms_are_not_literal_asks(self):

@@ -1196,8 +1196,7 @@ blocking."""
         try:
             with open(jd_path, "w", encoding="utf-8") as f:
                 f.write("Required Qualifications:\n"
-                        "5+ years of Java experience. "
-                        "Experience with Kubernetes.\n")
+                        "5+ years of Java experience. " "Experience with Kubernetes.\n")
             b, _s = self._body_with("Short summary.")
             test_helpers._write_docx(path, list(b))
             result = vr.validate_tree(path, de.load(path)[1],
