@@ -379,6 +379,13 @@ editing. For each finding, record one disposition:
 - **Theme-aligned concept, missing literal wording:** add the phrase only if it improves both ATS
   coverage and the theme narrative.
 - **Off-theme or parser noise:** do not distort the resume to host it. Record why it is ignored.
+- **Soft skills default to HOST — never "boilerplate":** communication/leadership/stakeholder/
+  attention-to-detail/willing-to-learn/trustworthy-style findings are hostable wherever kept
+  bullets' action verbs (presented, demoed, led, mentored, trained, researched) evidence them —
+  the Hosting reference's inference rule makes them safe to host WITHOUT asking. An `ignore`
+  disposition on a soft skill must say why NO bullet evidences the phrase — "sounds like posting
+  boilerplate" is not a reason (a session wrote off "willing to learn"/"trustworthy" that way and
+  the user had to challenge it; hosting them took the external scan's soft-skills score 60→100).
 - **Unsupported:** search the master and complete LinkedIn export first, then raise it if no
   truthful evidence exists.
 
