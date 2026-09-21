@@ -4,6 +4,8 @@
 # part of this small state-machine test's contract.
 # pylint: disable=missing-function-docstring,missing-class-docstring
 
+import contextlib
+import io
 import json
 import os
 import tempfile
@@ -52,6 +54,62 @@ class StateTransitionTests(unittest.TestCase):
             wg.create_state(path, "Target", "jd_target.txt", "theme")
             with self.assertRaises(wg.GateError):
                 wg.record_audit(path, ["gemini"])
+
+
+class ReviewTemplateTests(unittest.TestCase):
+    """`template` prints a fill-and-record skeleton that passes validation."""
+
+    def _state_with_baseline(self, tmp, phrases):
+        path = os.path.join(tmp, "target.workflow.json")
+        wg.create_state(path, "Target", "jd_target.txt", "theme")
+        wg.advance(path, "prune-theme-reviewed")
+        wg.record_audit(path, phrases)
+        return path
+
+    def test_ats_template_prefills_every_baseline_phrase(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._state_with_baseline(tmp, ["Gen AI", "observability", "Gen AI"])
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                wg.print_review_template("ats", path)
+            skeleton = json.loads(out.getvalue())
+            # normalized (lowercased, deduped, sorted) by record_audit
+            self.assertEqual([f["phrase"] for f in skeleton["findings"]],
+                             ["gen ai", "observability"])
+            self.assertTrue(all(f["decision"] == "" and f["rationale"] == ""
+                                for f in skeleton["findings"]))
+
+    def test_filled_ats_template_passes_the_exact_set_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._state_with_baseline(tmp, ["Gen AI", "observability"])
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                wg.print_review_template("ats", path)
+            skeleton = json.loads(out.getvalue())
+            skeleton["findings"][0].update(decision="host", rationale="evidenced")
+            skeleton["findings"][1].update(decision="raise", rationale="no evidence")
+            review = os.path.join(tmp, "review.json")
+            with open(review, "w", encoding="utf-8") as stream:
+                json.dump(skeleton, stream)
+            wg.record_review(path, review)  # must not raise
+            self.assertEqual(wg.load_state(path)["phase"], "ats-theme-reviewed")
+
+    def test_prune_template_shape(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                wg.print_review_template("prune", path)
+            skeleton = json.loads(out.getvalue())
+            self.assertEqual(skeleton["kind"], "prune")
+            self.assertEqual(skeleton["theme_anchors"], [""])
+            self.assertEqual(skeleton["dispositions"],
+                             [{"item": "", "decision": "", "rationale": ""}])
+
+    def test_ats_template_requires_recorded_findings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            with self.assertRaises(wg.GateError):
+                wg.print_review_template("ats", path)
 
 
 class RequireAtLeastTests(unittest.TestCase):

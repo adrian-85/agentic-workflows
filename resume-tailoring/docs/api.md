@@ -110,6 +110,15 @@ does not alter machine pruning. The two agent reviews are JSON records, not free
                                "rationale":"..."}]}
 ```
 
+Generate either skeleton pre-filled instead of hand-building the JSON — the ATS template prints
+every recorded baseline phrase (from the baseline audit) so the exact-set match holds by
+construction; stdout is the skeleton, stderr carries the fill hints:
+
+```bash
+python3 scripts/workflow_gate.py template prune <state> > theme_review_<target>.json
+python3 scripts/workflow_gate.py template ats <state> > theme_review_<target>_ats.json
+```
+
 Record them in order:
 
 ```bash

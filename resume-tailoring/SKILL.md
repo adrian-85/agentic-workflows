@@ -354,7 +354,8 @@ comments or a short per-target review note:
 The review must include the master-vs-build cut set, not just the build's coverage report. Do not
 advance until the review's restores, cuts, and keep rationales are applied or explicitly recorded.
 The prune emits `<Name> Resume - <Target>.docx.workflow.json` in phase `pruned`; record the review
-with `workflow_gate.py review` — the review JSON needs at least one theme anchor plus one
+with `workflow_gate.py review` — generate the skeleton with `workflow_gate.py template prune <state>
+> theme_review_<target>.json` and fill it in; it needs at least one theme anchor plus one
 disposition per override (item, `restore`/`cut`/`keep` decision, theme rationale). The gate
 validates that the review exists; it does not make the semantic judgment. Command syntax and the
 JSON schema: [docs/api.md](docs/api.md).
@@ -378,9 +379,11 @@ The Hosting reference below governs the source-first mining and hosting; it exec
 Theme Review B, before seniority or budget edits. Re-run the audit after approved hosts land until
 no further theme-aligned host remains. Do not move to seniority while a no-host finding is merely
 unreviewed. A final post-render audit later verifies the finished document but never reopens
-score-driven editing. Record Theme Review B before seniority with `workflow_gate.py review` — every
-baseline finding needs a phrase, a `host`/`ignore`/`raise` decision, and a rationale, and the
-review must disposition exactly the recorded baseline set (schema: [docs/api.md](docs/api.md)).
+score-driven editing. Record Theme Review B before seniority with `workflow_gate.py review` — generate
+the skeleton with `workflow_gate.py template ats <state> > theme_review_<target>_ats.json` (every
+recorded baseline finding phrase comes pre-filled) and fill a `host`/`ignore`/`raise` decision plus a
+rationale per row, keeping exactly one row per phrase — the review must disposition exactly the
+recorded baseline set (schema: [docs/api.md](docs/api.md)).
 
 ### 5. Decide seniority and positioning with the theme in view
 Run this step only after Theme Review B closes the baseline ATS findings. Record the user's approved

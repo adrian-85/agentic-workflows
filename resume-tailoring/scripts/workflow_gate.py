@@ -7,6 +7,7 @@ that judgment, the execution order, and the measurable budget rules explicit.
 import argparse
 import json
 import os
+import sys
 import tempfile
 
 from script_args import MAX_WORDS
@@ -149,6 +150,51 @@ def validate_review(review):
     return kind
 
 
+def print_review_template(kind, state_path):
+    """Print a ready-to-fill review skeleton for ``review`` (stdout).
+
+    Sessions reverse-engineered the review JSON schema from api.md and the
+    module source on every run, then hand-built the phrase set and failed
+    the exact-set match (ATS reviews must disposition EXACTLY the recorded
+    baseline). The template pre-fills what the machine knows — every
+    baseline finding phrase, in the state's normalized form — so the agent
+    fills only decision/rationale and the set match is guaranteed by
+    construction. Usage hints go to stderr so stdout stays redirectable:
+
+        workflow_gate.py template ats <state> > theme_review_<target>_ats.json
+    """
+    if kind not in REVIEW_PHASES:
+        raise GateError(
+            f"template kind must be one of {sorted(REVIEW_PHASES)}, got {kind!r}")
+    load_state(state_path)  # existence/typo check before any authoring
+    if kind == "ats":
+        phrases = load_state(state_path).get("finding_phrases") or []
+        if not phrases:
+            raise GateError(
+                f"{state_path} records no baseline findings — run the baseline audit "
+                "first (ats_audit.py --baseline; SKILL Step 4); the template pre-fills "
+                "its phrases")
+        skeleton = {"kind": "ats", "findings": [
+            {"phrase": phrase, "decision": "", "rationale": ""} for phrase in phrases]}
+        hint = (
+            "decisions: host | ignore | raise. Keep EXACTLY one row per phrase — do not "
+            "delete or add rows (the gate matches the recorded baseline set exactly). "
+            "Soft-skill phrases default to host when kept bullets evidence them "
+            "(Hosting reference: action-verb evidence authorizes the literal phrase).")
+    else:
+        skeleton = {"kind": "prune", "theme_anchors": [""], "dispositions": [
+            {"item": "", "decision": "", "rationale": ""}]}
+        hint = (
+            "decisions: restore | cut | keep. One disposition per prune override; "
+            "item = the master paragraph's find_p prefix (copy it from the --prefixes "
+            "dump / cut-set diff). Add more entries as needed.")
+    print(json.dumps(skeleton, indent=2))
+    print(
+        f"fill decision + rationale, keep the phrases/items, then record:\n"
+        f"  workflow_gate.py review {state_path} <filled.json>\n"
+        f"({hint})", file=sys.stderr)
+
+
 def record_audit(path, findings, audit_path=None):
     """Record the baseline audit findings before its agent review.
 
@@ -247,6 +293,10 @@ def _main(argv=None):
     review = sub.add_parser("review")
     review.add_argument("state")
     review.add_argument("review")
+    template_parser = sub.add_parser(
+        "template", help="print a ready-to-fill review skeleton (stdout)")
+    template_parser.add_argument("kind", choices=sorted(REVIEW_PHASES))
+    template_parser.add_argument("state")
     advance_parser = sub.add_parser("advance")
     advance_parser.add_argument("state")
     advance_parser.add_argument("phase", choices=PHASES[1:])
@@ -271,31 +321,42 @@ def _main(argv=None):
              "comma-separated list is still accepted for header-free names")
     args = parser.parse_args(argv)
     try:
-        if args.command == "review":
-            record_review(args.state, args.review)
-        elif args.command == "advance":
-            advance(args.state, args.phase)
-        elif args.command == "budgets":
-            close_budgets(args.state, args.words, args.spill_lines,
-                          args.attempted_page_removal)
-        elif args.command == "spacers":
-            omitted = args.omitted
-            if omitted:
-                # Role headers contain commas ("GEICO, Chevy Chase, MD"), so
-                # the documented separator is ';'; fall back to ',' only when
-                # no ';' is present (header-free names).
-                sep = ";" if ";" in omitted else ","
-                omitted = omitted.split(sep)
-            else:
-                omitted = None
-            close_spacers(args.state, args.creates_new_page, omitted)
-        elif args.command == "require-at-least":
-            require_at_least(args.state, args.phase)
-        else:
-            require(args.state, args.phase)
+        _dispatch(args)
     except (GateError, ReviewError) as exc:
         parser.error(str(exc))
     return 0
+
+
+def _dispatch(args):
+    """Run one parsed subcommand (extracted from _main for statement budget)."""
+    if args.command == "review":
+        record_review(args.state, args.review)
+    elif args.command == "template":
+        print_review_template(args.kind, args.state)
+    elif args.command == "advance":
+        advance(args.state, args.phase)
+    elif args.command == "budgets":
+        close_budgets(args.state, args.words, args.spill_lines,
+                      args.attempted_page_removal)
+    elif args.command == "spacers":
+        omitted = _split_omitted(args.omitted)
+        close_spacers(args.state, args.creates_new_page, omitted)
+    elif args.command == "require-at-least":
+        require_at_least(args.state, args.phase)
+    else:
+        require(args.state, args.phase)
+
+
+def _split_omitted(omitted):
+    """Parse the spacers --omitted list into role-header names.
+
+    Role headers contain commas ("GEICO, Chevy Chase, MD"), so the documented
+    separator is ';'; fall back to ',' only when no ';' is present
+    (header-free names)."""
+    if not omitted:
+        return None
+    sep = ";" if ";" in omitted else ","
+    return omitted.split(sep)
 
 
 if __name__ == "__main__":
