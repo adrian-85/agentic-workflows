@@ -103,6 +103,25 @@ python3 scripts/docx_edit.py "<userName> Master Resume.docx" \
     --set-text "<ref prefix>" --with "<new bullet text>"
 ```
 
+## Script inventory
+
+Each tool's docstring is its own reference; this is the tool → step map.
+
+`docx_edit.py` (Helper library) · `tailor_resume.py` (template) · `render_pdf.sh` (Steps 4, 12) ·
+`auto_prune.py` (Step 2 PHASE A — the machine prune; the ONLY sanctioned master consumer; emits and
+runs the first tailor script through `run_tailor.sh`'s gates) · `measure_resume.py` (Step 3/5 page
+math on the tailored copy; `--jd` on the MASTER is the machine pipeline's prune-plan mode — the
+agent never runs it; `--linkedin <dump>` feeds the INFERENCE MAP for no-host terms in Step 4) ·
+`squeeze_resume.py` (Step 9 backstop; auto-tightens only within the theme-scoped page pass) ·
+`validate_resume.py` (Steps 5, 12; `--master` auto-detects the `* Master Resume.docx` next to the
+input) · `diff_resume.py` (Token-spend; `--cutset` for the master-vs-build cut set) ·
+`read_profile.sh` (Step 4) · `ats_audit.py` (Steps 4 and 12; baseline and final literal-phrase
+audits of the rendered PDF + word cap) · `ats_check.py` (Step 12; runs the external ATS scan via the
+user's saved credentials, saves the report JSON) · `workflow_gate.py` (per-target ordered state
+gates, plus `template` for pre-filled review skeletons) · `test_*.py` unit tests
+(`python3 -m unittest test_docx_edit test_auto_prune test_measure_resume test_validate_resume \
+test_squeeze_resume test_ats_audit test_ats_check`, from `scripts/`).
+
 ## Workflow state gates
 
 ### workflow_gate.py — ordered workflow state

@@ -79,8 +79,8 @@ Core principle's theme check; there is no separate restore phase.
 |---|---|---|
 | 1 | Save the normalized JD and, when needed, the verbatim source as `jd_<target>_source.txt`; read the WHOLE JD in the fixed 8-section template, persist the posting URL, and write the theme brief + equivalences. Master and LinkedIn stay UNREAD | `jd_sections.py` contract |
 | 2 | PHASE A — the independent machine prune (`--theme` is provenance only): emits the first tailor script through the gates, writes the lean base build + workflow state. No cut report | `auto_prune.py` |
-| 3 | Theme Review A: measure the base build, diff master vs build, disposition the prune against the theme; record the review | `measure_resume.py`, `docx_edit.py --prefixes`, `workflow_gate.py review` |
-| 4 | Baseline ATS audit, then Theme Review B: disposition every finding through the theme; host or raise via the Hosting reference | `ats_audit.py --baseline`, `read_profile.sh`, `workflow_gate.py review` |
+| 3 | Theme Review A: measure the base build, diff master vs build, disposition the prune against the theme; record the review | `measure_resume.py`, `diff_resume.py --cutset`, `workflow_gate.py template` + `review` |
+| 4 | Baseline ATS audit, then Theme Review B: disposition every finding through the theme; host or raise via the Hosting reference | `ats_audit.py --baseline`, `read_profile.sh`, `workflow_gate.py template ats` + `review` |
 | 5 | Seniority in theme context: whole-role drops, user-approved and recorded | `measure_resume.py --simulate`, `workflow_gate.py advance` |
 | 6 | Align top title to JD title (less senior); Summary untouched | `set_text` |
 | 7 | No sections between Summary & Proficiencies | — |
@@ -107,20 +107,8 @@ User-supplied personal assets (`*.docx` / `*.pdf`, gitignored) live in the skill
   resume for content to enrich/merge — read ONLY in Step 4, when a surfaced gap needs evidence
   (Step 1 does not touch it).
 
-`scripts/` (each tool's docstring / usage is the reference; the steps below point at them):
-`docx_edit.py` (Helper library) · `tailor_resume.py` (template) · `render_pdf.sh` (Steps 4, 12) ·
-`auto_prune.py` (Step 2 PHASE A — the machine prune; the ONLY sanctioned master consumer; emits and
-runs the first tailor script through `run_tailor.sh`'s gates) · `measure_resume.py` (Step 3/5 page
-math on the tailored copy; `--jd` on the MASTER is the machine pipeline's prune-plan mode — the
-agent never runs it; `--linkedin <dump>` feeds the INFERENCE MAP for no-host terms in Step 4) ·
-`squeeze_resume.py` (Step 9 backstop; auto-tightens only within the theme-scoped page pass) ·
-`validate_resume.py` (Steps 5, 12; `--master` auto-detects the `* Master Resume.docx` next to the
-input) · `diff_resume.py` (Token-spend) · `read_profile.sh` (Step 4) · `ats_audit.py` (Steps 4 and
-12; baseline and final literal-phrase audits of the rendered PDF + word cap) · `ats_check.py` (Step
-12; runs the external ATS scan via the user's saved credentials, saves the report JSON) ·
-`workflow_gate.py` (per-target ordered state gates; commands in [docs/api.md](docs/api.md)) ·
-`test_*.py` unit tests (`python3 -m unittest test_docx_edit test_auto_prune test_measure_resume \
-test_validate_resume test_squeeze_resume test_ats_audit test_ats_check`, from `scripts/`).
+`scripts/` — each tool's docstring is its own reference, and the steps below point at them; the
+full tool → step inventory (with the unit-test command) lives in [docs/api.md](docs/api.md).
 
 Run scripts from the skill root so the relative `SRC` path resolves:
 
