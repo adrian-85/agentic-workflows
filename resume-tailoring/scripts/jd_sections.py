@@ -55,6 +55,21 @@ def is_ask_header(line):
     return header_at(line) in ASK_SECTIONS
 
 
+def _near_misses(jd_text, missing):
+    """Lines where a MISSING header carries its body on the same line —
+    the signature of a retyped (not copied) JD file (SKILL Step 1: the
+    user's paste has each header alone on its line; the mangling happens
+    when the agent re-types the paste into the file and joins lines)."""
+    hits = []
+    for ln in jd_text.splitlines():
+        s = ln.strip()
+        for h in missing:
+            m = re.match(r"^" + re.escape(h) + r"\s*:\s*(\S.*)$", s, re.I)
+            if m:
+                hits.append((h, s[:60]))
+    return hits
+
+
 def parse_sections(jd_text):
     """Strict split into the 8 canonical sections.
 
@@ -92,11 +107,18 @@ def parse_sections(jd_text):
         return None
     missing = [h for h in SECTION_HEADERS if h not in found]
     if missing:
-        raise ValueError(
-            "JD missing canonical section header(s): "
-            + ", ".join(missing)
-            + " — SKILL Step 1 requires every header present in the JD "
-              "file (blank body when the posting omits that content)")
+        msg = ("JD missing canonical section header(s): "
+               + ", ".join(missing)
+               + " — SKILL Step 1 requires every header present in the JD "
+                 "file (blank body when the posting omits that content)")
+        near = _near_misses(jd_text, missing)
+        if near:
+            detail = "; ".join(
+                f"{h!r} with text on the same line ({line!r})" for h, line in near)
+            msg += ("; near-miss lines found — a header must be ALONE on its line. This usually "
+                    "means the JD file was RETYPED instead of copied verbatim from the user's "
+                    f"paste (their paste has each header on its own line): {detail}")
+        raise ValueError(msg)
     return {h: "\n".join(found[h]).strip() for h in SECTION_HEADERS}
 
 

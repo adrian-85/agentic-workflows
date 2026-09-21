@@ -234,9 +234,15 @@ the residual page gap automatically.
   must not match a bare body word. A recruiter's "top skills" message uses the same template (the
   named skills go under `required:`) — one input format everywhere.
 - **Persist both JD forms in the skill root, not /tmp.** Save the fixed eight-section internal JD as
-  `jd_<target>.txt` (e.g. `jd_acme.txt`) before anything else. When the supplied posting has nested
-  headings or other structure that must remain verbatim for an external parser, also save the exact
-  unmodified posting as `jd_<target>_source.txt`. Internal prune/audit tools use the normalized file.
+  `jd_<target>.txt` (e.g. `jd_acme.txt`) before anything else. **Copy the user's paste BYTE-FOR-BYTE
+  into the file — never retype or reflow it.** The paste arrives with every header alone on its own
+  line; the parser failures that cost a failed auto_prune + repair round in four sessions came from
+  the agent RE-TYPING the paste and joining a header with its body (`title: Senior Quality
+  Architect` on one line). If you find yourself typing JD content, stop — copy it. The parser's
+  near-miss error names the offending lines when this happens anyway. When the supplied posting has
+  nested headings or other structure that must remain verbatim for an external parser, also save
+  the exact unmodified posting as `jd_<target>_source.txt`. Internal prune/audit tools use the
+  normalized file.
   `ats_check.py` automatically uploads the `_source.txt` sibling, so the external scan receives the
   original posting structure. Every downstream tool references durable skill-root paths. The code
   warns when `--jd` points at `/tmp`; the tailor script's docstring records the internal JD path.
@@ -247,7 +253,9 @@ the residual page gap automatically.
   ATS — its ATS-specific guidance and several findings depend on that match, and without the URL
   the match fails (the report degrades to generic advice). The line sits outside the qualification
   sections, so the internal matchers ignore it. **When the URL is unknown, OMIT the line entirely
-  — never write a placeholder** (`Posting URL: (not provided)`, `…(ask user)`): a placeholder
+  — never write a placeholder** (`Posting URL: (not provided)`, `…(ask user)`), and never ADD an
+  empty `Posting URL:` line when the user supplied no URL (an empty one leaked `url` into the
+  term lists in one session and had to be removed at Step 4): a placeholder
   reaches the scan service as `url=(not)` and garbles the report. The function returns whatever is
   on the line — the caller skips the PATCH when the line is absent, but a placeholder on the line
   passes through. The doc rule is the guard, not a parser: line present means a real URL; omit the

@@ -105,6 +105,22 @@ class ParseSectionsTests(unittest.TestCase):
         self.assertIn("company", msg)
         self.assertIn("required", msg)
 
+    def test_same_line_header_body_names_the_near_miss_and_retyping(self):
+        """The retyped-file signature (header joined with its body on one
+        line — SKILL Step 1's copy-verbatim violation) is called out with
+        the offending line, not just the missing-header list."""
+        jd = ("title: Senior Quality Architect\n"
+              "company:\nrole:\nresponsibilities:\nrequired: Jest, Playwright\n"
+              "additional:\neducation:\nexpectations:\n")
+        with self.assertRaises(ValueError) as ctx:
+            js.parse_sections(jd)
+        msg = str(ctx.exception)
+        self.assertIn("near-miss", msg)
+        self.assertIn("RETYPED", msg)
+        self.assertIn("'title' with text on the same line", msg)
+        self.assertIn("title: Senior Quality Architect", msg)
+        self.assertIn("'required' with text on the same line", msg)
+
     def test_header_without_colon_counts_as_missing(self):
         """A one-word header line missing its colon reads as prose —
         parse_sections reports it (and every section after it) missing."""
