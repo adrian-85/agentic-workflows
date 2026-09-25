@@ -335,6 +335,34 @@ def _script_undefined_names(tree):
             and node.id not in bound]
 
 
+def _parse_script(script_path):
+    """(tree, error_rc) for a tailor script — None tree with rc 1/2 on a
+    missing file or a syntax error, so lint_script stays under its
+    statement/locals budget."""
+    if not os.path.exists(script_path):
+        print(f"error: script not found: {script_path}", file=sys.stderr)
+        return None, 2
+    try:
+        with open(script_path, encoding="utf-8") as f:
+            return ast.parse(f.read(), script_path), 0
+    except SyntaxError as e:
+        print(f"error: {script_path} does not parse: {e}", file=sys.stderr)
+        return None, 1
+
+
+def _report_undefined_names(undefined):
+    """Print undefined-name findings and summary; True when any fired."""
+    for name, lineno in undefined:
+        print(f"  MISS  line {lineno}: undefined name {name!r} — not "
+              "imported or assigned anywhere in the script (extend the "
+              "docx_edit import list)", file=sys.stderr)
+    if undefined:
+        print(f"lint: {len(undefined)} undefined name(s) — the script "
+              "crashes at run time (NameError) before edits apply; fix "
+              "before running", file=sys.stderr)
+    return bool(undefined)
+
+
 def lint_script(docx_path, script_path):
     """Validate a tailor script's find_p targets against a .docx BEFORE
     running it.
@@ -354,25 +382,11 @@ def lint_script(docx_path, script_path):
     (clone_after then find_p) — those are expected; the lint output names
     the prefix so the author can judge.
     """
-    if not os.path.exists(script_path):
-        print(f"error: script not found: {script_path}", file=sys.stderr)
-        return 2
-    try:
-        with open(script_path, encoding="utf-8") as f:
-            tree = ast.parse(f.read(), script_path)
-        targets = _script_find_p_prefixes(tree)
-    except SyntaxError as e:
-        print(f"error: {script_path} does not parse: {e}", file=sys.stderr)
-        return 1
-    undefined = _script_undefined_names(tree)
-    for name, lineno in undefined:
-        print(f"  MISS  line {lineno}: undefined name {name!r} — not "
-              "imported or assigned anywhere in the script (extend the "
-              "docx_edit import list)", file=sys.stderr)
-    if undefined:
-        print(f"lint: {len(undefined)} undefined name(s) — the script "
-              "crashes at run time (NameError) before edits apply; fix "
-              "before running", file=sys.stderr)
+    tree, rc = _parse_script(script_path)
+    if tree is None:
+        return rc
+    targets = _script_find_p_prefixes(tree)
+    if _report_undefined_names(_script_undefined_names(tree)):
         return 1
     if not targets:
         print(f"lint: no find_p calls found in {script_path} — nothing "
