@@ -420,6 +420,22 @@ class StatusTests(unittest.TestCase):
             self.assertIn("next:", text)
             self.assertIn("template ats", text)
 
+    def test_unknown_flag_error_shows_subcommand_usage_example(self):
+        # Sessions 01a0d8f5/01a0d948: unknown-flag errors printed the
+        # TOP-LEVEL usage, hiding the subcommand's flag list (the --pages
+        # vs --target-pages round-trip). The subcommand's usage — full
+        # flags plus a copy-paste example — must be the error text.
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            with self.assertRaises(SystemExit) as ctx:
+                wg._main(["budgets", "x.workflow.json",
+                          "--words", "998", "--pages", "3"])
+        self.assertEqual(ctx.exception.code, 2)
+        text = err.getvalue()
+        self.assertIn("--target-pages", text)
+        self.assertIn("--words 998", text)
+        self.assertIn("unrecognized arguments: --pages 3", text)
+
     def test_status_lists_recorded_reviews(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "target.workflow.json")

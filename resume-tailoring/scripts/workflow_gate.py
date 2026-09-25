@@ -376,7 +376,12 @@ def _main(argv=None):
         "template", help="print a ready-to-fill review skeleton (stdout)")
     template_parser.add_argument("kind", choices=sorted(REVIEW_PHASES))
     template_parser.add_argument("state")
-    advance_parser = sub.add_parser("advance")
+    advance_parser = sub.add_parser(
+        "advance", usage=(
+            "workflow_gate.py advance <state> {"
+            + "|".join(PHASES[1:])
+            + "}   # e.g. advance 'Name Resume - Target.docx.workflow.json' "
+              "seniority-approved"))
     advance_parser.add_argument("state")
     advance_parser.add_argument("phase", choices=PHASES[1:])
     require_parser = sub.add_parser("require")
@@ -388,7 +393,13 @@ def _main(argv=None):
     at_least_parser = sub.add_parser("require-at-least")
     at_least_parser.add_argument("state")
     at_least_parser.add_argument("phase", choices=PHASES)
-    budget_parser = sub.add_parser("budgets")
+    budget_parser = sub.add_parser(
+        "budgets", usage=(
+            "workflow_gate.py budgets <state> --words N "
+            "[--spill-lines N] [--attempted-page-removal] "
+            "[--target-pages N]   # e.g. budgets "
+            "'Name Resume - Target.docx.workflow.json' --words 998 "
+            "--target-pages 3"))
     budget_parser.add_argument("state")
     budget_parser.add_argument("--words", type=int, required=True)
     budget_parser.add_argument("--spill-lines", type=int, default=0)
@@ -397,7 +408,11 @@ def _main(argv=None):
         "--target-pages", type=int,
         help="the page target agreed at Step 5; render_pdf.sh falls back to "
              "it when a render omits --target-pages")
-    spacer_parser = sub.add_parser("spacers")
+    spacer_parser = sub.add_parser(
+        "spacers", usage=(
+            "workflow_gate.py spacers <state> [--creates-new-page] "
+            "[--omitted '<role header>[;...]']   # e.g. spacers "
+            "'Name Resume - Target.docx.workflow.json'"))
     spacer_parser.add_argument("state")
     spacer_parser.add_argument("--creates-new-page", action="store_true")
     spacer_parser.add_argument(
@@ -405,7 +420,17 @@ def _main(argv=None):
         help="role headers where page pressure kept the spacer out, "
              "separated by ';' (headers themselves contain commas); a "
              "comma-separated list is still accepted for header-free names")
-    args = parser.parse_args(argv)
+    # parse_known_args + explicit leftover check: argparse reports
+    # post-subcommand unknown flags with the TOP-LEVEL usage, which hides
+    # the subcommand's own flag list and example (session 01a0d8f5's
+    # '--pages' vs '--target-pages' round-trip).
+    args, extras = parser.parse_known_args(argv)
+    if extras:
+        sub = {"advance": advance_parser, "budgets": budget_parser,
+               "spacers": spacer_parser}.get(args.command)
+        if sub is not None:
+            sub.error("unrecognized arguments: " + " ".join(extras))
+        parser.error("unrecognized arguments: " + " ".join(extras))
     try:
         _dispatch(args)
     except (GateError, ReviewError) as exc:
