@@ -18,6 +18,7 @@ unapproved whole-role elimination) never becomes a file.
 
 
 import importlib
+import json
 import os
 import shlex
 import sys
@@ -86,6 +87,41 @@ def _approval_env():
             protect, max_words)
 
 
+def _word_cap_for_phase(max_words):
+    """Defer the save-time word cap until budget closure begins (Step 9).
+
+    Hosting rounds (the internal + external no-host loops) run while the
+    workflow state sits in a pre-seniority phase; blocking those saves on
+    the 1,000-word cap forces word closure mid-hosting — rework by
+    definition, and it thins the resume below what the budget allows
+    (a mid-loop trim cuts JD-relevant words a later round would have kept).
+    Page and word budgets close ONCE, after every hosting round is done.
+    The render gate and the budgets gate still enforce the cap; auto_prune's
+    Phase A run has no state file yet and keeps the env-driven behavior.
+    Returns (max_words, deferral_note)."""
+    state_path = os.environ.get("RESUME_WORKFLOW_STATE", "").strip()
+    if not state_path or not os.path.exists(state_path):
+        return max_words, None
+    try:
+        with open(state_path, encoding="utf-8") as stream:
+            phase = json.load(stream).get("phase")
+    except (OSError, json.JSONDecodeError):
+        return max_words, None
+    # Lazy like validate_resume above: workflow_gate imports only
+    # script_args, but the deferred load keeps the module-cost off every
+    # ungated save.
+    wg = importlib.import_module("workflow_gate")
+    if phase not in wg.PHASES:
+        return max_words, None
+    if max_words and wg.PHASES.index(phase) < wg.PHASES.index(
+            "seniority-approved"):
+        return None, (
+            f"NOTE: word cap deferred (workflow phase {phase}) — hosting "
+            "rounds stay open; page and word budgets close once, at Step 9 "
+            "(SKILL)")
+    return max_words, None
+
+
 def _deliverable_gate(path, root, src):
     """Refuse to WRITE a deliverable that validate_resume would block.
 
@@ -113,6 +149,9 @@ def _deliverable_gate(path, root, src):
     vr = importlib.import_module("validate_resume")
     jd_path, jd_years, seniority_approved, education_approved, protect, \
         max_words = _approval_env()
+    max_words, cap_note = _word_cap_for_phase(max_words)
+    if cap_note:
+        print(cap_note, file=sys.stderr)
     tmp_note = tmp_jd_note(jd_path)
     if tmp_note:
         print(tmp_note, file=sys.stderr)

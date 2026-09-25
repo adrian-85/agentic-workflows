@@ -579,7 +579,13 @@ re-run Phase 1; do not write the fact into the master or a per-target script fro
 
 ### 9. Close page and word budgets with theme-scoped edits
 Run this section only after the user approves the seniority plan and Steps 6–8 positioning edits
-are applied. The page target is the maximum allowed. Re-measure the positioned build and edit toward
+are applied — and after EVERY hosting round (internal + external) is closed. Never count pages or
+words against a budget while hosting is still open: a mid-loop trim is rework by definition (the
+next host re-opens the budget), and it thins the resume below what the budget actually allows —
+JD-relevant words and bullets get cut that could have been kept within the cap. The save-time word
+cap is deferred accordingly: while the workflow state sits before seniority-approved, saves print
+`word cap deferred` instead of blocking, so hosting edits land without budget pressure; from
+seniority-approved onward the cap enforces, and THIS step closes it once. The page target is the maximum allowed. Re-measure the positioned build and edit toward
 the agreed target using the theme anchors from Theme Review A. The hard caps stay fixed throughout:
 never more than 8 kept bullets per role, never more than 1,000 words resume-wide (both
 validator/machine-enforced).

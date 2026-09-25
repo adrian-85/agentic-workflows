@@ -38,6 +38,7 @@ import docx_edit_cli as dcli  # noqa: E402  (CLI surface — moved out of core)
 from docx_edit_gate import tmp_jd_note  # noqa: E402
 import measure_resume as mr  # noqa: E402
 import validate_resume as vr  # noqa: E402
+import workflow_gate as wg  # noqa: E402
 
 W = de.W
 SPACE = de.SPACE
@@ -2238,6 +2239,58 @@ class DeliverableGateTests(unittest.TestCase):
         cm, _out, err = self._save(self.dst, root, names, data, src=self.master)
         self.assertIsNone(cm, err)
         self.assertTrue(os.path.exists(self.dst))
+
+    _LONG_BULLET = ("Built and maintained end to end test automation for "
+                    "services with many moving parts and dependencies.")
+
+    def _wordy_paragraphs(self, roles):
+        ps = [mkstyled(mr.SECTION_CAREER, "SectionHeading")]
+        for i in range(roles):
+            ps.append(mkstyled(f"Acme {i}, MA (Remote)0{i}/2021 – 05/2026",
+                               mr.COMPANY_STYLE))
+            ps.append(mkstyled("Staff Engineer", vr.TITLE_STYLE))
+            for _ in range(8):
+                ps.append(mkstyled(self._LONG_BULLET, "BodyText", numId=4))
+            ps.append(mkstyled("Tools & Technologies: Go, Python", "BodyText"))
+        return ps
+
+    def test_word_cap_deferred_before_seniority_enforced_after(self):
+        # The mid-hosting churn: a Phase-2 save with RESUME_VALIDATE_ARGS
+        # set used to block on the 1,000-word cap while hosting rounds were
+        # still open, forcing word closure (and re-closure after every
+        # hosting round). The cap now defers to the workflow phase: open
+        # while hosting can still add content (pre seniority-approved),
+        # enforced from seniority-approved onward (Step 9 closes it once).
+        state = os.path.join(self.workdir, "target.workflow.json")
+        wg.create_state(state, "Target", "jd_target.txt", "theme")
+        for phase in ("prune-theme-reviewed", "ats-audited",
+                      "ats-theme-reviewed"):
+            wg.advance(state, phase)
+        os.environ["RESUME_VALIDATE_ARGS"] = "--seniority-approved"
+        os.environ["RESUME_WORKFLOW_STATE"] = state
+        try:
+            root, body, names, data, _ = de.load(self.dst)
+            for p in self._wordy_paragraphs(8):
+                body.append(p)
+            cm, _out, err = self._save(self.dst, root, names, data,
+                                       src=self.master)
+            self.assertIsNone(cm, err)
+            self.assertIn("word cap deferred", err)
+            self.assertTrue(os.path.exists(self.dst))
+            wg.advance(state, "seniority-approved")
+            de._APPLIED = 0
+            root, body, names, data, _ = de.load(self.dst)
+            cm, _out, err = self._save(self.dst, root, names, data,
+                                       src=self.master)
+            self.assertIsNotNone(cm, "over-cap save must exit 2")
+            self.assertIn("exceeds the", err)
+            self.assertIn("word cap", err)
+        finally:
+            os.environ.pop("RESUME_WORKFLOW_STATE", None)
+            if self._old_env is not None:
+                os.environ["RESUME_VALIDATE_ARGS"] = self._old_env
+            else:
+                os.environ.pop("RESUME_VALIDATE_ARGS", None)
 
     def test_no_src_save_ungated(self):
         # Tool-internal saves (measure --simulate, squeeze, tests) pass no
