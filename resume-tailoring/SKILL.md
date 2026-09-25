@@ -381,6 +381,14 @@ Render the Theme Review A build and run the literal audit in baseline mode (comm
 baseline rendering and auditing skip the word-cap gate internally because word closure
 intentionally happens later (Step 9).
 
+**When the audit warns the literal check is vacuous** ("JD literal phrase mining found NO skill
+phrases … supply --phrases-file" — the JD's qualification lines use no cue syntax; session
+01a0d983 ignored it at baseline and final, and only the external scan caught the gaps): extract
+the JD's named skills/tools yourself into `phrases_<target>.txt` (one phrase per line — the
+posting's literal skill/tool names) and re-run the audit with `--phrases-file phrases_<target>.txt`.
+Then use that same file for every later audit of this target, including Step 12's — a vacuous
+internal check under-detects and leaves the external scan as the only safety net.
+
 **Early external scan — DEFAULT when credentials exist.** Immediately after the baseline audit,
 run the external scan on that SAME rendered PDF: `ats_check.py scan "<build>.pdf" jd_<target>.txt`.
 This is not an optional extra: the internal matcher under-detects the external scanner's phrase
