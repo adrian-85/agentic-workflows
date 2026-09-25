@@ -620,9 +620,10 @@ RESUME_RENDER_PHASE=final RESUME_WORKFLOW_STATE=<state> \
   ./scripts/render_pdf.sh --target-pages 3 --verbose "<output>.docx"  # final verification
 ```
 
-The render's default page target is 2; pass `--target-pages N` matching the target agreed in Step 5,
-so the overflow report measures against the goal you actually agreed on (3 for senior/Staff, not the
-2-page default).
+The render's page target defaults to 2 — but first it falls back to the `target_pages` the budgets
+gate recorded (`budgets --target-pages N`, the Step-5 agreed target), and only then to 2. Pass
+`--target-pages N` (or `TARGET_PAGES`) to override, so the overflow report measures against the
+goal you actually agreed on (3 for senior/Staff, not the 2-page default).
 
 `render_pdf.sh` **validates first** (runs `validate_resume.py`): it refuses to render on blocking
 errors — an orphan job title, a company without a title, content orphaned after a Tools line,
