@@ -500,7 +500,7 @@ class MainTests(unittest.TestCase):
             os.unlink(resume)
             os.unlink(jd)
 
-    def test_report_json_hard_miss_fails_soft_miss_warns(self):
+    def test_report_json_hard_and_soft_miss_fail_raised_recognized(self):
         resume = _tmp("built data quality dashboards with selenium "
                       "triages defects " + "word " * 300)
         report = _tmp(json.dumps({
@@ -509,11 +509,19 @@ class MainTests(unittest.TestCase):
                 {"name": "pytest", "resumeCount": 0},
                 {"name": "selenium", "resumeCount": 4},
             ],
-                "soft": ["communication skills"]},
+                "soft": ["communication skills", "resilient"]},
             "findings": [{"key": "contactEmail", "status": "fail"},
                          {"key": "wordCount", "status": "pass",
                           "variables": {"wordCount": 949}}],
         }), suffix=".json")
+        review = _tmp(json.dumps({
+            "kind": "ats",
+            "dispositions": [
+                {"phrase": "Resilient", "decision": "raise",
+                 "rationale": "user confirmed gap"},
+                {"phrase": "pytest", "decision": "ignore",
+                 "rationale": "parser noise"},
+            ]}), suffix=".json")
         try:
             rc, out = self._run(resume, "--report-json", report)
             self.assertEqual(rc, 1)
@@ -521,19 +529,64 @@ class MainTests(unittest.TestCase):
             # zero report hits AND no literal host; selenium is hosted by
             # the report's own count; "triage" hosts via plural stemming.
             self.assertIn("NO literal host: pytest", out)
-            self.assertNotIn("selenium", out)
-            self.assertIn("soft skills with NO literal host", out)
-            # Reclassified actionable (SKILL Steps 2/11): the warning must
-            # tell the agent to HOST the phrase, not skip it as deliberate.
-            self.assertIn("ACTIONABLE", out)
+            # Session 01a0d983: an unhosted soft skill shipped (match 72
+            # -> 96 once hosted). Soft-skill misses FAIL, not warn.
+            self.assertIn("FAIL: report soft skills with NO literal host", out)
+            self.assertIn("communication skills", out)
             self.assertIn("safe to infer", out)
-            self.assertNotIn("advisory", out)
             self.assertIn("IGNORED contactEmail", out)
             # The report's wordCount is a cross-check line.
             self.assertIn("words (report cross-check): 949", out)
+
+            # --raised: recorded raise/ignore dispositions are the
+            # sanctioned not-hosted state — no re-FAIL on a finished
+            # deliverable (session 01a0d8f5).
+            rc, out = self._run(resume, "--report-json", report,
+                                "--raised", review)
+            self.assertEqual(rc, 1)  # "data quality" + soft skill remain
+            self.assertIn("raised/ignored (recorded): pytest", out)
+            self.assertIn("raised/ignored (recorded): resilient", out)
+            self.assertNotIn("NO literal host: pytest", out)
+            self.assertIn("communication skills", out)
         finally:
             os.unlink(resume)
             os.unlink(report)
+            os.unlink(review)
+
+    def test_raised_review_jd_literal_terms(self):
+        resume = _tmp("word " * 200)
+        jd = _tmp("required:\n\nExperience with playwright, selenium, "
+                  "and pytest\n")
+        review = _tmp(json.dumps({
+            "kind": "ats",
+            "dispositions": [
+                {"phrase": "playwright", "decision": "raise",
+                 "rationale": "never used it"},
+                {"phrase": "selenium", "decision": "host",
+                 "rationale": "hosted later"},
+            ]}), suffix=".json")
+        try:
+            rc, out = self._run(resume, "--jd", jd, "--raised", review)
+            self.assertEqual(rc, 1, out)
+            self.assertIn("raised/ignored (recorded): playwright", out)
+            self.assertIn("selenium", out)  # still unhosted, still FAILs
+        finally:
+            os.unlink(resume)
+            os.unlink(jd)
+            os.unlink(review)
+
+    def test_raised_review_invalid_json_is_usage_error(self):
+        resume = _tmp("word " * 200)
+        review = _tmp("{not json", suffix=".json")
+        try:
+            rc, _out = self._run(resume, "--raised", review)
+            self.assertEqual(rc, 2)  # error message goes to stderr
+            raised, err = aa.load_raised_phrases(review)
+            self.assertIsNone(raised)
+            self.assertIn("cannot read --raised", err)
+        finally:
+            os.unlink(resume)
+            os.unlink(review)
 
     def test_usage_error(self):
         rc, _ = self._run()

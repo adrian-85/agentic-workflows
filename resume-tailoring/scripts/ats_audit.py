@@ -16,7 +16,8 @@ it runs the ATS-style literal check on the same text a parser sees.
 
 usage:
     python3 scripts/ats_audit.py <resume.pdf|resume.txt> [--jd <jd.txt>]
-        [--phrases-file <f>] [--report-json <f>] [--max-words N]
+        [--phrases-file <f>] [--report-json <f>] [--raised <review.json>]
+        [--max-words N]
 
 Checks (exit 0 clean, 1 findings, 2 usage/IO error):
   1. WORD COUNT — the whole-resume <=1000-word cap (SKILL Steps 3/9),
@@ -33,10 +34,15 @@ Checks (exit 0 clean, 1 findings, 2 usage/IO error):
      curated phrase list (one per line) or an external ATS scan report
      JSON (findings + hard/soft skills). A skill's resumeCount, when the
      report carries one, is the authoritative host signal; otherwise the
-     literal check decides. Hard-skill zero-hits fail; soft-skill
-     zero-hits warn as ACTIONABLE (soft skills are safe to infer — host
-     the literal phrase where the action-verb evidence lives, SKILL
-     Steps 2/4).
+     literal check decides. Hard-skill AND soft-skill zero-hits fail
+     (soft skills are safe to infer — host the literal phrase where the
+     action-verb evidence lives, SKILL Steps 2/4; a soft skill no kept
+     bullet evidences gets a recorded raise/ignore disposition).
+  4. --raised RECORDED DISPOSITIONS — the recorded Theme Review B JSON
+     (workflow_gate.py review). Phrases dispositioned raise/ignore are
+     the sanctioned not-hosted state: they report as "raised/ignored
+     (recorded)" and do not fail, instead of re-FAILing a finished
+     deliverable on every later audit.
 
 Run on the PDF (pdftotext), not the .docx — the deliverable is what the
 screener parses. Three classes of external finding are IGNORED by rule
@@ -371,11 +377,49 @@ def _parse_ats_args(argv):
         "jd_path": flag_value(argv, "--jd"),
         "phrases_file": flag_value(argv, "--phrases-file"),
         "report_json": flag_value(argv, "--report-json"),
+        "raised_file": flag_value(argv, "--raised"),
         "match_target": flag_value(argv, "--match-target", cast=int,
                                    default=MATCH_RATE_TARGET),
         "workflow_state": flag_value(argv, "--workflow-state"),
         "baseline": baseline,
     }
+
+
+def _norm_phrase(phrase):
+    """A review phrase in the audit's matching form: lowercase,
+    whitespace-collapsed (record_audit normalizes the same way)."""
+    return " ".join(str(phrase).lower().split())
+
+
+def load_raised_phrases(path):
+    """Phrases dispositioned raise/ignore in a recorded Theme Review B
+    JSON (``workflow_gate.py review`` writes it; schema: kind "ats",
+    one {phrase, decision, rationale} row per recorded finding).
+
+    A recorded raise or ignore is the sanctioned not-hosted state for
+    that phrase — the final audit reports it as recorded instead of
+    re-FAILing a finished deliverable (session 01a0d8f5: fedramp/hasura/
+    soc FAILed every later audit after being raised). Returns
+    (raised_set, error); a non-None error means exit 2."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            review = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, f"cannot read --raised review {path}: {exc}"
+    rows = review.get("dispositions") if isinstance(review, dict) else None
+    if not isinstance(rows, list):
+        return None, (
+            f"--raised review {path} has no dispositions list — pass the "
+            "recorded Theme Review B JSON (workflow_gate.py review)")
+    raised = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("decision", "")).lower() in ("raise", "ignore"):
+            phrase = row.get("phrase")
+            if phrase:
+                raised.add(_norm_phrase(phrase))
+    return raised, None
 
 
 @dataclass
@@ -389,13 +433,28 @@ class _AuditResult:
     findings: list = field(default_factory=list)
 
 
-def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result):
+def _split_raised(missing, raised):
+    """(truly_missing, raised_here) — missing terms split by the
+    recorded raise/ignore set (normalized comparison)."""
+    if not raised:
+        return missing, []
+    truly, hit = [], []
+    for phrase in missing:
+        (hit if _norm_phrase(phrase) in raised else truly).append(phrase)
+    return truly, hit
+
+
+def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised):
     """JD literal-term and external-phrase checks (sections 2-3)."""
     if jd_path:
         with open(jd_path, encoding="utf-8", errors="replace") as f:
             jd_text = f.read()
         ok_n, missing = _audit_jd(text_low, jd_text)
+        missing, raised_here = _split_raised(missing, raised)
         result.findings.extend(missing)
+        if raised_here:
+            result.ok_lines.append(
+                "raised/ignored (recorded): " + ", ".join(raised_here))
         if missing:
             result.errors.append(
                 "JD literal terms with NO host in the rendered text: "
@@ -414,7 +473,11 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result):
         with open(phrases_file, encoding="utf-8", errors="replace") as f:
             phrases = [ln.strip() for ln in f if ln.strip()]
         missing = _audit_phrases(text_low, phrases)
+        missing, raised_here = _split_raised(missing, raised)
         result.findings.extend(missing)
+        if raised_here:
+            result.ok_lines.append(
+                "raised/ignored (recorded): " + ", ".join(raised_here))
         if missing:
             result.errors.append("phrases with NO literal host: "
                                  + ", ".join(missing))
@@ -423,40 +486,49 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result):
                 f"phrases: {len(phrases)}/{len(phrases)} hosted")
 
 
-def _audit_report_skills(report_data, text_low, text, result):
+def _audit_report_skills(report_data, text_low, text, result, raised):
     """Report hard/soft skill hosting check (sections 4-5). Mutates the
     three result lists in place."""
     if report_data is None:
         return
     hard, soft = _report_skills(report_data)
-    errors = result.errors
-    warns = result.warns
-    ok_lines = result.ok_lines
-    hard_miss = [p for p, cnt in hard
-                 if not cnt and not _hosted(text_low, p.strip().lower())]
-    soft_miss = [p for p, cnt in soft
-                 if not cnt and not _hosted(text_low, p.strip().lower())]
+    hard_miss, hard_raised = _split_raised(
+        [p for p, cnt in hard
+         if not cnt and not _hosted(text_low, p.strip().lower())], raised)
+    soft_miss, soft_raised = _split_raised(
+        [p for p, cnt in soft
+         if not cnt and not _hosted(text_low, p.strip().lower())], raised)
     result.findings.extend(hard_miss)
     result.findings.extend(soft_miss)
+    for raised_here, label in ((hard_raised, "hard"), (soft_raised, "soft")):
+        if raised_here:
+            result.ok_lines.append(f"report {label} skills raised/ignored "
+                                    "(recorded): " + ", ".join(raised_here))
     if hard_miss:
-        errors.append(
+        result.errors.append(
             "report hard skills with NO literal host: "
             + ", ".join(hard_miss))
-    else:
-        ok_lines.append(f"report hard skills: {len(hard) - len(hard_miss)}"
+    elif hard:
+        result.ok_lines.append(f"report hard skills: {len(hard) - len(hard_raised)}"
                         f"/{len(hard)} hosted")
     if soft_miss:
-        warns.append(
-            "report soft skills with NO literal host (ACTIONABLE — "
-            "soft skills are safe to infer: host each literal phrase "
-            "where the action-verb evidence lives, SKILL Steps 2/4; "
-            "hosting them is what closes the soft-skill gap): "
+        # A warn here shipped a deliverable missing its only soft-skill
+        # host (session 01a0d983: "Resilient" — hosting it moved the
+        # external match 72 -> 96). Unhosted soft skills FAIL the audit;
+        # the sanctioned not-hosted state is a recorded raise/ignore
+        # disposition (--raised), same as hard skills.
+        result.errors.append(
+            "report soft skills with NO literal host (soft skills are "
+            "safe to infer: host each literal phrase where the "
+            "action-verb evidence lives, SKILL Steps 2/4; a soft skill "
+            "no kept bullet evidences gets a recorded raise/ignore "
+            "disposition, never silence): "
             + ", ".join(soft_miss))
     elif soft:
-        ok_lines.append(f"report soft skills: {len(soft)}/{len(soft)} "
-                        "hosted")
+        result.ok_lines.append(f"report soft skills: {len(soft) - len(soft_raised)}"
+                        f"/{len(soft)} hosted")
     for line in _report_findings(report_data, text):
-        warns.append(line)
+        result.warns.append(line)
 
 
 def _check_baseline_gate(args):
@@ -477,6 +549,18 @@ def _check_baseline_gate(args):
     return True
 
 
+def _load_raised(args):
+    """The raised/ignored phrase set from --raised, an empty set when
+    absent, or None after printing the error (caller returns 2)."""
+    if not args["raised_file"]:
+        return set()
+    raised, err = load_raised_phrases(args["raised_file"])
+    if err:
+        print(f"error: {err}", file=sys.stderr)
+        return None
+    return raised
+
+
 def main(argv=None):
 
     """ATS-audit CLI entry point."""
@@ -489,6 +573,10 @@ def main(argv=None):
     text = _extract_text(args["path"])
     text_low = text.lower().replace("\n", " ")
     result = _AuditResult()
+
+    raised = _load_raised(args)
+    if raised is None:
+        return 2
 
     report_data = None
     if args["report_json"]:
@@ -508,8 +596,8 @@ def main(argv=None):
             f"words (report cross-check): {report_wc} " f"({drift:+d} vs our count)")
 
     _audit_jd_and_phrases(args["jd_path"], args["phrases_file"], text_low,
-                          result)
-    _audit_report_skills(report_data, text_low, text, result)
+                          result, raised)
+    _audit_report_skills(report_data, text_low, text, result, raised)
     score = _report_match_rate(report_data)
     _audit_match_rate(score, args["match_target"], result)
     _ceiling_check(score, args["match_target"], args["path"], result)

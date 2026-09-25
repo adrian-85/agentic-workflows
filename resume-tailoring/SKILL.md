@@ -394,7 +394,12 @@ editing. For each finding, record one disposition:
 - **Soft skills default to HOST — never "boilerplate":** communication/leadership/stakeholder/
   attention-to-detail/willing-to-learn/trustworthy-style findings are hostable wherever kept
   bullets' action verbs (presented, demoed, led, mentored, trained, researched) evidence them —
-  the Hosting reference's inference rule makes them safe to host WITHOUT asking. An `ignore`
+  the Hosting reference's inference rule makes them safe to host WITHOUT asking. **This default
+  OVERRIDES the inference map's RAISE verdict for soft skills:** the map searches for lexical
+  evidence and will verdict RAISE on a soft skill the candidate demonstrably has (session
+  01a0d983: "Resilient" left unhosted, then hosting it moved the external match 72 → 96) — the
+  action-verb evidence in kept bullets is the authority, so host it; do not wait for the user
+  to confirm a soft skill the history already evidences. An `ignore`
   disposition on a soft skill must say why NO bullet evidences the phrase — "sounds like posting
   boilerplate" is not a reason.
 - **Unsupported:** search the master and complete LinkedIn export first, then raise it if no
@@ -699,7 +704,10 @@ per term:
   (Postman/Karate for "SoapUI or REST API testing tools").
 - **RAISE** — no deterministic evidence anywhere. The only terms that reach the user's checklist:
   never mark them "gap, closed" and never fabricate — real experience is often lexically
-  invisible, so ask and host only what the user confirms.
+  invisible, so ask and host only what the user confirms. **A soft-skill finding never reaches
+  this verdict on the map's word alone:** the map matches lexically, and a soft skill the kept
+  bullets' action verbs evidence is an AUTO-HOST even with `master: no match` — see the
+  soft-skill rule below.
 
 Present the RAISE checklist to the user in ONE message, after the AUTO-HOST hosts have landed.
 
@@ -818,6 +826,14 @@ master/LinkedIn inference map over the combined queue, and writes a fingerprinte
 `<resume>.gap.json`. Those lists are the next source-mining queue (Step 4's loop) — not optional,
 and not displaced by a different `ats_audit.py` no-host list. The report's `wordCount` matches
 the local count — feed it to `ats_audit.py --report-json` for the authoritative cap check.
+**The reconciliation audit is not optional closeout hygiene: after the scan, re-run the audit
+with the report** (`ats_audit.py "<output>.pdf" --jd jd_<target>.txt --report-json
+"<output>.ats-check.json"`) **and do not present the closeout summary until it exits clean or
+with only raised terms** — an unhosted report soft skill FAILs that audit (it counts as a
+finding), and session 01a0d983 shipped one precisely by skipping this step. Pass the recorded
+Theme Review B JSON via `--raised` so phrases dispositioned raise/ignore report as
+"raised/ignored (recorded)" instead of re-FAILing a finished deliverable:
+`ats_audit.py "<output>.pdf" --jd jd_<target>.txt --report-json "<output>.ats-check.json" --raised theme_review_<target>_ats.json`.
 
 **The match-rate target is 75.** `ats_audit.py` and `ats_check.py` enforce the stop: at or above it,
 the hosting loop closes and score-driven edits halt — the residual actionable no-host list at that

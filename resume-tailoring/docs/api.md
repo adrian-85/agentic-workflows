@@ -699,6 +699,7 @@ the rendered text. A resume can pass every internal gate and lose ATS points (e.
 ```bash
 python3 scripts/ats_audit.py "<output>.pdf" --jd <JD.txt> \
     [--phrases-file <f>] [--report-json <report.json>] \
+    [--raised <theme_review_<target>_ats.json>] \
     [--baseline --workflow-state <state>] [--match-target N]
 ```
 
@@ -713,9 +714,10 @@ fabricate; and before raising a no-host term as a genuine gap, grep the MASTER f
 bullets the first pass cut — see SKILL Step 12 for the rationale and an example); (3) with
 `--phrases-file` (one phrase per line) or `--report-json` (an external scan report, below), literal
 checks of externally supplied phrases — a skill's `resumeCount` from the report is the authoritative
-host signal, the literal check is the fallback. Report soft-skill no-hosts warn as ACTIONABLE (SKILL
-Steps 8/11: soft skills are safe to infer — host each literal phrase where the action-verb evidence
-lives). With `--report-json`, also prints the **match-rate target** (default 75, `--match-target N`
+host signal, the literal check is the fallback. Report soft-skill no-hosts FAIL (soft skills are
+safe to infer — host each literal phrase where the action-verb evidence lives; a soft skill no kept
+bullet evidences gets a recorded raise/ignore disposition — session 01a0d983 shipped one as a warn).
+With `--report-json`, also prints the **match-rate target** (default 75, `--match-target N`
 to change, `0` disables). The target is a **hard stop** (2026-09-11): score ≥ target ⇒ the hosting
 loop closes: stop hosting, stop keyword- driven rewording, and stop re-scanning for score. Below
 target ⇒ keep hosting literal phrases truthfully — hosting them is what moves the rate. The verdict
