@@ -327,5 +327,53 @@ class BudgetRuleTests(unittest.TestCase):
             self.assertEqual(wg.load_state(path)["spacers_omitted"], headers)
 
 
+class StatusTests(unittest.TestCase):
+    """`status` answers "what phase am I in and what runs next?" — both
+    sessions lost rounds guessing from gate errors (one jq-inspected the
+    state file to learn the phase)."""
+
+    def test_status_prints_phase_and_next_command(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            for phase in ("prune-theme-reviewed", "ats-audited"):
+                wg.advance(path, phase)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                wg._main(["status", path])
+            text = out.getvalue()
+            self.assertIn("phase:  ats-audited   (3 of 7)", text)
+            self.assertIn("next:", text)
+            self.assertIn("template ats", text)
+
+    def test_status_lists_recorded_reviews(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            review = {"kind": "prune", "theme_anchors": ["anchor"],
+                      "dispositions": [
+                          {"item": "X", "decision": "keep", "rationale": "r"}]}
+            review_path = os.path.join(tmp, "review.json")
+            with open(review_path, "w", encoding="utf-8") as f:
+                json.dump(review, f)
+            wg._main(["review", path, review_path])
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                wg._main(["status", path])
+            self.assertIn("reviews recorded: prune (1 entries)", out.getvalue())
+            self.assertIn("ats_audit.py", out.getvalue())
+
+    def test_gate_errors_point_at_status(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            with self.assertRaises(wg.GateError) as raised:
+                wg.require(path, "spacers-closed")
+            self.assertIn("workflow_gate.py status", str(raised.exception))
+            with self.assertRaises(wg.GateError) as raised:
+                wg.require_at_least(path, "prune-theme-reviewed")
+            self.assertIn("workflow_gate.py status", str(raised.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

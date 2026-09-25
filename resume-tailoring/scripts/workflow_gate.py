@@ -98,7 +98,9 @@ def require(path, phase):
     """Require the exact current phase."""
     state = load_state(path)
     if state["phase"] != phase:
-        raise GateError(f"requires phase {phase}, current phase is {state['phase']}")
+        raise GateError(
+            f"requires phase {phase}, current phase is {state['phase']} — "
+            f"run: workflow_gate.py status {path}")
     return state
 
 
@@ -106,7 +108,9 @@ def require_at_least(path, phase):
     """Require that a prior phase has completed."""
     state = load_state(path)
     if PHASES.index(state["phase"]) < PHASES.index(phase):
-        raise GateError(f"requires phase {phase}, current phase is {state['phase']}")
+        raise GateError(
+            f"requires phase {phase}, current phase is {state['phase']} — "
+            f"run: workflow_gate.py status {path}")
     return state
 
 
@@ -237,6 +241,50 @@ def record_review(state_path, review_path):
     advance(state_path, next_phase, {"review": os.path.basename(review_path)})
 
 
+def _next_hint(phase):
+    """The command that moves the workflow forward from ``phase`` — the
+    answer to "what runs next?" both sessions had to jq the state file
+    for (status prints it; gate errors point here)."""
+    return {
+        "pruned": "workflow_gate.py template prune <state> > theme_review_<target>.json, "
+                  "fill it, then: workflow_gate.py review <state> <filled.json>",
+        "prune-theme-reviewed": "baseline render + ats_audit.py <pdf> --jd <JD.txt> "
+                                "--baseline --workflow-state <state>, plus the early "
+                                "external scan (SKILL Step 4)",
+        "ats-audited": "workflow_gate.py template ats <state> > theme_review_<target>_ats.json, "
+                      "fill it, then: workflow_gate.py review <state> <filled.json>",
+        "ats-theme-reviewed": "present the measured seniority drop plan; after the USER "
+                              "approves: workflow_gate.py advance <state> seniority-approved",
+        "seniority-approved": "workflow_gate.py budgets <state> --words <N> --spill-lines <N>",
+        "budgets-closed": "workflow_gate.py spacers <state> [--omitted \"<role header>;...\"]",
+        "spacers-closed": "final render + audits (SKILL Step 12) — no further gate",
+    }[phase]
+
+
+def print_status(path):
+    """Print the state's phase, recorded reviews, and the next command.
+
+    Both tailoring sessions lost rounds guessing the current phase from
+    gate errors (one jq-inspected the state file to learn it)."""
+    state = load_state(path)
+    phase = state["phase"]
+    print(f"state:  {path}")
+    print(f"target: {state.get('target', '')}   jd: {state.get('jd', '')}")
+    print(f"phase:  {phase}   ({PHASES.index(phase) + 1} of {len(PHASES)})")
+    reviews = state.get("reviews", {})
+    if reviews:
+        parts = []
+        for kind in ("prune", "ats"):
+            if kind not in reviews:
+                continue
+            key = "dispositions" if kind == "prune" else "findings"
+            parts.append(f"{kind} ({len(reviews[kind].get(key, []))} entries)")
+        print(f"reviews recorded: {', '.join(parts)}")
+    if state.get("spacers_omitted"):
+        print(f"spacers omitted: {len(state['spacers_omitted'])} boundary/boundaries")
+    print(f"next:   {_next_hint(phase)}")
+
+
 def page_removal_allowed(spill_lines):
     """Return whether the narrow page-removal trim rule permits a pass."""
     return isinstance(spill_lines, int) and 0 < spill_lines <= 5
@@ -300,6 +348,9 @@ def _main(argv=None):
     require_parser = sub.add_parser("require")
     require_parser.add_argument("state")
     require_parser.add_argument("phase", choices=PHASES)
+    status_parser = sub.add_parser(
+        "status", help="print current phase + the next command (stdout)")
+    status_parser.add_argument("state")
     at_least_parser = sub.add_parser("require-at-least")
     at_least_parser.add_argument("state")
     at_least_parser.add_argument("phase", choices=PHASES)
@@ -340,6 +391,8 @@ def _dispatch(args):
         close_spacers(args.state, args.creates_new_page, omitted)
     elif args.command == "require-at-least":
         require_at_least(args.state, args.phase)
+    elif args.command == "status":
+        print_status(args.state)
     else:
         require(args.state, args.phase)
 

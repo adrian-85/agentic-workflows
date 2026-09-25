@@ -160,6 +160,7 @@ python3 scripts/workflow_gate.py template ats <state> > theme_review_<target>_at
 Record them in order:
 
 ```bash
+python3 scripts/workflow_gate.py status <state>   # current phase + the next command
 python3 scripts/workflow_gate.py review <state> theme_review_<target>.json
 python3 scripts/ats_audit.py <pdf> --jd <JD.txt> --baseline --workflow-state <state>
 python3 scripts/workflow_gate.py review <state> theme_review_<target>_ats.json
@@ -169,6 +170,10 @@ python3 scripts/workflow_gate.py budgets <state> --words <N> --spill-lines <N> \
 python3 scripts/workflow_gate.py spacers <state> \
     [--omitted "<full role header>;<full role header>..."]
 ```
+
+`status` answers "what phase am I in and what runs next?" — run it instead of
+re-deriving the phase from gate errors or inspecting the state JSON by hand; every
+gate error points back at it.
 
 The baseline audit records every no-host phrase and the ATS review must disposition exactly that
 set. `budgets` enforces the 1,000-word cap (`MAX_WORDS`) and permits a page-removal attempt only for
