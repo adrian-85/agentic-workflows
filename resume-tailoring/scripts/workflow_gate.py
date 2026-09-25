@@ -242,9 +242,8 @@ def record_review(state_path, review_path):
 
 
 def _next_hint(phase):
-    """The command that moves the workflow forward from ``phase`` — the
-    answer to "what runs next?" both sessions had to jq the state file
-    for (status prints it; gate errors point here)."""
+    """The command that moves the workflow forward from ``phase`` —
+    printed by status and appended to gate errors."""
     return {
         "pruned": "workflow_gate.py template prune <state> > theme_review_<target>.json, "
                   "fill it, then: workflow_gate.py review <state> <filled.json>",
@@ -263,10 +262,8 @@ def _next_hint(phase):
 
 
 def print_status(path):
-    """Print the state's phase, recorded reviews, and the next command.
-
-    Both tailoring sessions lost rounds guessing the current phase from
-    gate errors (one jq-inspected the state file to learn it)."""
+    """Print the state's phase, recorded reviews, and the next command
+    (run it instead of reconstructing the phase from gate errors)."""
     state = load_state(path)
     phase = state["phase"]
     print(f"state:  {path}")

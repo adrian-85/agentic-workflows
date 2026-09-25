@@ -1641,10 +1641,9 @@ class LintScriptTests(unittest.TestCase):
             os.unlink(script)
 
     def test_undefined_name_fails_the_lint(self):
-        # The Phase-2 failure mode from the sessions: a helper USED
-        # (clone_after / set_labeled / drop_role) but never added to the
-        # emitted import list — NameError mid-run, after the master copy,
-        # before any edit applies. The lint must catch it pre-run.
+        # A helper USED (clone_after / set_labeled / drop_role) but never
+        # added to the emitted import list crashes the run mid-edit with
+        # NameError; the lint must catch it pre-run.
         docx = self._docx_with("Tools & Technologies: Karate, Cypress")
         script = self._script(
             'from docx_edit import find_p\n', 'ps = None\n',
@@ -2255,12 +2254,9 @@ class DeliverableGateTests(unittest.TestCase):
         return ps
 
     def test_word_cap_deferred_before_seniority_enforced_after(self):
-        # The mid-hosting churn: a Phase-2 save with RESUME_VALIDATE_ARGS
-        # set used to block on the 1,000-word cap while hosting rounds were
-        # still open, forcing word closure (and re-closure after every
-        # hosting round). The cap now defers to the workflow phase: open
-        # while hosting can still add content (pre seniority-approved),
-        # enforced from seniority-approved onward (Step 9 closes it once).
+        # The word cap defers to the workflow phase: open while hosting
+        # rounds can still add content (pre seniority-approved), enforced
+        # from seniority-approved onward (Step 9 closes it once).
         state = os.path.join(self.workdir, "target.workflow.json")
         wg.create_state(state, "Target", "jd_target.txt", "theme")
         for phase in ("prune-theme-reviewed", "ats-audited",

@@ -329,8 +329,7 @@ class BudgetRuleTests(unittest.TestCase):
 
 class BudgetTargetPagesTests(unittest.TestCase):
     """The budgets gate records the agreed page target; render_pdf.sh
-    falls back to it when a render omits --target-pages (both sessions
-    first measured overflow against the default 2)."""
+    falls back to it when a render omits --target-pages."""
 
     def test_budgets_records_target_pages(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -357,9 +356,8 @@ class BudgetTargetPagesTests(unittest.TestCase):
 
 
 class StatusTests(unittest.TestCase):
-    """`status` answers "what phase am I in and what runs next?" — both
-    sessions lost rounds guessing from gate errors (one jq-inspected the
-    state file to learn the phase)."""
+    """`status` answers "what phase am I in and what runs next?" without
+    reconstructing the phase from gate errors."""
 
     def test_status_prints_phase_and_next_command(self):
         with tempfile.TemporaryDirectory() as tmp:

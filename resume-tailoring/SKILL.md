@@ -604,7 +604,7 @@ validator/machine-enforced).
   only when it does not create a new page or exceed the agreed target. If a spacer spills, omit the
   spacer, never theme-aligned content.
 
-**Spacer authoring rules (learned from failed final renders):**
+**Spacer authoring rules:**
 - **Spacers live IN the tailor script, before `save()`** — never patched into the built `.docx`
   with ad-hoc python. The next script run rebuilds the file from the master and silently wipes
   every manually-added spacer, and the final render then blocks on all of them at once.
