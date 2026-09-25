@@ -370,8 +370,8 @@ intentionally happens later (Step 9).
 run the external scan on that SAME rendered PDF: `ats_check.py scan "<build>.pdf" jd_<target>.txt`.
 This is not an optional extra: the internal matcher under-detects the external scanner's phrase
 set, and every external-only gap discovered later reopens hosting after the polish/render tail
-(re-host, word-cap re-trim, re-render, re-scan) — exactly the churn this early slot prevents. It
-costs one extra scan per target; skip it ONLY when `.ats-check/` credentials are missing or the
+(re-host, word-cap re-trim, re-render, re-scan) — exactly the churn this early slot prevents.
+Skip it ONLY when `.ats-check/` credentials are missing or the
 scan 401s — say so to the user and continue (the Step 12 final scan still runs). Feed the saved
 report through the mining loop (`measure_resume.py --ats-report` merges the external hard/soft
 gaps with the internal no-host list) so Theme Review B dispositions ONE combined queue, and
@@ -582,10 +582,9 @@ Run this section only after the user approves the seniority plan and Steps 6–8
 are applied — and after EVERY hosting round (internal + external) is closed. Never count pages or
 words against a budget while hosting is still open: a mid-loop trim is rework by definition (the
 next host re-opens the budget), and it thins the resume below what the budget actually allows —
-JD-relevant words and bullets get cut that could have been kept within the cap. The save-time word
-cap is deferred accordingly: while the workflow state sits before seniority-approved, saves print
-`word cap deferred` instead of blocking, so hosting edits land without budget pressure; from
-seniority-approved onward the cap enforces, and THIS step closes it once. The page target is the maximum allowed. Re-measure the positioned build and edit toward
+JD-relevant words and bullets get cut that could have been kept within the cap. The save gate
+enforces the word cap only from seniority-approved onward, so hosting edits land without budget
+pressure; this step closes the budget once (gate mechanics: [docs/api.md](docs/api.md)). The page target is the maximum allowed. Re-measure the positioned build and edit toward
 the agreed target using the theme anchors from Theme Review A. The hard caps stay fixed throughout:
 never more than 8 kept bullets per role, never more than 1,000 words resume-wide (both
 validator/machine-enforced).

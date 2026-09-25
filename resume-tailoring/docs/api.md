@@ -199,6 +199,11 @@ RESUME_RENDER_PHASE=final RESUME_WORKFLOW_STATE=<state> \
 Baseline rendering and baseline `ats_audit.py --baseline` skip the word-cap gate internally because
 word closure is later. Final rendering and the non-baseline ATS audit enforce the normal 1,000-word
 cap. The workflow does not use a user-supplied word-cap bypass flag for this phase distinction.
+The save-time deliverable gate follows the same phase distinction, keyed on the workflow state:
+while the phase sits before `seniority-approved` (hosting rounds still open), saves print
+`word cap deferred` and skip the cap; from `seniority-approved` onward the cap enforces at save,
+and the `budgets` gate closes it once (SKILL Step 9: budgets close only after every hosting
+round — a mid-hosting trim is rework and thins the resume below what the budget allows).
 
 ## Reference template
 
@@ -732,7 +737,7 @@ runs on the baseline-rendered build immediately after the baseline audit (same P
 `.ats-check/` credentials exist — skipped only for missing/expired credentials, with the user told)
 and front-loads the external scanner's phrase gaps into the Step 4 mining loop
 (`measure --ats-report` merges them with the internal no-host list), converting post-final rework
-into mid-flow work at the cost of one extra scan.
+into mid-flow work.
 
 ```bash
 python3 scripts/ats_check.py scan "<output>.pdf" <JD.txt> \
