@@ -131,9 +131,11 @@ are:
 
 1. **Author edits from `--prefixes` alone** (uniqueness-checked copy-paste; the paragraph map
    adds style/numId — only for rare layout checks). Phase 1 hands you the base build and its
-   emitted `tailor_<target>.py`; your later edits (Steps 5–9) EXTEND that script — dump
-   `--prefixes` on the BASE BUILD, not the master. To read a paragraph's FULL text before
-   rewriting it (Summary, senior-role intro, a bullet), use `docx_edit.py "<docx>" <idx> --full`
+   emitted `tailor_<target>.py`; your later edits (Steps 5–9) go in that script's marked
+   **Phase 2 section** (append-only — never edit `machine_phase()`, `MACHINE_DROPS`, or the
+   machine's `set_text` calls; a restore of a machine cut appends the prefix to `RESTORES`
+   instead) — dump `--prefixes` on the BASE BUILD, not the master. To read a paragraph's FULL
+   text before rewriting it (Summary, senior-role intro, a bullet), use `docx_edit.py "<docx>" <idx> --full`
    (or `<start>-<end> --full`) rather than ad-hoc inline python — it is one command and shows the
    exact string you are replacing.
 2. **Never run the prune yourself.** `auto_prune.py` (Step 2) is the only sanctioned master
@@ -330,8 +332,10 @@ still verifies post-build).
   judge theme. Diff the master's paragraph map against the base build's (`docx_edit.py
   "<master>.docx" --prefixes` vs the build's — the delta IS the cut set) and judge both sides
   against the Step-1 theme brief:
-  - **Theme-relevant content the prune cut** → restore it as a fresh, purpose-written host in
-    the role where it lived (the Hosting reference's pattern, available from here for theme
+  - **Theme-relevant content the prune cut** → restore it: append the cut prefix to the
+    emitted script's `RESTORES` list (the drop pass skips it — never edit `MACHINE_DROPS` or
+    `machine_phase()`), then rewrite it as a fresh, purpose-written host in the role where it
+    lived (the Hosting reference's pattern, available from here for theme
     restores), or, when the matcher cut a truthful equivalent, fix `--equivalence`/evidence
     families and re-run `auto_prune.py` rather than hand-rebuilding.
   - **Theme-irrelevant content the prune kept** (term-matched but off-theme) → cut it in the
@@ -604,16 +608,16 @@ validator/machine-enforced).
   spacer, never theme-aligned content.
 
 **Spacer authoring rules:**
-- **Spacers live IN the tailor script, before `save()`** — never patched into the built `.docx`
+- **Spacers live IN the tailor script's Phase 2 section** — never patched into the built `.docx`
   with ad-hoc python. The next script run rebuilds the file from the master and silently wipes
   every manually-added spacer, and the final render then blocks on all of them at once.
 - **One unrolled literal call per boundary** — `clone_after(body, find_p(ps, "<Tools line
   prefix>"), "")`. A `for prefix in [...]` loop makes the find_p dynamic; `--lint-script`
   rejects it (`<dynamic>`) because it cannot verify the target.
-- **Anchor on the text as it exists when the call executes.** A `set_labeled` earlier in the
-  script rewrites that Tools line's value; if you reworded the line, anchor the spacer on the
-  rewritten text — or place the clone BEFORE the rewrite and use the master's prefix. The lint
-  verifies against the master, so a prefix that only exists after a rewrite reports a MISS.
+- **Always anchor on the MASTER's prefix.** `find_p` resolves original-text-first, so position
+  in the Phase 2 section does not change resolution — but the lint verifies every prefix
+  against the master, so a spacer anchored on text that exists only after your own rewording
+  reports a MISS. Reworded the Tools line? Anchor the spacer on its master prefix anyway.
 - **The boundary before role X is anchored on the PRECEDING role's Tools line** — GEICO→Symbols
   is a clone after GEICO's Tools row, not after anything in Symbols.
 
@@ -937,7 +941,7 @@ sidecar, `merge_into`; Steps 4, 9 & 12). What's left is judgment:
 | "Keep N" with a drop list that doesn't add up | intended keep + len(drop list) == the role's master bullet count (23 − 16 = 7, not 8); a built role whose count differs from intent is a MISS to fix, not a counting convention (Step 9) |
 | Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 2, 9) |
 | Treating a proficiencies/Tools line as permanent ATS-host real estate | The machine keeps a line whole only when it hosts JD evidence and cuts a line with no ask whole (Step 2, never a partial value list); hosting comes from purpose-written bullet text, not preserved lines |
-| Overriding a prune cut without theme rationale, or hand-editing the emitted cuts | Step 3's theme review is the sanctioned override: restore as a fresh, purpose-written host, or fix the evidence families and re-run `auto_prune.py`; record the rationale in the script. Never hand-edit the machine's output cuts — the machine prune stays the only master consumer and there is no `# kept:` negotiation |
+| Overriding a prune cut without theme rationale, or hand-editing the emitted cuts | Step 3's theme review is the sanctioned override: append the cut prefix to `RESTORES` and rewrite it as a fresh, purpose-written host, or fix the evidence families and re-run `auto_prune.py`; record the rationale in the script. Never edit the machine zone (`machine_phase()`, `MACHINE_DROPS`, its `set_text` calls) — the machine prune stays the only master consumer and there is no `# kept:` negotiation |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
 | Editing the master from a tailoring session | Never — the master is user-owned and read-only to this workflow; make any master update directly, then re-run Phase 1 |
 | Storing the JD in /tmp | Persist it as `jd_<target>.txt` in the skill root (Step 1) — every tool and the re-run instructions reference that path across sessions |

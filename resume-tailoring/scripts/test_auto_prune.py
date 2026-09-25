@@ -41,6 +41,15 @@ def _date():
     return mr._sample_date() if hasattr(mr, "_sample_date") else "01/2020"
 
 
+def _drop_role_calls(script):
+    """Every drop_role(...) call node in a script's AST (not prose
+    mentions — the emitted Phase 2 guidance names the API in comments)."""
+    return [n for n in ast.walk(ast.parse(script))
+            if isinstance(n, ast.Call)
+            and (getattr(n.func, "id", None) == "drop_role"
+                 or getattr(n.func, "attr", None) == "drop_role")]
+
+
 def _master_paras():
     """A master-like fixture: proficiencies (JD + non-JD lines), a
     Certifications section, three roles (one JD-flagship, one mixed, one
@@ -204,7 +213,7 @@ class TestPlanDispositions(_AutoPruneBase):
             self.plan, "m.docx", "out.docx",
             {"target": "T", "jd_name": "jd.txt",
              "script_name": "tailor_t.py"})
-        self.assertNotIn("drop_role", script)
+        self.assertFalse(_drop_role_calls(script))
 
     def test_cap_dropped_bullets_carry_the_reason_in_the_emitted_script(self):
         # A JD-evidenced bullet cut only by the 8-bullet cap is Theme
@@ -318,7 +327,10 @@ class TestEmittedScript(_AutoPruneBase):
         ast.parse(self._script())
 
     def test_no_drop_role(self):
-        self.assertNotIn("drop_role", self._script())
+        # A call, not a mention: the emitted Phase 2 section's guidance
+        # names drop_role() in prose, and the machine must still emit
+        # no actual whole-role drop call.
+        self.assertFalse(_drop_role_calls(self._script()))
 
     def test_emitted_imports_cover_only_machine_edits(self):
         # The machine never emits set_labeled (whole-line keeps/cuts only)
@@ -386,6 +398,109 @@ class TestEmittedScriptRuns(_AutoPruneBase):
                              "paperwork", "Answered the office phone"]
             kept_gamma = [t for t in gamma_bullets if t in texts]
             self.assertEqual(len(kept_gamma), 1)
+
+    def _run_emitted(self, td, script, dst):
+        """Run an (agent-extended) emitted script under strict mode and
+        return (proc, dst_texts)."""
+        # too-many-locals: the fixture assembles master, script, env, and
+        # result collection in one linear flow.
+        # pylint: disable=too-many-locals
+        master = os.path.join(td, "Test User Master Resume.docx")
+        _write_docx(master, _master_paras())
+        script_path = os.path.join(td, "tailor_target.py")
+        with open(script_path, "w", encoding="utf-8") as f:
+            f.write(script)
+        src_dir = __file__.rsplit("/", 1)[0]
+        env = dict(os.environ)
+        env["DOCX_EDIT_STRICT"] = "1"
+        env["PYTHONPATH"] = src_dir
+        code = (f"import sys; sys.path.insert(0, {src_dir!r}); "
+                "import runpy; " f"runpy.run_path({script_path!r}, run_name='__main__')")
+        proc = subprocess.run([sys.executable, "-c", code], cwd=td,
+                              env=env, capture_output=True, text=True,
+                              check=False)
+        texts = []
+        if os.path.exists(dst):
+            _root, body, _n, _d, _w = de.load(dst)
+            texts = [de.text_of(p) for p in de.paras(body)]
+        return proc, texts
+
+    def test_restore_in_restores_survives_the_drop_pass(self):
+        # Session 01a0d8f5: five edit rounds fighting the machine drop
+        # list to restore cut bullets. A restore must be ONE append to
+        # RESTORES — never an edit inside the machine zone.
+        with tempfile.TemporaryDirectory() as td:
+            master = os.path.join(td, "Test User Master Resume.docx")
+            dst = os.path.join(td, "Test User Resume - Target.docx")
+            script = auto_prune.emit_script(
+                self.plan, master, dst,
+                {"target": "Target", "jd_name": "jd_x.txt",
+                 "script_name": "tailor_target.py"})
+            self.assertIn('"Organi"', script)
+            script = script.replace(
+                "RESTORES = []", 'RESTORES = ["Organi"]')
+            proc, texts = self._run_emitted(td, script, dst)
+            self.assertEqual(
+                proc.returncode, 0,
+                "stdout:\n" + proc.stdout + "\nstderr:\n" + proc.stderr)
+            self.assertIn("Organized team offsites and holiday parties",
+                          texts)
+
+    def test_phase2_rewrite_overrides_machine_trim(self):
+        # Session 01a0d8f5: the machine's trim ran after the agent's
+        # rewrite and overwrote it. Phase 2 runs after machine_phase, so
+        # the agent's text must win.
+        with tempfile.TemporaryDirectory() as td:
+            master = os.path.join(td, "Test User Master Resume.docx")
+            dst = os.path.join(td, "out.docx")
+            script = auto_prune.emit_script(
+                self.plan, master, dst,
+                {"target": "Target", "jd_name": "jd_x.txt",
+                 "script_name": "tailor_target.py"})
+            self.assertIn('"Automated c"', script)  # a machine trim target
+            marker = "    # ---- Phase 2 (agent edits)"
+            head = script[:script.index(marker)]
+            tail = script[script.index(marker):]
+            insert_at = tail.index("\n\n    save(")
+            phase2 = ("\n    set_text(find_p(ps, \"Automated c\"), "
+                      "\"Phase 2 rewrite wins.\")")
+            script = head + tail[:insert_at] + phase2 + tail[insert_at:]
+            proc, texts = self._run_emitted(td, script, dst)
+            self.assertEqual(
+                proc.returncode, 0,
+                "stdout:\n" + proc.stdout + "\nstderr:\n" + proc.stderr)
+            self.assertIn("Phase 2 rewrite wins.", texts)
+            self.assertNotIn("Automated checkout flows with Cypress.",
+                             texts)
+
+    def test_phase2_drop_of_trimmed_bullet_has_no_stale_skip(self):
+        # Session 01a0d8f5: a machine trim for a bullet the agent dropped
+        # ran after the drop and warned (skipped edit). machine_phase
+        # runs first, so the trim applies while the target exists and the
+        # Phase 2 drop then retires the whole paragraph — strict mode
+        # must stay green with no skip notice.
+        with tempfile.TemporaryDirectory() as td:
+            master = os.path.join(td, "Test User Master Resume.docx")
+            dst = os.path.join(td, "out.docx")
+            script = auto_prune.emit_script(
+                self.plan, master, dst,
+                {"target": "Target", "jd_name": "jd_x.txt",
+                 "script_name": "tailor_target.py"})
+            marker = "    # ---- Phase 2 (agent edits)"
+            head = script[:script.index(marker)]
+            tail = script[script.index(marker):]
+            insert_at = tail.index("\n\n    save(")
+            phase2 = '\n    ps = drop(body, ["Automated c"])'
+            script = head + tail[:insert_at] + phase2 + tail[insert_at:]
+            proc, texts = self._run_emitted(td, script, dst)
+            self.assertEqual(
+                proc.returncode, 0,
+                "stdout:\n" + proc.stdout + "\nstderr:\n" + proc.stderr)
+            self.assertIn("0 skipped", proc.stdout)
+            self.assertNotIn("Automated checkout flows with Cypress.",
+                             texts)  # dropped whole in Phase 2
+            self.assertIn("Automated regression suites with Selenium "
+                          "and Playwright", texts)  # untouched
 
 
 class TestTrimHelpers(unittest.TestCase):

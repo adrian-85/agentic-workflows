@@ -41,12 +41,12 @@ authoring:
   wrong under real use (a boundary check placed after the append swallowed the following
   `SectionHeading`, silently eating Education). Handles duplicate job titles with no
   `after=`/`nth=` anchor (the block is contiguous from the role's OWN header). Seniority alignment
-  (Step 5) is a sequence of these. **Preferred order when extending an emitted script:** remove
-  all `set_text`/`set_labeled` edits for the dropped role, including its Tools-line edits. The
-  prune gate associates Tools-line candidates with their owning role, so `drop_role()` covers them
-  as well as bullet candidates. If generated edits are temporarily retained, place `drop_role()`
-  AFTER them and immediately before `save()`; calling it first removes their targets and makes
-  `DOCX_EDIT_STRICT=1` report `target paragraph not found` skips.
+  (Step 5) is a sequence of these. **In an emitted script, `drop_role()` goes in the Phase 2
+  section, placed LAST among your edits.** The machine zone (`machine_phase()`) is never
+  edited, so its edits for the dropped role simply run first on still-present targets and the
+  block then retires whole — no `target paragraph not found` skips, and nothing to remove by
+  hand. The prune gate associates Tools-line candidates with their owning role, so `drop_role()`
+  covers them as well as bullet candidates.
 - **`drop_section(body, "<heading prefix>")`**: removes a whole SECTION (e.g. Education) from its
   `SectionHeading` to just before the next one. Same boundary guarantee as `drop_role`.
 - **`save()` drift sidecar**: auto-maintains `<dst>.drift.json` keyed by the calling script. First
@@ -387,7 +387,7 @@ to the page budget and cannot see concept-level asks. Drop any fold-back line th
 evidence before it reaches the script; the block is a page-budget suggestion, not a JD-fit verdict.
 
 Paste the printed fold-back block (or the DROP PLAN's `find_p` prefix strings) straight into a
-`drop(body, [...])` call in the tailor script (never re-derive them by hand), re-run the tailor
+`drop(body, [...])` call in the tailor script's Phase 2 section (never re-derive them by hand), re-run the tailor
 script, re-measure once to confirm the gap closed, then render to verify. This replaces the
 cut-render-cut guesswork.
 
@@ -414,7 +414,12 @@ The master without `--jd` exits 2; `--simulate` on the master exits 2 (seniority
 base build, Step 5). An explicit page target is ignored with a note. **The agent does not run this
 mode** — Phase 1's `auto_prune.py` (SKILL Step 2) is the machine prune's only consumer: it
 machine-dispositions every candidate (no agent keeps, no overrides, no cut report), emits the first
-tailor script, and runs it through `run_tailor.sh`. A `# kept:` line in an emitted script is always
+tailor script, and runs it through `run_tailor.sh`. The emitted script has two zones: a
+`machine_phase(body)` function plus its `MACHINE_DROPS` list (machine-authored, never edited — a
+Theme Review A restore of a cut appends the prefix to `RESTORES`, which the drop pass skips) and
+`main()`'s marked **Phase 2 section** where the agent appends edits after `machine_phase()` — so
+agent rewrites always win over machine trims, a machine trim can never run stale after a Phase 2
+drop, and a block edit can never lose a machine disposition. A `# kept:` line in an emitted script is always
 machine-generated, never an agent negotiation, and covers three cases: a role's stub keep (it would
 otherwise lose every bullet; timeline gaplessness), a bullet kept WHOLE unmodified (every sentence
 carries JD evidence and it is already within the word cap), and a proficiency/Tools line kept WHOLE

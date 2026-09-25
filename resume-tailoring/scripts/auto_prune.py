@@ -425,7 +425,15 @@ def emit_script(plan, src, dst, meta):
     # emitted script (docstring, cuts, trims, sections); splitting it would
     # interleave the emission order across helpers for no gain.
     # pylint: disable=too-many-locals
-    """The first tailor script: machine cuts/trims + gate comments.
+    """The first tailor script: machine dispositions + a Phase 2 section.
+
+    Two zones, by author. ``machine_phase()`` holds the machine's
+    cuts/trims and is never edited — a Theme Review A restore of a cut
+    bullet appends its prefix to ``RESTORES`` instead (the drop pass
+    skips it) and any rewrite goes in ``main()``'s marked Phase 2
+    section. Phase 2 runs after the machine, so agent rewrites always
+    win: a machine trim can no longer overwrite them, run stale after a
+    Phase 2 drop, or be lost to a block edit.
 
     ``meta`` carries the docstring fields: target, jd_name, script_name.
     """
@@ -442,23 +450,43 @@ def emit_script(plan, src, dst, meta):
     lines += [
         "No agent judgment and no cut report — the agent's work starts at SKILL Phase 2",
 
-        "on this build. Re-run:", "", f'    cd "$(dirname "$0")/.." && python3 '
+        "on this build, in main()'s marked Phase 2 section (append-only; never",
+        "edit machine_phase(), MACHINE_DROPS, or the machine's set_text calls).",
+        "A Theme Review A restore of a machine-cut bullet appends its prefix to",
+        "RESTORES — the drop pass skips it — and the rewrite, if any, goes in",
+        "the Phase 2 section. Re-run:", "", f'    cd "$(dirname "$0")/.." && python3 '
         f'scripts/{meta["script_name"]}', "", f'Gates after Theme Review B: RESUME_WORKFLOW_STATE='
         f'"{meta.get("state_name", dst + ".workflow.json")}" '
         f'scripts/run_tailor.sh "{src}" scripts/{meta["script_name"]}', '"""', "",
         _EMITTED_IMPORTS,
-        f"SRC = {_py(src)}", f"DST = {_py(dst)}", "", "", "def main():",
-        '    """Apply the machine prune and save the base build."""', "    shutil.copy(SRC, DST)",
-        "    root, body, names, data, _ = load(DST)", "    ps = paras(body)", "",
-        "    # ---- Phase 1 cuts (machine dispositions) ---------------- #",
+        f"SRC = {_py(src)}", f"DST = {_py(dst)}",
     ]
     if plan["drops"]:
-        lines.append("    ps = drop(body, [")
+        lines += [
+            "",
+            "# Machine cut prefixes (Phase 1 dispositions) — never edit.",
+            "# A Theme Review A restore appends the same prefix to RESTORES",
+            "# (the drop pass skips it); the rewrite goes in Phase 2.",
+            "MACHINE_DROPS = [",
+        ]
         for prefix, text in plan["drops"]:
             why = "  # 8-bullet cap (weakest-ranked survivor)" \
                 if text in plan.get("cap_dropped", ()) else ""
             lines.append(f"        {_py(prefix)},{why}")
-        lines.append("    ])")
+        lines += [
+            "]",
+            "# Theme Review A restores: cut prefixes that must survive.",
+            "RESTORES = []",
+        ]
+    lines += [
+        "", "",
+        "def machine_phase(body):",
+        '    """Apply the machine prune (Phase 1 dispositions) — never edit."""',
+        "    ps = paras(body)",
+    ]
+    if plan["drops"]:
+        lines.append("    ps = drop(body, "
+                     "[p for p in MACHINE_DROPS if p not in RESTORES])")
     for text, nth in plan["removes"]:
         why = "  # 8-bullet cap (weakest-ranked survivor)" \
             if text in plan.get("cap_dropped", ()) else ""
@@ -481,7 +509,21 @@ def emit_script(plan, src, dst, meta):
         for head, why in plan["section_keeps"]:
             lines.append(f"    # kept: {head} — {why}")
     lines += [
-        "", "    remove_empty(body)", "",
+        "    return ps", "", "",
+        "def main():",
+        '    """Apply the machine prune, then the Phase 2 agent edits."""',
+        "    shutil.copy(SRC, DST)",
+        "    root, body, names, data, _ = load(DST)",
+        "    ps = machine_phase(body)",
+        "    remove_empty(body)", "",
+        "    # ---- Phase 2 (agent edits) — append below; never edit above ---- #",
+        "    # Restores' rewrites, theme hosts, positioning, drop_role() calls,",
+        "    # and spacers go here — after machine_phase, so agent rewrites win.",
+        "    # find_p matches ORIGINAL master text: anchor every edit (spacers",
+        "    # included) on a master prefix, never on reworded text. Place",
+        "    # drop_role() calls last (machine edits inside the dropped block",
+        "    # already ran; the block retires whole, with no stale skips).",
+        "",
         "    save(DST, root, names, data, drift=DriftMeta(src=SRC))", '    print("WROTE", DST)', "",
         "", 'if __name__ == "__main__":', "    main()", "",
     ]
