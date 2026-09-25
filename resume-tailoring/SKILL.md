@@ -345,7 +345,10 @@ still verifies post-build).
     `machine_phase()`), then rewrite it as a fresh, purpose-written host in the role where it
     lived (the Hosting reference's pattern, available from here for theme
     restores), or, when the matcher cut a truthful equivalent, fix `--equivalence`/evidence
-    families and re-run `auto_prune.py` rather than hand-rebuilding.
+    families and re-run `auto_prune.py` rather than hand-rebuilding. **A re-run resets the
+    workflow state** (auto_prune prints `WORKFLOW STATE RESET`): recorded reviews die with the
+    replaced build, so re-record Theme Reviews A/B (Steps 3–4) before advancing anything —
+    and re-apply any Phase 2 edits the regenerated script no longer carries.
   - **Theme-irrelevant content the prune kept** (term-matched but off-theme) → cut it in the
     positioning pass; the JD-FIT AUDIT's unevidenced bullets are the first candidates, but theme
     judgment may go beyond them. Record each override's theme rationale as a comment in the

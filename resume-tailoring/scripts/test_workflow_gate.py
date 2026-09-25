@@ -35,6 +35,31 @@ class StateTransitionTests(unittest.TestCase):
             with self.assertRaises(wg.GateError):
                 wg.advance(path, "pruned")
 
+    def test_create_state_reset_of_advanced_state_warns(self):
+        # Session 01a0d983: an auto_prune re-run (corrected --equivalence)
+        # silently reset an ats-theme-reviewed state; the agent found out
+        # only when a later gate rejected it and re-recorded everything.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            wg.advance(path, "prune-theme-reviewed")
+            wg.advance(path, "ats-audited")
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                wg.create_state(path, "Target", "jd_target.txt", "theme")
+            self.assertIn("WORKFLOW STATE RESET", err.getvalue())
+            self.assertIn("re-record Theme Reviews A/B", err.getvalue())
+            self.assertEqual(wg.load_state(path)["phase"], "pruned")
+
+    def test_create_state_fresh_run_and_recreate_at_pruned_stay_quiet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                wg.create_state(path, "Target", "jd_target.txt", "theme")
+                wg.create_state(path, "Target", "jd_target.txt", "theme")
+            self.assertEqual(err.getvalue(), "")
+
 
     def test_record_audit_is_idempotent_on_re_audit(self):
         with tempfile.TemporaryDirectory() as tmp:
