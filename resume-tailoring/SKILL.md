@@ -329,9 +329,17 @@ still verifies post-build).
 - Read the coverage report's [UNCOVERED] and [weak] lists and the **JD terms with NO host** list —
   that list is Step 4's mining queue. It is not something to fix by keeping more content up front.
 - **Theme-review the prune (the judgment layer).** The machine matched terms; only the agent can
-  judge theme. Diff the master's paragraph map against the base build's (`docx_edit.py
-  "<master>.docx" --prefixes` vs the build's — the delta IS the cut set) and judge both sides
-  against the Step-1 theme brief:
+  judge theme. Run the cut set — one command, the build path is all it takes (the master is
+  found next to it):
+
+  ```bash
+  python3 scripts/diff_resume.py --cutset "<Name> Resume - <Target>.docx"
+  ```
+
+  It prints the master-vs-build paragraph diff, grouped by role/section header,
+  whitespace-normalized so shifted indices don't noise it up — the CUT list is the theme-review
+  work order (the explicit two-path form takes master then build). Judge both sides against
+  the Step-1 theme brief:
   - **Theme-relevant content the prune cut** → restore it: append the cut prefix to the
     emitted script's `RESTORES` list (the drop pass skips it — never edit `MACHINE_DROPS` or
     `machine_phase()`), then rewrite it as a fresh, purpose-written host in the role where it

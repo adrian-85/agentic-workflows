@@ -106,6 +106,40 @@ class CutsetTests(unittest.TestCase):
             finally:
                 sys.argv = argv
 
+    def test_cli_cutset_one_arg_finds_sibling_master(self):
+        # Sessions 01a0d8f5/01a0d948 burned 4-6 tool calls each mis-typing
+        # the two-quoted-path form; the one-argument form resolves the
+        # master from the build's directory.
+        with tempfile.TemporaryDirectory() as tmp:
+            master = os.path.join(tmp, "Test User Master Resume.docx")
+            build = os.path.join(tmp, "Test User Resume - Target.docx")
+            _master_fixture(master)
+            _build_fixture(build)
+            argv = sys.argv
+            try:
+                sys.argv = ["diff_resume.py", "--cutset", build]
+                with contextlib.redirect_stdout(io.StringIO()) as out:
+                    diff_resume.main()
+                self.assertIn("CUT", out.getvalue())
+                self.assertIn("3 cut", out.getvalue())
+            finally:
+                sys.argv = argv
+
+    def test_cli_cutset_one_arg_without_sibling_master_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            build = os.path.join(tmp, "Test User Resume - Target.docx")
+            _build_fixture(build)
+            argv = sys.argv
+            try:
+                sys.argv = ["diff_resume.py", "--cutset", build]
+                with contextlib.redirect_stderr(io.StringIO()) as err:
+                    with self.assertRaises(SystemExit) as ctx:
+                        diff_resume.main()
+                self.assertEqual(ctx.exception.code, 2)
+                self.assertIn("no *Master Resume.docx", err.getvalue())
+            finally:
+                sys.argv = argv
+
 
 if __name__ == "__main__":
     unittest.main()

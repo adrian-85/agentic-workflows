@@ -6,6 +6,10 @@ Usage (Theme Review A's cut set — SKILL Step 3)::
     # One command: the master-vs-build paragraph diff, grouped by role/
     # section header, whitespace-normalized so shifted indices don't noise
     # it up. The CUT list is the theme-review work order.
+    # One-argument form (recommended — the master is found next to the
+    # build; two quoted paths were mis-typed in three straight sessions):
+    python3 scripts/diff_resume.py --cutset "<Name> Resume - <Target>.docx"
+    # Explicit two-path form:
     python3 scripts/diff_resume.py --cutset "<Name> Master Resume.docx" \
         "<Name> Resume - <Target>.docx"
 
@@ -69,6 +73,23 @@ def _grouped_texts(path):
         if text:
             out.append((label, text))
     return out
+
+
+def _master_next_to(build_path):
+    """The build's sibling master (``*Master Resume.docx`` in the same
+    directory), or an error message. The one-argument --cutset form
+    resolves the master from the build so a single quoted path is all
+    the caller types."""
+    dirname = os.path.dirname(os.path.abspath(build_path))
+    masters = sorted(
+        name for name in os.listdir(dirname)
+        if name.endswith("Master Resume.docx"))
+    if len(masters) == 1:
+        return os.path.join(dirname, masters[0]), None
+    if not masters:
+        return None, f"no *Master Resume.docx next to {build_path}"
+    return None, ("multiple masters next to " + build_path + ": "
+                  + ", ".join(masters) + " — use the two-path --cutset form")
 
 
 def cutset(master_path, build_path):
@@ -144,8 +165,16 @@ def main():
 
     """Diff-resume CLI entry point."""
     maybe_help(sys.argv[1:], __doc__)
-    if len(sys.argv) == 4 and sys.argv[1] == "--cutset":
-        cutset(sys.argv[2], sys.argv[3])
+    if len(sys.argv) in (3, 4) and sys.argv[1] == "--cutset":
+        if len(sys.argv) == 3:
+            build_path = sys.argv[2]
+            master_path, err = _master_next_to(build_path)
+            if err:
+                print(f"error: {err}", file=sys.stderr)
+                sys.exit(2)
+        else:
+            master_path, build_path = sys.argv[2], sys.argv[3]
+        cutset(master_path, build_path)
         return
     if len(sys.argv) == 4 and sys.argv[1] == "--tailor":
         script_path, user_path = sys.argv[2], sys.argv[3]
