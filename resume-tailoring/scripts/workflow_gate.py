@@ -214,6 +214,19 @@ def record_audit(path, findings, audit_path=None):
         details["audit"] = os.path.basename(audit_path)
     if load_state(path)["phase"] == "prune-theme-reviewed":
         advance(path, "ats-audited", details, {"finding_phrases": normalized})
+        return
+    # Re-audit after the phase moved on: no rewind, but the recorded
+    # findings must reflect THIS audit — a first baseline run that found
+    # nothing (e.g. word-cap-only, no --jd) must not shadow a later run's
+    # real no-host phrases, or the Theme Review B template pre-fills empty.
+    state = load_state(path)
+    state["finding_phrases"] = normalized
+    history = state.setdefault("history", [])
+    for entry in reversed(history):
+        if entry.get("phase") == "ats-audited":
+            entry.update(details)
+            break
+    _write(path, state)
 
 
 def record_review(state_path, review_path):

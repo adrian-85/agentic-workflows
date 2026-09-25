@@ -48,6 +48,28 @@ class StateTransitionTests(unittest.TestCase):
             wg.record_audit(path, ["gemini"])
             self.assertEqual(wg.load_state(path)["phase"], "ats-theme-reviewed")
 
+    def test_record_audit_updates_findings_on_late_re_audit(self):
+        """A first baseline run that found nothing (e.g. no --jd) must not
+        shadow a later re-audit's real no-host phrases."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            wg.advance(path, "prune-theme-reviewed")
+            wg.record_audit(path, [])
+            self.assertEqual(wg.load_state(path)["finding_phrases"], [])
+            # Re-audit while still pre-review: findings update in place.
+            wg.record_audit(path, ["Gemini", "gemini", "Hasura"])
+            state = wg.load_state(path)
+            self.assertEqual(state["finding_phrases"], ["gemini", "hasura"])
+            self.assertEqual(state["history"][-1]["findings"], 2)
+            self.assertEqual(state["phase"], "ats-audited")
+            # And after the review advanced, still updates without rewind.
+            wg.advance(path, "ats-theme-reviewed")
+            wg.record_audit(path, ["fedramp"])
+            state = wg.load_state(path)
+            self.assertEqual(state["finding_phrases"], ["fedramp"])
+            self.assertEqual(state["phase"], "ats-theme-reviewed")
+
     def test_record_audit_rejects_early_phase(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "target.workflow.json")
