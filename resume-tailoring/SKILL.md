@@ -604,6 +604,20 @@ validator/machine-enforced).
   only when it does not create a new page or exceed the agreed target. If a spacer spills, omit the
   spacer, never theme-aligned content.
 
+**Spacer authoring rules (learned from failed final renders):**
+- **Spacers live IN the tailor script, before `save()`** — never patched into the built `.docx`
+  with ad-hoc python. The next script run rebuilds the file from the master and silently wipes
+  every manually-added spacer, and the final render then blocks on all of them at once.
+- **One unrolled literal call per boundary** — `clone_after(body, find_p(ps, "<Tools line
+  prefix>"), "")`. A `for prefix in [...]` loop makes the find_p dynamic; `--lint-script`
+  rejects it (`<dynamic>`) because it cannot verify the target.
+- **Anchor on the text as it exists when the call executes.** A `set_labeled` earlier in the
+  script rewrites that Tools line's value; if you reworded the line, anchor the spacer on the
+  rewritten text — or place the clone BEFORE the rewrite and use the master's prefix. The lint
+  verifies against the master, so a prefix that only exists after a rewrite reports a MISS.
+- **The boundary before role X is anchored on the PRECEDING role's Tools line** — GEICO→Symbols
+  is a clone after GEICO's Tools row, not after anything in Symbols.
+
 Every page, word, page-removal, or spacer edit gets one final read against the theme brief before
 rendering. Close the gates with `workflow_gate.py budgets` (rejects word counts above 1,000, and a
 page-removal attempt unless its positive spill is five rendered lines or fewer) and
@@ -945,4 +959,5 @@ sidecar, `merge_into`; Steps 4, 9 & 12). What's left is judgment:
 | Treating the external report's wordCount as a cross-check rather than the cap authority | Feed the report to `ats_audit.py --report-json` — its `wordCount` is the cap authority for the exact uploaded file, and it matches the local count (Step 12) |
 | Storing scan-service credentials in the repo | They live in the skill root's `.ats-check/` dot-directory (user's saved cURL exports; gitignored, 0600, invisible to `git add *`); refresh from a logged-in browser when scans 401 (Step 12) |
 | Punctuation in prose (em dash, semicolon, colon, ellipsis) | Periods and commas ONLY — no em dashes, double hyphens, semicolons, colons, or ellipses (`...`); split into a new sentence or use a comma. The Tools line's `Label: values` colon is the one exempt structural colon (Step 10) |
+| Patching spacers (or any edit) into the built `.docx` instead of the tailor script | Author spacers in the script as unrolled literal `clone_after` calls before `save()` — a rebuild wipes manual docx edits and the final render blocks on every missing spacer at once; anchor on the Tools-line text as it exists at call time (a `set_labeled` rewrite changes it), on the PRECEDING role's Tools line (Step 9) |
 | JD asks for fewer years than the candidate has | Offer Step 5 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it. The token needs the user's authority: their chat reply or pre-authorization in the request; never pass it on your own |
