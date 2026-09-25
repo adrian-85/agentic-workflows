@@ -2169,6 +2169,7 @@ class DeliverableGateTests(unittest.TestCase):
         _empty_docx(self.master)
         _empty_docx(self.dst)
         self._old_env = os.environ.pop("RESUME_VALIDATE_ARGS", None)
+        self._old_state = os.environ.pop("RESUME_WORKFLOW_STATE", None)
 
     def tearDown(self):
         for path in (self.master, self.dst):
@@ -2178,10 +2179,12 @@ class DeliverableGateTests(unittest.TestCase):
                     os.unlink(p)
         de._APPLIED = 0
         de._SKIPS.clear()
-        if self._old_env is not None:
-            os.environ["RESUME_VALIDATE_ARGS"] = self._old_env
-        else:
-            os.environ.pop("RESUME_VALIDATE_ARGS", None)
+        for var, old in (("RESUME_VALIDATE_ARGS", self._old_env),
+                         ("RESUME_WORKFLOW_STATE", self._old_state)):
+            if old is not None:
+                os.environ[var] = old
+            else:
+                os.environ.pop(var, None)
 
     @staticmethod
     def _career_paragraphs(bullet_count, company="Acme, MA (Remote)06/2021 – 05/2026"):
@@ -2264,29 +2267,22 @@ class DeliverableGateTests(unittest.TestCase):
             wg.advance(state, phase)
         os.environ["RESUME_VALIDATE_ARGS"] = "--seniority-approved"
         os.environ["RESUME_WORKFLOW_STATE"] = state
-        try:
-            root, body, names, data, _ = de.load(self.dst)
-            for p in self._wordy_paragraphs(8):
-                body.append(p)
-            cm, _out, err = self._save(self.dst, root, names, data,
-                                       src=self.master)
-            self.assertIsNone(cm, err)
-            self.assertIn("word cap deferred", err)
-            self.assertTrue(os.path.exists(self.dst))
-            wg.advance(state, "seniority-approved")
-            de._APPLIED = 0
-            root, body, names, data, _ = de.load(self.dst)
-            cm, _out, err = self._save(self.dst, root, names, data,
-                                       src=self.master)
-            self.assertIsNotNone(cm, "over-cap save must exit 2")
-            self.assertIn("exceeds the", err)
-            self.assertIn("word cap", err)
-        finally:
-            os.environ.pop("RESUME_WORKFLOW_STATE", None)
-            if self._old_env is not None:
-                os.environ["RESUME_VALIDATE_ARGS"] = self._old_env
-            else:
-                os.environ.pop("RESUME_VALIDATE_ARGS", None)
+        root, body, names, data, _ = de.load(self.dst)
+        for p in self._wordy_paragraphs(8):
+            body.append(p)
+        cm, _out, err = self._save(self.dst, root, names, data,
+                                   src=self.master)
+        self.assertIsNone(cm, err)
+        self.assertIn("word cap deferred", err)
+        self.assertTrue(os.path.exists(self.dst))
+        wg.advance(state, "seniority-approved")
+        de._APPLIED = 0
+        root, body, names, data, _ = de.load(self.dst)
+        cm, _out, err = self._save(self.dst, root, names, data,
+                                   src=self.master)
+        self.assertIsNotNone(cm, "over-cap save must exit 2")
+        self.assertIn("exceeds the", err)
+        self.assertIn("word cap", err)
 
     def test_no_src_save_ungated(self):
         # Tool-internal saves (measure --simulate, squeeze, tests) pass no

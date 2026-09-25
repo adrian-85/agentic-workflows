@@ -18,7 +18,6 @@ unapproved whole-role elimination) never becomes a file.
 
 
 import importlib
-import json
 import os
 import shlex
 import sys
@@ -102,16 +101,14 @@ def _word_cap_for_phase(max_words):
     state_path = os.environ.get("RESUME_WORKFLOW_STATE", "").strip()
     if not state_path or not os.path.exists(state_path):
         return max_words, None
-    try:
-        with open(state_path, encoding="utf-8") as stream:
-            phase = json.load(stream).get("phase")
-    except (OSError, json.JSONDecodeError):
-        return max_words, None
     # Lazy like validate_resume above: workflow_gate imports only
     # script_args, but the deferred load keeps the module-cost off every
-    # ungated save.
+    # ungated save. load_state rejects an unreadable file or an unknown
+    # phase as GateError — the deferral then simply does not apply.
     wg = importlib.import_module("workflow_gate")
-    if phase not in wg.PHASES:
+    try:
+        phase = wg.load_state(state_path)["phase"]
+    except wg.GateError:
         return max_words, None
     if max_words and wg.PHASES.index(phase) < wg.PHASES.index(
             "seniority-approved"):
