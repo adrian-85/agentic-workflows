@@ -34,8 +34,9 @@ just a keyword collection that passes ATS: after each edit round, re-read the ro
 against the theme brief and strengthen the theme's representation where it weakened.
 
 The theme is an explicit decision layer, not a keyword decoration. The required execution order is:
-(1) machine prune, (2) Theme Review A of the prune, (3) baseline ATS audit, (4) Theme Review B of
-the audit with any theme-aligned edits, (5) seniority review in theme context, (6) title and
+(1) machine prune, (2) Theme Review A of the prune, (3) baseline ATS audit with the early external
+scan, (4) Theme Review B of the merged findings with any theme-aligned edits, (5) seniority review
+in theme context, (6) title and
 positioning edits, (7) theme-scoped page closure, (8) theme-scoped word closure only when the build
 exceeds 1,000 words, (9) the limited page-removal assessment, and (10) spacers only when they do
 not create a new page. A final render/ATS run verifies the result; it must not reopen a score-driven
@@ -80,7 +81,7 @@ Core principle's theme check; there is no separate restore phase.
 | 1 | Save the normalized JD and, when needed, the verbatim source as `jd_<target>_source.txt`; read the WHOLE JD in the fixed 8-section template, persist the posting URL, and write the theme brief + equivalences. Master and LinkedIn stay UNREAD | `jd_sections.py` contract |
 | 2 | PHASE A — the independent machine prune (`--theme` is provenance only): emits the first tailor script through the gates, writes the lean base build + workflow state. No cut report | `auto_prune.py` |
 | 3 | Theme Review A: measure the base build, diff master vs build, disposition the prune against the theme; record the review | `measure_resume.py`, `diff_resume.py --cutset`, `workflow_gate.py template` + `review` |
-| 4 | Baseline ATS audit, then Theme Review B: disposition every finding through the theme; host or raise via the Hosting reference | `ats_audit.py --baseline`, `read_profile.sh`, `workflow_gate.py template ats` + `review` |
+| 4 | Baseline ATS audit + early external scan (default when configured), then Theme Review B over the merged queue: disposition every finding through the theme; host or raise via the Hosting reference | `ats_audit.py --baseline`, `ats_check.py scan`, `read_profile.sh`, `workflow_gate.py template ats` + `review` |
 | 5 | Seniority in theme context: whole-role drops, user-approved and recorded | `measure_resume.py --simulate`, `workflow_gate.py advance` |
 | 6 | Align top title to JD title (less senior); Summary untouched | `set_text` |
 | 7 | No sections between Summary & Proficiencies | — |
@@ -363,7 +364,22 @@ JSON schema: [docs/api.md](docs/api.md).
 Render the Theme Review A build and run the literal audit in baseline mode (commands:
 [docs/api.md](docs/api.md)). This is the **baseline ATS audit**, not the final deliverable check —
 baseline rendering and auditing skip the word-cap gate internally because word closure
-intentionally happens later (Step 9). Review every no-host finding through the theme before
+intentionally happens later (Step 9).
+
+**Early external scan — DEFAULT when credentials exist.** Immediately after the baseline audit,
+run the external scan on that SAME rendered PDF: `ats_check.py scan "<build>.pdf" jd_<target>.txt`.
+This is not an optional extra: the internal matcher under-detects the external scanner's phrase
+set, and every external-only gap discovered later reopens hosting after the polish/render tail
+(re-host, word-cap re-trim, re-render, re-scan) — exactly the churn this early slot prevents. It
+costs one extra scan per target; skip it ONLY when `.ats-check/` credentials are missing or the
+scan 401s — say so to the user and continue (the Step 12 final scan still runs). Feed the saved
+report through the mining loop (`measure_resume.py --ats-report` merges the external hard/soft
+gaps with the internal no-host list) so Theme Review B dispositions ONE combined queue, and
+re-run the map after hosts land. Do not present the seniority/raise checklist before this scan
+has run (or been skipped for missing credentials, with the user told). The early scan's report is
+NOT the final check — Step 12's post-render scan still runs.
+
+Review every no-host finding through the theme before
 editing. For each finding, record one disposition:
 
 - **Theme-aligned host:** truthful evidence exists and the exact phrase strengthens the central
@@ -392,16 +408,8 @@ recorded baseline set (schema: [docs/api.md](docs/api.md)).
 
 ### 5. Decide seniority and positioning with the theme in view
 
-**Optional early external scan (when configured).** The internal matcher under-detects the external
-scanner's phrase set, each reopening hosting after the polish/render tail (re-host, word-cap
-re-trim, re-render, re-scan). To convert that late rework into mid-flow work, run
-`ats_check.py scan` ONCE on the seniority-approved build rendered in baseline mode, right after the
-Step 6–8 positioning edits and BEFORE Step 9 budgets/spacers/polish — feed its report back through
-the same `--ats-report` mining loop (it merges with the internal no-host list). This is optional and
-user-priced: it costs one extra external scan per target; with no early scan, the Step 12 scan
-remains the loop's entry point. The early scan's report is NOT the final check — Step 12's
-post-render scan still runs.
-Run this step only after Theme Review B closes the baseline ATS findings. Record the user's approved
+Run this step only after Theme Review B closes the baseline ATS findings (internal + the early
+external scan's merged queue). Record the user's approved
 role-drop decision with `workflow_gate.py advance <state> seniority-approved` before editing the
 script.
 
@@ -766,8 +774,8 @@ ACTIONABLE (the Hosting reference's inference rule; soft skills are safe to infe
 Its findings summary auto-IGNOREs the by-rule noise (contactEmail, specialCharacters, education
 findings on an Education-free PDF — see below), so the remaining findings are the actionable ones.
 
-**External ATS scan (when configured).** Use one canonical command. The optional early scan
-(Step 5) front-loads the external-only phrase gaps into the hosting loop; this Step-12 scan is
+**External ATS scan (when configured).** Use one canonical command. The Step 4 early scan
+front-loads the external-only phrase gaps into the hosting loop; this Step-12 scan is
 the final cross-check on the finished PDF — it still closes the hosting loop below target per
 the honest-ceiling rule. The normalized JD feeds internal checks, while the verbatim source feeds
 the external ATS parser:
@@ -793,7 +801,11 @@ the hosting loop closes and score-driven edits halt — the residual actionable 
 point contains genuine never-fabricate gaps. Below 75, keep hosting literal phrases truthfully. See
 [docs/api.md](docs/api.md) for `--match-target` overrides.
 
-**The honest ceiling — declared only WITH the user, never alone.** When the match rate stays below
+**The honest ceiling — declared only WITH the user, never alone.** An honest ceiling is never
+declared from the internal audit alone: the external scan's match rate on the current build is
+the evidence, so a ceiling presented without one (or without the user being told the scan was
+skipped for missing credentials) is a guess — the CEILING DETECTED signal from internal audits
+never substitutes for it. When the match rate stays below
 target and every remaining no-host is (per the Hosting reference's two-state rule) raised and
 unanswered, STOP hosting — do not loop, and do not self-declare the score final. Present the remaining hard AND soft
 skill checklist to the user and get their explicit confirmation that nothing else can be hosted
@@ -918,6 +930,7 @@ sidecar, `merge_into`; Steps 4, 9 & 12). What's left is judgment:
 | Reading a clean render (no `--jd`) as education-clause clearance | The education gate runs only with `--jd`; the seniority gate always — render_pdf.sh NOTEs when the education gate did not run (Step 12) |
 | Relying on spellcheck for proper nouns | Grep the text for `GitHub`, `HIPAA`, etc. (Step 10) |
 | Trusting the internal JD matchers as the ATS score | Internal matching is term/concept-based; ATS tools match literal phrases — run `ats_audit.py` on the rendered PDF before declaring done (Step 12) |
+| Declaring the honest ceiling (or "done") from the internal audit alone | The internal matchers overestimate alignment — run the Step 4 early scan and the Step 12 final scan; a ceiling is presented only with the current build's external match rate (Step 12) |
 | Cutting the last host of a JD-named hard skill | The machine protects any JD-named/concept SENTENCE or LINE whole through every trim (Step 2 never edits a survivor's words); a hosting rewrite can still kill one — `ats_audit.py --jd` catches it post-build (Step 12) |
 | Widening the contact block or rewriting link text for ATS parsers | IGNORED by rule — the compact hyperlinked contact block is deliberate design; `contactEmail` searchability findings are noise (Step 12) |
 | Reformatting typography to clear the scan's Special Characters finding | IGNORED by rule — Wingdings bullets, en-dash dates, curly quotes are the user's deliberate formatting; never reformat to satisfy a text parser (Step 12) |

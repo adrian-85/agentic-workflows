@@ -721,10 +721,12 @@ text parser.
 
 ### ats_check.py — the external scan (when configured)
 
-Runs at Step 12 as the final cross-check, and OPTIONALLY once earlier (SKILL Step 5): an early scan
-on the seniority-approved baseline-rendered build front-loads the external scanner's phrase gaps
-into the Step 4 mining loop (`measure --ats-report` merges them with the internal no-host list),
-converting post-final rework into mid-flow work at the cost of one extra scan.
+Runs at Step 12 as the final cross-check, and BY DEFAULT once earlier (SKILL Step 4): the early scan
+runs on the baseline-rendered build immediately after the baseline audit (same PDF, when
+`.ats-check/` credentials exist — skipped only for missing/expired credentials, with the user told)
+and front-loads the external scanner's phrase gaps into the Step 4 mining loop
+(`measure --ats-report` merges them with the internal no-host list), converting post-final rework
+into mid-flow work at the cost of one extra scan.
 
 ```bash
 python3 scripts/ats_check.py scan "<output>.pdf" <JD.txt> \
