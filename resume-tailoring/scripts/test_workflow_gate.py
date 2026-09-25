@@ -327,6 +327,35 @@ class BudgetRuleTests(unittest.TestCase):
             self.assertEqual(wg.load_state(path)["spacers_omitted"], headers)
 
 
+class BudgetTargetPagesTests(unittest.TestCase):
+    """The budgets gate records the agreed page target; render_pdf.sh
+    falls back to it when a render omits --target-pages (both sessions
+    first measured overflow against the default 2)."""
+
+    def test_budgets_records_target_pages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            for phase in ("prune-theme-reviewed", "ats-audited",
+                          "ats-theme-reviewed", "seniority-approved"):
+                wg.advance(path, phase)
+            wg._main(["budgets", path, "--words", "990",
+                      "--target-pages", "3"])
+            self.assertEqual(wg.load_state(path)["target_pages"], 3)
+            self.assertEqual(
+                wg.load_state(path)["history"][-1]["target_pages"], 3)
+
+    def test_budgets_target_pages_optional(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            for phase in ("prune-theme-reviewed", "ats-audited",
+                          "ats-theme-reviewed", "seniority-approved"):
+                wg.advance(path, phase)
+            wg._main(["budgets", path, "--words", "990"])
+            self.assertIsNone(wg.load_state(path)["target_pages"])
+
+
 class StatusTests(unittest.TestCase):
     """`status` answers "what phase am I in and what runs next?" — both
     sessions lost rounds guessing from gate errors (one jq-inspected the

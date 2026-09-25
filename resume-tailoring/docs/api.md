@@ -166,7 +166,7 @@ python3 scripts/ats_audit.py <pdf> --jd <JD.txt> --baseline --workflow-state <st
 python3 scripts/workflow_gate.py review <state> theme_review_<target>_ats.json
 python3 scripts/workflow_gate.py advance <state> seniority-approved
 python3 scripts/workflow_gate.py budgets <state> --words <N> --spill-lines <N> \
-    [--attempted-page-removal]
+    [--attempted-page-removal] [--target-pages <N>]
 python3 scripts/workflow_gate.py spacers <state> \
     [--omitted "<full role header>;<full role header>..."]
 ```

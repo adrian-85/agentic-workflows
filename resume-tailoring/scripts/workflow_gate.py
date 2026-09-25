@@ -255,7 +255,8 @@ def _next_hint(phase):
                       "fill it, then: workflow_gate.py review <state> <filled.json>",
         "ats-theme-reviewed": "present the measured seniority drop plan; after the USER "
                               "approves: workflow_gate.py advance <state> seniority-approved",
-        "seniority-approved": "workflow_gate.py budgets <state> --words <N> --spill-lines <N>",
+        "seniority-approved": "workflow_gate.py budgets <state> --words <N> --spill-lines <N> "
+                              "[--target-pages <N>]",
         "budgets-closed": "workflow_gate.py spacers <state> [--omitted \"<role header>;...\"]",
         "spacers-closed": "final render + audits (SKILL Step 12) — no further gate",
     }[phase]
@@ -290,8 +291,13 @@ def page_removal_allowed(spill_lines):
     return isinstance(spill_lines, int) and 0 < spill_lines <= 5
 
 
-def close_budgets(path, words, spill_lines, attempted_page_removal):
-    """Close measurable budgets after seniority and positioning edits."""
+def close_budgets(path, words, spill_lines, attempted_page_removal,
+                  target_pages=None):
+    """Close measurable budgets after seniority and positioning edits.
+
+    ``target_pages`` (optional) records the page target agreed at Step 5 —
+    render_pdf.sh falls back to it when a render omits --target-pages, so
+    overflow measures against the target the user actually approved."""
     require(path, "seniority-approved")
     if words > MAX_WORDS:
         raise GateError(
@@ -303,7 +309,8 @@ def close_budgets(path, words, spill_lines, attempted_page_removal):
         "words": words,
         "spill_lines": spill_lines,
         "page_removal_attempted": attempted_page_removal,
-    })
+        "target_pages": target_pages,
+    }, state_updates={"target_pages": target_pages})
 
 
 def close_spacers(path, creates_new_page, omitted=None):
@@ -359,6 +366,10 @@ def _main(argv=None):
     budget_parser.add_argument("--words", type=int, required=True)
     budget_parser.add_argument("--spill-lines", type=int, default=0)
     budget_parser.add_argument("--attempted-page-removal", action="store_true")
+    budget_parser.add_argument(
+        "--target-pages", type=int,
+        help="the page target agreed at Step 5; render_pdf.sh falls back to "
+             "it when a render omits --target-pages")
     spacer_parser = sub.add_parser("spacers")
     spacer_parser.add_argument("state")
     spacer_parser.add_argument("--creates-new-page", action="store_true")
@@ -385,7 +396,7 @@ def _dispatch(args):
         advance(args.state, args.phase)
     elif args.command == "budgets":
         close_budgets(args.state, args.words, args.spill_lines,
-                      args.attempted_page_removal)
+                      args.attempted_page_removal, args.target_pages)
     elif args.command == "spacers":
         omitted = _split_omitted(args.omitted)
         close_spacers(args.state, args.creates_new_page, omitted)

@@ -133,7 +133,19 @@ BASENAME=$(basename "$INPUT" .docx)
 INPUT_DIR="$(cd "$(dirname "$INPUT")" && pwd)"
 OUTPUT="${2:-${INPUT_DIR}/${BASENAME}.pdf}"
 OUTDIR="${3:-${INPUT_DIR}}"
-TARGET="${TARGET_PAGES_ARG:-${TARGET_PAGES:-2}}"
+TARGET="${TARGET_PAGES_ARG:-${TARGET_PAGES:-}}"
+if [ -z "$TARGET" ] && [ -n "${RESUME_WORKFLOW_STATE:-}" ] \
+        && [ -f "$RESUME_WORKFLOW_STATE" ]; then
+    # The budgets gate records the agreed page target; a render that omits
+    # --target-pages/TARGET_PAGES falls back to it instead of measuring
+    # overflow against the default 2 (sessions read "OVER by 1 page(s)"
+    # against a target nobody agreed to).
+    TARGET=$(python3 -c "import json,sys; \
+print(json.load(open(sys.argv[1])).get('target_pages') or '')" \
+        "$RESUME_WORKFLOW_STATE" 2>/dev/null)
+    [ -n "$TARGET" ] && echo "NOTE: target pages $TARGET from workflow state" >&2
+fi
+TARGET="${TARGET:-2}"
 
 log() { if [ "$VERBOSE" -eq 1 ]; then echo "$@"; fi; }
 
