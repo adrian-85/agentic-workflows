@@ -16,6 +16,7 @@ so `python3 scripts/docx_edit.py` keeps working unchanged.
 
 
 import ast
+import builtins
 import contextlib
 import io
 import json
@@ -299,6 +300,41 @@ def _report_lint_findings(bad, will_skip, total):
     return bool(bad or will_skip)
 
 
+def _script_undefined_names(tree):
+    """(name, lineno) for every name the script LOADS with no binding anywhere.
+
+    A tailor script that calls set_labeled/clone_after/drop_role without
+    extending auto_prune's emitted import list crashes mid-run with
+    NameError — after the master copy, before any edit applies. ast.parse
+    cannot see that; this pass can. Scope-naive by design: the binding set
+    is the union of EVERY binding in the module (imports, assignments,
+    defs, parameters, loop/comprehension targets, exception names), so a
+    name bound in any scope suppresses a report — false negatives are
+    safe, false positives are not.
+    """
+    bound = set(dir(builtins))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            bound.add(node.id)
+        elif isinstance(node, ast.arg):
+            bound.add(node.arg)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                               ast.ClassDef)):
+            bound.add(node.name)
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            bound.add(node.name)
+        elif isinstance(node, (ast.Global, ast.Nonlocal)):
+            bound.update(node.names)
+        elif isinstance(node, ast.Import):
+            bound.update(alias.asname or alias.name.split(".")[0]
+                         for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            bound.update(alias.asname or alias.name for alias in node.names)
+    return [(node.id, node.lineno) for node in ast.walk(tree)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+            and node.id not in bound]
+
+
 def lint_script(docx_path, script_path):
     """Validate a tailor script's find_p targets against a .docx BEFORE
     running it.
@@ -309,7 +345,9 @@ def lint_script(docx_path, script_path):
     as a run-crash-and-fix cycle. This lint runs
     the same resolution (find_p, smart punctuation included) against the
     master and reports every miss/ambiguity with line numbers, so the
-    whole edit set is verified in one pre-run. Returns exit code 0 clean,
+    whole edit set is verified in one pre-run. It also reports every name
+    the script loads without a binding (a helper used but not imported
+    crashes the run mid-edit). Returns exit code 0 clean,
     1 findings, 2 usage error.
 
     A reported miss can also be a paragraph the script CREATES itself
@@ -325,6 +363,16 @@ def lint_script(docx_path, script_path):
         targets = _script_find_p_prefixes(tree)
     except SyntaxError as e:
         print(f"error: {script_path} does not parse: {e}", file=sys.stderr)
+        return 1
+    undefined = _script_undefined_names(tree)
+    for name, lineno in undefined:
+        print(f"  MISS  line {lineno}: undefined name {name!r} — not "
+              "imported or assigned anywhere in the script (extend the "
+              "docx_edit import list)", file=sys.stderr)
+    if undefined:
+        print(f"lint: {len(undefined)} undefined name(s) — the script "
+              "crashes at run time (NameError) before edits apply; fix "
+              "before running", file=sys.stderr)
         return 1
     if not targets:
         print(f"lint: no find_p calls found in {script_path} — nothing "

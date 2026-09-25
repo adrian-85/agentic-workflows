@@ -1639,6 +1639,54 @@ class LintScriptTests(unittest.TestCase):
             os.unlink(docx)
             os.unlink(script)
 
+    def test_undefined_name_fails_the_lint(self):
+        # The Phase-2 failure mode from the sessions: a helper USED
+        # (clone_after / set_labeled / drop_role) but never added to the
+        # emitted import list — NameError mid-run, after the master copy,
+        # before any edit applies. The lint must catch it pre-run.
+        docx = self._docx_with("Tools & Technologies: Karate, Cypress")
+        script = self._script(
+            'from docx_edit import find_p\n', 'ps = None\n',
+            'clone_after(body, find_p(ps, "Tools & Technologies"), "")\n')
+        try:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = dcli.lint_script(docx, script)
+            self.assertEqual(rc, 1)
+            self.assertIn("undefined name 'clone_after'", err.getvalue())
+            self.assertIn("NameError", err.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_defined_names_do_not_fire(self):
+        # Bindings from imports, assignments, loop/comprehension targets,
+        # function parameters, and builtins must not report — only a name
+        # with NO binding anywhere fails (scope-naive by design).
+        docx = self._docx_with("Tools & Technologies: Karate, Cypress")
+        script = self._script(
+            'from docx_edit import clone_after, find_p\n', 'ps = None\n',
+            'body = None\n',
+            'def build(prefixes):\n'
+            '    for p in prefixes:\n'
+            '        mapped = [x for x in (p,) if p]\n'
+            '        if mapped:\n'
+            '            continue\n'
+            'try:\n'
+            '    ready = True\n'
+            'except OSError as exc:\n'
+            '    print(exc)\n',
+            'clone_after(body, find_p(ps, "Tools & Technologies"), "")\n')
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = dcli.lint_script(docx, script)
+            self.assertEqual(rc, 0)
+            self.assertIn("all 1", out.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
     def test_summary_edit_is_rejected(self):
         fd, docx = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
@@ -1692,7 +1740,8 @@ class LintScriptTests(unittest.TestCase):
         ])
         script = self._script(
             'from docx_edit import find_p, drop_role, set_text\n', 'ps = None\n',
-            'drop_role(body, "Old Co")\n', 'set_text(find_p(ps, "Legacy bullet"), "rewritten")\n')
+            'body = None\n', 'drop_role(body, "Old Co")\n',
+            'set_text(find_p(ps, "Legacy bullet"), "rewritten")\n')
         try:
             err = io.StringIO()
             with contextlib.redirect_stderr(err):
@@ -1719,6 +1768,7 @@ class LintScriptTests(unittest.TestCase):
         ])
         script = self._script(
             'from docx_edit import find_p, drop_role, set_text\n', 'ps = None\n',
+            'body = None\n',
             'set_text(find_p(ps, "Legacy bullet"), "rewritten")\n', 'drop_role(body, "Old Co")\n')
         try:
             out = io.StringIO()
