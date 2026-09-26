@@ -32,7 +32,7 @@ def tmp_jd_note(jd_path):
     if jd_path and jd_path.startswith("/tmp/"):
         return (
             f"NOTE: --jd {jd_path} is in /tmp — this path may not persist "
-            "across sessions. Copy the JD to the skill root as "
+            "across runs. Copy the JD to the skill root as "
             "jd_<target>.txt (SKILL Step 1) before continuing.")
     return None
 
@@ -157,7 +157,7 @@ def _deliverable_gate(path, root, src):
             f"NOTE: {os.path.basename(sys.argv[0])} does not record the "
             f"JD path ({jd_path}) in its docstring — record "
             "RESUME_VALIDATE_ARGS there so the path is discoverable "
-            "across sessions (SKILL Step 1).",
+            "across runs (SKILL Step 1).",
             file=sys.stderr,
         )
     try:

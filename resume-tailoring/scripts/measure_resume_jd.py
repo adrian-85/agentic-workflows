@@ -36,9 +36,15 @@ SECTION_STYLE = "SectionHeading"  # career/education/proficiencies headings
 
 
 class InferenceSources(NamedTuple):
-    """Evidence sources used for no-host JD terms."""
+    """Evidence sources used for no-host JD terms.
+
+    ``soft_terms`` carries the external scan's soft-skill gaps so the
+    map can verdict them SOFT-SKILL (host from action-verb evidence)
+    instead of the lexical-evidence AUTO-HOST/RAISE split.
+    """
     linkedin_text: str | None = None
     master_body: object | None = None
+    soft_terms: frozenset = frozenset()
 
 
 HEADLINE_STYLE = "Title"  # top-of-resume headline: 2nd 'Title' paragraph after the name
@@ -68,9 +74,10 @@ INFERENCE_FAMILIES = (
     (("software engineering",),
      ("software", "engineering", "engineer", "sdlc", "developed",
       "development")),
-    # Real-session misses: an Endpoint JD's performance/stress testing,
-    # OS-platform, endpoint-security, VM-tooling and GUI-automation asks
-    # had master evidence but NO family — the map reported bare gaps.
+    # Family gaps the lexical search alone misses: performance/stress
+    # testing, OS-platform, endpoint-security, VM-tooling and
+    # GUI-automation asks have master evidence but no family, so the map
+    # would report bare gaps.
     (("performance testing", "load testing", "stress testing",
       "stress-harness", "soak testing", "performance"),
      ("performance", "load", "stress", "soak", "gatling", "jmeter",
@@ -304,8 +311,8 @@ def _missing_report_block(jd_text, missing):
     """The bounded 'JD terms with NO host' display lines: proper-noun tech
     (ALL-CAPS acronyms, mid-sentence Capitalized — the class external ATS
     extractors find) first, then the rest, capped at MISSING_REPORT_CAP.
-    An unbounded list on a narrative JD (a real six-session calibration
-    run flagged 173) is an unusable checklist — the agent stops reading
+    An unbounded list on a narrative JD (a run can flag 170+ terms) is
+    an unusable checklist — the agent stops reading
     it."""
     acronyms = _acronym_terms(jd_text)
     tech = [t for t in missing if t in acronyms
@@ -540,6 +547,11 @@ def _family_roots(term):
     return ()
 
 
+def _norm_soft(term):
+    """Normalized form for matching a term against soft_terms."""
+    return " ".join(str(term).strip().lower().split())
+
+
 def _inference_map(missing_terms, body, sources=None):
     """Lines of the INFERENCE MAP for the no-host JD terms.
 
@@ -547,6 +559,8 @@ def _inference_map(missing_terms, body, sources=None):
     when provided) for the term's morphological variants and its
     skill-family roots; print up to _INFERENCE_MATCH_CAP evidence lines
     per source. The verdict is mechanical, not a judgment call:
+    SOFT-SKILL for an external report soft-skill gap (host the literal
+    phrase from the action-verb evidence in the kept bullets, never ask);
     AUTO-HOST when evidence was found in the master or LinkedIn material
     (host the JD's literal phrase without asking whether the user has the
     skill; choose the evidence's role, or Summary/Technical Proficiencies
@@ -566,6 +580,7 @@ def _inference_map(missing_terms, body, sources=None):
         source_lines.append(("linkedin", [
             ln.strip() for ln in sources.linkedin_text.splitlines()
             if ln.strip()]))
+    soft = {_norm_soft(t) for t in sources.soft_terms}
     out = [textwrap.fill(
         "INFERENCE MAP for no-host terms (deterministic evidence search "
         "over the master + LinkedIn): follow the verdicts. AUTO-HOST "
@@ -594,7 +609,15 @@ def _inference_map(missing_terms, body, sources=None):
               for label, matched in hits_by_source for m in matched]
         misses = [f"{label}: no match"
                   for label, matched in hits_by_source if not matched]
-        if ev:
+        if _norm_soft(term) in soft:
+            out.append(
+                f"  - {term}: SOFT-SKILL — host the JD's literal phrase "
+                "where the kept bullets' action-verb evidence lives "
+                "(presented/led/mentored/demoed/trained); do not ask the "
+                "user about the skill — only a soft skill no bullet "
+                "evidences becomes a recorded raise")
+            out.extend(f"      {e}" for e in ev + misses)
+        elif ev:
             out.append(f"  - {term}: AUTO-HOST — host the JD's literal "
                        "phrase in the bullet/role where this evidence "
                        "lives (merge, don't append); no skill " "confirmation needed")
@@ -603,16 +626,16 @@ def _inference_map(missing_terms, body, sources=None):
             out.append(
                 f"  - {term}: RAISE — no deterministic evidence — ASK "
                 "the user (real experience is often lexically invisible "
-                "in the master/LinkedIn — macOS, stress testing, and a "
-                "user's 'Linux home lab' evidence were, in a real "
-                "session); host only what the user confirms")
+                "in the master/LinkedIn); host only what the user confirms")
             out.extend(f"      {m}" for m in misses)
     out.append(textwrap.fill(
-        "AUTO-HOST = evidence exists in master or LinkedIn material — "
-        "host without asking about the skill; RAISE = ask about the "
-        "skill itself. If no role is identifiable, use Summary/Technical "
-        "Proficiencies or ask only about role placement. Host AUTO-HOST "
-        "terms first, then present the RAISE checklist (SKILL Step 4).",
+        "SOFT-SKILL = an external report soft-skill gap — host from the "
+        "kept bullets' action-verb evidence; AUTO-HOST = evidence exists "
+        "in master or LinkedIn material — host without asking about the "
+        "skill; RAISE = ask about the skill itself. If no role is "
+        "identifiable, use Summary/Technical Proficiencies or ask only "
+        "about role placement. Host SOFT-SKILL and AUTO-HOST terms "
+        "first, then present the RAISE checklist (SKILL Step 4).",
         width=76, initial_indent="    ", subsequent_indent="    "))
     return out
 

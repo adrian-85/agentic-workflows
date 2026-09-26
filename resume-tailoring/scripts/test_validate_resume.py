@@ -255,10 +255,10 @@ class PunctuationTests(unittest.TestCase):
 class BulletCapTests(unittest.TestCase):
     """SKILL Step 8's hard cap: no role keeps more than MAX_BULLETS_PER_ROLE
     (8) bullets in a tailored resume, regardless of tenure or accomplishment.
-    Motivating failure: the most-recent role kept 16-19 bullets while
-    JD-relevant older-role bullets died under page pressure — the cap is
-    enforced here by count, and the master is exempt
-    (it intentionally keeps everything)."""
+    Without the cap a role can keep 16-19 bullets while JD-relevant
+    older-role bullets die under page pressure — the cap is enforced here
+    by count, and the master is exempt (it intentionally keeps
+    everything)."""
 
     @staticmethod
     def _region_with_counts(*counts):
@@ -1101,9 +1101,9 @@ class GuidanceTests(unittest.TestCase):
                         errors)
 
     def test_missing_spacer_error_carries_the_copy_ready_command(self):
-        # The Toast-session failure: three recording attempts + source
-        # reading to learn the expected string format. The error now
-        # includes the full header and the exact --omitted command.
+        # Learning the expected string format used to take three recording
+        # attempts and a source read; the error now includes the full
+        # header and the exact --omitted command.
         b, _s = self._two_role_body(with_spacer=False)
         errors = vrc._final_presentation_errors(b)
         headers = [h for h, _a in mr._boundaries_without_spacer(b)]
@@ -1210,8 +1210,7 @@ blocking."""
         """validate_tree keeps its dict contract when the --jd file is
         unreadable. An int return crashed docx_edit's deliverable gate with
         "TypeError: 'int' object is not subscriptable" instead of blocking
-        with a readable message (found when a session's --jd file was
-        missing at save time). A missing JD file must block, not crash:
+        with a readable message. A missing JD file must block, not crash:
         blocking > 0 and a readable line here, never an int."""
         fd, path = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
@@ -1291,10 +1290,10 @@ class MainBlockPlacementTests(unittest.TestCase):
         self.assertEqual(vr._JdBlocking.__name__, "_JdBlocking")
 
 
-class SessionLoopTests(unittest.TestCase):
-    """Regressions from a real tailoring session's friction points: the
-    paraphrased-bullet repeat, the word used twice too close together in
-    the Summary, and a spelled-out years ask that warned as fabricated."""
+class LoopSignalTests(unittest.TestCase):
+    """Loop-signal regressions: the paraphrased-bullet repeat, the word
+    used twice too close together in the Summary, and a spelled-out years
+    ask that warned as fabricated."""
 
     def _career(self, bullets):
         ps = [mk("Career Experience", style="SectionHeading"),

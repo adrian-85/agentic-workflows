@@ -19,8 +19,7 @@ Setup — save five cURL requests, captured from the scan service's web
 app in the browser DevTools (Network tab, "Copy as cURL"), into
 `<skill-root>/.ats-check/curl.txt`, separated by blank lines (the skill
 root is this repo's resume-tailoring/ directory — the config lives with
-the workflow's other personal assets, gitignored, and survives session
-cleanup):
+the workflow's other personal assets, gitignored, and survives cleanup):
 
     1. the resume-upload POST (multipart, file upload)
     2. the job-description POST (JSON body with the JD text)
@@ -73,9 +72,9 @@ from script_args import (MATCH_RATE_TARGET, flag_value, maybe_help,
                          match_target_met, sha256_file)  # noqa: E402
 
 # Config lives in the SKILL ROOT (this repo's resume-tailoring/), next
-# to the master resume and JD files it belongs to — gitignored, durable
-# across sessions (a ~/.config location was wiped by a sandbox cleanup
-# once). A dot-directory: shell globs (`git add *`) skip dotfiles, so the
+# to the master resume and JD files it belongs to — gitignored and durable
+# across runs (a ~/.config location is not). A dot-directory: shell globs
+# (`git add *`) skip dotfiles, so the
 # credentials cannot be swept up by a blanket stage. Files are written
 # 0600. No fallback location — one path, one source of truth.
 SKILL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -394,10 +393,10 @@ def _load_known(path):
 def known_ats_lookup(company, path=None):
     """The prior scan's {url, ats} record for ``company``, or None.
 
-    Session-knowledge reuse for the URL-optional flow: a JD file without
-    a Posting URL line still gets ATS identification when an earlier
-    scan (this session or a previous one) identified the ATS for the
-    same company. URL stays optional — the lookup never invents one."""
+    ATS-knowledge reuse for the URL-optional flow: a JD file without a
+    Posting URL line still gets ATS identification when an earlier scan
+    identified the ATS for the same company. URL stays optional — the
+    lookup never invents one."""
     if not company:
         return None
     rec = _load_known(path or KNOWN_ATS_FILE).get(company.strip().lower())

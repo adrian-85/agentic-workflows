@@ -1,6 +1,6 @@
 """Lint a (tailored) resume for structural and claim-consistency errors.
 
-Catches the error classes tailoring sessions actually hit:
+Catches the error classes a tailoring run actually hits:
 
 1. STRUCTURE — orphan paragraphs left by subtractive cuts:
    - a job-title paragraph with no preceding company block (a company
@@ -574,8 +574,8 @@ def _jd_checks(jd_path, body, span, opts, ctx):
             # docx_edit's deliverable gate reads result["blocking"] BEFORE
             # writing a tailored .docx. An int return here made the gate
             # crash with "TypeError: 'int' object is not subscriptable"
-            # instead of blocking with a readable message (found when a
-            # session's --jd file was unreadable at save time). Blocking: 1
+            # instead of blocking with a readable message (a --jd file can
+            # be unreadable at save time). Blocking: 1
             # -> the CLI still exits 2 and the gate refuses the write.
             raise _JdBlocking({"blocking": 1, "warnings": 0, "lines": [
                 f"error: cannot read --jd file {jd_path}: {e} "

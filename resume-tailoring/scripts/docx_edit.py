@@ -89,11 +89,10 @@ def prune_sidecar_path(docx, jd_file=None):
     """Per-JD prune-plan sidecar: ``<docx>.prune.<jd-stem>.json``.
 
     The prune plan is JD-specific, but it used to live in a single
-    ``<docx>.prune.json`` keyed only by the master filename — two tailor
-    sessions running from the same master in parallel (two terminals, two
-    JDs) collided: whichever auto_prune ran second clobbered the first's
-    gate state, and the first session's lint-prune then failed with the
-    other session's foreign candidates (and vice versa). Keying the
+    ``<docx>.prune.json`` keyed only by the master filename — two runs
+    from the same master in parallel (two terminals, two JDs) collided:
+    whichever auto_prune ran second clobbered the first's gate state, and
+    each run's lint-prune then saw the other's foreign candidates. Keying the
     sidecar by the JD file makes the plan private to the run that wrote
     it. ``jd_file=None`` keeps the legacy shared path for callers with no
     JD context. The reader (lint-prune) derives the JD from the tailor

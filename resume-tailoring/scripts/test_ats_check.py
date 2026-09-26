@@ -444,9 +444,9 @@ if __name__ == "__main__":
 
 
 class TestPostingUrlGuard(unittest.TestCase):
-    """_posting_url drops non-URL placeholders (SKILL Step 1: a real
-    session's '(ask user — not provided)' leaked to the scan service as
-    url=(ask ...). The line must carry a real URL or be absent."""
+    """_posting_url drops non-URL placeholders (SKILL Step 1: a placeholder
+    like '(ask user — not provided)' must not reach the scan service as a
+    URL). The line must carry a real URL or be absent."""
 
     def test_real_url_returned(self):
         self.assertEqual(
@@ -456,7 +456,7 @@ class TestPostingUrlGuard(unittest.TestCase):
 
     def test_placeholder_ask_dropped(self):
         self.assertIsNone(
-            ac._posting_url("Posting URL: (ask user — not provided in session)\n"))
+            ac._posting_url("Posting URL: (ask user — not provided)\n"))
 
     def test_placeholder_not_provided_dropped(self):
         self.assertIsNone(

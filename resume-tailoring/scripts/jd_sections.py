@@ -5,8 +5,8 @@ each on its own line with a TRAILING COLON (case-insensitive, optional
 surrounding whitespace). When the posting omits that content, the user
 still includes the header with a blank body — never a synonym, never a
 different phrasing. This replaces the old per-JD calibrated heading
-regex (which grew a new pattern almost every session as postings
-phrased "Required Experience" a new way) with one deterministic
+regex (which grew a new pattern with each new posting phrasing, like
+"Required Experience" versus "Requirements") with one deterministic
 contract: there is no fallback heading recognition here by design — a
 header either matches this exact vocabulary or it doesn't. The colon
 is REQUIRED, not optional: the one-word headers ("title", "role")

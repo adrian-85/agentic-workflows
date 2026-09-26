@@ -54,7 +54,7 @@ authoring:
   Warn-once, rebaseline; the blocking gate for a stopped-matching edit is the skipped-edit check
   (exit 2 under `DOCX_EDIT_STRICT=1`). Pass `src=SRC` and the sidecar also records the master's
   sha256, warning (`MASTER CHANGED:`) when the master differs from the script's last run — a fold
-  landed between runs, or (most often) the USER edited the master between sessions. **That warning
+  landed between runs, or (most often) the USER edited the master between runs. **That warning
   is also a GATE**: a run against a changed master is auto-strict — any skipped edit exits 2 even
   without `DOCX_EDIT_STRICT=1`, so a mid-flight master edit can never silently strand drifted
   prefixes. Re-dump `--prefixes`, review what changed (respect the user's edits — never re-fold
@@ -63,8 +63,7 @@ authoring:
   `text=""`, it adds a managed blank spacer that survives a later `remove_empty(body)` pass.
 
   **Return-value idiom (the recurring gotcha):** `clone_after` returns the NEW paragraph element —
-  NOT a refreshed paragraph list. Two sessions poisoned `ps` with `ps = clone_after(...)` and spent
-  five debug calls recovering. The correct patterns:
+  NOT a refreshed paragraph list. `ps = clone_after(...)` poisons `ps`; the correct patterns:
 
   ```python
   # editing the clone LATER: chain off the RETURNED element, never find_p
@@ -516,7 +515,7 @@ the master paragraphs (and an optional LinkedIn dump) via two mechanisms:
    `customer-facing`). Matched whole-word in the corpus.
 2. **Skill-family roots** — an in-code table (`INFERENCE_FAMILIES`) mapping term families to
    related evidence roots. A no-host term matching a family key (whole-word) is searched for its
-   family's roots as substrings in the corpus. The families cover the sessions' actual failure
+   family's roots as substrings in the corpus. The families cover the recurring no-host failure
    modes:
 
 | Family keys | Evidence roots |
@@ -563,8 +562,8 @@ INFERENCE MAP for no-host terms (deterministic evidence search over the
 ```
 
 **LinkedIn evidence.** Pass `--linkedin <profile-dump.txt>` (the `read_profile.sh` output) so the
-map also searches the LinkedIn export — the richer source for content the resume compressed away (the
-Elasticsearch fold, for example, is justified from Skills.csv via this path):
+map also searches the LinkedIn export — the richer source for content the resume compressed away (a
+skills-list CSV entry, for example, can justify a fold the master never names):
 
 ```bash
 python3 scripts/measure_resume.py "<Target>.docx" 3 --jd "<JD>.txt" \
@@ -776,12 +775,12 @@ entirely when the URL is unknown.
 
 **URL-optional: ATS knowledge reuse across scans.** The URL is optional — the scan always runs
 without it. Its job is ATS identification, and that is company-scoped knowledge: when this JD has no
-Posting URL line but a prior scan (this session or an earlier one) identified the ATS for the same
+Posting URL line but a prior scan identified the ATS for the same
 company, `ats_check.py` reuses the known posting URL for the metadata PATCH and prints the reuse. A
 URL-less second posting for an already-scanned company would run with NO ATS identified and
 NO keyword-matching mode at all — a large match-rate drop against the same system. The known-ATS
 mapping is persisted in `.ats-check/known-ats.json` (gitignored, durable
-across sessions). `--company` overrides the company detection from the JD's `Company:` line.
+across runs). `--company` overrides the company detection from the JD's `Company:` line.
 
 **Fix tool bugs in the session that finds them.** If a script in this skill misbehaves or
 contradicts its documented behavior, do not route around it: fix the script and add a regression

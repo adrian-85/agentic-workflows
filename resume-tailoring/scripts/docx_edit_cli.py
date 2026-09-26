@@ -419,7 +419,7 @@ def _script_jd_name(script_path):
     auto_prune emits ``JD: jd_<target>.txt.`` as the docstring's first
     body line; the prune-plan sidecar is keyed by that JD (see
     docx_edit.prune_sidecar_path), so the coverage lint can find the
-    plan for THIS run instead of a shared file another parallel session
+    plan for THIS run instead of a shared file another parallel run
     may have overwritten. Returns None when the docstring records no JD
     (hand-written scripts) — the caller falls back to the legacy path.
     """

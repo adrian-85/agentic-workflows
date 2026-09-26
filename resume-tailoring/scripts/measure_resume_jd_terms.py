@@ -65,9 +65,9 @@ JD_STOP = frozenset({
     "sound", "proficiency", "proficient", "comfortable", "comfort",
     "depth", "hands", "treat", "background", "familiarity",
     "rigorous", "rigor", "commitment", "passion", "excitement",
-    # Real-session artifacts: sentence-initial soft nouns of qual lines
-    # ("Sound judgment on...", "Hands-on with...") mined as no-host
-    # 'gaps'; buried the real asks. Tech words are deliberately NOT here.
+    # Sentence-initial soft nouns of qual lines ("Sound judgment on...",
+    # "Hands-on with...") mine as no-host 'gaps' and bury the real asks.
+    # Tech words are deliberately NOT here.
     "bachelor", "degree", "education", "university", "college",
     "business", "businesses", "progress", "flexible", "flexibility",
     "learning", "collaborative", "environment", "environments",
@@ -100,9 +100,9 @@ JD_CONCEPTS = (
     "traceability", "documentation gaps", "go-live", "go live",
     "instructor-led", "incomplete documentation",
     # Practice nouns the QA JDs ask for by name and the master demonstrates
-    # (six-session calibration: debugging/troubleshoot asked at freq 1
-    # lowercase in IA-test-architect JDs — invisible to the cap and freq
-    # gates, so hosted bullets read as evidence-free). Bare 'documentation'
+    # (debugging/troubleshoot are asked at freq 1 lowercase — invisible to
+    # the cap and freq gates, so hosted bullets would read as
+    # evidence-free). Bare 'documentation'
     # is deliberately NOT here: it over-protects junk ('enhance documentation
     # practices') in every JD that mentions docs.
     "debugging", "troubleshooting", "troubleshoot",
@@ -154,8 +154,8 @@ def _line_terms(line):
 
     ALL-CAPS tokens of length>=2 are kept as acronyms regardless of
     length — a "CI/CD: Jenkins, ..." line must yield "ci", or the JD's
-    "CI" ask never intersects the claimed vocabulary; a real
-    Endpoint session cut CI evidence from every role this way.
+    "CI" ask never intersects the claimed vocabulary and CI evidence is
+    cut from every role.
     """
     terms = set()
     if ":" in line:
@@ -327,9 +327,9 @@ def _all_paragraph_texts(body):
     """Texts of every non-empty paragraph (document order) — the FULL
     term-source pool: bullets, proficiencies, Tools lines, AND the
     Summary/role-intro prose. Intros are kept, rewritten content that
-    legitimately hosts JD asks: the HubSync session's hosting pass lived
-    on exactly those paragraphs ("Built the shared harness layer...",
-    "contributing skills files, playbooks, and context configuration").
+    legitimately hosts JD asks: a hosting pass lives on exactly those
+    paragraphs ("Built the shared harness layer...", "contributing skills
+    files, playbooks, and context configuration").
     Mining only numbered bullets made every intro-hosted ask lexically
     invisible to the prune plan.
     """

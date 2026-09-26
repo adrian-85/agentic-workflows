@@ -190,10 +190,9 @@ class RolesTests(unittest.TestCase):
 
 class WrappedToolsBudgetTests(unittest.TestCase):
     """_wrapped_tools reports the MEASURED trim budget (value chars vs the
-    first-rendered-line capacity), not a fixed "~N tools" guess. Session
-    failure: two trim passes were needed because the wrap width was guessed
-    (~45-48 chars) from a proportional-font render where no fixed count is
-    right — the wrap point itself is the only honest budget."""
+    first-rendered-line capacity), not a fixed "~N tools" guess. A guessed
+    wrap width (~45-48 chars) from a proportional-font render needs two
+    trim passes; the wrap point itself is the only honest budget."""
 
     KEY = "Company ABC, Phoenix, AZ"
     VALUE = "Go, Python, JavaScript, TypeScript, Azure Service Bus"
@@ -429,12 +428,11 @@ class TopRoleBatchTests(unittest.TestCase):
     """_top_role_batch: the most-recent role's trim batch, emitted when the
     deterministic plan cannot close the gap.
 
-    THE motivating failure (a Principal-level tailoring session): the master's
-    most-recent role held 23 bullets / 63 rendered lines, every older-role
-    budget was a dead end, and the tool's BATCH RECLAIM PLAN still could
-    not reach the 3-page target. Nothing in the output covered the top
-    role, so the author had to invent levers — headless replays
-    showed agents filling the vacuum with hand-shortening (rewriting kept
+    The failure mode: a master whose most-recent role holds 23 bullets /
+    63 rendered lines leaves every older-role budget a dead end, and the
+    BATCH RECLAIM PLAN alone cannot reach the 3-page target. Nothing in
+    the output covers the top role, so the author invents levers — agents
+    fill the vacuum with hand-shortening (rewriting kept
     bullets from two rendered lines to one), the lowest-leverage edit in
     the skill. Enforcement moved into the tool: when TOP-BLOCK + Tools
     de-wraps + feasible oldest cuts fall short, measure emits the top
@@ -514,9 +512,8 @@ class TopRoleBatchTests(unittest.TestCase):
         # The fallback for a fully-protected top role: every matched bullet
         # with ITS OWN matched terms, so a generic-match false positive
         # ('new', 'build') is visibly weak and the human rule can override
-        # protection deliberately. This is the evidence the session that
-        # motivated it lacked — the tool said 'no unprotected bullet to
-        # give' and the author hand-picked cuts with no data.
+        # protection deliberately. Without it the tool says 'no unprotected
+        # bullet to give' and cuts are hand-picked with no data.
         section = mr._protected_top_role_section(self.matched, self.jd)
         self.assertIsNotNone(section)
         self.assertIn("TOP-ROLE PROTECTED BULLETS", section)
@@ -567,11 +564,11 @@ class JDAwareTests(unittest.TestCase):
     """--jd makes the DROP PLAN JD-aware: bullets whose text matches a
     candidate-tech term the JD asks for (Cypress, Gatling, Jenkins, ...) or
     a named JD practice (mentorship, shift-left) must NOT be suggested for
-    cutting while any non-matching bullet remains. The motivating failure:
-    the JD-blind scorer ranked 'Championed the adoption of Cypress' and
-    'Created performance tests using Gatling' (both directly named JD quals)
-    as weak, and silently cut a 'Mentored junior team member' bullet that
-    the JD's 'Mentor junior QA engineers' requires."""
+    cutting while any non-matching bullet remains. The JD-blind scorer can
+    rank 'Championed the adoption of Cypress' and 'Created performance
+    tests using Gatling' (both directly named JD quals) as weak and cut a
+    'Mentored junior team member' bullet the JD's 'Mentor junior QA
+    engineers' requires."""
 
     def _prof_body(self):
         """Resume with a Technical Proficiencies block, a Tools line, and a
@@ -673,8 +670,8 @@ class JDAwareTests(unittest.TestCase):
         self.assertNotIn("c", mr._jd_terms("C programming", self._prof_body()))
 
     def test_jd_matched_bullets_never_suggested_while_weak_remain(self):
-        # The motivating failure: Cypress (JD Required qual) ranked weak and
-        # landed on the cut list. With --jd it must be excluded.
+        # Cypress (JD Required qual) can rank weak and land on the cut list
+        # without --jd; with --jd it must be excluded.
         bullets = [
             "Championed the adoption of Cypress, co-architecting the initial framework",
 
@@ -835,9 +832,9 @@ class JdHitsTests(unittest.TestCase):
 
     def test_singular_term_matches_plural(self):
         # Bidirectional: the JD asks for 'integration' work, the bullet says
-        # 'partner integrations' — same evidence (a past session: the
-        # partner-integrations bullet was ranked for cutting while the
-        # JD asked for 'API, service, integration, and backend validation').
+        # 'partner integrations' — same evidence (the partner-integrations
+        # bullet would otherwise rank for cutting while the JD asks for
+        # 'API, service, integration, and backend validation').
         self.assertEqual(
             mr._jd_hits("Tested partner integrations", {"integration"}),
             ["integration"])
@@ -885,10 +882,9 @@ class JdCapitalizedTests(unittest.TestCase):
 class CoreTechNounTests(unittest.TestCase):
     """Core tech nouns are exempt from the bullet-only capitalization gate.
 
-    A past session regressed here (a Playwright JD): the JD's
-    'Perform API, service, integration, and backend validation' names
-    'integration' lowercase mid-sentence, so the bullet-only term was
-    rejected and the DROP PLAN suggested cutting the
+    A Playwright-shaped JD names
+    'integration' lowercase mid-sentence, so without this exemption the
+    bullet-only term is rejected and the DROP PLAN suggests cutting the
     partner-integrations bullet — strong integration-testing evidence.
     The capitalization gate exists to block PROSE flood; these nouns can
     never be prose. The generic-hit-rate guard still applies.
@@ -1042,8 +1038,8 @@ class DeadEndTests(unittest.TestCase):
 
 class LineTermsTests(unittest.TestCase):
     """_line_terms: the LABEL of a labeled line is part of the resume's
-    claimed vocabulary too. A past session regressed here: the
-    JD asked for API testing, but 'API' only appeared in the LABEL
+    claimed vocabulary too. A JD can ask for API testing while 'API' only
+    appears in the LABEL
     ('API & Web Services: REST, ...') which the old value-only splitter
     discarded — so the line carried 'no JD evidence' and landed on the
     TOP-BLOCK cut list."""
@@ -1075,8 +1071,8 @@ class AcronymVocabTests(unittest.TestCase):
     claimed vocabulary regardless of length. A 'CI/CD: Jenkins, ...' line
     must yield 'ci'/'cd', or a JD asking for 'CI' never intersects and
     tool-less CI bullets ('Re-architected CI from a degraded state...')
-    mine as OFF-JD with nothing to protect them (a real Endpoint session
-    cut CI evidence from every role this way)."""
+    mine as OFF-JD with nothing to protect them (CI evidence is cut from
+    every role this way)."""
 
     def test_label_acronyms_len2(self):
         terms = mr._line_terms("CI/CD: Jenkins, CircleCI, GitHub Actions")
@@ -1097,8 +1093,8 @@ class JdLineTermPeriodTests(unittest.TestCase):
     """_jd_line_terms: sentence-final periods must not survive inside a
     mined term. 'GitLab CI.' mined as 'gitlab ci.' — a form no resume can
     host — so the audit's no-host list carried it forever and the REAL
-    ask ('CI') never matched (a real Endpoint session's no-host list
-    showed 'ci.', 'vmware.', 'gcp.', 'parallels.')."""
+    ask ('CI') never matched (the no-host list shows 'ci.', 'vmware.',
+    'gcp.', 'parallels.')."""
 
     def test_trailing_period_stripped_from_seq(self):
         terms = mr._jd_line_terms(
@@ -1118,8 +1114,8 @@ class JdLineTermPeriodTests(unittest.TestCase):
 class JunkQualTokenTests(unittest.TestCase):
     """Sentence-initial soft nouns of qual lines ('Sound judgment...",
     'Proficiency in Python...', 'Hands-on with...', 'Treat test...')
-    must never mine as no-host 'gaps' — a real Endpoint session's list
-    was half junk tokens, burying the real asks."""
+    must never mine as no-host 'gaps' — they would fill the list with junk
+    tokens and bury the real asks."""
 
     JD_LINES = [
         "Required Qualifications:",
@@ -1157,12 +1153,32 @@ class SoftSkillDetectionTests(unittest.TestCase):
         line = "Own the integration, performance, and reliability testing."
         self.assertTrue(mr.JD_SOFT_SKILL_RE.search(line))
 
+    def test_soft_skill_source_term_gets_the_soft_verdict(self):
+        # An external report's soft-skill gap has no lexical home, so the
+        # map must not verdict it RAISE (ask the user) — it is hostable
+        # from the kept bullets' action-verb evidence.
+        body = _body([_para("Career Experience", style="SectionHeading")])
+        out = mr._inference_map(
+            ["resilient"], body,
+            mr.InferenceSources(soft_terms=frozenset({"Resilient"})))
+        joined = "\n".join(out)
+        self.assertIn("resilient: SOFT-SKILL", joined)
+        self.assertNotIn("resilient: RAISE", joined)
+        self.assertIn("action-verb evidence", joined)
 
-class SessionGapFamilyTests(unittest.TestCase):
-    """INFERENCE_FAMILIES additions: a real Endpoint JD's asks
-    (performance/stress testing, OS platforms, endpoint security, VM
-    tooling, GUI automation, secure SDLC) had real master evidence but
-    no family, so the map reported bare gaps instead of candidates."""
+    def test_soft_verdict_requires_the_source_tag(self):
+        # The tag comes from the external report's own soft list; without
+        # it the term follows the lexical verdict (never guessed soft).
+        body = _body([_para("Career Experience", style="SectionHeading")])
+        out = mr._inference_map(["resilient"], body)
+        self.assertIn("resilient: RAISE", "\n".join(out))
+
+
+class GapFamilyTests(unittest.TestCase):
+    """INFERENCE_FAMILIES additions: performance/stress testing, OS
+    platforms, endpoint security, VM tooling, GUI automation and secure
+    SDLC asks have real master evidence but no family, so the map would
+    report bare gaps instead of candidates."""
 
     def _body(self):
         return _body([
@@ -1250,10 +1266,10 @@ class PruneCandidatesTests(unittest.TestCase):
     """prune_candidates: the machine-readable twin of the printed PRUNE
     PLAN — every candidate the plan prints is a dict here (kind, role,
     prefix, text, detail), written to the <master>.prune.json sidecar and
-    enforced by docx_edit --lint-prune (run_tailor.sh). The motivating
-    session: the plan's word/sentence-level trim candidates were never
-    implemented, the agent asserted 'trims are in', and two user prompts
-    were needed — the sidecar turns 'are they in' into a checked claim."""
+    enforced by docx_edit --lint-prune (run_tailor.sh). Without it the
+    plan's word/sentence-level trim candidates can go unimplemented while
+    'trims are in' is asserted and only user prompts catch it — the
+    sidecar turns 'are they in' into a checked claim."""
 
     KIND_KEYS = {"kind", "role", "prefix", "text", "detail"}
 
@@ -1656,8 +1672,8 @@ class TitleAlignmentTests(unittest.TestCase):
 
     def test_jd_title_skips_posting_url_line(self):
         # SKILL Step 1 persists the job posting URL as the JD file's FIRST
-        # line — that metadata line must never become the title (a session
-        # saw the placeholder parsed as the JD title).
+        # line — that metadata line must never become the title (a
+        # placeholder must not be parsed as the JD title).
         self.assertEqual(
             mr._jd_title("Posting URL: https://ats.example/apply/123\n"
                          "Forward Deployed AI Engineer\n\nOwn quality."),
@@ -1856,10 +1872,10 @@ class InferenceMapTests(unittest.TestCase):
         self.assertNotIn("ontology: AUTO-HOST", joined)
 
     def test_raise_term_reports_each_source_miss(self):
-        # Session evidence: the map's verdicts were trusted without
-        # seeing WHICH sources were searched — the master can be
-        # skipped while LinkedIn is read, and the RAISE then
-        # overstates. Every RAISE term now names its no-match sources.
+        # Verdicts must not be trusted without seeing WHICH sources were
+        # searched — the master can be skipped while LinkedIn is read, and
+        # the RAISE then overstates. Every RAISE term names its no-match
+        # sources.
         out = mr._inference_map(["ontology"], self._body())
         joined = "\n".join(out)
         self.assertIn("master: no match", joined)
@@ -1867,8 +1883,8 @@ class InferenceMapTests(unittest.TestCase):
         self.assertNotIn("linkedin:", joined)
 
     def test_linkedin_dump_searched_as_second_source(self):
-        # The LinkedIn export is the richer evidence source (a real
-        # session justified the Elasticsearch fold from Skills.csv).
+        # The LinkedIn export is the richer evidence source (a Skills.csv
+        # term can justify a fold the master never names).
         dump = "===== Skills.csv =====\nElasticsearch\nAWS\n"
         out = mr._inference_map(
             ["aws services"], self._body(),
@@ -2076,9 +2092,9 @@ class JdMissingTermsTests(unittest.TestCase):
         self.assertIn("ide", terms)
 
     def test_camelcase_tokens_mine(self):
-        # 'macOS' starts lowercase, so the Capitalized-token regex never
-        # saw it — a real Endpoint session's no-host list missed the
-        # JD's macOS ask entirely. Mixed-case qual tokens are tech names.
+        # 'macOS' starts lowercase, so the Capitalized-token regex misses
+        # it and the no-host list would omit the JD's macOS ask entirely.
+        # Mixed-case qual tokens are tech names.
         terms = mr._jd_line_terms(
             "Depth in operating-system behavior on at least two of Windows, macOS, and Linux.")
         self.assertIn("macos", terms)
@@ -2087,15 +2103,15 @@ class JdMissingTermsTests(unittest.TestCase):
 
     def test_line_terms_filters_self_assessment_adjectives(self):
         # A soft-skill qual line's only capitalized token is the
-        # self-assessment adjective — never skill evidence (a session
-        # chased "excellent" as a keyword across three user replies).
+        # self-assessment adjective — never skill evidence ('excellent'
+        # must not become a keyword).
         terms = mr._jd_line_terms(
             "Excellent communication, stakeholder management, and technical leadership skills")
         self.assertEqual(terms, set())
 
 
 class JdTermRecallTests(unittest.TestCase):
-    """JD term-mining recall, regression-tested on a HubSync-shaped JD:
+    """JD term-mining recall, regression-tested on a feature-dense JD:
     the prune plan missed 'agents', 'context',
     'sdlc', 'spec', 'V1', 'MCP', 'RCA', 'cycle time', 'review latency' —
     the JD's core asks — because lowercase mid-sentence nouns, compound
@@ -2274,8 +2290,8 @@ class JdTermRecallTests(unittest.TestCase):
         self.assertNotIn("acmeco", missing)
 
     def test_missing_report_is_signal_ranked_and_bounded(self):
-        # An unbounded no-host list on a narrative JD (a real calibration
-        # run flagged 173) is an unusable checklist — the agent stops
+        # An unbounded no-host list on a narrative JD (a run can flag
+        # 170+) is an unusable checklist — the agent stops
         # reading it. The report shows the strongest signals first.
         jd = "Required Qualifications:\n" + \
              ", ".join(f"Tool{i}" for i in range(40)) + \
@@ -2631,7 +2647,7 @@ class MeasureHelpFlagTests(unittest.TestCase):
 
 class CoverageTermsVisibilityTests(unittest.TestCase):
     """Regression: an UNCOVERED line whose qual the resume demonstrably
-    hosts used to cost a matcher-debugging session ('Solid SQL skills'
+    hosts used to cost a matcher-debugging round ('Solid SQL skills'
     mines the single artifact term 'solid sql' — a capitalized-sequence
     artifact invisible in the report). The coverage printer now shows the
     extracted terms on weak/uncovered lines."""
@@ -2721,8 +2737,8 @@ class InferenceFamilyTests(unittest.TestCase):
 class WordBudgetTests(unittest.TestCase):
     """The 1000-word cap is a blocking gate; the WORD BUDGET section
     surfaces the arithmetic BEFORE the gate blocks, so cuts are planned
-    in one pass instead of hand-estimated across blocked re-runs (a real
-    session burned six gate-blocked cycles chasing the cap)."""
+    in one pass instead of hand-estimated across blocked re-runs (chasing
+    the cap can otherwise burn six gate-blocked cycles)."""
 
     def _body_with_words(self, n):
         filler = " ".join(f"word{i}" for i in range(n))
@@ -2919,10 +2935,10 @@ class RequirementsSummaryTests(unittest.TestCase):
 
 class PrunePlanModeTests(unittest.TestCase):
     """The master is measured ONLY in prune-plan mode (SKILL Step 3):
-    relevance assessment first, page/word math never. The Gravie session
-    planned its cuts from full-master page math and still shipped four
-    non-JD sentences the user hand-cut afterward — because master page
-    math answers 'what fits', not 'what matters'. The master without
+    relevance assessment first, page/word math never. Planning cuts from
+    full-master page math still ships non-JD sentences that must be
+    hand-cut afterward — because master page math answers 'what fits',
+    not 'what matters'. The master without
     --jd, or with --simulate, is refused; with --jd the output is the
     JD assessment alone (audit + trim + top-block candidates), with
     copy-pasteable anchors, and no PAGES/RECLAIM/WORD BUDGET sections.

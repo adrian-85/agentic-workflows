@@ -85,8 +85,8 @@ if __name__ == "__main__":
 
 
 class SlashPathAndStopwordTests(unittest.TestCase):
-    """Regression: Alteryx SDET JD audit false-failures (SKILL Step 11
-    fix-tools-in-session)."""
+    """Regression: JD audit false-failures on a slash-path and
+    stopword-heavy JD (SKILL Step 11)."""
 
     JD = """title:
 Software Development Engineer in Test

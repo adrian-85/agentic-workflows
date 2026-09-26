@@ -229,9 +229,8 @@ def _is_master_input(docx):
     """True when <docx> is the master resume — the same convention
     validate_resume.py auto-detects ("X Master Resume.docx"). The master
     is only ever prune-planned: page/word math over content that is about
-    to be pruned measures nothing real (the Gravie session planned its
-    cuts from master page math, and the user then hand-cut four more
-    non-JD sentences the delivered copy kept)."""
+    to be pruned measures nothing real, and master page math would drive
+    cuts that miss non-JD sentences the delivered copy keeps."""
     return os.path.basename(docx).endswith(" Master Resume.docx")
 
 
@@ -635,9 +634,13 @@ def _print_layout_summary(ctx):
 
 
 def _external_gap_terms(report_path, resume_path, internal_missing):
-    """Persist the fingerprinted gap queue; return its merged term list."""
+    """Persist the fingerprinted gap queue; return (terms, soft_terms).
+
+    ``soft_terms`` is the external report's soft-skill subset (source
+    ``external-soft``) so the inference map can verdict those SOFT-SKILL
+    rather than the lexical AUTO-HOST/RAISE split."""
     if not report_path:
-        return list(internal_missing)
+        return list(internal_missing), frozenset()
     artifact_path = resume_path + ".gap.json"
     try:
         artifact = gap_queue.write_artifact(
@@ -648,7 +651,10 @@ def _external_gap_terms(report_path, resume_path, internal_missing):
         sys.exit(2)
     print(f"ATS GAP QUEUE: {len(artifact['gaps'])} normalized gap(s) "
           f"-> {artifact_path}")
-    return [gap["term"] for gap in artifact["gaps"]]
+    gaps = artifact["gaps"]
+    return ([gap["term"] for gap in gaps],
+            frozenset(gap["term"] for gap in gaps
+                      if "external-soft" in gap.get("sources", ())))
 
 
 def _load_and_render(args):
@@ -668,14 +674,15 @@ def _load_and_render(args):
             if master_body is None and internal_missing:
                 _fail_without_master(
                     "JD terms with NO host in the resume")
-            extra_missing = _external_gap_terms(
+            extra_missing, soft_terms = _external_gap_terms(
                 args.ats_report, source_docx, internal_missing)
             if master_body is None and extra_missing:
                 _fail_without_master("external ATS gap")
             _print_jd_report(
                 args.jd_file, args.jd_text, jd_terms, body,
                 InferenceSources(linkedin_text=args.evidence_text,
-                                 master_body=master_body),
+                                 master_body=master_body,
+                                 soft_terms=soft_terms),
                 extra_missing=tuple(extra_missing))
         pdf = _render_pdf(docx, td)
         pages_text = _pdf_pages_text(pdf)

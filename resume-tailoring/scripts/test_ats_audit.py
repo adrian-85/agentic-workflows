@@ -592,20 +592,57 @@ class MainTests(unittest.TestCase):
         rc, _ = self._run()
         self.assertEqual(rc, 2)
 
-    def test_vacuous_mining_warns_not_clean(self):
-        # A JD whose qual lines use no cue syntax mines ZERO phrases — the
-        # audit must flag the check as vacuous, never report it clean
-        # ('0/0 hosted' must not read as ok).
+    def test_vacuous_mining_fails_in_final_mode(self):
+        # A JD whose qual lines use no cue syntax mines ZERO phrases and
+        # no --phrases-file covers it — the check verifies nothing, so the
+        # final audit must not report the deliverable clean.
         resume = _tmp("Quality assurance with Python and Playwright.")
         jd = _tmp("Requirements\n\nOwn quality for the product team.\n")
         try:
             rc, out = self._run(resume, "--jd", jd)
-            self.assertEqual(rc, 0)  # warning, not a failure
+            self.assertEqual(rc, 1)
             self.assertIn("the literal check is vacuous", out)
+            self.assertIn("cannot report the deliverable clean", out)
             self.assertNotIn("JD literal terms:", out)  # no ok line
         finally:
             os.unlink(resume)
             os.unlink(jd)
+
+    def test_vacuous_mining_warns_at_baseline(self):
+        # Baseline is diagnostic: a vacuous check warns there, never blocks
+        # (the final audit is where it must fail).
+        with tempfile.TemporaryDirectory() as tmp:
+            state = os.path.join(tmp, "t.workflow.json")
+            wgate.create_state(state, "t", "jd_t.txt", "theme")
+            wgate.advance(state, "prune-theme-reviewed")
+            resume = _tmp("Quality assurance with Python and Playwright.")
+            jd = _tmp("Requirements\n\nOwn quality for the product team.\n")
+            try:
+                rc, out = self._run(resume, "--jd", jd, "--baseline",
+                                    "--workflow-state", state)
+                self.assertEqual(rc, 0)
+                self.assertIn("WARNING: JD literal phrase mining", out)
+                self.assertNotIn("cannot report the deliverable clean", out)
+            finally:
+                os.unlink(resume)
+                os.unlink(jd)
+
+    def test_phrases_file_lifts_the_vacuous_condition(self):
+        # --phrases-file is the literal check when JD mining is vacuous, so
+        # neither the warning nor the final failure applies.
+        resume = _tmp("Quality assurance with Python and Playwright.")
+        jd = _tmp("Requirements\n\nOwn quality for the product team.\n")
+        phrases = _tmp("Python\n")
+        try:
+            rc, out = self._run(resume, "--jd", jd,
+                                "--phrases-file", phrases)
+            self.assertEqual(rc, 0)
+            self.assertNotIn("vacuous", out)
+            self.assertIn("phrases: 1/1 hosted", out)
+        finally:
+            os.unlink(resume)
+            os.unlink(jd)
+            os.unlink(phrases)
 
 
 if __name__ == "__main__":

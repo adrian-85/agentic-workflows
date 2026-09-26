@@ -29,7 +29,10 @@ Checks (exit 0 clean, 1 findings, 2 usage/IO error):
   2. --jd LITERAL TERMS — qualification-line phrases mined from the JD
      (measure_resume's own qualification-line detection) checked literally
      against the rendered text. Zero-host terms include any hard skill
-     whose last host died with a cut bullet or trimmed Tools line.
+     whose last host died with a cut bullet or trimmed Tools line. A JD
+     whose qualification lines mine no phrases makes the check vacuous:
+     baseline warns, the final audit fails unless --phrases-file supplies
+     the literal list.
   3. --phrases-file / --report-json EXTERNAL PHRASES — literal check of a
      curated phrase list (one per line) or an external ATS scan report
      JSON (findings + hard/soft skills). A skill's resumeCount, when the
@@ -117,8 +120,8 @@ def _audit_match_rate(score, target, result):
     """The ≥75 match-rate target as a HARD STOP (2026-09-11): at or above
     it the hosting loop TERMINATES — no further hosting, keyword-driven
     rewording, or re-scans for score unless the user explicitly asks.
-    Sessions kept editing past a met target because the old wording
-    called the target "advisory, not a gate"; that framing is gone. Below
+    Editing past a met target is forbidden; the old wording called the
+    target "advisory, not a gate", and that framing is gone. Below
     the target, keep hosting. Configurable via --match-target; 0
     disables."""
     verdict = match_target_met(score, target)
@@ -430,6 +433,7 @@ class _AuditResult:
     warns: list = field(default_factory=list)
     ok_lines: list = field(default_factory=list)
     findings: list = field(default_factory=list)
+    vacuous_jd: bool = False
 
 
 def _split_raised(missing, raised):
@@ -467,10 +471,7 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised):
                 + " — host the exact phrase truthfully or raise the gap "
                 "(never fabricate)")
         elif not ok_n:
-            result.warns.append(
-                "JD literal phrase mining found NO skill phrases (this "
-                "JD's qualification lines use no cue syntax) — the literal "
-                "check is vacuous; supply --phrases-file with the JD's " "named skills/tools")
+            result.vacuous_jd = not phrases_file
         else:
             result.ok_lines.append(
                 f"JD literal terms: {ok_n}/{ok_n + len(missing)} hosted")
@@ -549,6 +550,21 @@ def _check_baseline_gate(args):
     return True
 
 
+def _note_vacuous_jd(result, baseline):
+    """A vacuous JD literal check (no cue-syntax qual lines and no
+    --phrases-file) is a baseline warning but a final FAIL: an unverified
+    check must not report the deliverable clean."""
+    msg = ("JD literal phrase mining found NO skill phrases (this JD's "
+           "qualification lines use no cue syntax) — the literal check "
+           "is vacuous; supply --phrases-file with the JD's named "
+           "skills/tools")
+    if baseline:
+        result.warns.append(msg)
+    else:
+        result.errors.append(
+            msg + " — a vacuous check cannot report the deliverable clean")
+
+
 def _audit_words_and_report(args, text, result):
     """Read --report-json (with its provenance check) and audit the word
     count, returning the report data for the later skill checks."""
@@ -593,6 +609,8 @@ def main(argv=None):
 
     _audit_jd_and_phrases(args["jd_path"], args["phrases_file"], text_low,
                           result, raised)
+    if result.vacuous_jd:
+        _note_vacuous_jd(result, args["baseline"])
     _audit_report_skills(report_data, text_low, text, result, raised)
     score = _report_match_rate(report_data)
     _audit_match_rate(score, args["match_target"], result)

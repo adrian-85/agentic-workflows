@@ -185,8 +185,8 @@ class ReplaceTextTests(unittest.TestCase):
 
         # Paragraph found but the search text is absent from it: the fix is a
         # DIFFERENT find_p prefix, not a text problem. The warning must name
-        # the paragraph, not the literal old string (session case: target-
-        # wrong-bullet edit misreported as a 'paragraph not found').
+        # the paragraph, not the literal old string (a target-wrong-bullet
+        # edit must not be misreported as a 'paragraph not found').
         p = mkp(("nothing here", False))
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
@@ -203,9 +203,9 @@ class ReplaceTextTests(unittest.TestCase):
         # `old` appears in the joined text but NO single run contains it
         # (split across a run boundary): per-run replacement cannot cross
         # runs. Must skip cleanly BEFORE mutating — no partial edit, no
-        # applied count, skip recorded so strict mode surfaces it. (The
-        # session case: a grammar fix silently no-op'd against text whose
-        # runs split the phrase, and only a manual XML grep caught it.)
+        # applied count, skip recorded so strict mode surfaces it (a
+        # grammar fix must not silently no-op against text whose runs
+        # split the phrase).
         p = mkp(("Conducted Chaos testing ", False), ("Using AWS FIS", False))
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
@@ -248,7 +248,7 @@ class SetLabeledTests(unittest.TestCase):
         self.assertFalse(runs[1][1], "value run should be non-bold")
 
     def test_bare_label_gets_colon_separator(self):
-        # Regression (Alteryx + Libra sessions): a bare label written
+        # Regression: a bare label written
         # verbatim glued label and values ("Tools & TechnologiesC#, .NET").
         # The library now owns the ": " separator.
         p = mkp(("Tools & Technologies:", True), (" C#, .NET", False))
@@ -513,7 +513,7 @@ class CloneAfterTests(unittest.TestCase):
 
     def test_blank_clone_survives_remove_empty(self):
         # A spacer cloned before cleanup must not be deleted by the same
-        # script's remove_empty() pass. This was the TD Bank session bug.
+        # script's remove_empty() pass.
         body = ET.Element(W + "body")
         ref = ET.SubElement(body, W + "p")
         r = ET.SubElement(ref, W + "r")
@@ -579,8 +579,8 @@ class DropTests(unittest.TestCase):
         self.assertEqual(de._APPLIED, 2)
 
     def test_regression_short_prefix_after_superstring_removed(self):
-        # THE session failure (BILL SDET tailoring): drop the LONGER prefix
-        # first, then a SHORT prefix that also matches the removed
+        # Drop the LONGER prefix first, then a SHORT prefix that also
+        # matches the removed
         # paragraph's text. The old per-script _drop threaded one ps list
         # across calls without refreshing the caller's copy, so the later
         # find_p ran against a list still holding the detached paragraph —
@@ -595,8 +595,8 @@ class DropTests(unittest.TestCase):
         self.assertEqual([de.text_of(p) for p in ps], ["Unrelated bullet"])
 
     def test_element_argument_converts_to_its_own_text(self):
-        # THE motivating failure (a real tailoring session): set_text/
-        # set_labeled/merge_into take find_p(...) ELEMENTS while drop()
+        # set_text/set_labeled/merge_into take find_p(...) ELEMENTS while
+        # drop()
         # documented prefix STRINGS, so a mixed-API script crashed with a
         # TypeError on its first strict run and cost a fix-and-rerun cycle.
         # A paragraph element's own text IS the prefix, so it is converted
@@ -656,7 +656,7 @@ class DropTests(unittest.TestCase):
 class DropRoleTests(unittest.TestCase):
     """drop_role(): whole-role removal for seniority alignment (SKILL Step 3).
 
-    Session failure regressed here: a hand-rolled role-drop helper appended
+    A hand-rolled role-drop helper appended
     each paragraph BEFORE checking the block boundary and only treated
     Heading1/Heading2 as boundaries, so the role drop swallowed the
     SectionHeading ("Education") that followed the role — the later
@@ -1206,9 +1206,8 @@ class MasterChangeGateTests(unittest.TestCase):
     fold-then-retailor ordering. When a tailored copy's script runs against
     a master that changed since its last run, skipped edits exit 2 EVEN
     WITHOUT DOCX_EDIT_STRICT: a mid-session master fold can no longer
-    silently strand drifted prefixes (the session failure where MASTER
-    CHANGED printed as a warning and relied on the agent re-running strict
-    manually)."""
+    silently strand drifted prefixes (a MASTER CHANGED warning must not
+    rely on the agent re-running strict manually)."""
 
     def setUp(self):
         de._APPLIED = 0
@@ -1327,10 +1326,10 @@ class PruneCoverageTests(unittest.TestCase):
                      "detail": "OFF-JD"}, **kw)
 
     def test_per_jd_sidecar_beats_shared_legacy_file(self):
-        # REGRESSION: two tailor sessions running from the same master in
-        # parallel collided on the single <master>.prune.json — whichever
-        # auto_prune ran second clobbered the first's gate state and the
-        # other lint-prune failed with foreign candidates. The sidecar is
+        # REGRESSION: two runs from the same master in parallel must not
+        # collide on a single <master>.prune.json — whichever auto_prune
+        # ran second would clobber the first's gate state and the other
+        # lint-prune would fail with foreign candidates. The sidecar is
         # now keyed by the JD (docstring "JD: jd_x.txt" -> <docx>.prune.x.json);
         # a stale shared legacy file must NOT be read when the per-JD
         # sidecar exists.
@@ -1426,9 +1425,9 @@ class PruneCoverageTests(unittest.TestCase):
 
     def test_strict_direction_shorter_literal_does_not_cover(self):
         # A literal SHORTER than the plan's shortest-unique prefix cannot
-        # point at the same paragraph (it would be ambiguous) — the only
-        # session using this flow always pasted the plan's extensions
-        # verbatim, so matching is one-directional (YAGNI on the reverse).
+        # point at the same paragraph (it would be ambiguous) — the plan's
+        # extensions are pasted verbatim, so matching is one-directional
+        # (YAGNI on the reverse).
         docx = self._docx_with(
             "Led testing efforts for the API releases")
         self._sidecar(docx, [self._cand(prefix="Led testing efforts")])

@@ -173,8 +173,8 @@ are:
    Full re-read only when paragraph/script indices shifted and the anchor's position is genuinely
    unknown. And never hand-shorten a prefix from the dump: the `--prefixes` string is
    uniqueness-checked as printed — a hand-coined shorter one can match two paragraphs and fail
-   the whole run (sessions retried `Built a` → `Built au`, `Pioneered m` → `Pioneered mi` after
-   strict-mode ambiguity failures).
+   the whole run (a hand-shortened `Built a` or `Pioneered m` can match two paragraphs and fail
+   the run on strict-mode ambiguity).
 8. **After any multi-edit round on a script, count the anchors before the syntax check.** `grep
    -c` the expected number of each anchor string that should now exist — an edit meant to ADD a
    `set_text` block can silently REPLACE its neighbor (a wasted repair round), and one
@@ -246,8 +246,8 @@ the residual page gap automatically.
   skips the PATCH when the line is absent, but a placeholder on the line passes through. The doc
   rule is the guard, not a parser: line present means a real URL; omit the line when unknown. **The
   URL is optional, not required — the scan always runs without it.** Its job is ATS identification,
-  and that is company-scoped knowledge: when this JD has no Posting URL line but a prior scan (this
-  session or an earlier one) identified the ATS for the same company, `ats_check.py` reuses that
+  and that is company-scoped knowledge: when this JD has no Posting URL line but a prior scan
+  identified the ATS for the same company, `ats_check.py` reuses that
   known posting URL for the metadata PATCH and prints the reuse.
 - **Characterize the JD's theme BEFORE Phase 1 — reading the ENTIRE JD, every section.** Theme
   cannot be assessed without taking the entire JD into context, so no section is skippable. Write
@@ -980,7 +980,7 @@ sidecar, `merge_into`; Steps 4, 9 & 12). What's left is judgment:
 | Overriding a prune cut without theme rationale, or hand-editing the emitted cuts | Step 3's theme review is the sanctioned override: append the cut prefix to `RESTORES` and rewrite it as a fresh, purpose-written host, or fix the evidence families and re-run `auto_prune.py`; record the rationale in the script. Never edit the machine zone (`machine_phase()`, `MACHINE_DROPS`, its `set_text` calls) — the machine prune stays the only master consumer and there is no `# kept:` negotiation |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
 | Editing the master from a tailoring session | Never — the master is user-owned and read-only to this workflow; make any master update directly, then re-run Phase 1 |
-| Storing the JD in /tmp | Persist it as `jd_<target>.txt` in the skill root (Step 1) — every tool and the re-run instructions reference that path across sessions |
+| Storing the JD in /tmp | Persist it as `jd_<target>.txt` in the skill root (Step 1) — every tool and the re-run instructions reference that path across runs |
 | Inserting a Core Strengths/Top Skills section between Summary and Technical Proficiencies | Don't — weave skills into role bullets (Step 8) |
 | Headline still says "Staff" against a less-senior JD title | Rewrite the top title to the JD's exact title (Step 6); the Summary stays untouched — the first line is what the screener compares |
 | Appending bullets when content overlaps an existing one | Merge (`merge_into`) — appending blows the page budget (Step 8) |
