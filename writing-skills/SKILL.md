@@ -317,8 +317,8 @@ See `graphviz-conventions.dot` in this directory for graphviz style rules.
 
 **Visualizing for your human partner:** Use `render-graphs.js` in this directory to render a skill's flowcharts to SVG:
 ```bash
-./render-graphs.js ../some-skill           # Each diagram separately
-./render-graphs.js ../some-skill --combine # All diagrams in one SVG
+node ./render-graphs.js ../some-skill           # Each diagram separately
+node ./render-graphs.js ../some-skill --combine # All diagrams in one SVG
 ```
 
 ## Code Examples
