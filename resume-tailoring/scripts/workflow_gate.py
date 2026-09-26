@@ -55,20 +55,18 @@ def create_state(path, target, jd, theme):
 
     An existing state past ``pruned`` (an auto_prune re-run with, e.g., a
     corrected --equivalence) is RESET: recorded reviews and phase gates
-    die with the replaced build. Warn loudly — session 01a0d983 found
-    out only when a gate rejected it four steps later and re-recorded
-    everything by hand."""
-    if os.path.exists(path):
-        try:
-            prior = load_state(path)
-        except GateError:
-            prior = None
-        if prior is not None and prior.get("phase") != "pruned":
-            print(f"WORKFLOW STATE RESET: {os.path.basename(path)} was "
-                  f"{prior.get('phase')} — the re-run replaces the build, "
-                  "so recorded reviews and gates are gone; re-record "
-                  "Theme Reviews A/B (SKILL Steps 3-4) before advancing",
-                  file=sys.stderr)
+    die with the replaced build. Warn loudly — the reset is otherwise
+    invisible until a later gate rejects."""
+    try:
+        prior = load_state(path)
+    except GateError:
+        prior = None
+    if prior is not None and prior.get("phase") != "pruned":
+        print(f"WORKFLOW STATE RESET: {os.path.basename(path)} was "
+              f"{prior.get('phase')} — the re-run replaces the build, "
+              "so recorded reviews and gates are gone; re-record "
+              "Theme Reviews A/B (SKILL Steps 3-4) before advancing",
+              file=sys.stderr)
     _write(path, {
         "version": 1,
         "target": target,
@@ -422,8 +420,8 @@ def _main(argv=None):
              "comma-separated list is still accepted for header-free names")
     # parse_known_args + explicit leftover check: argparse reports
     # post-subcommand unknown flags with the TOP-LEVEL usage, which hides
-    # the subcommand's own flag list and example (session 01a0d8f5's
-    # '--pages' vs '--target-pages' round-trip).
+    # the subcommand's own flag list and example (the '--pages' vs
+    # '--target-pages' confusion this prevents).
     args, extras = parser.parse_known_args(argv)
     if extras:
         sub = {"advance": advance_parser, "budgets": budget_parser,

@@ -529,8 +529,8 @@ class MainTests(unittest.TestCase):
             # zero report hits AND no literal host; selenium is hosted by
             # the report's own count; "triage" hosts via plural stemming.
             self.assertIn("NO literal host: pytest", out)
-            # Session 01a0d983: an unhosted soft skill shipped (match 72
-            # -> 96 once hosted). Soft-skill misses FAIL, not warn.
+            # An unhosted soft skill must FAIL, not warn: the warn path
+            # let a deliverable ship missing its only soft-skill host.
             self.assertIn("FAIL: report soft skills with NO literal host", out)
             self.assertIn("communication skills", out)
             self.assertIn("safe to infer", out)
@@ -540,7 +540,7 @@ class MainTests(unittest.TestCase):
 
             # --raised: recorded raise/ignore dispositions are the
             # sanctioned not-hosted state — no re-FAIL on a finished
-            # deliverable (session 01a0d8f5).
+            # deliverable.
             rc, out = self._run(resume, "--report-json", report,
                                 "--raised", review)
             self.assertEqual(rc, 1)  # "data quality" + soft skill remain

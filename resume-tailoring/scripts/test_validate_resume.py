@@ -255,9 +255,9 @@ class PunctuationTests(unittest.TestCase):
 class BulletCapTests(unittest.TestCase):
     """SKILL Step 8's hard cap: no role keeps more than MAX_BULLETS_PER_ROLE
     (8) bullets in a tailored resume, regardless of tenure or accomplishment.
-    Motivating failure (sessions 01a06eee, 01a06fab): the most-recent role
-    kept 16-19 bullets while JD-relevant older-role bullets died under page
-    pressure — the cap is enforced here by count, and the master is exempt
+    Motivating failure: the most-recent role kept 16-19 bullets while
+    JD-relevant older-role bullets died under page pressure — the cap is
+    enforced here by count, and the master is exempt
     (it intentionally keeps everything)."""
 
     @staticmethod

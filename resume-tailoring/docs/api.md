@@ -716,7 +716,7 @@ bullets the first pass cut — see SKILL Step 12 for the rationale and an exampl
 checks of externally supplied phrases — a skill's `resumeCount` from the report is the authoritative
 host signal, the literal check is the fallback. Report soft-skill no-hosts FAIL (soft skills are
 safe to infer — host each literal phrase where the action-verb evidence lives; a soft skill no kept
-bullet evidences gets a recorded raise/ignore disposition — session 01a0d983 shipped one as a warn).
+bullet evidences gets a recorded raise/ignore disposition).
 With `--report-json`, also prints the **match-rate target** (default 75, `--match-target N`
 to change, `0` disables). The target is a **hard stop** (2026-09-11): score ≥ target ⇒ the hosting
 loop closes: stop hosting, stop keyword- driven rewording, and stop re-scanning for score. Below

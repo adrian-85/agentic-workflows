@@ -36,9 +36,9 @@ class StateTransitionTests(unittest.TestCase):
                 wg.advance(path, "pruned")
 
     def test_create_state_reset_of_advanced_state_warns(self):
-        # Session 01a0d983: an auto_prune re-run (corrected --equivalence)
-        # silently reset an ats-theme-reviewed state; the agent found out
-        # only when a later gate rejected it and re-recorded everything.
+        # An auto_prune re-run over an advanced state silently resets it;
+        # create_state must warn so the reset is not first discovered
+        # when a later gate rejects.
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "target.workflow.json")
             wg.create_state(path, "Target", "jd_target.txt", "theme")
@@ -421,10 +421,9 @@ class StatusTests(unittest.TestCase):
             self.assertIn("template ats", text)
 
     def test_unknown_flag_error_shows_subcommand_usage_example(self):
-        # Sessions 01a0d8f5/01a0d948: unknown-flag errors printed the
-        # TOP-LEVEL usage, hiding the subcommand's flag list (the --pages
-        # vs --target-pages round-trip). The subcommand's usage — full
-        # flags plus a copy-paste example — must be the error text.
+        # Unknown-flag errors must print the subcommand's own usage —
+        # full flags plus a copy-paste example — not the TOP-LEVEL usage
+        # that hides them.
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
             with self.assertRaises(SystemExit) as ctx:

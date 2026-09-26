@@ -6,8 +6,7 @@ Usage (Theme Review A's cut set — SKILL Step 3)::
     # One command: the master-vs-build paragraph diff, grouped by role/
     # section header, whitespace-normalized so shifted indices don't noise
     # it up. The CUT list is the theme-review work order.
-    # One-argument form (recommended — the master is found next to the
-    # build; two quoted paths were mis-typed in three straight sessions):
+    # One-argument form (the master is resolved next to the build):
     python3 scripts/diff_resume.py --cutset "<Name> Resume - <Target>.docx"
     # Explicit two-path form:
     python3 scripts/diff_resume.py --cutset "<Name> Master Resume.docx" \

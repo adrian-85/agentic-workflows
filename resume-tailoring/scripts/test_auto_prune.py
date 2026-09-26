@@ -360,35 +360,17 @@ class TestEmittedScriptRuns(_AutoPruneBase):
     writes the base build."""
 
     def test_script_runs_and_writes_build(self):
-        # too-many-locals: the end-to-end fixture assembles master, JD,
-        # plan, emitted script, and the subprocess env in one flow.
-        # pylint: disable=too-many-locals
         with tempfile.TemporaryDirectory() as td:
-            master = os.path.join(td, "Test User Master Resume.docx")
-            _write_docx(master, _master_paras())
             dst = os.path.join(td, "Test User Resume - Target.docx")
             script = auto_prune.emit_script(
-                self.plan, master, dst,
-                {"target": "Target", "jd_name": "jd_x.txt",
-                 "script_name": "tailor_target.py"})
-            script_path = os.path.join(td, "tailor_target.py")
-            with open(script_path, "w", encoding="utf-8") as f:
-                f.write(script)
-            src_dir = __file__.rsplit("/", 1)[0]
-            env = dict(os.environ)
-            env["DOCX_EDIT_STRICT"] = "1"
-            env["PYTHONPATH"] = src_dir
-            code = (f"import sys; sys.path.insert(0, {src_dir!r}); "
-                    "import runpy; " f"runpy.run_path({script_path!r}, run_name='__main__')")
-            proc = subprocess.run([sys.executable, "-c", code], cwd=td,
-                                  env=env, capture_output=True, text=True,
-                                  check=False)
+                self.plan, os.path.join(td, "Test User Master Resume.docx"),
+                dst, {"target": "Target", "jd_name": "jd_x.txt",
+                      "script_name": "tailor_target.py"})
+            proc, texts = self._run_emitted(td, script, dst)
             self.assertEqual(
                 proc.returncode, 0,
                 "stdout:\n" + proc.stdout + "\nstderr:\n" + proc.stderr)
             self.assertTrue(os.path.exists(dst))
-            _root, body, _n, _d, _w = de.load(dst)
-            texts = [de.text_of(p) for p in de.paras(body)]
             self.assertNotIn(
                 "Organized team offsites and holiday parties", texts)
             self.assertFalse(any("Certifications" == t for t in texts))
@@ -402,33 +384,25 @@ class TestEmittedScriptRuns(_AutoPruneBase):
     def _run_emitted(self, td, script, dst):
         """Run an (agent-extended) emitted script under strict mode and
         return (proc, dst_texts)."""
-        # too-many-locals: the fixture assembles master, script, env, and
-        # result collection in one linear flow.
-        # pylint: disable=too-many-locals
         master = os.path.join(td, "Test User Master Resume.docx")
         _write_docx(master, _master_paras())
         script_path = os.path.join(td, "tailor_target.py")
-        with open(script_path, "w", encoding="utf-8") as f:
-            f.write(script)
+        with open(script_path, "w", encoding="utf-8") as stream:
+            stream.write(script)
         src_dir = __file__.rsplit("/", 1)[0]
-        env = dict(os.environ)
-        env["DOCX_EDIT_STRICT"] = "1"
-        env["PYTHONPATH"] = src_dir
+        env = {**os.environ, "DOCX_EDIT_STRICT": "1", "PYTHONPATH": src_dir}
         code = (f"import sys; sys.path.insert(0, {src_dir!r}); "
                 "import runpy; " f"runpy.run_path({script_path!r}, run_name='__main__')")
         proc = subprocess.run([sys.executable, "-c", code], cwd=td,
                               env=env, capture_output=True, text=True,
                               check=False)
-        texts = []
-        if os.path.exists(dst):
-            _root, body, _n, _d, _w = de.load(dst)
-            texts = [de.text_of(p) for p in de.paras(body)]
-        return proc, texts
+        if not os.path.exists(dst):
+            return proc, []
+        return proc, [de.text_of(p) for p in de.paras(de.load(dst)[1])]
 
     def test_restore_in_restores_survives_the_drop_pass(self):
-        # Session 01a0d8f5: five edit rounds fighting the machine drop
-        # list to restore cut bullets. A restore must be ONE append to
-        # RESTORES — never an edit inside the machine zone.
+        # A restore must be ONE append to RESTORES — never an edit
+        # inside the machine drop list.
         with tempfile.TemporaryDirectory() as td:
             master = os.path.join(td, "Test User Master Resume.docx")
             dst = os.path.join(td, "Test User Resume - Target.docx")
@@ -447,9 +421,8 @@ class TestEmittedScriptRuns(_AutoPruneBase):
                           texts)
 
     def test_phase2_rewrite_overrides_machine_trim(self):
-        # Session 01a0d8f5: the machine's trim ran after the agent's
-        # rewrite and overwrote it. Phase 2 runs after machine_phase, so
-        # the agent's text must win.
+        # Phase 2 runs after machine_phase, so the agent's rewrite must
+        # win over a machine trim on the same paragraph.
         with tempfile.TemporaryDirectory() as td:
             master = os.path.join(td, "Test User Master Resume.docx")
             dst = os.path.join(td, "out.docx")
@@ -474,11 +447,9 @@ class TestEmittedScriptRuns(_AutoPruneBase):
                              texts)
 
     def test_phase2_drop_of_trimmed_bullet_has_no_stale_skip(self):
-        # Session 01a0d8f5: a machine trim for a bullet the agent dropped
-        # ran after the drop and warned (skipped edit). machine_phase
-        # runs first, so the trim applies while the target exists and the
-        # Phase 2 drop then retires the whole paragraph — strict mode
-        # must stay green with no skip notice.
+        # machine_phase runs first, so a machine trim applies while its
+        # target exists; the Phase 2 drop then retires the whole
+        # paragraph — strict mode must stay green with no skip notice.
         with tempfile.TemporaryDirectory() as td:
             master = os.path.join(td, "Test User Master Resume.docx")
             dst = os.path.join(td, "out.docx")

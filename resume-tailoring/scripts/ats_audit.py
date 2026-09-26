@@ -398,8 +398,7 @@ def load_raised_phrases(path):
 
     A recorded raise or ignore is the sanctioned not-hosted state for
     that phrase — the final audit reports it as recorded instead of
-    re-FAILing a finished deliverable (session 01a0d8f5: fedramp/hasura/
-    soc FAILed every later audit after being raised). Returns
+    re-FAILing a finished deliverable on every later audit. Returns
     (raised_set, error); a non-None error means exit 2."""
     try:
         with open(path, encoding="utf-8") as f:
@@ -444,6 +443,14 @@ def _split_raised(missing, raised):
     return truly, hit
 
 
+def _note_raised(result, phrases, prefix=""):
+    """Record the ok line for phrases dispositioned raise/ignore in a
+    recorded review (the sanctioned not-hosted state)."""
+    if phrases:
+        result.ok_lines.append(
+            f"{prefix}raised/ignored (recorded): " + ", ".join(phrases))
+
+
 def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised):
     """JD literal-term and external-phrase checks (sections 2-3)."""
     if jd_path:
@@ -452,9 +459,7 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised):
         ok_n, missing = _audit_jd(text_low, jd_text)
         missing, raised_here = _split_raised(missing, raised)
         result.findings.extend(missing)
-        if raised_here:
-            result.ok_lines.append(
-                "raised/ignored (recorded): " + ", ".join(raised_here))
+        _note_raised(result, raised_here)
         if missing:
             result.errors.append(
                 "JD literal terms with NO host in the rendered text: "
@@ -475,9 +480,7 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised):
         missing = _audit_phrases(text_low, phrases)
         missing, raised_here = _split_raised(missing, raised)
         result.findings.extend(missing)
-        if raised_here:
-            result.ok_lines.append(
-                "raised/ignored (recorded): " + ", ".join(raised_here))
+        _note_raised(result, raised_here)
         if missing:
             result.errors.append("phrases with NO literal host: "
                                  + ", ".join(missing))
@@ -501,9 +504,7 @@ def _audit_report_skills(report_data, text_low, text, result, raised):
     result.findings.extend(hard_miss)
     result.findings.extend(soft_miss)
     for raised_here, label in ((hard_raised, "hard"), (soft_raised, "soft")):
-        if raised_here:
-            result.ok_lines.append(f"report {label} skills raised/ignored "
-                                    "(recorded): " + ", ".join(raised_here))
+        _note_raised(result, raised_here, f"report {label} skills ")
     if hard_miss:
         result.errors.append(
             "report hard skills with NO literal host: "
@@ -512,11 +513,10 @@ def _audit_report_skills(report_data, text_low, text, result, raised):
         result.ok_lines.append(f"report hard skills: {len(hard) - len(hard_raised)}"
                         f"/{len(hard)} hosted")
     if soft_miss:
-        # A warn here shipped a deliverable missing its only soft-skill
-        # host (session 01a0d983: "Resilient" — hosting it moved the
-        # external match 72 -> 96). Unhosted soft skills FAIL the audit;
-        # the sanctioned not-hosted state is a recorded raise/ignore
-        # disposition (--raised), same as hard skills.
+        # A warning here let a deliverable ship with an unhosted soft
+        # skill, so a soft-skill miss FAILs like a hard-skill one; the
+        # sanctioned not-hosted state is a recorded raise/ignore
+        # disposition (--raised).
         result.errors.append(
             "report soft skills with NO literal host (soft skills are "
             "safe to infer: host each literal phrase where the "
@@ -549,16 +549,25 @@ def _check_baseline_gate(args):
     return True
 
 
-def _load_raised(args):
-    """The raised/ignored phrase set from --raised, an empty set when
-    absent, or None after printing the error (caller returns 2)."""
-    if not args["raised_file"]:
-        return set()
-    raised, err = load_raised_phrases(args["raised_file"])
-    if err:
-        print(f"error: {err}", file=sys.stderr)
-        return None
-    return raised
+def _audit_words_and_report(args, text, result):
+    """Read --report-json (with its provenance check) and audit the word
+    count, returning the report data for the later skill checks."""
+    report_data = None
+    if args["report_json"]:
+        with open(args["report_json"], encoding="utf-8", errors="replace") as f:
+            report_data = json.load(f)
+        result.errors.extend(_provenance_errors(
+            report_data, args["path"], args["jd_path"]))
+    report_wc = _report_word_count(report_data)
+    count, wc_errors = _audit_word_count(
+        text, args["max_words"], report_count=report_wc)
+    result.ok_lines.append(f"words: {count}")
+    result.errors.extend(wc_errors)
+    if report_wc is not None:
+        result.ok_lines.append(
+            f"words (report cross-check): {report_wc} "
+            f"({count - report_wc:+d} vs our count)")
+    return report_data
 
 
 def main(argv=None):
@@ -574,26 +583,13 @@ def main(argv=None):
     text_low = text.lower().replace("\n", " ")
     result = _AuditResult()
 
-    raised = _load_raised(args)
-    if raised is None:
+    raised, raised_err = (load_raised_phrases(args["raised_file"])
+                          if args["raised_file"] else (set(), None))
+    if raised_err:
+        print(f"error: {raised_err}", file=sys.stderr)
         return 2
 
-    report_data = None
-    if args["report_json"]:
-        with open(args["report_json"], encoding="utf-8", errors="replace") as f:
-            report_data = json.load(f)
-        result.errors.extend(_provenance_errors(
-            report_data, args["path"], args["jd_path"]))
-
-    report_wc = _report_word_count(report_data)
-    count, wc_errors = _audit_word_count(
-        text, args["max_words"], report_count=report_wc)
-    result.ok_lines.append(f"words: {count}")
-    result.errors.extend(wc_errors)
-    if report_wc is not None:
-        drift = count - report_wc
-        result.ok_lines.append(
-            f"words (report cross-check): {report_wc} " f"({drift:+d} vs our count)")
+    report_data = _audit_words_and_report(args, text, result)
 
     _audit_jd_and_phrases(args["jd_path"], args["phrases_file"], text_low,
                           result, raised)

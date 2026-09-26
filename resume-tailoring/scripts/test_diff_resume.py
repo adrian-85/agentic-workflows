@@ -107,9 +107,8 @@ class CutsetTests(unittest.TestCase):
                 sys.argv = argv
 
     def test_cli_cutset_one_arg_finds_sibling_master(self):
-        # Sessions 01a0d8f5/01a0d948 burned 4-6 tool calls each mis-typing
-        # the two-quoted-path form; the one-argument form resolves the
-        # master from the build's directory.
+        # The one-argument form resolves the master from the build's
+        # directory instead of requiring two quoted paths.
         with tempfile.TemporaryDirectory() as tmp:
             master = os.path.join(tmp, "Test User Master Resume.docx")
             build = os.path.join(tmp, "Test User Resume - Target.docx")

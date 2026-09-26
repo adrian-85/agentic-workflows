@@ -131,11 +131,10 @@ are:
 
 1. **Author edits from `--prefixes` alone** (uniqueness-checked copy-paste; the paragraph map
    adds style/numId — only for rare layout checks). Phase 1 hands you the base build and its
-   emitted `tailor_<target>.py`; your later edits (Steps 5–9) go in that script's marked
-   **Phase 2 section** (append-only — never edit `machine_phase()`, `MACHINE_DROPS`, or the
-   machine's `set_text` calls; a restore of a machine cut appends the prefix to `RESTORES`
-   instead) — dump `--prefixes` on the BASE BUILD, not the master. To read a paragraph's FULL
-   text before rewriting it (Summary, senior-role intro, a bullet), use `docx_edit.py "<docx>" <idx> --full`
+   emitted `tailor_<target>.py`; your later edits (Steps 5–9) go in its marked **Phase 2
+   section**, append-only (Step 3 defines the zones and `RESTORES`) — dump `--prefixes` on the
+   BASE BUILD, not the master. To read a paragraph's FULL text before rewriting it (Summary,
+   senior-role intro, a bullet), use `docx_edit.py "<docx>" <idx> --full`
    (or `<start>-<end> --full`) rather than ad-hoc inline python — it is one command and shows the
    exact string you are replacing.
 2. **Never run the prune yourself.** `auto_prune.py` (Step 2) is the only sanctioned master
@@ -382,8 +381,7 @@ baseline rendering and auditing skip the word-cap gate internally because word c
 intentionally happens later (Step 9).
 
 **When the audit warns the literal check is vacuous** ("JD literal phrase mining found NO skill
-phrases … supply --phrases-file" — the JD's qualification lines use no cue syntax; session
-01a0d983 ignored it at baseline and final, and only the external scan caught the gaps): extract
+phrases … supply --phrases-file" — the JD's qualification lines use no cue syntax): extract
 the JD's named skills/tools yourself into `phrases_<target>.txt` (one phrase per line — the
 posting's literal skill/tool names) and re-run the audit with `--phrases-file phrases_<target>.txt`.
 Then use that same file for every later audit of this target, including Step 12's — a vacuous
@@ -415,8 +413,7 @@ editing. For each finding, record one disposition:
   bullets' action verbs (presented, demoed, led, mentored, trained, researched) evidence them —
   the Hosting reference's inference rule makes them safe to host WITHOUT asking. **This default
   OVERRIDES the inference map's RAISE verdict for soft skills:** the map searches for lexical
-  evidence and will verdict RAISE on a soft skill the candidate demonstrably has (session
-  01a0d983: "Resilient" left unhosted, then hosting it moved the external match 72 → 96) — the
+  evidence and will verdict RAISE on a soft skill the candidate demonstrably has — the
   action-verb evidence in kept bullets is the authority, so host it; do not wait for the user
   to confirm a soft skill the history already evidences. An `ignore`
   disposition on a soft skill must say why NO bullet evidences the phrase — "sounds like posting
@@ -845,14 +842,18 @@ master/LinkedIn inference map over the combined queue, and writes a fingerprinte
 `<resume>.gap.json`. Those lists are the next source-mining queue (Step 4's loop) — not optional,
 and not displaced by a different `ats_audit.py` no-host list. The report's `wordCount` matches
 the local count — feed it to `ats_audit.py --report-json` for the authoritative cap check.
-**The reconciliation audit is not optional closeout hygiene: after the scan, re-run the audit
-with the report** (`ats_audit.py "<output>.pdf" --jd jd_<target>.txt --report-json
-"<output>.ats-check.json"`) **and do not present the closeout summary until it exits clean or
-with only raised terms** — an unhosted report soft skill FAILs that audit (it counts as a
-finding), and session 01a0d983 shipped one precisely by skipping this step. Pass the recorded
-Theme Review B JSON via `--raised` so phrases dispositioned raise/ignore report as
-"raised/ignored (recorded)" instead of re-FAILing a finished deliverable:
-`ats_audit.py "<output>.pdf" --jd jd_<target>.txt --report-json "<output>.ats-check.json" --raised theme_review_<target>_ats.json`.
+
+**The reconciliation audit is not optional closeout hygiene.** After the scan, re-run the audit
+with the report and do not present the closeout summary until it exits clean or with only raised
+terms — an unhosted report soft skill FAILs that audit. Pass the recorded Theme Review B JSON via
+`--raised` so phrases dispositioned raise/ignore report as "raised/ignored (recorded)" instead of
+re-FAILing a finished deliverable:
+
+```bash
+python3 scripts/ats_audit.py "<output>.pdf" --jd jd_<target>.txt \
+    --report-json "<output>.ats-check.json" \
+    --raised theme_review_<target>_ats.json
+```
 
 **The match-rate target is 75.** `ats_audit.py` and `ats_check.py` enforce the stop: at or above it,
 the hosting loop closes and score-driven edits halt — the residual actionable no-host list at that
