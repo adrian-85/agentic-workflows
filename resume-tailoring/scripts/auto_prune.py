@@ -467,23 +467,8 @@ def _drop_comment(text, plan):
     return ""
 
 
-def emit_script(plan, src, dst, meta):
-    # too-many-locals: the function is one linear list-literal build of the
-    # emitted script (docstring, cuts, trims, sections); splitting it would
-    # interleave the emission order across helpers for no gain.
-    # pylint: disable=too-many-locals
-    """The first tailor script: machine dispositions + a Phase 2 section.
-
-    Two zones, by author. ``machine_phase()`` holds the machine's
-    cuts/trims and is never edited — a Theme Review A restore of a cut
-    bullet appends its prefix to ``RESTORES`` instead (the drop pass
-    skips it) and any rewrite goes in ``main()``'s marked Phase 2
-    section. Phase 2 runs after the machine, so agent rewrites always
-    win: a machine trim can no longer overwrite them, run stale after a
-    Phase 2 drop, or be lost to a block edit.
-
-    ``meta`` carries the docstring fields: target, jd_name, script_name.
-    """
+def _script_header(plan, src, dst, meta):
+    """The emitted script's docstring, imports, and SRC/DST constants."""
     stats = plan["stats"]
     lines = [
         f'"""Auto-pruned base build for {meta["target"]} — machine ' f'Phase 1 (auto_prune.py).',
@@ -496,7 +481,6 @@ def emit_script(plan, src, dst, meta):
         lines += [f"JD theme: {meta['theme']}"]
     lines += [
         "No agent judgment and no cut report — the agent's work starts at SKILL Phase 2",
-
         "on this build, in main()'s marked Phase 2 section (append-only; never",
         "edit machine_phase(), MACHINE_DROPS, or the machine's set_text calls).",
         "A Theme Review A restore of a machine-cut bullet appends its prefix to",
@@ -508,22 +492,33 @@ def emit_script(plan, src, dst, meta):
         _EMITTED_IMPORTS,
         f"SRC = {_py(src)}", f"DST = {_py(dst)}",
     ]
-    if plan["drops"]:
-        lines += [
-            "",
-            "# Machine cut prefixes (Phase 1 dispositions) — never edit.",
-            "# A Theme Review A restore appends the same prefix to RESTORES",
-            "# (the drop pass skips it); the rewrite goes in Phase 2.",
-            "MACHINE_DROPS = [",
-        ]
-        for prefix, text in plan["drops"]:
-            lines.append(f"        {_py(prefix)},{_drop_comment(text, plan)}")
-        lines += [
-            "]",
-            "# Theme Review A restores: cut prefixes that must survive.",
-            "RESTORES = []",
-        ]
+    return lines
+
+
+def _script_drops(plan):
+    """The MACHINE_DROPS/RESTORES block (empty when nothing was cut)."""
+    if not plan["drops"]:
+        return []
+    lines = [
+        "",
+        "# Machine cut prefixes (Phase 1 dispositions) — never edit.",
+        "# A Theme Review A restore appends the same prefix to RESTORES",
+        "# (the drop pass skips it); the rewrite goes in Phase 2.",
+        "MACHINE_DROPS = [",
+    ]
+    for prefix, text in plan["drops"]:
+        lines.append(f"        {_py(prefix)},{_drop_comment(text, plan)}")
     lines += [
+        "]",
+        "# Theme Review A restores: cut prefixes that must survive.",
+        "RESTORES = []",
+    ]
+    return lines
+
+
+def _script_machine_phase(plan):
+    """The emitted machine_phase(): cuts, keeps, trims, section drops."""
+    lines = [
         "", "",
         "def machine_phase(body):",
         '    """Apply the machine prune (Phase 1 dispositions) — never edit."""',
@@ -533,10 +528,8 @@ def emit_script(plan, src, dst, meta):
         lines.append("    ps = drop(body, "
                      "[p for p in MACHINE_DROPS if p not in RESTORES])")
     for text, nth in plan["removes"]:
-        why = "  # 8-bullet cap (weakest-ranked survivor)" \
-            if text in plan.get("cap_dropped", ()) else ""
         lines.append(f"    remove(body, find_p(ps, {_py(text[:40])}, "
-                     f"nth={nth})){why}")
+                     f"nth={nth})){_drop_comment(text, plan)}")
     for head, why in plan["keeps"]:
         lines.append(f"    # kept: {head} — {why}")
     if plan["trims"]:
@@ -553,8 +546,14 @@ def emit_script(plan, src, dst, meta):
             lines.append(f"    drop_section(body, {_py(hprefix)})")
         for head, why in plan["section_keeps"]:
             lines.append(f"    # kept: {head} — {why}")
-    lines += [
-        "    return ps", "", "",
+    lines.append("    return ps")
+    return lines
+
+
+def _script_main():
+    """The emitted main(): machine phase + the Phase 2 authoring zone."""
+    return [
+        "", "",
         "def main():",
         '    """Apply the machine prune, then the Phase 2 agent edits."""',
         "    shutil.copy(SRC, DST)",
@@ -572,6 +571,25 @@ def emit_script(plan, src, dst, meta):
         "    save(DST, root, names, data, drift=DriftMeta(src=SRC))", '    print("WROTE", DST)', "",
         "", 'if __name__ == "__main__":', "    main()", "",
     ]
+
+
+def emit_script(plan, src, dst, meta):
+    """The first tailor script: machine dispositions + a Phase 2 section.
+
+    Two zones, by author. ``machine_phase()`` holds the machine's
+    cuts/trims and is never edited — a Theme Review A restore of a cut
+    bullet appends its prefix to ``RESTORES`` instead (the drop pass
+    skips it) and any rewrite goes in ``main()``'s marked Phase 2
+    section. Phase 2 runs after the machine, so agent rewrites always
+    win: a machine trim can no longer overwrite them, run stale after a
+    Phase 2 drop, or be lost to a block edit.
+
+    ``meta`` carries the docstring fields: target, jd_name, script_name.
+    """
+    lines = (_script_header(plan, src, dst, meta)
+             + _script_drops(plan)
+             + _script_machine_phase(plan)
+             + _script_main())
     return "\n".join(lines)
 
 

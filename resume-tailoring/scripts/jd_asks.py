@@ -284,10 +284,57 @@ def _first_heading_offset(jd_text):
     return None
 
 
+def _post_heading_mention(term, jd_text, heading_offset):
+    """Whether ``term`` occurs (word-boundary, case-insensitive) after the
+    JD's first heading; True when the posting has no heading at all."""
+    if heading_offset is None:
+        return True
+    return bool(re.search(r"(?<![A-Za-z0-9])" + re.escape(term)
+                          + r"(?![A-Za-z0-9])",
+                          jd_text[heading_offset:], re.I))
+
+
+def _admit_term(w):
+    """The admission gate for one whole-posting candidate: stop words,
+    vague/level words, too-short non-symbol tokens, numbers, adverbs, and
+    soft skills never name an ask."""
+    if w in JD_STOP or w in _VAGUE_STOP or w in _LEVEL_WORDS:
+        return False
+    if len(w) < 3 and not re.search(r"[#+]", w):
+        return False
+    if re.fullmatch(r"[0-9.]+\w*", w):
+        return False
+    return not (w.endswith("ly") or JD_SOFT_SKILL_RE.search(w))
+
+
+def _product_name_asks(text):
+    """Multi-word proper nouns ('GitHub Actions', 'REST Assured', 'Azure
+    DevOps') are never prose — mined over ``text`` from the first
+    recognized heading onward (mission-statement labels like 'About Us'
+    name no ask), PER SENTENCE so '.' glue cannot fuse items; section
+    headers are skipped."""
+    out = set()
+    for ln in text.splitlines():
+        if not ln.strip() or jd_sections.header_at(ln.strip()):
+            continue
+        for part in re.split(r"(?<=[.!?])\s+", ln):
+            for m in JD_SEQ_TERM_RE.finditer(part):
+                out.add(m.group(0).lower().rstrip("."))
+    return out
+
+
+def _standalone_acronyms(jd_text, jd_low):
+    """Acronyms only as STANDALONE tokens ('RCA' yes; the 'NG' inside
+    'TestNG' is not an acronym occurrence); vague forms ('BS'/'BE' are
+    degree credentials) and adverbs drop."""
+    return {a for a in _acronym_terms(jd_text)
+            if a not in _VAGUE_STOP
+            and not a.endswith("ly")
+            and re.search(rf"(?<![A-Za-z0-9#+]){re.escape(a)}"
+                          rf"(?![A-Za-z0-9#+])", jd_low)}
+
+
 def _repeated_terms(jd_text):
-    # too-many-locals/branches: the admission gates are the engine's
-    # calibrated rules; splitting them hides the ask decision from review.
-    # pylint: disable=too-many-locals,too-many-branches
     """Whole-posting asks.
 
     A capitalized mid-sentence mention is an ask at any frequency after
@@ -301,14 +348,6 @@ def _repeated_terms(jd_text):
     jd_low = jd_text.lower()
     out = set()
     heading_offset = _first_heading_offset(jd_text)
-
-    def _post_heading(term):
-        if heading_offset is None:
-            return True
-        return bool(re.search(r"(?<![A-Za-z0-9])" + re.escape(term)
-                              + r"(?![A-Za-z0-9])",
-                              jd_text[heading_offset:], re.I))
-
     stream = []
     for ln in jd_text.splitlines():
         if jd_sections.header_at(ln.strip()):
@@ -316,47 +355,19 @@ def _repeated_terms(jd_text):
         words = [w.strip(".,;:!?'\"()").lower() for w in ln.split()]
         stream.extend(words[1:])
     counts = Counter(w for w in stream if w)
-
-    def _admit(w):
-        if w in JD_STOP or w in _VAGUE_STOP or w in _LEVEL_WORDS:
-            return False
-        if len(w) < 3 and not re.search(r"[#+]", w):
-            return False
-        if re.fullmatch(r"[0-9.]+\w*", w):
-            return False
-        return not (w.endswith("ly") or JD_SOFT_SKILL_RE.search(w))
-
     for w in counts:
-        if not _admit(w):
+        if not _admit_term(w):
             continue
         freq = _jd_term_freq(w, jd_low)
         if _capitalized_mention(jd_text, w):
-            if freq >= 2 or _post_heading(w):
+            if freq >= 2 or _post_heading_mention(w, jd_text, heading_offset):
                 out.add(w)  # a JD-named product/ask
         elif (w in _TECH_ANCHORS or w in CORE_TECH_NOUNS) and freq >= 2:
             out.add(w)
-    # Product-name sequences (multi-word proper nouns: 'GitHub Actions',
-    # 'REST Assured', 'Azure DevOps') are never prose — mine them over the
-    # posting from the first recognized heading onward (mission-statement
-    # labels like 'About Us' name no ask), per sentence so '.' glue cannot
-    # fuse items.
-    if heading_offset is not None:
-        seq_text = jd_text[heading_offset:]
-    else:
-        seq_text = jd_text
-    for ln in seq_text.splitlines():
-        if not ln.strip() or jd_sections.header_at(ln.strip()):
-            continue
-        for part in re.split(r"(?<=[.!?])\s+", ln):
-            for m in JD_SEQ_TERM_RE.finditer(part):
-                out.add(m.group(0).lower().rstrip("."))
-    # Acronyms only as STANDALONE tokens ('RCA' yes; the 'NG' inside
-    # 'TestNG' is not an acronym occurrence).
-    out |= {a for a in _acronym_terms(jd_text)
-            if a not in _VAGUE_STOP  # 'BS'/'BE' are degree credentials
-            and not a.endswith("ly")
-            and re.search(rf"(?<![A-Za-z0-9#+]){re.escape(a)}"
-                          rf"(?![A-Za-z0-9#+])", jd_low)}
+    seq_text = (jd_text[heading_offset:] if heading_offset is not None
+                else jd_text)
+    out |= _product_name_asks(seq_text)
+    out |= _standalone_acronyms(jd_text, jd_low)
     return out
 
 def _subsumed(terms):
