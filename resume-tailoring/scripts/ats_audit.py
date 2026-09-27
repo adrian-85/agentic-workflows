@@ -123,15 +123,23 @@ def _audit_match_rate(score, target, result):
     Editing past a met target is forbidden; the old wording called the
     target "advisory, not a gate", and that framing is gone. Below
     the target, keep hosting. Configurable via --match-target; 0
-    disables."""
+    disables.
+
+    Since 2026-09-26 the stop is STRUCTURAL: at a met target the
+    literal/residual checks downgrade their unhosted phrases from FAIL
+    to a TARGET MET warning (below), so the reconciliation audit can
+    exit clean without hosting anything past the score the delivered
+    PDF already earned — the session WRAPS: residuals get recorded
+    raise/ignore dispositions, never edits."""
     verdict = match_target_met(score, target)
     if verdict is None:
         return
     if verdict:
         result.ok_lines.append(
             f"match rate: {score} (target {target} MET — hosting loop "
-            "CLOSED: stop score-driven edits now; no further hosting, "
-            "rewording, or scans for score unless the user asks)")
+            "CLOSED: wrap the session; record residual no-hosts as "
+            "raise/ignore dispositions and present closeout — no further "
+            "hosting, rewording, or scans for score unless the user asks)")
     else:
         result.warns.append(
             f"match rate: {score} (below the {target} target — keep "
@@ -455,7 +463,22 @@ def _note_raised(result, phrases, prefix=""):
             f"{prefix}raised/ignored (recorded): " + ", ".join(phrases))
 
 
-def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised):
+def _target_met_note(phrases, result):
+    """Downgrade one target-met residual batch from FAIL to warning.
+
+    At a met final match rate the residual no-host list is NOT a work
+    order — hosting it would be score-driven editing past a target the
+    delivered PDF already earned (session evidence 2026-09-26: three
+    sessions kept hosting after 82/100/87). The sanctioned states are a
+    recorded raise/ignore disposition or an explicit user ask."""
+    result.warns.append(
+        "TARGET MET — residual no-host (record a raise/ignore "
+        "disposition and wrap up; hosting resumes only on an explicit "
+        "user ask): " + ", ".join(phrases))
+
+
+def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised,
+                           target_met=False):
     """JD literal-term and external-phrase checks (sections 2-3)."""
     if jd_path:
         with open(jd_path, encoding="utf-8", errors="replace") as f:
@@ -464,7 +487,9 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised):
         missing, raised_here = _split_raised(missing, raised)
         result.findings.extend(missing)
         _note_raised(result, raised_here)
-        if missing:
+        if missing and target_met:
+            _target_met_note(missing, result)
+        elif missing:
             result.errors.append(
                 "JD literal terms with NO host in the rendered text: "
                 + ", ".join(missing)
@@ -482,7 +507,9 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised):
         missing, raised_here = _split_raised(missing, raised)
         result.findings.extend(missing)
         _note_raised(result, raised_here)
-        if missing:
+        if missing and target_met:
+            _target_met_note(missing, result)
+        elif missing:
             result.errors.append("phrases with NO literal host: "
                                  + ", ".join(missing))
         else:
@@ -490,7 +517,8 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised):
                 f"phrases: {len(phrases)}/{len(phrases)} hosted")
 
 
-def _audit_report_skills(report_data, text_low, text, result, raised):
+def _audit_report_skills(report_data, text_low, text, result, raised,
+                         target_met=False):
     """Report hard/soft skill hosting check (sections 4-5). Mutates the
     three result lists in place."""
     if report_data is None:
@@ -506,14 +534,18 @@ def _audit_report_skills(report_data, text_low, text, result, raised):
     result.findings.extend(soft_miss)
     for raised_here, label in ((hard_raised, "hard"), (soft_raised, "soft")):
         _note_raised(result, raised_here, f"report {label} skills ")
-    if hard_miss:
+    if hard_miss and target_met:
+        _target_met_note(hard_miss, result)
+    elif hard_miss:
         result.errors.append(
             "report hard skills with NO literal host: "
             + ", ".join(hard_miss))
     elif hard:
         result.ok_lines.append(f"report hard skills: {len(hard) - len(hard_raised)}"
                         f"/{len(hard)} hosted")
-    if soft_miss:
+    if soft_miss and target_met:
+        _target_met_note(soft_miss, result)
+    elif soft_miss:
         # A warning here let a deliverable ship with an unhosted soft
         # skill, so a soft-skill miss FAILs like a hard-skill one; the
         # sanctioned not-hosted state is a recorded raise/ignore
@@ -607,12 +639,22 @@ def main(argv=None):
 
     report_data = _audit_words_and_report(args, text, result)
 
+    # Target-met is computed BEFORE the literal checks: a met final
+    # score downgrades every unhosted residual from FAIL to a wrap-up
+    # warning (_target_met_note) — the reconciliation can close without
+    # hosting anything past the score the delivered PDF already earned.
+    # Baseline runs never downgrade: the Step-4 loop's FAILs are the
+    # mining queue's work order, and an early scan at/above target does
+    # not close Step 4's internal findings.
+    score = _report_match_rate(report_data)
+    target_met = (not args["baseline"]
+                  and match_target_met(score, args["match_target"]) is True)
     _audit_jd_and_phrases(args["jd_path"], args["phrases_file"], text_low,
-                          result, raised)
+                          result, raised, target_met)
     if result.vacuous_jd:
         _note_vacuous_jd(result, args["baseline"])
-    _audit_report_skills(report_data, text_low, text, result, raised)
-    score = _report_match_rate(report_data)
+    _audit_report_skills(report_data, text_low, text, result, raised,
+                         target_met)
     _audit_match_rate(score, args["match_target"], result)
     _ceiling_check(score, args["match_target"], args["path"], result)
 

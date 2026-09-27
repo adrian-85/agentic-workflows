@@ -292,10 +292,25 @@ class MatchRateTargetTests(unittest.TestCase):
         self.assertIn("MET", r.ok_lines[0])
         # Hard stop (2026-09-11): the MET line must terminate the loop,
         # not describe it as optional — and the old "advisory" framing
-        # must stay gone.
+        # must stay gone. Since 2026-09-26 the stop is structural: the
+        # line commands the wrap (record residuals, present closeout).
         self.assertIn("CLOSED", r.ok_lines[0])
-        self.assertIn("stop score-driven edits", r.ok_lines[0])
+        self.assertIn("wrap the session", r.ok_lines[0])
+        self.assertIn("raise/ignore dispositions", r.ok_lines[0])
         self.assertNotIn("advisory", r.ok_lines[0])
+
+    def test_target_met_downgrades_residuals_to_wrapup_warnings(self):
+        """The 2026-09-26 structural stop: at a met target, unhosted
+        residuals warn (record + wrap) instead of FAILing — the
+        reconciliation can close without hosting past the earned score
+        (three sessions kept hosting after 82/100/87)."""
+        r = self._result()
+        aa._target_met_note(["etl", "model-based"], r)
+        self.assertEqual(r.errors, [])
+        self.assertEqual(len(r.warns), 1)
+        self.assertIn("TARGET MET", r.warns[0])
+        self.assertIn("etl", r.warns[0])
+        self.assertIn("explicit", r.warns[0])
 
     def test_zero_target_disables(self):
         r = self._result()
