@@ -120,7 +120,7 @@ class ReviewTemplateTests(unittest.TestCase):
                 wg.print_review_template("ats", path)
             skeleton = json.loads(out.getvalue())
             # normalized (lowercased, deduped, sorted) by record_audit
-            self.assertEqual([f["phrase"] for f in skeleton["dispositions"]],
+            self.assertEqual([f["item"] for f in skeleton["dispositions"]],
                              ["gen ai", "observability"])
             self.assertTrue(all(f["decision"] == "" and f["rationale"] == ""
                                 for f in skeleton["dispositions"]))
@@ -200,7 +200,7 @@ class ReviewValidationTests(unittest.TestCase):
         review = {
             "kind": "ats",
             "dispositions": [{
-                "phrase": "risk-based testing",
+                "item": "risk-based testing",
                 "decision": "raise",
                 "rationale": "not evidenced in either source",
             }],
@@ -230,9 +230,9 @@ class ReviewValidationTests(unittest.TestCase):
         review = {
             "kind": "ats",
             "dispositions": [
-                {"phrase": "python", "decision": "keep",
+                {"item": "python", "decision": "keep",
                  "rationale": "invalid for ATS reviews"},
-                {"phrase": "sql", "decision": "restore",
+                {"item": "sql", "decision": "restore",
                  "rationale": "invalid for ATS reviews"},
             ],
         }

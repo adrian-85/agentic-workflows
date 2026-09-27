@@ -158,10 +158,10 @@ def _hosts_jd_chunk(text, jd_terms):
     """Whether any chunk of a list line hosts a JD term or concept —
     the whole-line disposition signal: True keeps the line AS-IS (never
     a partial value list); False cuts the line whole. The LABEL side of
-    ``Label: values`` hosts exactly like a value: "CI/CD: Jenkins, ..."
-    kept its category cut in a real run because no VALUE matched while
-    the label literally was the JD term 'ci/cd' — the label is the
-    category the JD names, so it is checked first, whole."""
+    ``Label: values`` hosts exactly like a value — the label is the
+    category the JD names ("CI/CD: Jenkins, ..."), so it is checked
+    first, whole; checking only values would cut a line whose label
+    carries the JD term while no value matches."""
     if ":" not in text:
         return False
     label, value = text.split(":", 1)
@@ -682,9 +682,7 @@ def _emit_and_run(plan, meta):
     sidecar = prune_sidecar_path(docx, meta["jd_file"])
     with open(sidecar, "w", encoding="utf-8") as f:
         json.dump({"jd": os.path.basename(meta["jd_file"]),
-                   "candidates": plan["candidates"],
-                   "generic_only_cuts": plan.get("generic_only", {})},
-                   f, indent=1)
+                   "candidates": plan["candidates"]}, f, indent=1)
     script_path = os.path.join(skill_root, "scripts", script_name)
     with open(script_path, "w", encoding="utf-8") as f:
         f.write(emit_script(plan, os.path.basename(docx), meta["dst"],

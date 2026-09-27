@@ -387,19 +387,17 @@ def _jd_hits(text, jd_terms):
     (JD: "integration"; bullet: "partner integrations"; JD: "API";
     resume line: "REST APIs"). Hyphen compounds host their head: a bullet
     saying "sub-agents" DOES host the JD's "agents" ask — the lookbehind
-    rejects token characters but NOT the hyphen (a real prune read the
-    semi-autonomous-workflow bullet as evidence-free because of it).
+    rejects token characters but NOT the hyphen, so a hyphenated form
+    cannot make an otherwise-matching bullet read as evidence-free.
     Keeps genuinely-technical lines (an API
     proficiencies line vs the JD's "APIs") from being misread as off-JD
     cut candidates.
 
     A sentence-final period is a boundary, not a token char: ``.`` sits in
-    the token class for versioned forms (``node.js``), which made
-    "...built with Playwright." — the term at sentence END — unmatchable,
-    and the bullet read as off-JD (a real matcher bug found 2026-09-11).
-    The lookahead now rejects only a token char or a dot FOLLOWED by a
-    token char (``node.js`` stays one token); a sentence-final period
-    passes.
+    the token class for versioned forms (``node.js``), so a term at
+    sentence END stays matchable. The lookahead rejects only a token
+    char or a dot FOLLOWED by a token char (``node.js`` stays one
+    token); a sentence-final period passes.
     """
     low = text.lower()
     low_norm = _norm_text(text)

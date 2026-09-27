@@ -5,9 +5,8 @@ Run from the scripts directory (or via pytest from the parent):
     python3 scripts/test_script_args.py
 
 These helpers are the one shared arg-parsing surface for the six
-resume-tailoring CLIs (the ats_* closures used to re-implement
-flag reading three times with divergent error behavior — see
-flag_value, the single read-without-consuming variant).
+resume-tailoring CLIs: flag_value is the single read-without-consuming
+variant, so error behavior cannot diverge per CLI.
 """
 
 # pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring

@@ -815,9 +815,7 @@ class StubRoleTests(unittest.TestCase):
     """stub_role(): the gap-intolerant alternative to drop_role — keep the
     header/title/Tools row/spacers plus ONE strongest bullet, remove the
     rest. An interior whole-role drop opens an employment gap and
-    validate_resume blocks it; the stub keeps the timeline gapless
-    (session evidence 2026-09-26: Care Access dropped two interior roles
-    and the user had to demand stubs after the fact)."""
+    validate_resume blocks it; the stub keeps the timeline gapless."""
 
     def setUp(self):
         ps = [
@@ -2176,7 +2174,8 @@ class PrefixesHeadlineTests(unittest.TestCase):
 
 class CommaListRangeTests(unittest.TestCase):
     """cli() range argument accepts comma-separated indexes (61,63,65,70-72)
-    — reading scattered bullets used to cost one subprocess per index."""
+    — one command reads scattered bullets instead of one subprocess per
+    index."""
 
     _docx_with = staticmethod(test_helpers._docx_with_texts)
 

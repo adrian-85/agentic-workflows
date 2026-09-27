@@ -152,8 +152,7 @@ def validate_review(review):
     for index, entry in enumerate(entries, 1):
         if not isinstance(entry, dict):
             raise ReviewError(f"{kind} review entry {index} must be an object")
-        _nonempty(entry.get("item" if kind == "prune" else "phrase"),
-                  f"{kind} review entry {index} subject")
+        _nonempty(entry.get("item"), f"{kind} review entry {index} subject")
         allowed = ({"restore", "cut", "keep"} if kind == "prune"
                    else {"host", "ignore", "raise"})
         if entry.get("decision") not in allowed:
@@ -191,7 +190,7 @@ def print_review_template(kind, state_path):
                 "first (ats_audit.py --baseline; SKILL Step 4); the template pre-fills "
                 "its phrases")
         skeleton = {"kind": "ats", "dispositions": [
-            {"phrase": phrase, "decision": "", "rationale": ""} for phrase in phrases]}
+            {"item": phrase, "decision": "", "rationale": ""} for phrase in phrases]}
         hint = (
             "decisions: host | ignore | raise. Keep EXACTLY one row per phrase — do not "
             "delete or add rows (the gate matches the recorded baseline set exactly). "
@@ -256,7 +255,7 @@ def record_review(state_path, review_path):
     state = require(state_path, expected)
     if kind == "ats":
         expected_findings = set(state.get("finding_phrases", []))
-        actual_findings = {entry["phrase"].strip().lower()
+        actual_findings = {entry["item"].strip().lower()
                            for entry in review["dispositions"]}
         if actual_findings != expected_findings:
             missing = sorted(expected_findings - actual_findings)

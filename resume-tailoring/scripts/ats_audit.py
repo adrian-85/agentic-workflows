@@ -117,20 +117,18 @@ def _report_match_rate(data):
 
 
 def _audit_match_rate(score, target, result):
-    """The ≥75 match-rate target as a HARD STOP (2026-09-11): at or above
-    it the hosting loop TERMINATES — no further hosting, keyword-driven
+    """The ≥75 match-rate target as a HARD STOP: at or above it the
+    hosting loop TERMINATES — no further hosting, keyword-driven
     rewording, or re-scans for score unless the user explicitly asks.
-    Editing past a met target is forbidden; the old wording called the
-    target "advisory, not a gate", and that framing is gone. Below
-    the target, keep hosting. Configurable via --match-target; 0
+    Below the target, keep hosting. Configurable via --match-target; 0
     disables.
 
-    Since 2026-09-26 the stop is STRUCTURAL: at a met target the
+    In a non-baseline run the stop is structural: at a met target the
     literal/residual checks downgrade their unhosted phrases from FAIL
-    to a TARGET MET warning (below), so the reconciliation audit can
-    exit clean without hosting anything past the score the delivered
-    PDF already earned — the session WRAPS: residuals get recorded
-    raise/ignore dispositions, never edits."""
+    to a TARGET MET warning (_target_met_note), so the reconciliation
+    audit can exit clean without hosting anything past the score the
+    delivered PDF already earned — the session WRAPS: residuals get
+    recorded raise/ignore dispositions, never edits."""
     verdict = match_target_met(score, target)
     if verdict is None:
         return
@@ -405,7 +403,8 @@ def _norm_phrase(phrase):
 def load_raised_phrases(path):
     """Phrases dispositioned raise/ignore in a recorded Theme Review B
     JSON (``workflow_gate.py review`` writes it; schema: kind "ats",
-    one {phrase, decision, rationale} row per recorded finding).
+    one {item, decision, rationale} row per recorded finding — one row
+    shape for both review kinds; ``item`` is the JD phrase).
 
     A recorded raise or ignore is the sanctioned not-hosted state for
     that phrase — the final audit reports it as recorded instead of
@@ -426,7 +425,7 @@ def load_raised_phrases(path):
         if not isinstance(row, dict):
             continue
         if str(row.get("decision", "")).lower() in ("raise", "ignore"):
-            phrase = row.get("phrase")
+            phrase = row.get("item")
             if phrase:
                 raised.add(_norm_phrase(phrase))
     return raised, None
@@ -471,13 +470,21 @@ def _target_met_note(phrases, result):
 
     At a met final match rate the residual no-host list is NOT a work
     order — hosting it would be score-driven editing past a target the
-    delivered PDF already earned (session evidence 2026-09-26: three
-    sessions kept hosting after 82/100/87). The sanctioned states are a
-    recorded raise/ignore disposition or an explicit user ask."""
+    delivered PDF already earned. The sanctioned states are a recorded
+    raise/ignore disposition or an explicit user ask."""
     result.warns.append(
         "TARGET MET — residual no-host (record a raise/ignore "
         "disposition and wrap up; hosting resumes only on an explicit "
         "user ask): " + ", ".join(phrases))
+
+
+def _record_missing(result, missing, fail_message):
+    """Record one no-host batch: a TARGET MET wrap-up warning at a met
+    final target, a blocking FAIL otherwise."""
+    if result.target_met:
+        _target_met_note(missing, result)
+    else:
+        result.errors.append(fail_message)
 
 
 def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised):
@@ -489,10 +496,9 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised):
         missing, raised_here = _split_raised(missing, raised)
         result.findings.extend(missing)
         _note_raised(result, raised_here)
-        if missing and result.target_met:
-            _target_met_note(missing, result)
-        elif missing:
-            result.errors.append(
+        if missing:
+            _record_missing(
+                result, missing,
                 "JD literal terms with NO host in the rendered text: "
                 + ", ".join(missing)
                 + " — host the exact phrase truthfully or raise the gap "
@@ -509,11 +515,10 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised):
         missing, raised_here = _split_raised(missing, raised)
         result.findings.extend(missing)
         _note_raised(result, raised_here)
-        if missing and result.target_met:
-            _target_met_note(missing, result)
-        elif missing:
-            result.errors.append("phrases with NO literal host: "
-                                 + ", ".join(missing))
+        if missing:
+            _record_missing(result, missing,
+                            "phrases with NO literal host: "
+                            + ", ".join(missing))
         else:
             result.ok_lines.append(
                 f"phrases: {len(phrases)}/{len(phrases)} hosted")
@@ -535,23 +540,19 @@ def _audit_report_skills(report_data, text_low, text, result, raised):
     result.findings.extend(soft_miss)
     for raised_here, label in ((hard_raised, "hard"), (soft_raised, "soft")):
         _note_raised(result, raised_here, f"report {label} skills ")
-    if hard_miss and result.target_met:
-        _target_met_note(hard_miss, result)
-    elif hard_miss:
-        result.errors.append(
-            "report hard skills with NO literal host: "
-            + ", ".join(hard_miss))
+    if hard_miss:
+        _record_missing(result, hard_miss,
+                        "report hard skills with NO literal host: "
+                        + ", ".join(hard_miss))
     elif hard:
         result.ok_lines.append(f"report hard skills: {len(hard) - len(hard_raised)}"
                         f"/{len(hard)} hosted")
-    if soft_miss and result.target_met:
-        _target_met_note(soft_miss, result)
-    elif soft_miss:
-        # A warning here let a deliverable ship with an unhosted soft
-        # skill, so a soft-skill miss FAILs like a hard-skill one; the
-        # sanctioned not-hosted state is a recorded raise/ignore
-        # disposition (--raised).
-        result.errors.append(
+    if soft_miss:
+        # A soft-skill miss FAILs like a hard-skill one; the sanctioned
+        # not-hosted state is a recorded raise/ignore disposition
+        # (--raised).
+        _record_missing(
+            result, soft_miss,
             "report soft skills with NO literal host (soft skills are "
             "safe to infer: host each literal phrase where the "
             "action-verb evidence lives, SKILL Steps 2/4; a soft skill "
@@ -640,13 +641,9 @@ def main(argv=None):
 
     report_data = _audit_words_and_report(args, text, result)
 
-    # Target-met is computed BEFORE the literal checks: a met final
-    # score downgrades every unhosted residual from FAIL to a wrap-up
-    # warning (_target_met_note) — the reconciliation can close without
-    # hosting anything past the score the delivered PDF already earned.
-    # Baseline runs never downgrade: the Step-4 loop's FAILs are the
-    # mining queue's work order, and an early scan at/above target does
-    # not close Step 4's internal findings.
+    # A met final score downgrades every unhosted residual from FAIL to a
+    # wrap-up warning (_target_met_note); baseline runs never downgrade —
+    # their FAILs are the Step-4 mining queue's work order.
     score = _report_match_rate(report_data)
     result.target_met = (
         not args["baseline"]

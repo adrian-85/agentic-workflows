@@ -66,7 +66,7 @@ CLI (inspect structure before editing)::
 # invalid-name: rPr/pPr/numId/… mirror OOXML w:rPr/pPr/numId schema tags
 #   verbatim so template/spec greps stay obvious.
 # global-statement: _APPLIED/_SKIPS/_ELEMENT_FORM_DROPS are module drift
-#   counters read by tests; DriftBook refactor deferred (spec 2026-09-07).
+#   counters read by tests — the drift sidecar's recorded state.
 
 
 import copy
@@ -92,16 +92,15 @@ SPACE = "{http://www.w3.org/XML/1998/namespace}space"
 def prune_sidecar_path(docx, jd_file=None):
     """Per-JD prune-plan sidecar: ``<docx>.prune.<jd-stem>.json``.
 
-    The prune plan is JD-specific, but it used to live in a single
-    ``<docx>.prune.json`` keyed only by the master filename — two runs
-    from the same master in parallel (two terminals, two JDs) collided:
-    whichever auto_prune ran second clobbered the first's gate state, and
-    each run's lint-prune then saw the other's foreign candidates. Keying the
-    sidecar by the JD file makes the plan private to the run that wrote
-    it. ``jd_file=None`` keeps the legacy shared path for callers with no
-    JD context. The reader (lint-prune) derives the JD from the tailor
-    script's ``JD: <name>.txt`` docstring line, falling back to the
-    legacy path when absent so pre-existing scripts keep working.
+    The prune plan is JD-specific, and keying the sidecar by the JD
+    file keeps each run's plan private to the run that wrote it —
+    parallel auto_prune runs from the same master (two terminals, two
+    JDs) then never share or clobber gate state, and each run's
+    lint-prune sees only its own candidates. ``jd_file=None`` keeps the
+    legacy shared path for callers with no JD context. The reader
+    (lint-prune) derives the JD from the tailor script's
+    ``JD: <name>.txt`` docstring line, falling back to the legacy path
+    when absent so pre-existing scripts keep working.
     """
     if not jd_file:
         return docx + ".prune.json"
@@ -781,7 +780,7 @@ def drop_role(body, company_prefix, company_style=ROLE_STYLE,
     never consumed. Duplicate job titles need no ``after=``/``nth=`` anchor
     (the block is contiguous from the role's OWN header).
 
-    GAP RULE (2026-09-26): whole-role drops are valid only contiguous
+    GAP RULE: whole-role drops are valid only contiguous
     from the OLDEST role — an interior drop opens an employment gap,
     validate_resume BLOCKS the deliverable, and the fix is
     :func:`stub_role`, not an approval token.
@@ -837,11 +836,10 @@ def stub_role(body, company_prefix, keep_bullet_prefix,
     if keep_p is None:
         _warn_missing(f"stub_role keep: {keep_bullet_prefix}")
         return paras(body)
-    for p in block:
+    for p in block[1:]:  # block[0] is the company header — always kept
         if p is keep_p or not _is_stub_content(p):
             continue
-        if p is not block[0]:
-            remove(body, p)
+        remove(body, p)
     return paras(body)
 
 

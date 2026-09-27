@@ -155,11 +155,9 @@ expectations:
 
 
 class GenericEvidenceDemotionTests(unittest.TestCase):
-    """The ruthless-prune rule (2026-09-26): generic practice vocabulary
-    alone is NOT evidence. Session evidence: ETL and model-based-testing
-    bullets survived three prunes solely on test/testing/data/api/code/
-    json matches, hosted no external-report skill, and were manually
-    removed after every session."""
+    """The ruthless-prune rule: generic practice vocabulary alone is
+    NOT evidence — a generic word counts only when a specific term
+    co-occurs in the same text."""
 
     def test_generic_only_text_reports_no_evidence(self):
         text = ("planned test coverage for a file upload process that "

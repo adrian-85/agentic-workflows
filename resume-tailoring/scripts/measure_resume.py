@@ -341,11 +341,9 @@ class _ReportCtx(NamedTuple):
 def _print_simulate_gaps(pre_roles, dropped):
     """Warn about drops that open an employment gap between survivors.
 
-    Gap-intolerant drops (2026-09-26): a drop that opens a hole never
-    ships. The Care Access run dropped two interior roles and the user
-    had to demand stubs after the fact, so the what-if surfaces the gap
-    where the plan is still being built (validate_resume blocks it
-    outright at render/save time).
+    Gap-intolerant drops: a drop that opens a hole never ships. The
+    what-if surfaces the gap where the plan is still being built
+    (validate_resume blocks it outright at render/save time).
     """
     pre_headers = [r["raw"] for r in pre_roles]
     kept_headers = [h for h in pre_headers if h not in dropped]

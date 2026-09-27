@@ -151,14 +151,13 @@ does not alter machine pruning. The two agent reviews are JSON records, not free
  "dispositions":[{"item":"...", "decision":"restore|cut|keep",
                     "rationale":"..."}]}
 {"kind":"ats",
- "dispositions":[{"phrase":"...", "decision":"host|ignore|raise",
+ "dispositions":[{"item":"...", "decision":"host|ignore|raise",
                     "rationale":"..."}]}
 ```
 
-**One key everywhere: `dispositions` (2026-09-26).** Both review kinds use it — the ATS record used
-to emit `findings`, while `ats_audit.py --raised` required `dispositions`, so every session
-hand-converted the JSON between the two keys. `workflow_gate.py template` emits `dispositions`, the
-review validator reads it, and `ats_audit.py --raised` reads the same file unchanged.
+**One row shape everywhere: `dispositions` of `{item, decision, rationale}`.** Both review kinds
+use it — the same key the template emits, the validator reads, and `ats_audit.py --raised`
+consumes; `item` is the subject dispositioned (prune: a find_p prefix; ats: a JD phrase).
 
 Generate either skeleton pre-filled instead of hand-building the JSON — the ATS template prints
 every recorded baseline phrase (from the baseline audit) so the exact-set match holds by
@@ -267,7 +266,7 @@ primitive (`docx_edit.drop_role`): it owns the block grammar (company header →
 spacer, boundary paragraph excluded) and handles duplicate job titles with no anchor. Education goes
 with `drop_section`. See Common mistakes in SKILL.md for the failure this replaces.
 
-**Gap rule (2026-09-26): whole-role drops are valid ONLY contiguous from the OLDEST role.**
+**Gap rule: whole-role drops are valid ONLY contiguous from the OLDEST role.**
 Dropping an interior role (surviving roles on both sides) opens an employment hole; a visible gap
 can kill an application, so it is never an approvable state. `validate_resume._history_gap_errors`
 runs unconditionally (not just when the ≥2y seniority gate fires) and BLOCKS the deliverable with
@@ -460,21 +459,18 @@ otherwise lose every bullet; timeline gaplessness), a bullet kept WHOLE unmodifi
 carries JD evidence and it is already within the word cap), and a proficiency/Tools line kept WHOLE
 unmodified (it hosts at least one JD-evidenced item). A user-approved whole-role drop is represented
 by `drop_role()` itself, never by a fake `# kept:` comment; per-bullet edits inside that role must
-not remain in the script. Gap-intolerant drops (2026-09-26): the drop must be contiguous from the
+not remain in the script. Gap-intolerant drops: the drop must be contiguous from the
 OLDEST role or be a `stub_role()` instead — see the Step 5 procedures section.
 
-**Generic-only vocabulary is not evidence (2026-09-26).** `jd_asks.GENERIC_EVIDENCE_TERMS`
+**Generic-only vocabulary is not evidence.** `jd_asks.GENERIC_EVIDENCE_TERMS`
 (test/tests/testing/tested, data, api/apis, code/coding, json/csv/xml) demote inside
 `evidence_set`: a generic word matches only when a SPECIFIC term co-occurs in the same text, so a
 bullet whose only machine match is "test" reports NO evidence and is CUT. The prune eliminates
-ruthlessly and Theme Review A restores theme-relevant cuts from the cut-set diff — before this,
-ETL and model-based-testing bullets survived three real prunes off-theme on generic words alone,
-hosted no external-report skill, and were removed by hand in every session. Each such cut is tagged
-in `MACHINE_DROPS` (`# generic-only evidence (test, data) — restore if theme-relevant`) and recorded
-in the sidecar's `generic_only_cuts`. `jd_asks.specific_evidence_set` (ranking) and
-`jd_asks.generic_only_evidence` (tagging) are the supporting helpers. A list line's LABEL side
-("CI/CD: Jenkins, ...") hosts like a value — the label check was value-only and cut a line whose
-label was the literal JD term.
+ruthlessly and Theme Review A restores theme-relevant cuts from the cut-set diff. Each such cut is
+tagged in `MACHINE_DROPS` (`# generic-only evidence (test, data) — restore if theme-relevant`);
+`jd_asks.specific_evidence_set` (ranking) and `jd_asks.generic_only_evidence` (tagging) are the
+supporting helpers. A list line's LABEL side ("CI/CD: Jenkins, ...") hosts like a value: a line
+whose label carries the JD term is kept even when no value matches.
 
 **Machine prune sidecar + coverage gate.** The internal `--jd` machinery writes
 `<master>.prune.json`, one candidate record per bullet/list/section candidate. `auto_prune.py`
@@ -767,17 +763,16 @@ host signal, the literal check is the fallback. Report soft-skill no-hosts FAIL 
 safe to infer — host each literal phrase where the action-verb evidence lives; a soft skill no kept
 bullet evidences gets a recorded raise/ignore disposition).
 With `--report-json`, also prints the **match-rate target** (default 75, `--match-target N`
-to change, `0` disables). The target is a **hard stop** (2026-09-11): score ≥ target ⇒ the hosting
+to change, `0` disables). The target is a **hard stop**: score ≥ target ⇒ the hosting
 loop closes: stop hosting, stop keyword-driven rewording, and stop re-scanning for score. Below
 target ⇒ keep hosting literal phrases truthfully — hosting them is what moves the rate. Further
 score-driven edits resume only when the user explicitly asks.
 
-**Since 2026-09-26 the stop is structural (final runs only).** With a met target in a non-baseline
-run, every unhosted residual — JD-literal terms, `--phrases-file` phrases, report hard/soft skills —
-is downgraded from `FAIL` to a `TARGET MET — residual no-host ... record a raise/ignore disposition
+**The stop is structural (final runs only).** With a met target in a non-baseline run, every
+unhosted residual — JD-literal terms, `--phrases-file` phrases, report hard/soft skills — is
+downgraded from `FAIL` to a `TARGET MET — residual no-host ... record a raise/ignore disposition
 and wrap up` WARNING, so the reconciliation audit can exit clean without hosting anything past the
-score the delivered PDF already earned. Before this, the reconciliation's FAILs forced hosting
-after 82/100/87 in three real sessions. Baseline runs (`--baseline`) never downgrade: their FAILs
+score the delivered PDF already earned. Baseline runs (`--baseline`) never downgrade: their FAILs
 are the Step-4 mining queue's work order. The verdict message
 (`hosting loop CLOSED: wrap the session`) is the enforcement signal.
 

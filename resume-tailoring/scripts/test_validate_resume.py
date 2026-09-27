@@ -23,7 +23,7 @@ import zipfile
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
-import docx_edit as de
+import docx_edit as de  # noqa: E402
 import measure_resume_format as mrf  # noqa: E402
 import test_helpers
 import measure_resume as mr  # noqa: E402
@@ -723,14 +723,11 @@ class RoleIntegrityTests(unittest.TestCase):
 
 
 class HistoryGapTests(unittest.TestCase):
-    """Gap-intolerant drops (2026-09-26): an employment gap a whole-role
-    drop opened between surviving neighbors BLOCKS the deliverable — no
-    approval token overrides it. Session evidence: the Care Access run
-    dropped two interior roles, the user demanded stubs after the fact,
-    and the fix cost a full rework round. Valid drops are contiguous
-    from the oldest role; any other role is stubbed (header/title/
-    Tools + strongest bullet), which keeps the header present and never
-    flags here."""
+    """Gap-intolerant drops: an employment gap a whole-role drop opened
+    between surviving neighbors BLOCKS the deliverable — no approval
+    token overrides it. Valid drops are contiguous from the oldest
+    role; any other role is stubbed (header/title/Tools + strongest
+    bullet), which keeps the header present and never flags here."""
 
     @staticmethod
     def _write(path, roles):
@@ -1210,9 +1207,9 @@ class GuidanceTests(unittest.TestCase):
                         errors)
 
     def test_missing_spacer_error_carries_the_copy_ready_command(self):
-        # Learning the expected string format used to take three recording
-        # attempts and a source read; the error now includes the full
-        # header and the exact --omitted command.
+        # The error carries the full header and the exact --omitted
+        # command, so the spacers gate can be corrected from the message
+        # alone.
         b, _s = self._two_role_body(with_spacer=False)
         errors = vrc._final_presentation_errors(b)
         headers = [h for h, _a in mr._boundaries_without_spacer(b)]
@@ -1467,9 +1464,9 @@ class LoopSignalTests(unittest.TestCase):
 
 
 class HelpFlagTests(unittest.TestCase):
-    """Bare --help/-h must print usage and exit 0 — the hand-rolled argv
-    loops used to consume it as the positional .docx and die with a
-    FileNotFoundError (e.g. 'measure_resume.py --help')."""
+    """Bare --help/-h must print usage and exit 0 — a hand-rolled argv
+    loop consumes it as the positional .docx unless maybe_help
+    intercepts first (e.g. 'measure_resume.py --help')."""
 
     def test_maybe_help_exits_zero(self):
         buf = io.StringIO()

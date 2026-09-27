@@ -290,20 +290,19 @@ class MatchRateTargetTests(unittest.TestCase):
         self.assertEqual(r.warns, [])
         self.assertEqual(len(r.ok_lines), 1)
         self.assertIn("MET", r.ok_lines[0])
-        # Hard stop (2026-09-11): the MET line must terminate the loop,
+        # Hard stop: the MET line must terminate the loop,
         # not describe it as optional — and the old "advisory" framing
-        # must stay gone. Since 2026-09-26 the stop is structural: the
-        # line commands the wrap (record residuals, present closeout).
+        # must stay gone. The stop is structural: the line commands the
+        # wrap (record residuals, present closeout).
         self.assertIn("CLOSED", r.ok_lines[0])
         self.assertIn("wrap the session", r.ok_lines[0])
         self.assertIn("raise/ignore dispositions", r.ok_lines[0])
         self.assertNotIn("advisory", r.ok_lines[0])
 
     def test_target_met_downgrades_residuals_to_wrapup_warnings(self):
-        """The 2026-09-26 structural stop: at a met target, unhosted
-        residuals warn (record + wrap) instead of FAILing — the
-        reconciliation can close without hosting past the earned score
-        (three sessions kept hosting after 82/100/87)."""
+        """The structural stop: at a met target, unhosted residuals
+        warn (record + wrap) instead of FAILing — the reconciliation
+        can close without hosting past the earned score."""
         r = self._result()
         aa._target_met_note(["etl", "model-based"], r)
         self.assertEqual(r.errors, [])
@@ -532,9 +531,9 @@ class MainTests(unittest.TestCase):
         review = _tmp(json.dumps({
             "kind": "ats",
             "dispositions": [
-                {"phrase": "Resilient", "decision": "raise",
+                {"item": "Resilient", "decision": "raise",
                  "rationale": "user confirmed gap"},
-                {"phrase": "pytest", "decision": "ignore",
+                {"item": "pytest", "decision": "ignore",
                  "rationale": "parser noise"},
             ]}), suffix=".json")
         try:
@@ -575,9 +574,9 @@ class MainTests(unittest.TestCase):
         review = _tmp(json.dumps({
             "kind": "ats",
             "dispositions": [
-                {"phrase": "playwright", "decision": "raise",
+                {"item": "playwright", "decision": "raise",
                  "rationale": "never used it"},
-                {"phrase": "selenium", "decision": "host",
+                {"item": "selenium", "decision": "host",
                  "rationale": "hosted later"},
             ]}), suffix=".json")
         try:

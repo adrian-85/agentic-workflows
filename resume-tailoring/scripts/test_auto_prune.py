@@ -614,10 +614,9 @@ def _full_contract_jd():
 
 
 class LabelHostingTests(unittest.TestCase):
-    """Item 2026-09-26: the LABEL side of 'Label: values' lines hosts
-    exactly like a value. The Quanata run cut the 'CI/CD:' proficiency
-    line while 'ci/cd' was a literal JD term — the label check only
-    looked at values."""
+    """The LABEL side of 'Label: values' lines hosts exactly like a
+    value: a line whose label carries the JD term is kept even when no
+    value matches."""
 
     def test_label_hosts_jd_term(self):
         self.assertTrue(auto_prune._hosts_jd_chunk(

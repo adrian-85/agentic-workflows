@@ -786,11 +786,10 @@ class JDAwareTests(unittest.TestCase):
         self.assertEqual(len(dropped), 0)
 
     def test_drop_sections_generic_only_evidence_is_not_protection(self):
-        # The ruthless-prune rule (2026-09-26): bullets whose only JD
-        # match is generic vocabulary (test/testing/data/api/...) are NOT
+        # The ruthless-prune rule: bullets whose only JD match is
+        # generic vocabulary (test/testing/data/api/...) are NOT
         # evidenced — the DROP PLAN may budget them, and Theme Review A
-        # decides. Generic words kept ETL-class bullets alive through
-        # three real prunes; they no longer protect.
+        # decides.
         plan = [("Company ABC, City", "drop 2 bullet(s) (saves ~4 lines)", 4.0)]
         bullets = [
             "Primary test engineer for the NextGen platform.",
@@ -978,11 +977,10 @@ class CoreTechNounTests(unittest.TestCase):
 class LabelVocabEndToEndTests(unittest.TestCase):
     """Label words flow through _jd_terms: a proficiencies line whose
     label or values carry SPECIFIC JD evidence is not a TOP-BLOCK cut
-    candidate. Since 2026-09-26 a GENERIC-only label ('API & Web
-    Services' against a JD asking 'API testing') no longer protects the
-    line — generic vocabulary alone is not evidence
-    (jd_asks.GENERIC_EVIDENCE_TERMS); the line becomes a review
-    candidate and Theme Review A decides."""
+    candidate. A GENERIC-only label ('API & Web Services' against a JD
+    asking 'API testing') does not protect the line — generic vocabulary
+    alone is not evidence (jd_asks.GENERIC_EVIDENCE_TERMS); the line
+    becomes a review candidate and Theme Review A decides."""
 
     def _body(self):
         return _body([
@@ -1435,7 +1433,32 @@ class PruneCandidatesTests(unittest.TestCase):
                          sum(1 for c in cands if c["kind"] == "bullet-cut"))
 
 
-def _docx_with_roles():
+def _role_paras(p, roles):
+    """One (header, title, numId, bullet, tools) tuple per role, in
+    newest-first document order, as XML paragraphs."""
+    out = [p(mr.SECTION_CAREER, style="SectionHeading")]
+    for header, title, numid, bullet, tools in roles:
+        out += [
+            p(header, style=mr.COMPANY_STYLE),
+            p(title, style="JobTitleBlock"),
+            p(bullet, style="BodyText", numid=numid),
+            p(tools, style="BodyText"),
+            p("", style="BodyText"),
+        ]
+    return out
+
+
+_DEFAULT_ROLES = [
+    ("Acme Corp, Springfield03/2022 – 02/2023", "Staff Engineer", 4,
+     "Led QA", "Tools &amp; Technologies: Go"),
+    ("Initech, Metropolis01/2017 – 06/2018", "Software Test Engineer I", 8,
+     "Tested data pipelines", "Tools &amp; Technologies: MS Test"),
+]
+
+
+def _docx_with_roles(roles=None):
+    """A minimal career region over ``roles`` (default: the standard
+    two-role fixture) plus the Education tail."""
     fd, path = tempfile.mkstemp(suffix=".docx")
     os.close(fd)
 
@@ -1451,18 +1474,8 @@ def _docx_with_roles():
         return (f'<w:p>{pPr}<w:r><w:t xml:space="preserve">'
                 f'{text}</w:t></w:r></w:p>')
 
-    paras = [
-        p(mr.SECTION_CAREER, style="SectionHeading"),
-        p("Acme Corp, Springfield03/2022 – 02/2023", style=mr.COMPANY_STYLE),
-        p("Staff Engineer", style="JobTitleBlock"),
-        p("Led QA", style="BodyText", numid=4),
-        p("Tools &amp; Technologies: Go", style="BodyText"),
-        p("", style="BodyText"),
-        p("Initech, Metropolis01/2017 – 06/2018", style=mr.COMPANY_STYLE),
-        p("Software Test Engineer I", style="JobTitleBlock"),
-        p("Tested data pipelines", style="BodyText", numid=8),
-        p("Tools &amp; Technologies: MS Test", style="BodyText"),
-        p("", style="BodyText"),
+    paras = _role_paras(p, roles if roles is not None else _DEFAULT_ROLES)
+    paras += [
         p(mr.SECTION_EDUCATION, style="SectionHeading"),
         p("Some College", style=mr.COMPANY_STYLE),
         p("Bachelor's Degree", style="JobTitleBlock"),
@@ -1533,50 +1546,20 @@ class ApplySimulateTests(unittest.TestCase):
             os.unlink(src)
 
 
-    def test_interior_drop_simulate_warns_about_gap(self):
-        # Gap-intolerant drops (2026-09-26): the what-if flags a drop that
-        # opens an employment hole — where the plan is still being built.
-        fd, src = tempfile.mkstemp(suffix=".docx")
-        os.close(fd)
-        try:
-            def p(text, style=None, numid=None):
-                pPr = ""
-                if style or numid:
-                    inner = ""
-                    if style:
-                        inner += f'<w:pStyle w:val="{style}"/>'
-                    if numid:
-                        inner += (f'<w:numPr><w:numId w:val="{numid}"/>'
-                                  f'</w:numPr>')
-                    pPr = f'<w:pPr>{inner}</w:pPr>'
-                return (f'<w:p>{pPr}<w:r><w:t xml:space="preserve">'
-                        f'{text}</w:t></w:r></w:p>')
+    _THREE_ROLES = [
+        ("Acme Corp, Springfield03/2022 – 02/2023", "Staff Engineer", 4,
+         "Led QA", "Tools &amp; Technologies: Go"),
+        ("Globex, Riverside01/2019 – 12/2020", "QA Engineer", 8,
+         "Built frameworks", "Tools &amp; Technologies: Java"),
+        ("Initech, Metropolis01/2017 – 06/2018", "Software Test Engineer I",
+         12, "Tested data pipelines", "Tools &amp; Technologies: MS Test"),
+    ]
 
-            paras = [
-                p(mr.SECTION_CAREER, style="SectionHeading"),
-                p("Acme Corp, Springfield03/2022 – 02/2023",
-                  style=mr.COMPANY_STYLE),
-                p("Staff Engineer", style="JobTitleBlock"),
-                p("Led QA", style="BodyText", numid=4),
-                p("Tools &amp; Technologies: Go", style="BodyText"),
-                p("Globex, Riverside01/2019 – 12/2020",
-                  style=mr.COMPANY_STYLE),
-                p("QA Engineer", style="JobTitleBlock"),
-                p("Built frameworks", style="BodyText", numid=8),
-                p("Tools &amp; Technologies: Java", style="BodyText"),
-                p("Initech, Metropolis01/2017 – 06/2018",
-                  style=mr.COMPANY_STYLE),
-                p("Software Test Engineer I", style="JobTitleBlock"),
-                p("Tested data pipelines", style="BodyText", numid=8),
-                p("Tools &amp; Technologies: MS Test", style="BodyText"),
-            ]
-            body = (f'<?xml version="1.0"?><w:document xmlns:w="{de.XMLNS}">'
-                    f'<w:body>'
-                    + "".join(paras)
-                    + "</w:body></w:document>")
-            with zipfile.ZipFile(src, "w") as z:
-                z.writestr("word/document.xml", body)
-                z.writestr("[Content_Types].xml", "<Types/>")
+    def test_interior_drop_simulate_warns_about_gap(self):
+        # Gap-intolerant drops: the what-if flags a drop that would open
+        # an employment hole — where the plan is still being built.
+        src = _docx_with_roles(self._THREE_ROLES)
+        try:
             out = tempfile.mktemp(suffix=".docx")
             try:
                 buf = io.StringIO()
@@ -1596,16 +1579,14 @@ class ApplySimulateTests(unittest.TestCase):
             os.unlink(src)
 
     def test_bottom_contiguous_simulate_has_no_gap_warning(self):
-        fd, src = tempfile.mkstemp(suffix=".docx")
-        os.close(fd)
+        src = _docx_with_roles()
         try:
             out = tempfile.mktemp(suffix=".docx")
             try:
                 buf = io.StringIO()
                 with contextlib.redirect_stdout(buf), \
                         contextlib.redirect_stderr(buf):
-                    mr._print_simulate(src and _docx_with_roles(),
-                                       ["Initech, Metropolis"], None,
+                    mr._print_simulate(src, ["Initech, Metropolis"], None,
                                        None, os.path.dirname(out))
                 self.assertNotIn("INTERIOR GAP", buf.getvalue())
             finally:
@@ -2307,8 +2288,7 @@ class JdTermRecallTests(unittest.TestCase):
         # The resume hosts 'pull-request'; the JD asks for 'pull request' —
         # same evidence, one hyphen apart. The engine's matcher flattens
         # punctuation for multi-token phrases, so the hyphenated form
-        # hosts the ask (a real prune read the ASDLC bullet as
-        # evidence-free without it).
+        # hosts the ask.
         hits = mr._jd_hits(
             "engineered an asdlc from ticket creation through "
             "pull-request comment resolution.", {"pull request"})
@@ -2759,8 +2739,8 @@ class JdFitAuditTests(unittest.TestCase):
 
 class MeasureHelpFlagTests(unittest.TestCase):
     """Bare --help must print usage and exit 0 — the hand-rolled argv
-    loop used to consume it as the positional .docx path and die with a
-    FileNotFoundError."""
+    loop consumes it as the positional .docx path unless maybe_help
+    intercepts first."""
 
     def test_help_exits_zero(self):
         argv = sys.argv
@@ -2777,10 +2757,10 @@ class MeasureHelpFlagTests(unittest.TestCase):
 
 
 class CoverageTermsVisibilityTests(unittest.TestCase):
-    """Regression: an UNCOVERED line whose qual the resume demonstrably
-    hosts used to cost a matcher-debugging round ('Solid SQL skills'
-    mines the single artifact term 'solid sql' — a capitalized-sequence
-    artifact invisible in the report). The coverage printer now shows the
+    """An UNCOVERED line whose qual the resume demonstrably hosts is
+    hard to act on from the report alone ('Solid SQL skills' mines the
+    single artifact term 'solid sql' — a capitalized-sequence artifact
+    invisible in the report). The coverage printer therefore shows the
     extracted terms on weak/uncovered lines."""
 
     SQL_LINE = "Solid SQL skills and experience with database validation."
@@ -3040,7 +3020,7 @@ class RequirementsSummaryTests(unittest.TestCase):
         # A soft-skill qual line extracts no terms ([by hand]). Without a
         # directive the summary counted it and moved on — hosting waited
         # for the Step-11 scan to flag the absence. The directive names
-        # THIS pass (authoring time), not the scan (2026-09-11).
+        # THIS pass (authoring time), not the scan.
         jd = ("required:\n"
               "Selenium and Java experience\n"
               "Excellent communication, stakeholder management, and "

@@ -33,9 +33,7 @@ unit/component testing, or visual checks/visual regression testing are being cut
 ...): a generic word evidences a bullet only when a specific term co-occurs in the same text, so a
 bullet whose only match is "test" is CUT, not kept. The prune eliminates ruthlessly — the restore
 path is Theme Review A's cut-set diff, so leaner builds and smaller later edit rounds beat
-conservative keeps (session evidence 2026-09-26: ETL and model-based-testing bullets survived three
-prunes off-theme on generic words alone, hosted no external-report skill, and were removed by hand
-in every session). The goal of every
+conservative keeps. The goal of every
 edit — prune review, hosting, squeeze, render — is a resume built towards the central theme, not
 just a keyword collection that passes ATS: after each edit round, re-read the round's changes
 against the theme brief and strengthen the theme's representation where it weakened.
@@ -234,8 +232,8 @@ the residual page gap automatically.
   the two remedies — (a) re-send with the header corrected (the common cause is a typo, e.g.
   `responibilities:`), or (b) confirm a blank `responsibilities:` insert when the posting genuinely
   omits that section (postings that merge duties into `role:` are the second common cause). Do not
-  read parser internals or probe with inline python — both real sessions cost 4–6 exploratory
-  calls before presenting exactly this message. The colon is mandatory precisely because the
+  read parser internals or probe with inline python — the failure play above is the whole
+  procedure. The colon is mandatory precisely because the
   one-word headers must not match a bare body word. A recruiter's "top skills" message uses the same template (the
   named skills go under `required:`) — one input format everywhere.
 - **Persist both JD forms in the skill root, not /tmp.** Save the fixed eight-section internal JD as
@@ -365,7 +363,7 @@ still verifies post-build).
     and re-apply any Phase 2 edits the regenerated script no longer carries.
   The emitted script's `MACHINE_DROPS` entries carry `# generic-only evidence (test, data)`
   tags: those bullets died to weak vocabulary, not to a JD mismatch — review each tag and
-  restore the theme-relevant ones (they are the class that silently survived earlier prunes).
+  restore the theme-relevant ones.
   - **Theme-irrelevant content the prune kept** (term-matched but off-theme) → cut it in the
     positioning pass; the JD-FIT AUDIT's unevidenced bullets are the first candidates, but theme
     judgment may go beyond them. Record each override's theme rationale as a comment in the
@@ -394,7 +392,7 @@ JSON schema: [docs/api.md](docs/api.md).
 
 ### 4. Baseline ATS audit, then Theme Review B
 Render the Theme Review A build and run the literal audit in baseline mode. The canonical commands
-(every session re-derived these from docs/api.md — the env vars are not optional):
+(the env vars are not optional):
 
 ```bash
 cd ~/.pi/agent/skills/resume-tailoring
@@ -527,9 +525,7 @@ mid-compression when the page budget forces it:
    `stub_role(body, "<Company prefix>", "<strongest-bullet prefix>")` keeps the company header,
    job title(s), Tools & Technologies row, and ONE strongest bullet (~4 rendered lines, header
    present so the timeline stays gapless). Do not OFFER drop-vs-stub as a user choice — the gap
-   math decides: bottom-contiguous roles may drop, every other role stubs. (Session evidence
-   2026-09-26: a run dropped two interior roles, the user had to demand stubs after the fact, and
-   the fix cost a full rework round.)
+   math decides: bottom-contiguous roles may drop, every other role stubs.
 
    The approved `drop_role()` calls also dispose of the dropped roles' per-bullet and Tools-line
    prune candidates — preferred practice is to remove their `set_text`/`set_labeled` edits and `#
@@ -692,7 +688,8 @@ rendering. Close the gates with `workflow_gate.py budgets` (rejects word counts 
 page-removal attempt unless its positive spill is five rendered lines or fewer) and
 `workflow_gate.py spacers` (rejects a pass that creates a new page). The canonical commands:
 
-```bash python3 scripts/workflow_gate.py budgets "<build>.docx.workflow.json" \
+```bash
+python3 scripts/workflow_gate.py budgets "<build>.docx.workflow.json" \
     --words 996 --target-pages 3     # add --spill-lines N [--attempted-page-removal]
 python3 scripts/workflow_gate.py spacers "<build>.docx.workflow.json" \
     [--omitted "<next role header>;..."]
@@ -700,9 +697,10 @@ python3 scripts/workflow_gate.py status "<build>.docx.workflow.json"   # next co
 ```
 
 Save/render after seniority approval must carry the token; `RESUME_VALIDATE_ARGS` prefixes BOTH
-`run_tailor.sh` and `render_pdf.sh` runs (its omission is the classic gate failure):
+`run_tailor.sh` and `render_pdf.sh` runs (its omission fails the gate):
 
-```bash RESUME_WORKFLOW_STATE="<build>.docx.workflow.json" \
+```bash
+RESUME_WORKFLOW_STATE="<build>.docx.workflow.json" \
     RESUME_VALIDATE_ARGS="--seniority-approved" \
     scripts/run_tailor.sh "<master>.docx" scripts/tailor_<target>.py
 ```
@@ -907,9 +905,9 @@ the local count — feed it to `ats_audit.py --report-json` for the authoritativ
 
 **The reconciliation audit is not optional closeout hygiene.** After the scan, re-run the audit
 with the report and do not present the closeout summary until it exits clean or with only raised
-terms. Both review kinds use the SAME `dispositions` key (one schema everywhere, 2026-09-26 — the
-ats template used to emit `findings` while `--raised` required `dispositions`, forcing hand-rolled
-JSON surgery in every session). Pass the recorded Theme Review B JSON via
+terms. Both review kinds use the SAME `dispositions` key — one schema everywhere: the same key
+the template emits, the validator reads, and `--raised` consumes. Pass the recorded Theme Review B
+JSON via
 `--raised` so phrases dispositioned raise/ignore report as "raised/ignored (recorded)" instead of
 re-FAILing a finished deliverable:
 
@@ -935,8 +933,7 @@ unhosted residual (JD-literal, phrases-file, report hard/soft skills) from FAIL 
 `TARGET MET — residual no-host ... record a raise/ignore disposition and wrap up` warning, so the
 reconciliation exits clean without editing the resume. **Do NOT host, reword, or re-scan past a met
 target** — the external score already measures the delivered PDF, so a further host can only chase
-the number (session evidence 2026-09-26: three sessions kept hosting after 82/100/87 and wrapped
-only when the reconciliation forced it). Record the residuals (append raise/ignore rows to the
+the number. Record the residuals (append raise/ignore rows to the
 `--raised` JSON) and present closeout; hosting resumes only on an explicit user ask. Below 75, keep
 hosting literal phrases truthfully. Baseline (Step 4) runs never downgrade — their FAILs are the
 mining queue's work order. See [docs/api.md](docs/api.md) for `--match-target` overrides.
@@ -1074,7 +1071,6 @@ sidecar, `merge_into`; Steps 4, 9 & 12). What's left is judgment:
 | Continuing to host terms after the FINAL external scan shows ≥75 | STOP — the target is a structural wrap (the audit downgrades residuals to `TARGET MET` warnings): record raise/ignore dispositions and close out; hosting past a met target only chases the number (Step 12) |
 | Keeping a bullet because it says "test"/"data"/"api" | Generic vocabulary alone is NOT evidence (`GENERIC_EVIDENCE_TERMS`) — the prune cuts it; Theme Review A restores the theme-relevant cuts from the cut-set diff (Core principle, Step 3) |
 | Dropping an interior role to shorten the timeline | A visible employment gap is never approvable — `validate_resume` blocks it and no token overrides; whole-role drops must be contiguous from the OLDEST role, everything else is `stub_role`'d (Step 5) |
-| Hand-converting a review JSON between `findings` and `dispositions` | One key everywhere now — both prune and ats reviews use `dispositions`; `workflow_gate.py template` emits it and `ats_audit.py --raised` reads it (Step 12) |
 | Cutting the last host of a JD-named hard skill | The machine protects any JD-named/concept SENTENCE or LINE whole through every trim (Step 2 never edits a survivor's words); a hosting rewrite can still kill one — `ats_audit.py --jd` catches it post-build (Step 12) |
 | Widening the contact block or rewriting link text for ATS parsers | IGNORED by rule — the compact hyperlinked contact block is deliberate design; `contactEmail` searchability findings are noise (Step 12) |
 | Reformatting typography to clear the scan's Special Characters finding | IGNORED by rule — Wingdings bullets, en-dash dates, curly quotes are the user's deliberate formatting; never reformat to satisfy a text parser (Step 12) |

@@ -176,13 +176,11 @@ def _history_gap_errors(master_path, body):
     """BLOCKING errors for employment gaps whole-role drops opened.
 
     A significant gap in job history can kill an application, so it is
-    never an approvable state (session evidence 2026-09-26: the Care
-    Access run dropped two interior roles, the user demanded stubs after
-    the fact, and the fix cost a full rework round). Drops are valid only
-    contiguous from the oldest role; any other role keeps a STUB
-    (header/title/Tools row + strongest bullet — docx_edit.stub_role),
-    which keeps the header present and therefore never flags here. No
-    approval token overrides this check."""
+    never an approvable state. Drops are valid only contiguous from the
+    oldest role; any other role keeps a STUB (header/title/Tools row +
+    strongest bullet — docx_edit.stub_role), which keeps the header
+    present and therefore never flags here. No approval token overrides
+    this check."""
     _root, mbody = _load_master_body(master_path)
     if mbody is None:
         return []
