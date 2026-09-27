@@ -13,6 +13,7 @@ import sys
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 import measure_resume as mr  # noqa: E402
+import measure_resume_format as mrf  # noqa: E402
 from validate_resume_checks import _is_bullet, TITLE_STYLE  # noqa: E402
 
 # (constant) DEGREE_RE
@@ -169,6 +170,32 @@ def _master_span(master_path):
     if body is None:
         return None, None
     return mr._visible_span(_company_headers(body))
+
+
+def _history_gap_errors(master_path, body):
+    """BLOCKING errors for employment gaps whole-role drops opened.
+
+    A significant gap in job history can kill an application, so it is
+    never an approvable state (session evidence 2026-09-26: the Care
+    Access run dropped two interior roles, the user demanded stubs after
+    the fact, and the fix cost a full rework round). Drops are valid only
+    contiguous from the oldest role; any other role keeps a STUB
+    (header/title/Tools row + strongest bullet — docx_edit.stub_role),
+    which keeps the header present and therefore never flags here. No
+    approval token overrides this check."""
+    _root, mbody = _load_master_body(master_path)
+    if mbody is None:
+        return []
+    gaps = mrf._drop_created_gaps(_company_headers(mbody),
+                                  _company_headers(body))
+    return [
+        f"employment history gap: dropping {header.strip()!r} left a "
+        f"~{gap}-month hole between its surviving neighbors — a visible "
+        f"gap can kill an application and is never approvable. STUB the "
+        f"role instead (docx_edit.stub_role: header/title/Tools row + "
+        f"strongest bullet); whole-role drops are valid only contiguous "
+        f"from the oldest role"
+        for gap, header in gaps]
 
 
 def _has_education(body):

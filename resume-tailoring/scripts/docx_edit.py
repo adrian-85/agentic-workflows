@@ -693,6 +693,7 @@ def drop(body, pfxes):
 ROLE_STYLE = "CompanyBlock"
 SECTION_STYLE = "SectionHeading"
 TITLE_STYLE = "Title"
+JOB_TITLE_STYLE = "JobTitleBlock"   # history-block job-title style
 _BLOCK_BOUNDARY_STYLES = ("CompanyBlock", "SectionHeading",
                           "Heading1", "Heading2")
 
@@ -776,6 +777,11 @@ def drop_role(body, company_prefix, company_style=ROLE_STYLE,
     never consumed. Duplicate job titles need no ``after=``/``nth=`` anchor
     (the block is contiguous from the role's OWN header).
 
+    GAP RULE (2026-09-26): whole-role drops are valid only contiguous
+    from the OLDEST role — an interior drop opens an employment gap,
+    validate_resume BLOCKS the deliverable, and the fix is
+    :func:`stub_role`, not an approval token.
+
     For a resume whose style names differ, pass ``company_style`` and
     ``boundary_styles`` explicitly. The prefix is the company header's
     STRING; a ``find_p`` element is accepted (see :func:`_prefix_arg`).
@@ -789,6 +795,67 @@ def drop_role(body, company_prefix, company_style=ROLE_STYLE,
     for p in block:
         remove(body, p)
     return paras(body)
+
+
+def stub_role(body, company_prefix, keep_bullet_prefix,
+              company_style=ROLE_STYLE,
+              boundary_styles=_BLOCK_BOUNDARY_STYLES):
+    """Reduce a role to its STUB: company header, job title(s), Tools &
+    Technologies row, blank spacers — and the ONE bullet whose text
+    starts with ``keep_bullet_prefix``. Every other bullet is removed.
+
+    The gap-intolerant alternative to :func:`drop_role`: a role that
+    must leave the visible span for theme reasons but sits INTERIOR to
+    the timeline is stubbed, never dropped — a hole in job history can
+    kill an application, and ``validate_resume`` blocks a gapped
+    deliverable outright (no approval token overrides it). The stub
+    keeps the header present, so the timeline stays gapless at ~4
+    rendered lines while the off-theme bulk retires.
+
+    ``keep_bullet_prefix`` is the strongest bullet's ``--prefixes``
+    string (uniqueness-checked as printed). The prefix argument
+    conventions match :func:`drop_role`. Returns the refreshed paragraph
+    list; a missing role records a skip (``stub_role: <prefix>``) and
+    mutates nothing. A ``keep_bullet_prefix`` that matches no bullet in
+    the block records a skip (``stub_role keep: <prefix>``) and leaves
+    the role untouched — a stub always carries exactly one bullet."""
+    block = _block(body, _prefix_arg(company_prefix, "stub_role"),
+                   company_style, boundary_styles)
+    if block is None:
+        _warn_missing(f"stub_role: {company_prefix}")
+        return paras(body)
+    keep_p = None
+    for p in block[1:]:
+        if _is_stub_content(p) and text_of(p).strip().lower().startswith(
+                keep_bullet_prefix.strip().lower()):
+            keep_p = p
+            break
+    if keep_p is None:
+        _warn_missing(f"stub_role keep: {keep_bullet_prefix}")
+        return paras(body)
+    for p in block:
+        if p is keep_p or not _is_stub_content(p):
+            continue
+        if p is not block[0]:
+            remove(body, p)
+    return paras(body)
+
+
+def _is_stub_content(p):
+    """Whether a paragraph inside a role block is removable CONTENT.
+
+    Removable: numbered/bulleted paragraphs and plain prose (role
+    intro). Structural keepers: the company header (the block's first
+    paragraph), job titles (JOB_TITLE_STYLE), Tools & Technologies
+    rows, and blank spacers."""
+    text = text_of(p).strip()
+    if not text:
+        return False
+    if text.lower().startswith("tools & technologies"):
+        return False
+    if style_and_numid(p)[0] == JOB_TITLE_STYLE:
+        return False
+    return True
 
 
 def drop_section(body, heading_prefix, heading_style=SECTION_STYLE,

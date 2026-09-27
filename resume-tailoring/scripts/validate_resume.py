@@ -161,6 +161,7 @@ from validate_resume_master import (
     _education_gate,
     _find_master,
     _has_education,
+    _history_gap_errors,
     _load_master_body,
     _master_span,
     _master_texts,
@@ -239,6 +240,10 @@ def _run_master_seniority(ctx, path, body, opts, span):
     ctx["master_blob"] = (" ".join(master_texts)
                           if master_texts is not None else None)
     ctx["errors"].extend(_role_integrity_errors(master_path, body))
+    # Gap-intolerant drops: unconditional, before and independent of the
+    # seniority gate — an interior drop under the 2y shrink threshold
+    # still opens a hole, and no approval token overrides a gap.
+    ctx["errors"].extend(_history_gap_errors(master_path, body))
     seniority_errors = []
     master_first, master_last = _master_span(master_path)
     master_span = ((master_last - master_first)

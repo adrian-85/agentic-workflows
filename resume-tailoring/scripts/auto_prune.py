@@ -452,10 +452,11 @@ def _py(s):
 
 
 def emit_script(plan, src, dst, meta):
-    # too-many-locals: the function is one linear list-literal build of the
-    # emitted script (docstring, cuts, trims, sections); splitting it would
-    # interleave the emission order across helpers for no gain.
-    # pylint: disable=too-many-locals
+    # too-many-locals/too-many-branches: the function is one linear
+    # list-literal build of the emitted script (docstring, cuts, trims,
+    # sections); splitting it would interleave the emission order across
+    # helpers for no gain.
+    # pylint: disable=too-many-locals,too-many-branches
     """The first tailor script: machine dispositions + a Phase 2 section.
 
     Two zones, by author. ``machine_phase()`` holds the machine's

@@ -192,6 +192,44 @@ def _gap_if_dropped(roles, key):
     return max(0, gap)
 
 
+def _drop_created_gaps(master_headers, build_headers):
+    """[(gap_months, dropped_header)] — employment gaps that whole-role
+    drops opened between SURVIVING neighbors.
+
+    A gap is a positive month window between two consecutive surviving
+    roles that a MASTER role absent from the build sits inside — the
+    drop, not the master's own transitions, created it. Bottom-contiguous
+    drops (the oldest tail) shorten the timeline without opening
+    interior windows and report nothing: stubbing is forced exactly
+    where a recruiter would see a hole. A STUBBED role keeps its header
+    in the build, so its key counts as surviving and a stub never flags
+    (that is the gap-intolerant-drop contract: stub, never gap).
+    Headers are newest-first document order; undated headers are
+    skipped rather than guessed."""
+    build_keys = {_company_key(h) for h in build_headers}
+    dropped = [h for h in master_headers
+               if _company_key(h) not in build_keys]
+    surviving = [h for h in master_headers
+                 if _company_key(h) in build_keys]
+    out = []
+    for i in range(1, len(surviving)):
+        newer_start, _ = _role_span_months(surviving[i - 1])
+        _, older_end = _role_span_months(surviving[i])
+        if newer_start is None or older_end is None:
+            continue
+        gap = ((newer_start[0] - older_end[0]) * 12
+               + (newer_start[1] - older_end[1]))
+        if gap <= 0:
+            continue
+        for d in dropped:
+            d_start, d_end = _role_span_months(d)
+            if d_start is None or d_end is None:
+                continue
+            if d_end > older_end and d_start < newer_start:
+                out.append((gap, d))
+    return out
+
+
 def _find_role_starts(roles, flat):
     """Find the line index where each role's header appears (in order)."""
     role_starts = []

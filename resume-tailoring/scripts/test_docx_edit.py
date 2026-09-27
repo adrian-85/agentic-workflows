@@ -811,6 +811,74 @@ class DropRoleTests(unittest.TestCase):
         self.assertEqual(de._APPLIED, 5)
 
 
+class StubRoleTests(unittest.TestCase):
+    """stub_role(): the gap-intolerant alternative to drop_role — keep the
+    header/title/Tools row/spacers plus ONE strongest bullet, remove the
+    rest. An interior whole-role drop opens an employment gap and
+    validate_resume blocks it; the stub keeps the timeline gapless
+    (session evidence 2026-09-26: Care Access dropped two interior roles
+    and the user had to demand stubs after the fact)."""
+
+    def setUp(self):
+        ps = [
+            mkstyled("Career Experience", "SectionHeading"),
+            mkstyled("Acme Corp, Springfield03/2022 - 02/2023", "CompanyBlock"),
+            mkstyled("Staff Engineer", "JobTitleBlock"),
+            mkstyled("Led QA at Acme Corp", "BodyText", numId=4),
+            mkstyled("Tools & Technologies: Go, Python", "BodyText"),
+            mkstyled("", "BodyText"),
+            mkstyled("Initech, Metropolis01/2017 - 06/2018", "CompanyBlock"),
+            mkstyled("Software QA Engineer", "JobTitleBlock"),
+            mkstyled("Primary test engineer for the flagship project", "BodyText", numId=8),
+            mkstyled("Secondary duty at Initech", "BodyText", numId=8),
+            mkstyled("Tools & Technologies: MS Test", "BodyText"),
+            mkstyled("", "BodyText"),
+            mkstyled("Education", "SectionHeading"),
+            mkstyled("Some College", "CompanyBlock"),
+            mkstyled("Bachelor's Degree", "JobTitleBlock"),
+        ]
+        self.body = ET.Element(W + "body")
+        for p in ps:
+            self.body.append(p)
+            de._ORIG[id(p)] = (p, de.text_of(p))
+        de._APPLIED = 0
+        de._SKIPS.clear()
+
+    def tearDown(self):
+        de._ORIG.clear()
+        de._APPLIED = 0
+        de._SKIPS.clear()
+
+    def _texts(self):
+        return [de.text_of(p) for p in de.paras(self.body)]
+
+    def test_stub_keeps_header_title_tools_and_strongest_bullet(self):
+        de.stub_role(self.body, "Initech, Metropolis",
+                     "Primary test engineer")
+        texts = self._texts()
+        for kept in ("Initech, Metropolis01/2017 - 06/2018",
+                     "Software QA Engineer",
+                     "Tools & Technologies: MS Test",
+                     "Primary test engineer for the flagship project"):
+            self.assertIn(kept, texts)
+        self.assertNotIn("Secondary duty at Initech", texts)
+        # neighbors untouched
+        self.assertIn("Acme Corp, Springfield03/2022 - 02/2023", texts)
+        self.assertIn("Led QA at Acme Corp", texts)
+        self.assertIn("Education", texts)
+
+    def test_missing_role_records_skip(self):
+        de.stub_role(self.body, "No Such Company", "Primary test engineer")
+        texts = self._texts()
+        self.assertIn("Secondary duty at Initech", texts)  # untouched
+        self.assertIn("stub_role: No Such Company", de._SKIPS)
+
+    def test_missing_keep_prefix_records_skip(self):
+        de.stub_role(self.body, "Initech, Metropolis", "No such bullet")
+        texts = self._texts()
+        self.assertIn("Secondary duty at Initech", texts)  # untouched
+        self.assertIn("stub_role keep: No such bullet", de._SKIPS)
+
 class DropSectionTests(unittest.TestCase):
     """drop_section(): remove a SectionHeading's whole section (e.g.
     Education when the JD gives the degree no evidentiary weight)."""

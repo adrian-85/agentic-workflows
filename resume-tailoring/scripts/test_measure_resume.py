@@ -1533,6 +1533,88 @@ class ApplySimulateTests(unittest.TestCase):
             os.unlink(src)
 
 
+    def test_interior_drop_simulate_warns_about_gap(self):
+        # Gap-intolerant drops (2026-09-26): the what-if flags a drop that
+        # opens an employment hole — where the plan is still being built.
+        fd, src = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            def p(text, style=None, numid=None):
+                pPr = ""
+                if style or numid:
+                    inner = ""
+                    if style:
+                        inner += f'<w:pStyle w:val="{style}"/>'
+                    if numid:
+                        inner += (f'<w:numPr><w:numId w:val="{numid}"/>'
+                                  f'</w:numPr>')
+                    pPr = f'<w:pPr>{inner}</w:pPr>'
+                return (f'<w:p>{pPr}<w:r><w:t xml:space="preserve">'
+                        f'{text}</w:t></w:r></w:p>')
+
+            paras = [
+                p(mr.SECTION_CAREER, style="SectionHeading"),
+                p("Acme Corp, Springfield03/2022 – 02/2023",
+                  style=mr.COMPANY_STYLE),
+                p("Staff Engineer", style="JobTitleBlock"),
+                p("Led QA", style="BodyText", numid=4),
+                p("Tools &amp; Technologies: Go", style="BodyText"),
+                p("Globex, Riverside01/2019 – 12/2020",
+                  style=mr.COMPANY_STYLE),
+                p("QA Engineer", style="JobTitleBlock"),
+                p("Built frameworks", style="BodyText", numid=8),
+                p("Tools &amp; Technologies: Java", style="BodyText"),
+                p("Initech, Metropolis01/2017 – 06/2018",
+                  style=mr.COMPANY_STYLE),
+                p("Software Test Engineer I", style="JobTitleBlock"),
+                p("Tested data pipelines", style="BodyText", numid=8),
+                p("Tools &amp; Technologies: MS Test", style="BodyText"),
+            ]
+            body = (f'<?xml version="1.0"?><w:document xmlns:w="{de.XMLNS}">'
+                    f'<w:body>'
+                    + "".join(paras)
+                    + "</w:body></w:document>")
+            with zipfile.ZipFile(src, "w") as z:
+                z.writestr("word/document.xml", body)
+                z.writestr("[Content_Types].xml", "<Types/>")
+            out = tempfile.mktemp(suffix=".docx")
+            try:
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf), \
+                        contextlib.redirect_stderr(buf):
+                    mr._print_simulate(src, ["Globex, Riverside"], None,
+                                       None, os.path.dirname(out))
+                text = buf.getvalue()
+                self.assertIn("INTERIOR GAP", text)
+                self.assertIn("Globex", text)
+                self.assertIn("stub_role", text)
+            finally:
+                for suffix in ("", ".drift.json"):
+                    if os.path.exists(out + suffix):
+                        os.unlink(out + suffix)
+        finally:
+            os.unlink(src)
+
+    def test_bottom_contiguous_simulate_has_no_gap_warning(self):
+        fd, src = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        try:
+            out = tempfile.mktemp(suffix=".docx")
+            try:
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf), \
+                        contextlib.redirect_stderr(buf):
+                    mr._print_simulate(src and _docx_with_roles(),
+                                       ["Initech, Metropolis"], None,
+                                       None, os.path.dirname(out))
+                self.assertNotIn("INTERIOR GAP", buf.getvalue())
+            finally:
+                for suffix in ("", ".drift.json"):
+                    if os.path.exists(out + suffix):
+                        os.unlink(out + suffix)
+        finally:
+            os.unlink(src)
+
 class RoleJdEvidenceTests(unittest.TestCase):
     """_role_jd_evidence_lines: --simulate must surface the JD evidence a
     whole-role drop would lose, so the trade-off is visible before approval

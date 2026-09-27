@@ -23,7 +23,8 @@ import zipfile
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
-import docx_edit as de  # noqa: E402
+import docx_edit as de
+import measure_resume_format as mrf  # noqa: E402
 import test_helpers
 import measure_resume as mr  # noqa: E402
 import validate_resume as vr  # noqa: E402
@@ -717,6 +718,114 @@ class RoleIntegrityTests(unittest.TestCase):
         rc, out = self._run(roles, target)
         self.assertEqual(rc, 2)
         self.assertIn("job title was removed", out)
+
+
+
+
+class HistoryGapTests(unittest.TestCase):
+    """Gap-intolerant drops (2026-09-26): an employment gap a whole-role
+    drop opened between surviving neighbors BLOCKS the deliverable — no
+    approval token overrides it. Session evidence: the Care Access run
+    dropped two interior roles, the user demanded stubs after the fact,
+    and the fix cost a full rework round. Valid drops are contiguous
+    from the oldest role; any other role is stubbed (header/title/
+    Tools + strongest bullet), which keeps the header present and never
+    flags here."""
+
+    @staticmethod
+    def _write(path, roles):
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr(
+                "word/document.xml", '<?xml version="1.0"?><w:document xmlns:w="'
+                + de.XMLNS + '"><w:body/></w:document>')
+            z.writestr("[Content_Types].xml", "<Types/>")
+        root, body, names, data, _ = de.load(path)
+        ps = [mk("Career Experience", style="SectionHeading")]
+        for header, title, bullets, tools in roles:
+            ps.append(mk(header, style=mr.COMPANY_STYLE))
+            if title:
+                ps.append(mk(title, style=vr.TITLE_STYLE))
+            for b in bullets:
+                ps.append(mk(b, numId=4))
+            if tools:
+                ps.append(mk(tools, style="BodyText"))
+        ps.append(mk("Education", style="SectionHeading"))
+        for p in ps:
+            body.append(p)
+        with contextlib.redirect_stdout(io.StringIO()):
+            de.save(path, root, names, data)
+
+    def _run(self, master_roles, target_roles):
+        with tempfile.TemporaryDirectory() as td:
+            master = os.path.join(td, "Test Master Resume.docx")
+            target = os.path.join(td, "Test Resume - Target.docx")
+            self._write(master, master_roles)
+            self._write(target, target_roles)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = vr.main([target, "--master", master,
+                              "--seniority-approved"])
+            return rc, out.getvalue()
+
+    ROLES = [
+        ("Co A, City01/2020 - 06/2021", "Title A",
+         ["bullet A1", "bullet A2"], "Tools & Technologies: Go"),
+        ("Co B, City01/2018 - 06/2019", "Title B",
+         ["bullet B1", "bullet B2"], "Tools & Technologies: Java"),
+        ("Co C, City01/2016 - 06/2017", "Title C",
+         ["bullet C1", "bullet C2"], "Tools & Technologies: Python"),
+    ]
+
+    def test_interior_drop_blocks_even_when_approved(self):
+        target = [self.ROLES[0], self.ROLES[2]]  # Co B dropped (interior)
+        rc, out = self._run(self.ROLES, target)
+        self.assertEqual(rc, 2)
+        self.assertIn("employment history gap", out)
+        self.assertIn("Co B, City", out)
+        self.assertIn("stub", out.lower())
+
+    def test_bottom_contiguous_drop_passes(self):
+        target = [self.ROLES[0], self.ROLES[1]]  # Co C dropped (oldest)
+        rc, out = self._run(self.ROLES, target)
+        self.assertEqual(rc, 0, out)
+
+    def test_stubbed_role_passes(self):
+        # Co B stubbed: header/title/Tools + one strongest bullet.
+        stub_b = ("Co B, City01/2018 - 06/2019", "Title B",
+                  ["bullet B1"], "Tools & Technologies: Java")
+        target = [self.ROLES[0], stub_b, self.ROLES[2]]
+        rc, out = self._run(self.ROLES, target)
+        self.assertEqual(rc, 0, out)
+
+    def test_no_drops_no_gap_errors(self):
+        rc, out = self._run(self.ROLES, self.ROLES)
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("employment history gap", out)
+
+
+class DropCreatedGapsUnitTests(unittest.TestCase):
+    """_drop_created_gaps: the shared window math (newest-first headers)."""
+
+    def test_interior_drop_reports_the_window(self):
+        master = ["Co A, City01/2020 - 06/2021",
+                  "Co B, City01/2018 - 06/2019",
+                  "Co C, City01/2016 - 06/2017"]
+        build = [master[0], master[2]]
+        gaps = mrf._drop_created_gaps(master, build)
+        self.assertEqual(len(gaps), 1)
+        self.assertEqual(gaps[0][1], master[1])
+        self.assertEqual(gaps[0][0], 31)  # 01/2020 - 06/2017
+
+    def test_bottom_contiguous_drop_reports_nothing(self):
+        master = ["Co A, City01/2020 - 06/2021",
+                  "Co B, City01/2018 - 06/2019",
+                  "Co C, City01/2016 - 06/2017"]
+        build = [master[0], master[1]]
+        self.assertEqual(mrf._drop_created_gaps(master, build), [])
+
+    def test_undated_headers_are_skipped(self):
+        master = ["Co A, City", "Co B, City01/2018 - 06/2019"]
+        self.assertEqual(mrf._drop_created_gaps(master, [master[1]]), [])
 
 
 class SeniorityGateTests(unittest.TestCase):

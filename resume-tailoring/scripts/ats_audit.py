@@ -479,6 +479,7 @@ def _target_met_note(phrases, result):
 
 def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised,
                            target_met=False):
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     """JD literal-term and external-phrase checks (sections 2-3)."""
     if jd_path:
         with open(jd_path, encoding="utf-8", errors="replace") as f:
@@ -519,6 +520,7 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised,
 
 def _audit_report_skills(report_data, text_low, text, result, raised,
                          target_met=False):
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     """Report hard/soft skill hosting check (sections 4-5). Mutates the
     three result lists in place."""
     if report_data is None:
