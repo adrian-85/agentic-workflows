@@ -608,10 +608,10 @@ def generic_only_evidence(text_low, phrases):
     when the text hosts generic vocabulary and nothing specific — the
     cut-tag signal ("this bullet died to weak vocabulary, not to a
     JD mismatch") that tags the emitted drop for Theme Review A."""
-    hosted = _raw_evidence_set(text_low, phrases)
-    if hosted - GENERIC_EVIDENCE_TERMS:
+    raw = _raw_evidence_set(text_low, phrases)
+    if raw - GENERIC_EVIDENCE_TERMS:
         return set()
-    return hosted & GENERIC_EVIDENCE_TERMS
+    return raw & GENERIC_EVIDENCE_TERMS
 
 
 def evidence_set(text_low, phrases):
@@ -622,9 +622,9 @@ def evidence_set(text_low, phrases):
     bullet — reports NO evidence and the prune cuts it instead of
     keeping it for containing "test". Theme Review A restores
     theme-relevant cuts from the cut-set diff (SKILL Step 3)."""
-    hosted = _raw_evidence_set(text_low, phrases)
-    if hosted - GENERIC_EVIDENCE_TERMS:
-        return hosted
+    raw = _raw_evidence_set(text_low, phrases)
+    if raw - GENERIC_EVIDENCE_TERMS:
+        return raw
     return set()
 
 
