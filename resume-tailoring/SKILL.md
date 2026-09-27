@@ -28,7 +28,14 @@ families and re-running when truthful equivalents were wrongly cut) and cutting 
 survivors the matcher kept — and every later edit round gets the same check. The single ask/evidence
 matcher stays the only MACHINE rule: do not add a second independent preservation filter; fix its JD
 evidence families when truthful equivalents such as Python/Python scripting, Linux/WSL/Linux bash,
-unit/component testing, or visual checks/visual regression testing are being cut. The goal of every
+unit/component testing, or visual checks/visual regression testing are being cut. The matcher
+**demotes generic vocabulary** (`jd_asks.GENERIC_EVIDENCE_TERMS`: test/testing/data/api/code/json/
+...): a generic word evidences a bullet only when a specific term co-occurs in the same text, so a
+bullet whose only match is "test" is CUT, not kept. The prune eliminates ruthlessly — the restore
+path is Theme Review A's cut-set diff, so leaner builds and smaller later edit rounds beat
+conservative keeps (session evidence 2026-09-26: ETL and model-based-testing bullets survived three
+prunes off-theme on generic words alone, hosted no external-report skill, and were removed by hand
+in every session). The goal of every
 edit — prune review, hosting, squeeze, render — is a resume built towards the central theme, not
 just a keyword collection that passes ATS: after each edit round, re-read the round's changes
 against the theme brief and strengthen the theme's representation where it weakened.
@@ -53,7 +60,8 @@ conflict. Time-in-role and recency are only tiebreakers, never a cut signal and 
 ## Editing phases
 
 **Phase 1 — relevance assembly.** `auto_prune.py` builds a JD-relevant base from the master. It
-removes unevidenced content, whole dead sentences from a kept bullet, and whole non-JD
+removes unevidenced content (including generic-vocabulary-only bullets — see Core principle),
+whole dead sentences from a kept bullet, and whole non-JD
 proficiency lines — never a sub-sentence word/phrase edit and never a partial value list
 within a kept line. A retained role's `Tools & Technologies` presentation row is always preserved,
 with at least one value row, even when none of its values host a JD term. It never drops a whole
@@ -220,8 +228,15 @@ the residual page gap automatically.
   (a typo like `Teck Stack:`, a bare header missing its colon, an omitted or repeated section)
   fails at the pipeline's entry instead of silently mis-collecting asks. **Do not silently
   normalize or restructure the user's paste**: surface the parser's failure and have the user
-  re-supply the corrected sections. The colon is mandatory precisely because the one-word headers
-  must not match a bare body word. A recruiter's "top skills" message uses the same template (the
+  re-supply the corrected sections. **The failure play is one message, no parser
+  introspection:** run `python3 scripts/jd_sections.py jd_<target>.txt`; on a missing-header error,
+  show the user the exact error, list which of the eight headers the paste DOES carry, and offer
+  the two remedies — (a) re-send with the header corrected (the common cause is a typo, e.g.
+  `responibilities:`), or (b) confirm a blank `responsibilities:` insert when the posting genuinely
+  omits that section (postings that merge duties into `role:` are the second common cause). Do not
+  read parser internals or probe with inline python — both real sessions cost 4–6 exploratory
+  calls before presenting exactly this message. The colon is mandatory precisely because the
+  one-word headers must not match a bare body word. A recruiter's "top skills" message uses the same template (the
   named skills go under `required:`) — one input format everywhere.
 - **Persist both JD forms in the skill root, not /tmp.** Save the fixed eight-section internal JD as
   `jd_<target>.txt` (e.g. `jd_acme.txt`) before anything else. **Copy the user's paste BYTE-FOR-BYTE
@@ -348,6 +363,9 @@ still verifies post-build).
     workflow state** (auto_prune prints `WORKFLOW STATE RESET`): recorded reviews die with the
     replaced build, so re-record Theme Reviews A/B (Steps 3–4) before advancing anything —
     and re-apply any Phase 2 edits the regenerated script no longer carries.
+  The emitted script's `MACHINE_DROPS` entries carry `# generic-only evidence (test, data)`
+  tags: those bullets died to weak vocabulary, not to a JD mismatch — review each tag and
+  restore the theme-relevant ones (they are the class that silently survived earlier prunes).
   - **Theme-irrelevant content the prune kept** (term-matched but off-theme) → cut it in the
     positioning pass; the JD-FIT AUDIT's unevidenced bullets are the first candidates, but theme
     judgment may go beyond them. Record each override's theme rationale as a comment in the
@@ -487,6 +505,19 @@ mid-compression when the page budget forces it:
    the resume — the *years shown* are what a screener sees. The structural validator catches any
    orphaned title/bullets after each whole-role removal.
 
+   **GAPS ARE NEVER APPROVABLE — whole-role drops are valid ONLY contiguous from the OLDEST role.**
+   An interior drop (a role with surviving roles on both sides) opens an employment hole, and a
+   significant gap in job history can kill an application. `validate_resume.py` blocks the
+   deliverable (`employment history gap: ...`) regardless of `--seniority-approved`; no token
+   overrides it; `measure_resume --simulate` prints `INTERIOR GAP` at plan time. An interior role
+   that must shrink for theme/span reasons is STUBBED, never dropped:
+   `stub_role(body, "<Company prefix>", "<strongest-bullet prefix>")` keeps the company header,
+   job title(s), Tools & Technologies row, and ONE strongest bullet (~4 rendered lines, header
+   present so the timeline stays gapless). Do not OFFER drop-vs-stub as a user choice — the gap
+   math decides: bottom-contiguous roles may drop, every other role stubs. (Session evidence
+   2026-09-26: a run dropped two interior roles, the user had to demand stubs after the fact, and
+   the fix cost a full rework round.)
+
    The approved `drop_role()` calls also dispose of the dropped roles' per-bullet and Tools-line
    prune candidates — preferred practice is to remove their `set_text`/`set_labeled` edits and `#
    kept:` comments; the prune gate associates role Tools-line candidates with the owning role, so
@@ -521,8 +552,9 @@ mid-compression when the page budget forces it:
    before authoring the tailor script.** Whole-role elimination changes the narrative materially;
    a plan the user corrects piecemeal mid-build ("target 3 pages", then "keep Company X") costs a
    re-simulation and a re-plan of every downstream cut. Present in ONE message: the measured
-   target page count, each proposed whole-role drop BY NAME with its years, and the resulting
-   visible span — then wait for the reply before writing the tailor script. Steering replies (a
+   target page count, each proposed whole-role drop BY NAME with its years, each interior role
+   proposed as a STUB (never a gap-creating drop — the gap math decides, not the user), and the
+   resulting visible span — then wait for the reply before writing the tailor script. Steering replies (a
    page target, "keep X") are NOT seniority approval — EXCEPT when the steering reply itself
    names the complete revised drop set (e.g. "drop Acme and Globex, keep Initech"): naming every
    role to drop IS approval of that set, so re-present the measured numbers and proceed without a
@@ -645,8 +677,24 @@ validator/machine-enforced).
 Every page, word, page-removal, or spacer edit gets one final read against the theme brief before
 rendering. Close the gates with `workflow_gate.py budgets` (rejects word counts above 1,000, and a
 page-removal attempt unless its positive spill is five rendered lines or fewer) and
-`workflow_gate.py spacers` (rejects a pass that creates a new page) — command syntax and flags:
-[docs/api.md](docs/api.md). Spacers use measure's **SPACER OPPORTUNITIES** and
+`workflow_gate.py spacers` (rejects a pass that creates a new page). The canonical commands:
+
+```bash python3 scripts/workflow_gate.py budgets "<build>.docx.workflow.json" \
+    --words 996 --target-pages 3     # add --spill-lines N [--attempted-page-removal]
+python3 scripts/workflow_gate.py spacers "<build>.docx.workflow.json" \
+    [--omitted "<next role header>;..."]
+python3 scripts/workflow_gate.py status "<build>.docx.workflow.json"   # next command from the state itself
+```
+
+Save/render after seniority approval must carry the token; `RESUME_VALIDATE_ARGS` prefixes BOTH
+`run_tailor.sh` and `render_pdf.sh` runs (its omission is the classic gate failure):
+
+```bash RESUME_WORKFLOW_STATE="<build>.docx.workflow.json" \
+    RESUME_VALIDATE_ARGS="--seniority-approved" \
+    scripts/run_tailor.sh "<master>.docx" scripts/tailor_<target>.py
+```
+
+Spacers use measure's **SPACER OPPORTUNITIES** and
 `validate_resume.py`'s GUIDANCE output, cloned via `clone_after(body, find_p(ps, "<Tools line>"),
 "")` — see docs/api.md. Blank spacer clones are tracked by the editor and survive a later
 `remove_empty(body)` pass; adding them after cleanup remains the clearest ordering. When page

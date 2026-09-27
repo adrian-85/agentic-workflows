@@ -338,10 +338,28 @@ class _ReportCtx(NamedTuple):
     wrapped: list
 
 
+def _print_simulate_gaps(pre_roles, dropped):
+    """Warn about drops that open an employment gap between survivors.
+
+    Gap-intolerant drops (2026-09-26): a drop that opens a hole never
+    ships. The Care Access run dropped two interior roles and the user
+    had to demand stubs after the fact, so the what-if surfaces the gap
+    where the plan is still being built (validate_resume blocks it
+    outright at render/save time).
+    """
+    pre_headers = [r["raw"] for r in pre_roles]
+    kept_headers = [h for h in pre_headers if h not in dropped]
+    for gap, header in _drop_created_gaps(pre_headers, kept_headers):
+        print(f"  WARNING: INTERIOR GAP — dropping {header} leaves a "
+              f"~{gap}-month employment hole between its surviving "
+              f"neighbors. A visible gap can kill an application: STUB "
+              f"the role instead (docx_edit.stub_role: header/title/"
+              f"Tools row + strongest bullet) — whole-role drops are "
+              f"only valid contiguous from the oldest role, and "
+              f"validate_resume blocks a gapped deliverable outright")
+
+
 def _print_simulate(docx, simulate, jd_file, jd_text, td):
-    # too-many-locals: one linear preview build (drop report, JD-evidence
-    # lines, gap warnings) — splitting would interleave the print order.
-    # pylint: disable=too-many-locals
     """Run the --simulate what-if: drop named whole roles in a temp copy
     and print the seniority-alignment preview. Returns (docx, sim_jd_terms)
     — docx is the (possibly simulated) path to measure."""
@@ -365,20 +383,7 @@ def _print_simulate(docx, simulate, jd_file, jd_text, td):
     if missing:
         print(f"  ({missing} prefix(es) matched nothing — see "
               f"warnings above)")
-    # Gap-intolerant drops (2026-09-26): a drop that opens an employment
-    # hole never ships — the Care Access run dropped two interior roles
-    # and the user had to demand stubs after the fact. Surface the gap at
-    # the what-if, where the plan is still being built.
-    pre_headers = [r["raw"] for r in pre_roles]
-    kept_headers = [h for h in pre_headers if h not in dropped]
-    for gap, header in _drop_created_gaps(pre_headers, kept_headers):
-        print(f"  WARNING: INTERIOR GAP — dropping {header} leaves a "
-              f"~{gap}-month employment hole between its surviving "
-              f"neighbors. A visible gap can kill an application: STUB "
-              f"the role instead (docx_edit.stub_role: header/title/"
-              f"Tools row + strongest bullet) — whole-role drops are "
-              f"only valid contiguous from the oldest role, and "
-              f"validate_resume blocks a gapped deliverable outright")
+    _print_simulate_gaps(pre_roles, dropped)
     if not jd_file:
         print("  (no --jd passed — JD evidence in the dropped roles "
               "cannot be assessed; pass --jd <JD.txt> to see it)")

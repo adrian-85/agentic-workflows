@@ -442,6 +442,9 @@ class _AuditResult:
     ok_lines: list = field(default_factory=list)
     findings: list = field(default_factory=list)
     vacuous_jd: bool = False
+    # A met final match rate (set in main before the literal checks): the
+    # residual no-host lists downgrade from FAIL to a wrap-up warning.
+    target_met: bool = False
 
 
 def _split_raised(missing, raised):
@@ -477,9 +480,7 @@ def _target_met_note(phrases, result):
         "user ask): " + ", ".join(phrases))
 
 
-def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised,
-                           target_met=False):
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
+def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised):
     """JD literal-term and external-phrase checks (sections 2-3)."""
     if jd_path:
         with open(jd_path, encoding="utf-8", errors="replace") as f:
@@ -488,7 +489,7 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised,
         missing, raised_here = _split_raised(missing, raised)
         result.findings.extend(missing)
         _note_raised(result, raised_here)
-        if missing and target_met:
+        if missing and result.target_met:
             _target_met_note(missing, result)
         elif missing:
             result.errors.append(
@@ -508,7 +509,7 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised,
         missing, raised_here = _split_raised(missing, raised)
         result.findings.extend(missing)
         _note_raised(result, raised_here)
-        if missing and target_met:
+        if missing and result.target_met:
             _target_met_note(missing, result)
         elif missing:
             result.errors.append("phrases with NO literal host: "
@@ -518,9 +519,7 @@ def _audit_jd_and_phrases(jd_path, phrases_file, text_low, result, raised,
                 f"phrases: {len(phrases)}/{len(phrases)} hosted")
 
 
-def _audit_report_skills(report_data, text_low, text, result, raised,
-                         target_met=False):
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
+def _audit_report_skills(report_data, text_low, text, result, raised):
     """Report hard/soft skill hosting check (sections 4-5). Mutates the
     three result lists in place."""
     if report_data is None:
@@ -536,7 +535,7 @@ def _audit_report_skills(report_data, text_low, text, result, raised,
     result.findings.extend(soft_miss)
     for raised_here, label in ((hard_raised, "hard"), (soft_raised, "soft")):
         _note_raised(result, raised_here, f"report {label} skills ")
-    if hard_miss and target_met:
+    if hard_miss and result.target_met:
         _target_met_note(hard_miss, result)
     elif hard_miss:
         result.errors.append(
@@ -545,7 +544,7 @@ def _audit_report_skills(report_data, text_low, text, result, raised,
     elif hard:
         result.ok_lines.append(f"report hard skills: {len(hard) - len(hard_raised)}"
                         f"/{len(hard)} hosted")
-    if soft_miss and target_met:
+    if soft_miss and result.target_met:
         _target_met_note(soft_miss, result)
     elif soft_miss:
         # A warning here let a deliverable ship with an unhosted soft
@@ -649,14 +648,14 @@ def main(argv=None):
     # mining queue's work order, and an early scan at/above target does
     # not close Step 4's internal findings.
     score = _report_match_rate(report_data)
-    target_met = (not args["baseline"]
-                  and match_target_met(score, args["match_target"]) is True)
+    result.target_met = (
+        not args["baseline"]
+        and match_target_met(score, args["match_target"]) is True)
     _audit_jd_and_phrases(args["jd_path"], args["phrases_file"], text_low,
-                          result, raised, target_met)
+                          result, raised)
     if result.vacuous_jd:
         _note_vacuous_jd(result, args["baseline"])
-    _audit_report_skills(report_data, text_low, text, result, raised,
-                         target_met)
+    _audit_report_skills(report_data, text_low, text, result, raised)
     _audit_match_rate(score, args["match_target"], result)
     _ceiling_check(score, args["match_target"], args["path"], result)
 

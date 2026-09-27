@@ -451,12 +451,27 @@ def _py(s):
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def _drop_comment(text, plan):
+    """The trailing '# ...' comment for one MACHINE_DROPS entry, or ''.
+
+    '8-bullet cap' marks a JD-evidenced bullet cut only by the per-role
+    cap (Theme Review A's restore signal); 'generic-only evidence'
+    marks a bullet cut to weak vocabulary (test/data/api/...) — also a
+    restore signal, with the offending words named."""
+    if text in plan.get("cap_dropped", ()):
+        return "  # 8-bullet cap (weakest-ranked survivor)"
+    if text in plan.get("generic_only", {}):
+        return ("  # generic-only evidence ("
+                + ", ".join(plan["generic_only"][text])
+                + ") — restore if theme-relevant")
+    return ""
+
+
 def emit_script(plan, src, dst, meta):
-    # too-many-locals/too-many-branches: the function is one linear
-    # list-literal build of the emitted script (docstring, cuts, trims,
-    # sections); splitting it would interleave the emission order across
-    # helpers for no gain.
-    # pylint: disable=too-many-locals,too-many-branches
+    # too-many-locals: the function is one linear list-literal build of the
+    # emitted script (docstring, cuts, trims, sections); splitting it would
+    # interleave the emission order across helpers for no gain.
+    # pylint: disable=too-many-locals
     """The first tailor script: machine dispositions + a Phase 2 section.
 
     Two zones, by author. ``machine_phase()`` holds the machine's
@@ -502,14 +517,7 @@ def emit_script(plan, src, dst, meta):
             "MACHINE_DROPS = [",
         ]
         for prefix, text in plan["drops"]:
-            why = ""
-            if text in plan.get("cap_dropped", ()):
-                why = "  # 8-bullet cap (weakest-ranked survivor)"
-            elif text in plan.get("generic_only", {}):
-                why = ("  # generic-only evidence ("
-                       + ", ".join(plan["generic_only"][text])
-                       + ") — restore if theme-relevant")
-            lines.append(f"        {_py(prefix)},{why}")
+            lines.append(f"        {_py(prefix)},{_drop_comment(text, plan)}")
         lines += [
             "]",
             "# Theme Review A restores: cut prefixes that must survive.",
