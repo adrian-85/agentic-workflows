@@ -40,10 +40,6 @@ Safety and reproducibility:
 
 Requires libreoffice + pdftotext (like measure_resume.py).
 """
-# pylint: disable=import-outside-toplevel
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
-
 
 
 import json

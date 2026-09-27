@@ -108,6 +108,8 @@ def validate_response(endpoint: str, payload) -> list[SchemaIssue]:
 
 @dataclass
 class StepRecord:  # pylint: disable=too-many-instance-attributes
+    # too-many-instance-attributes: one attribute per wire-schema field —
+    # splitting the dataclass would decouple it from the step-log schema.
     """One recorded API step, mirroring the wire schema for the step log."""
     name: str
     method: str

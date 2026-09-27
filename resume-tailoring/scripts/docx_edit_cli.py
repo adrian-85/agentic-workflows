@@ -8,12 +8,6 @@ so `python3 scripts/docx_edit.py` keeps working unchanged.
 """
 # pylint: disable=invalid-name
 # invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
-
-# pylint: disable=invalid-name
-# invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
-
 
 import ast
 import builtins

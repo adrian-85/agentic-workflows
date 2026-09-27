@@ -135,7 +135,9 @@ def _wait_ready(base_url: str, timeout: float = 20.0) -> bool:
         try:
             if httpx.get(base_url + "/vendors").status_code in (200, 401):
                 return True
-        except Exception:  # pylint: disable=broad-exception-caught
+        except httpx.HTTPError:
+            # Not ready yet: connection refused/timeout/reset all arrive as
+            # httpx.HTTPError subclasses; retry until the deadline.
             time.sleep(0.2)
     return False
 

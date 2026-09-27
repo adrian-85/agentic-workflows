@@ -33,10 +33,6 @@ This is a reading tool, not a writing tool: it never modifies either .docx.
 After reviewing the diff, fold confirmed user changes back into the
 tailor_<target>.py script so the next regenerate stays reproducible.
 """
-# pylint: disable=import-outside-toplevel
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
-
 
 
 import contextlib

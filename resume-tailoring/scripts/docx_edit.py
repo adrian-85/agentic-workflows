@@ -77,6 +77,10 @@ import zipfile
 from xml.etree import ElementTree as ET
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])  # flat-namespace siblings
+# unused-import: DriftMeta is a deliberate RE-EXPORT — emitted tailor
+# scripts and sibling modules (measure_resume_drops, tailor_resume) import
+# it from docx_edit, the flat-namespace surface, so it is public contract
+# rather than dead code (same pattern as the measure_resume re-export shim).
 from docx_edit_drift import DriftMeta, drift_sidecar  # noqa: F401, pylint: disable=unused-import
 from docx_edit_gate import _deliverable_gate  # noqa: E402
 

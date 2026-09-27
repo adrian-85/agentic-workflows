@@ -14,6 +14,7 @@ Run from the scripts directory:
 #
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -303,11 +304,12 @@ class KnownAtsTests(unittest.TestCase):
     """Company→ATS knowledge reuse (ats_check module docstring has the
     full Ent two-scan evidence: 66 URL-less vs 84 URL'd, same Ashby)."""
     def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
-        self.path = os.path.join(self._tmp.name, "known-ats.json")
-
-    def tearDown(self):
-        self._tmp.cleanup()
+        # addCleanup ties the temp dir's removal to the test, so no bare
+        # context-manager assignment (pylint's consider-using-with) and no
+        # hand-rolled tearDown are needed.
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        self.path = os.path.join(tmp, "known-ats.json")
 
     def test_company_from_jd_first_sentence_chunk(self):
         self.assertEqual(

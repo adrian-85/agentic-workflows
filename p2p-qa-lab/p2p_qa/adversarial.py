@@ -37,7 +37,10 @@ class ProbeResult:
 def _truncate(payload, limit: int = 400) -> str:
     try:
         s = json.dumps(payload, default=str)
-    except Exception:  # pylint: disable=broad-exception-caught
+    except (TypeError, ValueError):
+        # default=str handles ordinary values; non-string keys raise
+        # TypeError and reference cycles raise ValueError — fall back to
+        # the repr-ish str() for those two cases only.
         s = str(payload)
     return s[:limit] + ("..." if len(s) > limit else "")
 
@@ -367,6 +370,8 @@ def run_baseline(client: P2PClient) -> list[ProbeResult]:
         try:
             results.append(probe(client))
         except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            # boundary: a single probe's unexpected failure is recorded as
+            # an ERROR result and must not abort the remaining probes.
             results.append(ProbeResult(getattr(probe, "__name__", "probe"),
                                        "exception", "ERROR", {"error": str(e)[:300]}))
     return results

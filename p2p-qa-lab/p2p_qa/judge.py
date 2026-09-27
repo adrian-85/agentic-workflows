@@ -340,6 +340,9 @@ def llm_summary(findings: list[Finding], happy_status: str = "PASS",
         if text:
             return text
     except Exception:  # pylint: disable=broad-exception-caught
+        # boundary: any LLM-call failure falls through to the deterministic
+        # rule-based fallback below — a judge that raises would lose the
+        # whole report, so fail safe to the local path.
         pass
     # dev-only deterministic fallback if the LLM is unavailable
     breached = [f.rule for f in findings if f.status == "BREACHED"]

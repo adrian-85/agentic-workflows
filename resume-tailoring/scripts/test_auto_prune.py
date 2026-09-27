@@ -27,8 +27,7 @@ import docx_edit as de  # noqa: E402
 import docx_edit_cli  # noqa: E402
 import measure_resume as mr  # noqa: E402
 import measure_resume_drops as mrd  # noqa: E402
-import auto_prune as ap  # noqa: E402
-import auto_prune  # noqa: E402,F401
+import auto_prune  # noqa: E402
 import jd_asks  # noqa: E402
 
 # Real-JD shape: a qualification section (the engine's ask source).
@@ -621,26 +620,26 @@ class LabelHostingTests(unittest.TestCase):
     looked at values."""
 
     def test_label_hosts_jd_term(self):
-        self.assertTrue(ap._hosts_jd_chunk(
+        self.assertTrue(auto_prune._hosts_jd_chunk(
             "CI/CD: Jenkins, CircleCI, Azure DevOps", {"ci/cd", "jenkins"}))
 
     def test_label_only_match_keeps_the_line(self):
         # No VALUE matches; the label alone carries the JD term.
-        self.assertTrue(ap._hosts_jd_chunk(
+        self.assertTrue(auto_prune._hosts_jd_chunk(
             "CI/CD: Jenkins, CircleCI", {"ci/cd", "gitlab"}))
 
     def test_value_only_match_keeps_the_line(self):
-        self.assertTrue(ap._hosts_jd_chunk(
+        self.assertTrue(auto_prune._hosts_jd_chunk(
             "CI/CD: Jenkins, CircleCI", {"gitlab", "jenkins"}))
 
     def test_no_match_anywhere_cuts(self):
-        self.assertFalse(ap._hosts_jd_chunk(
+        self.assertFalse(auto_prune._hosts_jd_chunk(
             "CI/CD: Jenkins, CircleCI", {"gitlab", "terraform"}))
 
     def test_generic_only_label_does_not_keep(self):
         # Generic demotion applies to labels like everywhere else: 'api'
         # alone is not evidence (ruthless-prune rule).
-        self.assertFalse(ap._hosts_jd_chunk(
+        self.assertFalse(auto_prune._hosts_jd_chunk(
             "API & Web Services: REST, GraphQL", {"api"}))
 
 

@@ -1,13 +1,7 @@
 """measure_resume format assumptions + layout/pages/roles measurement. Split from measure_resume.py;
 imported one-way by measure_resume_jd/drops/shim."""
-# pylint: disable=import-outside-toplevel,invalid-name
-# invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
-
 # pylint: disable=invalid-name
 # invalid-name: numId/rPr/pPr mirror OOXML schema tags verbatim.
-
 
 import os
 import re

@@ -10,10 +10,6 @@ parse_flag consume flags, flag_value reads without consuming.
 import hashlib
 import re
 import sys
-# pylint: disable=import-outside-toplevel
-# Lazy imports here are deliberate (cycle avoidance / heavy deps) — see
-# the specific rationale at each site where one is retained.
-
 # Whole-resume word cap for a tailored deliverable (SKILL Step 9).
 # Home here (not validate_resume) so docx_edit's deliverable gate can
 # apply the default without importing validate_resume (cycle break).
