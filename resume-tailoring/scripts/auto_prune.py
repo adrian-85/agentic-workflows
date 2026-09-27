@@ -113,9 +113,12 @@ def _anchor_for(all_texts, text):
 # Machine dispositions
 # --------------------------------------------------------------------- #
 def _strength(text, jd_terms):
-    """Stub-strength: the engine's ask-evidence count first, then the
-    tool's weakness rank."""
-    return (len(jd_asks.evidence_set(text.lower(), jd_terms)),
+    """Stub-strength: the SPECIFIC ask-evidence count first (generic
+    vocabulary alone is weak evidence — jd_asks.GENERIC_EVIDENCE_TERMS),
+    then the total evidence count, then the tool's weakness rank."""
+    low = text.lower()
+    return (len(jd_asks.specific_evidence_set(low, jd_terms)),
+            len(jd_asks.evidence_set(low, jd_terms)),
             _weakness_key(text))
 
 
@@ -152,12 +155,18 @@ def _trim_bullet_text(text, jd_terms):
 
 
 def _hosts_jd_chunk(text, jd_terms):
-    """Whether any comma/semicolon chunk of a list line hosts a JD term
-    or concept — the whole-line disposition signal: True keeps the line
-    AS-IS (never a partial value list); False cuts the line whole."""
+    """Whether any chunk of a list line hosts a JD term or concept —
+    the whole-line disposition signal: True keeps the line AS-IS (never
+    a partial value list); False cuts the line whole. The LABEL side of
+    ``Label: values`` hosts exactly like a value: "CI/CD: Jenkins, ..."
+    kept its category cut in a real run because no VALUE matched while
+    the label literally was the JD term 'ci/cd' — the label is the
+    category the JD names, so it is checked first, whole."""
     if ":" not in text:
         return False
-    value = text.split(":", 1)[1]
+    label, value = text.split(":", 1)
+    if label.strip() and jd_asks.evidence_set(label.lower(), jd_terms):
+        return True
     return any(
         c and jd_asks.evidence_set(c.lower(), jd_terms)
         for c in (chunk.strip().rstrip(".,;:!?'\"")
@@ -393,12 +402,34 @@ def plan_phase_a(candidates, roles, jd_terms, body):
     edits["cap_dropped"] = set()
     _add_cap_drops(role_state.cap_drops, anchors, all_texts, edits)
     _apply_section_cuts(body, all_texts, edits)
+    edits["generic_only"] = _generic_only_cuts(edits, jd_terms)
     edits["stats"] = {
         "cut": len(edits["drops"]) + len(edits["removes"]),
         "trim": len(edits["trims"]),
         "stub": len(role_state.stubs),
+        "generic": len(edits["generic_only"]),
         "section": len(edits["section_drops"])}
     return edits
+
+
+def _generic_only_cuts(edits, jd_terms):
+    """Cut texts that died to GENERIC-ONLY vocabulary -> their terms.
+
+    The ruthless-prune rule (jd_asks.GENERIC_EVIDENCE_TERMS): a bullet
+    whose every machine match is a generic practice word (test/data/
+    api/...) is cut, not kept. The emitted script tags each such drop
+    (`# generic-only evidence (...)`) so Theme Review A can tell these
+    apart from no-match cuts at a glance and restore the theme-relevant
+    ones from the cut-set diff (SKILL Step 3) — the restore decision is
+    the agent's, not the machine's."""
+    cut_texts = {text for _prefix, text in edits["drops"]}
+    cut_texts |= {text for text, _nth in edits["removes"]}
+    out = {}
+    for text in cut_texts:
+        generic = jd_asks.generic_only_evidence(text.lower(), jd_terms)
+        if generic:
+            out[text] = sorted(generic)
+    return out
 
 
 # --------------------------------------------------------------------- #
@@ -470,8 +501,13 @@ def emit_script(plan, src, dst, meta):
             "MACHINE_DROPS = [",
         ]
         for prefix, text in plan["drops"]:
-            why = "  # 8-bullet cap (weakest-ranked survivor)" \
-                if text in plan.get("cap_dropped", ()) else ""
+            why = ""
+            if text in plan.get("cap_dropped", ()):
+                why = "  # 8-bullet cap (weakest-ranked survivor)"
+            elif text in plan.get("generic_only", {}):
+                why = ("  # generic-only evidence ("
+                       + ", ".join(plan["generic_only"][text])
+                       + ") — restore if theme-relevant")
             lines.append(f"        {_py(prefix)},{why}")
         lines += [
             "]",
@@ -619,7 +655,9 @@ def _emit_and_run(plan, meta):
     sidecar = prune_sidecar_path(docx, meta["jd_file"])
     with open(sidecar, "w", encoding="utf-8") as f:
         json.dump({"jd": os.path.basename(meta["jd_file"]),
-                   "candidates": plan["candidates"]}, f, indent=1)
+                   "candidates": plan["candidates"],
+                   "generic_only_cuts": plan.get("generic_only", {})},
+                   f, indent=1)
     script_path = os.path.join(skill_root, "scripts", script_name)
     with open(script_path, "w", encoding="utf-8") as f:
         f.write(emit_script(plan, os.path.basename(docx), meta["dst"],
@@ -735,7 +773,8 @@ def main():
     stats = plan["stats"]
     print(f"AUTO-PRUNE: {stats['cut']} cut, {stats['trim']} trimmed, "
           f"{stats['stub']} stub(s), {stats['section']} section(s) "
-          f"emptied — no cut report (SKILL Phase 1)")
+          f"emptied, {stats['generic']} generic-only cut(s) — no cut "
+          f"report (SKILL Phase 1)")
     print(f"WROTE scripts/{meta['script_name']}")
     print(f"BUILD: {dst} — Phase 2 tailors this copy (never the master)")
 

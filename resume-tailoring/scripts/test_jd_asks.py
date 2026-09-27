@@ -80,6 +80,40 @@ class ExtraEvidenceFamiliesTests(unittest.TestCase):
                          jd_asks._EVIDENCE_FAMILIES["scripting"])
 
 
+class GenericEvidenceDemotionTests(unittest.TestCase):
+    """The ruthless-prune rule (2026-09-26): generic practice vocabulary
+    alone is NOT evidence. Session evidence: ETL and model-based-testing
+    bullets survived three prunes solely on test/testing/data/api/code/
+    json matches, hosted no external-report skill, and were manually
+    removed after every session."""
+
+    def test_generic_only_text_reports_no_evidence(self):
+        text = ("planned test coverage for a file upload process that "
+                "utilized etl, mapping scenarios that validated data "
+                "movement through the pipeline")
+        self.assertEqual(jd_asks.evidence_set(text, {"test", "data", "api"}), set())
+
+    def test_generic_cooccurring_with_specific_counts(self):
+        text = "led karate adoption for api test automation"
+        self.assertEqual(jd_asks.evidence_set(text, {"karate", "api", "test"}),
+                         {"karate", "api", "test"})
+
+    def test_specific_evidence_set_drops_generics(self):
+        text = "led karate adoption for api test automation"
+        self.assertEqual(jd_asks.specific_evidence_set(
+            text, {"karate", "api", "test"}), {"karate"})
+
+    def test_generic_only_evidence_names_the_generics(self):
+        text = "wrote api tests that validated data movement"
+        self.assertEqual(jd_asks.generic_only_evidence(
+            text, {"api", "test", "data", "karate"}), {"api", "test", "data"})
+
+    def test_specific_text_reports_no_generic_only(self):
+        text = "led karate adoption for api test automation"
+        self.assertEqual(jd_asks.generic_only_evidence(
+            text, {"karate", "api", "test"}), set())
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -152,6 +186,40 @@ expectations:
         self.assertNotIn("day", terms)
         self.assertNotIn("expectations", terms)
         self.assertIn("locust", terms)  # a plus-item ask stays actionable
+
+
+class GenericEvidenceDemotionTests(unittest.TestCase):
+    """The ruthless-prune rule (2026-09-26): generic practice vocabulary
+    alone is NOT evidence. Session evidence: ETL and model-based-testing
+    bullets survived three prunes solely on test/testing/data/api/code/
+    json matches, hosted no external-report skill, and were manually
+    removed after every session."""
+
+    def test_generic_only_text_reports_no_evidence(self):
+        text = ("planned test coverage for a file upload process that "
+                "utilized etl, mapping scenarios that validated data "
+                "movement through the pipeline")
+        self.assertEqual(jd_asks.evidence_set(text, {"test", "data", "api"}), set())
+
+    def test_generic_cooccurring_with_specific_counts(self):
+        text = "led karate adoption for api test automation"
+        self.assertEqual(jd_asks.evidence_set(text, {"karate", "api", "test"}),
+                         {"karate", "api", "test"})
+
+    def test_specific_evidence_set_drops_generics(self):
+        text = "led karate adoption for api test automation"
+        self.assertEqual(jd_asks.specific_evidence_set(
+            text, {"karate", "api", "test"}), {"karate"})
+
+    def test_generic_only_evidence_names_the_generics(self):
+        text = "wrote api tests that validated data movement"
+        self.assertEqual(jd_asks.generic_only_evidence(
+            text, {"api", "test", "data", "karate"}), {"api", "test", "data"})
+
+    def test_specific_text_reports_no_generic_only(self):
+        text = "led karate adoption for api test automation"
+        self.assertEqual(jd_asks.generic_only_evidence(
+            text, {"karate", "api", "test"}), set())
 
 
 if __name__ == "__main__":

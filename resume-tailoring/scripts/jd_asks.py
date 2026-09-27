@@ -560,15 +560,70 @@ def _phrase_evidence(text_low, phrase, kind):
                for candidate in _evidence_candidates(phrase))
 
 
+# Generic single-word vocabulary: these practice/format words appear
+# in virtually every QA posting AND virtually every QA bullet, so their
+# presence alone is NOT evidence that a bullet serves the JD's theme
+# (session evidence 2026-09-26: ETL and model-based-testing bullets
+# survived three different prunes solely on test/testing/data/api/code/
+# json matches, hosted no external-report skill, and were manually
+# removed afterwards in every session). The prune eliminates
+# ruthlessly: a generic word counts as evidence ONLY when a specific
+# term (tool, domain, distinctive practice) co-occurs in the same text;
+# generic-only text reports NO evidence and the bullet is cut —
+# Theme Review A restores theme-relevant cuts from the cut-set diff,
+# which is its documented job (SKILL Step 3).
+GENERIC_EVIDENCE_TERMS = frozenset({
+    "test", "tests", "testing", "tested",
+    "data", "api", "apis",
+    "code", "coding", "json", "csv", "xml",
+})
+
+
+def specific_evidence_set(text_low, phrases):
+    """The non-generic subset of the raw matches: phrases hosted by the
+    text that are NOT in GENERIC_EVIDENCE_TERMS. Ranking helper
+    (stub strength, cap ordering): specific evidence dominates."""
+    return {p for p in phrases
+            if p not in GENERIC_EVIDENCE_TERMS
+            and _phrase_evidence(text_low, p,
+                                 "concept" if p in JD_CONCEPTS else "hard")}
+
+
+def generic_only_evidence(text_low, phrases):
+    """The generic matches of a GENERIC-ONLY text: non-empty exactly
+    when the text hosts generic vocabulary and nothing specific — the
+    cut-tag signal ("this bullet died to weak vocabulary, not to a
+    JD mismatch") auto_prune prints next to the drop for Theme
+    Review A."""
+    if specific_evidence_set(text_low, phrases):
+        return set()
+    return {p for p in phrases
+            if p in GENERIC_EVIDENCE_TERMS
+            and _phrase_evidence(text_low, p,
+                                 "concept" if p in JD_CONCEPTS else "hard")}
+
+
 def evidence_set(text_low, phrases):
     """String-based evidence: the subset of ``phrases`` the text hosts.
 
     Kind resolves by JD_CONCEPTS membership — the same rule parse_asks
     applies — so callers that pass ask phrases as a plain set (the shim's
-    ``jd_terms``) get exactly the engine's determination."""
-    return {p for p in phrases
-            if _phrase_evidence(text_low, p,
-                                "concept" if p in JD_CONCEPTS else "hard")}
+    ``jd_terms``) get exactly the engine's determination.
+
+    GENERIC_EVIDENCE_TERMS demote (the ruthless-prune rule): a generic
+    word matches only when the same text also hosts a specific
+    (non-generic) phrase, so generic-only text — the weak-evidence
+    bullet — reports NO evidence and the prune cuts it instead of
+    keeping it for containing "test". Theme Review A restores
+    theme-relevant cuts (cut-set diff, SKILL Step 3)."""
+    specific = specific_evidence_set(text_low, phrases)
+    if not specific:
+        return set()
+    return specific | {p for p in phrases
+                       if p in GENERIC_EVIDENCE_TERMS
+                       and _phrase_evidence(text_low, p,
+                                            "concept" if p in JD_CONCEPTS
+                                            else "hard")}
 
 
 def unhosted(doc_text_low, asks):

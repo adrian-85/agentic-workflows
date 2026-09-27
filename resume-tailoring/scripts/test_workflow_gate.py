@@ -120,10 +120,10 @@ class ReviewTemplateTests(unittest.TestCase):
                 wg.print_review_template("ats", path)
             skeleton = json.loads(out.getvalue())
             # normalized (lowercased, deduped, sorted) by record_audit
-            self.assertEqual([f["phrase"] for f in skeleton["findings"]],
+            self.assertEqual([f["phrase"] for f in skeleton["dispositions"]],
                              ["gen ai", "observability"])
             self.assertTrue(all(f["decision"] == "" and f["rationale"] == ""
-                                for f in skeleton["findings"]))
+                                for f in skeleton["dispositions"]))
 
     def test_filled_ats_template_passes_the_exact_set_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -131,8 +131,8 @@ class ReviewTemplateTests(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()) as out:
                 wg.print_review_template("ats", path)
             skeleton = json.loads(out.getvalue())
-            skeleton["findings"][0].update(decision="host", rationale="evidenced")
-            skeleton["findings"][1].update(decision="raise", rationale="no evidence")
+            skeleton["dispositions"][0].update(decision="host", rationale="evidenced")
+            skeleton["dispositions"][1].update(decision="raise", rationale="no evidence")
             review = os.path.join(tmp, "review.json")
             with open(review, "w", encoding="utf-8") as stream:
                 json.dump(skeleton, stream)
@@ -199,7 +199,7 @@ class ReviewValidationTests(unittest.TestCase):
     def test_ats_review_requires_a_disposition_for_each_finding(self):
         review = {
             "kind": "ats",
-            "findings": [{
+            "dispositions": [{
                 "phrase": "risk-based testing",
                 "decision": "raise",
                 "rationale": "not evidenced in either source",
@@ -229,7 +229,7 @@ class ReviewValidationTests(unittest.TestCase):
     def test_reports_all_invalid_review_decisions(self):
         review = {
             "kind": "ats",
-            "findings": [
+            "dispositions": [
                 {"phrase": "python", "decision": "keep",
                  "rationale": "invalid for ATS reviews"},
                 {"phrase": "sql", "decision": "restore",
@@ -252,7 +252,7 @@ class ReviewValidationTests(unittest.TestCase):
                 json.dump(self._prune_review(), stream)
             wg.record_review(path, prune_path)
             wg.record_audit(path, ["python", "sql"])
-            incomplete = {"kind": "ats", "findings": []}
+            incomplete = {"kind": "ats", "dispositions": []}
             with open(review_path, "w", encoding="utf-8") as stream:
                 json.dump(incomplete, stream)
             with self.assertRaises(wg.ReviewError):

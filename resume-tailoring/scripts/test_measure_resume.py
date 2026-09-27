@@ -768,10 +768,29 @@ class JDAwareTests(unittest.TestCase):
         self.assertEqual(drops, [])
 
     def test_drop_sections_all_evidenced_role_is_protected(self):
-        # One rule, no weak class: bullets hosting an ask are evidenced
-        # and the DROP PLAN cannot meet its budget from them — the
-        # dead-end note says so instead of pretending the bullets are
+        # One rule, no weak class: bullets hosting a SPECIFIC ask are
+        # evidenced and the DROP PLAN cannot meet its budget from them —
+        # the dead-end note says so instead of pretending the bullets are
         # cuttable.
+        plan = [("Company ABC, City", "drop 2 bullet(s) (saves ~4 lines)", 4.0)]
+        bullets = [
+            "Primary Playwright test engineer for the NextGen platform.",
+            "Proposed a Karate rollout for the department.",
+        ]
+        sections = mr._drop_sections(
+            plan, [{"key": "Company ABC, City", "bullet_texts": bullets}],
+            jd_terms={"playwright", "karate"},
+        )
+        self.assertIn("ALL 2 bullet(s) protected", sections[0])
+        dropped = [l for l in sections[0].splitlines() if "find_p(ps," in l]
+        self.assertEqual(len(dropped), 0)
+
+    def test_drop_sections_generic_only_evidence_is_not_protection(self):
+        # The ruthless-prune rule (2026-09-26): bullets whose only JD
+        # match is generic vocabulary (test/testing/data/api/...) are NOT
+        # evidenced — the DROP PLAN may budget them, and Theme Review A
+        # decides. Generic words kept ETL-class bullets alive through
+        # three real prunes; they no longer protect.
         plan = [("Company ABC, City", "drop 2 bullet(s) (saves ~4 lines)", 4.0)]
         bullets = [
             "Primary test engineer for the NextGen platform.",
@@ -781,9 +800,7 @@ class JDAwareTests(unittest.TestCase):
             plan, [{"key": "Company ABC, City", "bullet_texts": bullets}],
             jd_terms={"test"},
         )
-        self.assertIn("ALL 2 bullet(s) protected", sections[0])
-        dropped = [l for l in sections[0].splitlines() if "find_p(ps," in l]
-        self.assertEqual(len(dropped), 0)
+        self.assertNotIn("ALL 2 bullet(s) protected", sections[0])
 
     def test_drop_sections_strong_match_still_listed_as_kept(self):
         plan = [("Company ABC, City", "drop 1 bullet(s) (saves ~2 lines)", 2.0)]
@@ -959,15 +976,20 @@ class CoreTechNounTests(unittest.TestCase):
 
 
 class LabelVocabEndToEndTests(unittest.TestCase):
-    """Label words flow through _jd_terms: an 'API & Web Services'
-    proficiencies line carries JD evidence when the JD asks for API work,
-    so it must NOT be a TOP-BLOCK cut candidate."""
+    """Label words flow through _jd_terms: a proficiencies line whose
+    label or values carry SPECIFIC JD evidence is not a TOP-BLOCK cut
+    candidate. Since 2026-09-26 a GENERIC-only label ('API & Web
+    Services' against a JD asking 'API testing') no longer protects the
+    line — generic vocabulary alone is not evidence
+    (jd_asks.GENERIC_EVIDENCE_TERMS); the line becomes a review
+    candidate and Theme Review A decides."""
 
     def _body(self):
         return _body([
             _para("Technical Proficiencies", style="SectionHeading"),
             _para("Programming Languages: Java, JavaScript"),
             _para("API & Web Services: REST, GraphQL, gRPC, SOAP"),
+            _para("CI/CD: Jenkins, CircleCI, Azure DevOps"),
             _para("Certifications", style="SectionHeading"),
             _para("Performance Boot Camp: Vendor Academy"),
             _para(mr.SECTION_CAREER, style="SectionHeading"),
@@ -977,15 +999,29 @@ class LabelVocabEndToEndTests(unittest.TestCase):
             _para("Bullet one", numId=2),
         ])
 
-    def test_api_label_line_is_jd_evidence_not_candidate(self):
-        jd = "Deep hands-on expertise in API testing and backend validation."
+    def test_specific_label_line_is_jd_evidence_not_candidate(self):
+        jd = "Deep hands-on expertise in CI/CD and observability tooling."
         terms = mr._jd_terms(jd, self._body())
-        self.assertIn("api", terms, "label vocabulary must reach _jd_terms")
+        self.assertIn("ci/cd", terms, "label vocabulary must reach _jd_terms")
         cands = mr._top_block_candidates(self._body(), terms)
         texts = [t for _p, t in cands]
         self.assertFalse(
+            any("CI/CD:" in t for t in texts),
+            f"CI/CD line must not be a cut candidate; candidates={texts}")
+
+    def test_generic_only_label_line_is_a_candidate(self):
+        # The ruthless-prune rule: 'api' is generic vocabulary, and a line
+        # whose only JD match is the generic label word is NOT evidence —
+        # it becomes a review candidate (Theme Review A decides).
+        jd = "Deep hands-on expertise in API testing and backend validation."
+        terms = mr._jd_terms(jd, self._body())
+        self.assertIn("api", terms)
+        cands = mr._top_block_candidates(self._body(), terms)
+        texts = [t for _p, t in cands]
+        self.assertTrue(
             any("API & Web Services" in t for t in texts),
-            f"API line must not be a cut candidate; candidates={texts}")
+            f"generic-only label line must be a cut candidate; "
+            f"candidates={texts}")
 
     def test_off_jd_label_lines_still_candidates(self):
         jd = "Deep hands-on expertise in API testing."
@@ -2570,16 +2606,29 @@ class JdFitAuditTests(unittest.TestCase):
         self.assertIn("even when on target", sections[0])
 
     def test_all_evidenced_role_is_silent(self):
-        # One rule, no weak class: both bullets host an ask, so the audit
-        # stays silent about this role.
+        # One rule, no weak class: both bullets host a SPECIFIC ask, so
+        # the audit stays silent about this role.
         roles = self._roles([
             "Configured CI pipelines to trigger tests based on cross dependency changes.",
 
             "Advised engineer working on the Playwright test framework on best practices.",
 
         ])
-        sections = mr._jd_fit_audit(roles, {"test", "playwright"})
+        sections = mr._jd_fit_audit(roles, {"ci", "playwright"})
         self.assertEqual(len(sections), 0)
+
+    def test_generic_only_evidence_role_is_flagged(self):
+        # Generic vocabulary alone (test/testing/...) is not evidence:
+        # the JD-FIT AUDIT flags the role for theme review instead of
+        # staying silent because every bullet says "test".
+        roles = self._roles([
+            "Configured CI pipelines to trigger tests based on cross dependency changes.",
+
+            "Advised engineer working on the Playwright test framework on best practices.",
+
+        ])
+        sections = mr._jd_fit_audit(roles, {"test"})
+        self.assertEqual(len(sections), 1)
 
     def test_mostly_irrelevant_role_is_stub_candidate(self):
         # 2 of 3 bullets carry no JD evidence: stub guidance fires — cut

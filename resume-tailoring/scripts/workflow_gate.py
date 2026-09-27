@@ -145,9 +145,7 @@ def validate_review(review):
             raise ReviewError("prune review needs at least one theme anchor")
         for index, anchor in enumerate(anchors, 1):
             _nonempty(anchor, f"theme_anchors[{index}]")
-        entries = review.get("dispositions")
-    else:
-        entries = review.get("findings")
+    entries = review.get("dispositions")
     if not isinstance(entries, list):
         raise ReviewError(f"{kind} review needs a list of dispositions")
     invalid_decisions = []
@@ -192,7 +190,7 @@ def print_review_template(kind, state_path):
                 f"{state_path} records no baseline findings — run the baseline audit "
                 "first (ats_audit.py --baseline; SKILL Step 4); the template pre-fills "
                 "its phrases")
-        skeleton = {"kind": "ats", "findings": [
+        skeleton = {"kind": "ats", "dispositions": [
             {"phrase": phrase, "decision": "", "rationale": ""} for phrase in phrases]}
         hint = (
             "decisions: host | ignore | raise. Keep EXACTLY one row per phrase — do not "
@@ -205,7 +203,9 @@ def print_review_template(kind, state_path):
         hint = (
             "decisions: restore | cut | keep. One disposition per prune override; "
             "item = the master paragraph's find_p prefix (copy it from the --prefixes "
-            "dump / cut-set diff). Add more entries as needed.")
+            "dump / cut-set diff). Generic-only cuts are tagged in the emitted "
+            "script's MACHINE_DROPS (# generic-only evidence) — restore the "
+            "theme-relevant ones. Add more entries as needed.")
     print(json.dumps(skeleton, indent=2))
     print(
         f"fill decision + rationale, keep the phrases/items, then record:\n"
@@ -257,7 +257,7 @@ def record_review(state_path, review_path):
     if kind == "ats":
         expected_findings = set(state.get("finding_phrases", []))
         actual_findings = {entry["phrase"].strip().lower()
-                           for entry in review["findings"]}
+                           for entry in review["dispositions"]}
         if actual_findings != expected_findings:
             missing = sorted(expected_findings - actual_findings)
             extra = sorted(actual_findings - expected_findings)
@@ -303,8 +303,8 @@ def print_status(path):
         for kind in ("prune", "ats"):
             if kind not in reviews:
                 continue
-            key = "dispositions" if kind == "prune" else "findings"
-            parts.append(f"{kind} ({len(reviews[kind].get(key, []))} entries)")
+            parts.append(
+                f"{kind} ({len(reviews[kind].get('dispositions', []))} entries)")
         print(f"reviews recorded: {', '.join(parts)}")
     if state.get("spacers_omitted"):
         print(f"spacers omitted: {len(state['spacers_omitted'])} boundary/boundaries")
