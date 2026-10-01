@@ -223,7 +223,7 @@ diff before merge (user-confirmed).
 | W0718 broad-exception-caught | 6 | **Fix** | narrow (llm key-load → `OSError/KeyError`; httpx transport → `httpx.HTTPError`; LLM call sites → openai/AgentError types) |
 | C0103 invalid-name (OOXML) | 13 | **Suppress** | file-header disable on `docx_edit.py` (names mirror `w:rPr/pPr/numId` schema tags verbatim for grepping) — applies tree-wide to same-domain code |
 | C0103 invalid-name (numId ×3) | 3 | **Suppress** | inline `# pylint: disable=invalid-name` at the 3 sites in `measure_resume.py`/`validate_resume.py` (OOXML vocabulary) |
-| W0603 global-statement (docx_edit) | 7 | **Suppress** | file-header disable with rationale (deliberate module drift counters read by tests; DriftBook refactor deferred) |
+| W0603 global-statement (docx_edit) | 7 | **Fixed** | DriftBook refactor landed (2026-09-30, spec `2026-09-07-driftbook-refactor-design.md`): counters live on a `DriftBook` object in `docx_edit_drift.py`; the file-header `global-statement` disable is REMOVED |
 | C0413 wrong-import-position | 6 | **Suppress** | file-header disable on the 5 flat-namespace scripts (the `sys.path.insert(0, …)` bootstrap precedes sibling imports by necessity); `ai-judge/judge.py` hoists the insert to top + inline disable on its import line |
 | W0212 protected-access | 26 | **Suppress** | global disable in `pyproject.toml` (convention rationale above; API promotion deferred) |
 | R0902 too-many-instance-attributes | 1 | **Suppress** | class-line disable on `StepRecord` (data record mirroring wire schema) |

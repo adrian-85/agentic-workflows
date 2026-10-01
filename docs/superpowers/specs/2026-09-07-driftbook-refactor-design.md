@@ -1,7 +1,7 @@
 # DriftBook Refactor — Design Spec (deferred)
 
 **Date**: 2026-09-07
-**Status**: Deferred — design-complete, not scheduled
+**Status**: Implemented (2026-09-30, branch driftbook-refactor) — DriftBook lives in `docx_edit_drift.py` alongside the sidecar layer; `save()` keeps its 5-arg signature (no `book=` kwarg — tests rebind `de._BOOK`); test migration done as line-by-line `de._BOOK.*` attribute translation
 **Authors**: Pi Agent (brainstorming session), validated against
 `docx_edit.py` v1 (1278-line module)
 
