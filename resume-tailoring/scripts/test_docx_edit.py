@@ -35,6 +35,7 @@ sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 import test_helpers
 import docx_edit_cli as dcli  # noqa: E402  (CLI surface — moved out of core)
+from docx_edit_drift import DriftBook  # noqa: E402
 from docx_edit_gate import tmp_jd_note  # noqa: E402
 import measure_resume as mr  # noqa: E402
 import validate_resume as vr  # noqa: E402
@@ -125,12 +126,12 @@ class ReplaceTextTests(unittest.TestCase):
     """replace_text: per-run substring replacement preserving formatting."""
 
     def setUp(self):
-        de._APPLIED = 0
-        de._SKIPS.clear()
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
 
     def tearDown(self):
-        de._APPLIED = 0
-        de._SKIPS.clear()
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
 
     def test_replaces_and_preserves_formatting(self):
         """The core behavior: replace per-run and check result text and
@@ -181,7 +182,7 @@ class ReplaceTextTests(unittest.TestCase):
         with contextlib.redirect_stderr(err):
             de.replace_text(None, "x", "y")
         self.assertIn("target paragraph not found", err.getvalue())
-        self.assertIn("x", de._SKIPS)
+        self.assertIn("x", de._BOOK.skips)
 
         # Paragraph found but the search text is absent from it: the fix is a
         # DIFFERENT find_p prefix, not a text problem. The warning must name
@@ -192,12 +193,12 @@ class ReplaceTextTests(unittest.TestCase):
         with contextlib.redirect_stderr(err):
             de.replace_text(p, "MISSING", "X")
         self.assertEqual(de.text_of(p), "nothing here")
-        self.assertEqual(de._APPLIED, 0)
+        self.assertEqual(de._BOOK.applied, 0)
         out = err.getvalue()
         self.assertNotIn("target paragraph not found", out)
         self.assertIn("does not contain that text", out)
         self.assertIn("'nothing here'", out)  # names the real paragraph
-        self.assertIn("MISSING", de._SKIPS)
+        self.assertIn("MISSING", de._BOOK.skips)
 
     def test_spanning_occurrence_skips_without_partial_mutation(self):
         # `old` appears in the joined text but NO single run contains it
@@ -211,9 +212,9 @@ class ReplaceTextTests(unittest.TestCase):
         with contextlib.redirect_stderr(err):
             de.replace_text(p, "Chaos testing Using", "chaos testing using")
         self.assertEqual(de.text_of(p), "Conducted Chaos testing Using AWS FIS")
-        self.assertEqual(de._APPLIED, 0, "spanning edit must not count as applied")
+        self.assertEqual(de._BOOK.applied, 0, "spanning edit must not count as applied")
         self.assertIn("spans run boundaries", err.getvalue())
-        self.assertIn("Chaos testing Using", de._SKIPS)
+        self.assertIn("Chaos testing Using", de._BOOK.skips)
 
 
 class SetTextTests(unittest.TestCase):
@@ -559,24 +560,24 @@ class DropTests(unittest.TestCase):
             p = ET.SubElement(body, W + "p")
             t = ET.SubElement(p, W + "t")
             t.text = text
-            de._ORIG[id(p)] = (p, de.text_of(p))
+            de._BOOK.orig[id(p)] = (p, de.text_of(p))
         self.body = body
-        de._APPLIED = 0
-        de._SKIPS.clear()
-        de._ELEMENT_FORM_DROPS = 0
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
+        de._BOOK.element_form_drops = 0
 
     def tearDown(self):
-        de._ORIG.clear()
-        de._APPLIED = 0
-        de._SKIPS.clear()
-        de._ELEMENT_FORM_DROPS = 0
+        de._BOOK.orig.clear()
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
+        de._BOOK.element_form_drops = 0
 
     def test_removes_all_and_returns_refreshed_list(self):
         ps = de.drop(self.body, ["Established a comprehensive",
                                  "Unrelated bullet"])
         self.assertEqual([de.text_of(p) for p in ps],
                          ["Established bi-monthly interdepartmental QA meetings"])
-        self.assertEqual(de._APPLIED, 2)
+        self.assertEqual(de._BOOK.applied, 2)
 
     def test_regression_short_prefix_after_superstring_removed(self):
         # Drop the LONGER prefix first, then a SHORT prefix that also
@@ -608,11 +609,11 @@ class DropTests(unittest.TestCase):
         # The per-call stderr note was replaced by a counter that save()
         # reports as one summary line (22 bullet drops printed 22 notes).
         self.assertEqual(err.getvalue(), "")
-        self.assertEqual(de._ELEMENT_FORM_DROPS, 1)
+        self.assertEqual(de._BOOK.element_form_drops, 1)
         self.assertEqual([de.text_of(p) for p in ps],
                          ["Established a comprehensive test automation approach",
                           "Established bi-monthly interdepartmental QA meetings"])
-        self.assertEqual(de._APPLIED, 1)
+        self.assertEqual(de._BOOK.applied, 1)
 
     def test_stale_element_records_skip_under_its_text(self):
         # An element held from BEFORE an earlier drop() removed its
@@ -621,7 +622,7 @@ class DropTests(unittest.TestCase):
         # skip is named by the (stale) paragraph's own text.
         stale = de.find_p(de.paras(self.body), "Unrelated bullet")
         de.drop(self.body, ["Unrelated bullet"])
-        de._APPLIED = 0  # only the stale-element call below is under test
+        de._BOOK.applied = 0  # only the stale-element call below is under test
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
             ps = de.drop(self.body, [stale])
@@ -629,7 +630,7 @@ class DropTests(unittest.TestCase):
         self.assertEqual([de.text_of(p) for p in ps],
                          ["Established a comprehensive test automation approach",
                           "Established bi-monthly interdepartmental QA meetings"])
-        self.assertEqual(de._APPLIED, 0)
+        self.assertEqual(de._BOOK.applied, 0)
 
     def test_junk_argument_still_fails_fast(self):
         # Element conversion covers the documented authoring slip; a junk
@@ -637,7 +638,7 @@ class DropTests(unittest.TestCase):
         with self.assertRaises(TypeError) as ctx:
             de.drop(self.body, [42])
         self.assertIn("prefix STRING", str(ctx.exception))
-        self.assertEqual(de._APPLIED, 0)
+        self.assertEqual(de._BOOK.applied, 0)
         self.assertEqual(len(list(self.body.iter(W + "p"))), 3)
 
     def test_missing_prefix_skips_with_named_prefix(self):
@@ -648,8 +649,8 @@ class DropTests(unittest.TestCase):
         with contextlib.redirect_stderr(err):
             de.drop(self.body, ["No Such Prefix"])
         self.assertIn("No Such Prefix", err.getvalue())
-        self.assertEqual(de._SKIPS, ["No Such Prefix"])
-        self.assertEqual(de._APPLIED, 0)
+        self.assertEqual(de._BOOK.skips, ["No Such Prefix"])
+        self.assertEqual(de._BOOK.applied, 0)
         self.assertEqual(len(list(self.body.iter(W + "p"))), 3)
 
 
@@ -691,14 +692,14 @@ class DropRoleTests(unittest.TestCase):
         self.body = ET.Element(W + "body")
         for p in ps:
             self.body.append(p)
-            de._ORIG[id(p)] = (p, de.text_of(p))
-        de._APPLIED = 0
-        de._SKIPS.clear()
+            de._BOOK.orig[id(p)] = (p, de.text_of(p))
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
 
     def tearDown(self):
-        de._ORIG.clear()
-        de._APPLIED = 0
-        de._SKIPS.clear()
+        de._BOOK.orig.clear()
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
 
     def _texts(self):
         return [de.text_of(p) for p in de.paras(self.body)]
@@ -741,16 +742,16 @@ class DropRoleTests(unittest.TestCase):
     def test_counts_one_applied_edit_per_removed_paragraph(self):
         de.drop_role(self.body, "Initech, Metropolis")
         # header + title + bullet + tools + spacer = 5 paragraphs
-        self.assertEqual(de._APPLIED, 5)
+        self.assertEqual(de._BOOK.applied, 5)
 
     def test_missing_prefix_warns_names_prefix_and_mutates_nothing(self):
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
             ps = de.drop_role(self.body, "No Such Company")
         self.assertIn("No Such Company", err.getvalue())
-        self.assertEqual(de._SKIPS, ["drop_role: No Such Company"])
+        self.assertEqual(de._BOOK.skips, ["drop_role: No Such Company"])
         self.assertEqual(ps, de.paras(self.body))
-        self.assertEqual(de._APPLIED, 0)
+        self.assertEqual(de._BOOK.applied, 0)
 
     def test_anchor_on_wrong_style_skips(self):
         # A prefix that resolves to a NON-company paragraph (e.g. a section
@@ -759,7 +760,7 @@ class DropRoleTests(unittest.TestCase):
         with contextlib.redirect_stderr(err):
             ps = de.drop_role(self.body, "Career Experience")
         self.assertIn("CompanyBlock", err.getvalue())
-        self.assertEqual(de._APPLIED, 0)
+        self.assertEqual(de._BOOK.applied, 0)
         self.assertEqual(len(ps), 19)
 
     def test_role_at_end_of_document_removed_to_eof(self):
@@ -770,12 +771,12 @@ class DropRoleTests(unittest.TestCase):
                   mkstyled("Tools & Technologies: Java", "BodyText"),
                   mkstyled("", "BodyText")):
             body.append(p)
-            de._ORIG[id(p)] = (p, de.text_of(p))
+            de._BOOK.orig[id(p)] = (p, de.text_of(p))
         try:
             de.drop_role(body, "Company A")
             self.assertEqual([de.text_of(p) for p in de.paras(body)], [])
         finally:
-            de._ORIG.clear()
+            de._BOOK.orig.clear()
 
     def test_custom_style_names_for_other_resume_formats(self):
         body = ET.Element(W + "body")
@@ -784,14 +785,14 @@ class DropRoleTests(unittest.TestCase):
                   mkstyled("Bullet", "Body", numId=3),
                   mkstyled("Summary", "Heading")):
             body.append(p)
-            de._ORIG[id(p)] = (p, de.text_of(p))
+            de._BOOK.orig[id(p)] = (p, de.text_of(p))
         try:
             de.drop_role(body, "Employer X", company_style="Employer",
                          boundary_styles=("Employer", "Heading"))
             self.assertEqual(
                 [de.text_of(p) for p in de.paras(body)], ["Summary"])
         finally:
-            de._ORIG.clear()
+            de._BOOK.orig.clear()
 
     def test_element_argument_converts_to_its_own_text(self):
         # Same mixed-API slip as DropTests: drop_role accepts a find_p
@@ -803,12 +804,12 @@ class DropRoleTests(unittest.TestCase):
         with contextlib.redirect_stderr(err):
             de.drop_role(self.body, element)
         self.assertEqual(err.getvalue(), "")
-        self.assertEqual(de._ELEMENT_FORM_DROPS, 1)
+        self.assertEqual(de._BOOK.element_form_drops, 1)
         texts = [de.text_of(p) for p in de.paras(self.body)]
         self.assertNotIn("Initech, Metropolis01/2017 - 06/2018", texts)
         self.assertNotIn("Primary test engineer for the flagship project", texts)
         self.assertIn("Education", texts)
-        self.assertEqual(de._APPLIED, 5)
+        self.assertEqual(de._BOOK.applied, 5)
 
 
 class StubRoleTests(unittest.TestCase):
@@ -838,14 +839,14 @@ class StubRoleTests(unittest.TestCase):
         self.body = ET.Element(W + "body")
         for p in ps:
             self.body.append(p)
-            de._ORIG[id(p)] = (p, de.text_of(p))
-        de._APPLIED = 0
-        de._SKIPS.clear()
+            de._BOOK.orig[id(p)] = (p, de.text_of(p))
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
 
     def tearDown(self):
-        de._ORIG.clear()
-        de._APPLIED = 0
-        de._SKIPS.clear()
+        de._BOOK.orig.clear()
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
 
     def _texts(self):
         return [de.text_of(p) for p in de.paras(self.body)]
@@ -869,13 +870,13 @@ class StubRoleTests(unittest.TestCase):
         de.stub_role(self.body, "No Such Company", "Primary test engineer")
         texts = self._texts()
         self.assertIn("Secondary duty at Initech", texts)  # untouched
-        self.assertIn("stub_role: No Such Company", de._SKIPS)
+        self.assertIn("stub_role: No Such Company", de._BOOK.skips)
 
     def test_missing_keep_prefix_records_skip(self):
         de.stub_role(self.body, "Initech, Metropolis", "No such bullet")
         texts = self._texts()
         self.assertIn("Secondary duty at Initech", texts)  # untouched
-        self.assertIn("stub_role keep: No such bullet", de._SKIPS)
+        self.assertIn("stub_role keep: No such bullet", de._BOOK.skips)
 
 class DropSectionTests(unittest.TestCase):
     """drop_section(): remove a SectionHeading's whole section (e.g.
@@ -896,14 +897,14 @@ class DropSectionTests(unittest.TestCase):
         self.body = ET.Element(W + "body")
         for p in ps:
             self.body.append(p)
-            de._ORIG[id(p)] = (p, de.text_of(p))
-        de._APPLIED = 0
-        de._SKIPS.clear()
+            de._BOOK.orig[id(p)] = (p, de.text_of(p))
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
 
     def tearDown(self):
-        de._ORIG.clear()
-        de._APPLIED = 0
-        de._SKIPS.clear()
+        de._BOOK.orig.clear()
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
 
     def _texts(self):
         return [de.text_of(p) for p in de.paras(self.body)]
@@ -929,7 +930,7 @@ class DropSectionTests(unittest.TestCase):
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
             de.drop_section(self.body, "No Such Section")
-        self.assertEqual(de._SKIPS, ["drop_section: No Such Section"])
+        self.assertEqual(de._BOOK.skips, ["drop_section: No Such Section"])
         self.assertEqual(len(self._texts()), 9)
 
 
@@ -940,7 +941,7 @@ class OriginalTextResolutionTests(unittest.TestCase):
 
     def _register(self, *ps):
         for p in ps:
-            de._ORIG[id(p)] = (p, de.text_of(p))
+            de._BOOK.orig[id(p)] = (p, de.text_of(p))
 
     def test_earlier_rewrite_cannot_collide_with_anothers_prefix(self):
         # Exact collision from an earlier tailoring run: two tools lines with
@@ -968,7 +969,7 @@ class OriginalTextResolutionTests(unittest.TestCase):
                     found = de.find_p(ordered_ps, "Tools & Technologies: C#, .NET")
                 self.assertIs(found, tools_a, "resolve by ORIGINAL text, not collide")
                 self.assertNotIn("matches multiple", err.getvalue())
-        de._ORIG.clear()
+        de._BOOK.orig.clear()
 
     def test_genuine_duplicate_original_prefix_still_ambiguous(self):
         # Two paragraphs whose ORIGINAL texts both start with the prefix:
@@ -995,9 +996,9 @@ class SaveReportTests(unittest.TestCase):
     """save() reports skipped edits and can fail under strict mode."""
 
     def _reset_stats(self):
-        de._APPLIED = 0
-        de._SKIPS.clear()
-        de._ELEMENT_FORM_DROPS = 0
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
+        de._BOOK.element_form_drops = 0
 
     def test_element_form_drop_reports_one_summary_line(self):
         # save() summarizes element-form drop calls in ONE line instead of
@@ -1098,7 +1099,7 @@ class SaveDriftTests(unittest.TestCase):
 
     def _run(self, path, builder, strict=False, key="tailor_x.py",
              expect_exit=False):
-        de._APPLIED = 0
+        de._BOOK.applied = 0
         root, _body, names, data = builder(path)
         out = io.StringIO()
         err = io.StringIO()
@@ -1217,7 +1218,7 @@ class AppendCLITests(unittest.TestCase):
     def test_appends_after_ref_by_prefix(self):
         path = self._docx_with("Ref paragraph", "Other paragraph")
         try:
-            de._APPLIED = 0
+            de._BOOK.applied = 0
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
                 rc = dcli.cli(["docx_edit.py", path, "--append-after",
@@ -1232,7 +1233,7 @@ class AppendCLITests(unittest.TestCase):
         path = self._docx_with("Ref paragraph")
         err = io.StringIO()
         try:
-            de._APPLIED = 0
+            de._BOOK.applied = 0
             with contextlib.redirect_stderr(err):
                 rc = dcli.cli(["docx_edit.py", path, "--append-after", "No such para", "--with",
                              "New bullet"])
@@ -1246,7 +1247,7 @@ class AppendCLITests(unittest.TestCase):
     def test_curly_apostrophe_ref_matches_ascii_prefix(self):
         path = self._docx_with("The company\u2019s goal", "Other")
         try:
-            de._APPLIED = 0
+            de._BOOK.applied = 0
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
                 rc = dcli.cli(["docx_edit.py", path, "--append-after",
@@ -1276,8 +1277,8 @@ class MasterChangeGateTests(unittest.TestCase):
     rely on the agent re-running strict manually)."""
 
     def setUp(self):
-        de._APPLIED = 0
-        de._SKIPS.clear()
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
         fd, self.master = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         fd, self.dst = tempfile.mkstemp(suffix=".docx")
@@ -1291,8 +1292,8 @@ class MasterChangeGateTests(unittest.TestCase):
                 p = path + suffix
                 if os.path.exists(p):
                     os.unlink(p)
-        de._APPLIED = 0
-        de._SKIPS.clear()
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
 
     def _rewrite_master(self, text):
         # Change the master's bytes so its sha256 differs from run 1's.
@@ -1300,7 +1301,7 @@ class MasterChangeGateTests(unittest.TestCase):
             f.write(b"changed-master-bytes-" + text.encode())
 
     def _run(self, skip=False, strict=False):
-        de._APPLIED = 0
+        de._BOOK.applied = 0
         root, body, names, data, _ = de.load(self.dst)
         p = ET.SubElement(body, de.W + "p")
         t = ET.SubElement(p, de.W + "t")
@@ -1932,7 +1933,7 @@ class SetTextCLITests(unittest.TestCase):
         path = self._docx_with("Implemented Jest and Playwright for tests.",
                                "Unrelated bullet")
         try:
-            de._APPLIED = 0
+            de._BOOK.applied = 0
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
                 rc = dcli.cli(["docx_edit.py", path, "--set-text",
@@ -1950,7 +1951,7 @@ class SetTextCLITests(unittest.TestCase):
     def test_missing_prefix_exits_2_without_mutation(self):
         path = self._docx_with("Some bullet")
         try:
-            de._APPLIED = 0
+            de._BOOK.applied = 0
             err = io.StringIO()
             with contextlib.redirect_stderr(err):
                 rc = dcli.cli(["docx_edit.py", path, "--set-text",
@@ -2032,37 +2033,37 @@ class MergeIntoTests(unittest.TestCase):
         r = ET.SubElement(s, W + "r")
         x = ET.SubElement(r, W + "t")
         x.text = "old source"
-        de._ORIG[id(t)] = (t, "old target")
-        de._ORIG[id(s)] = (s, "old source")
+        de._BOOK.orig[id(t)] = (t, "old target")
+        de._BOOK.orig[id(s)] = (s, "old source")
         return body, t, s
 
     def test_rewrites_target_and_removes_source(self):
         body, t, s = self._mk_body()
-        de._APPLIED = 0
+        de._BOOK.applied = 0
         de.merge_into(body, t, s, "combined text")
         self.assertEqual(de.text_of(t), "combined text")
         self.assertNotIn(s, list(body))
-        self.assertEqual(de._APPLIED, 2, "counts as a rewrite + a removal")
+        self.assertEqual(de._BOOK.applied, 2, "counts as a rewrite + a removal")
 
     def test_target_none_warns_and_no_ops(self):
         body, t, s = self._mk_body()
         err = io.StringIO()
-        de._APPLIED = 0
+        de._BOOK.applied = 0
         with contextlib.redirect_stderr(err):
             de.merge_into(body, None, s, "x")
         self.assertIn("target paragraph not found", err.getvalue())
-        self.assertEqual(de._APPLIED, 0)
+        self.assertEqual(de._BOOK.applied, 0)
         self.assertIn(t, list(body))
         self.assertIn(s, list(body))
 
     def test_source_none_still_rewrites_target(self):
         body, t, s = self._mk_body()
         err = io.StringIO()
-        de._APPLIED = 0
+        de._BOOK.applied = 0
         with contextlib.redirect_stderr(err):
             de.merge_into(body, t, None, "merged")
         self.assertEqual(de.text_of(t), "merged")
-        self.assertEqual(de._APPLIED, 1, "rewrite lands, no removal")
+        self.assertEqual(de._BOOK.applied, 1, "rewrite lands, no removal")
         self.assertIn(s, list(body))
 
     def test_target_is_source_skipped(self):
@@ -2072,11 +2073,11 @@ class MergeIntoTests(unittest.TestCase):
         x = ET.SubElement(r, W + "t")
         x.text = "solo"
         err = io.StringIO()
-        de._APPLIED = 0
+        de._BOOK.applied = 0
         with contextlib.redirect_stderr(err):
             de.merge_into(body, p, p, "y")
         self.assertIn("same paragraph", err.getvalue())
-        self.assertEqual(de._APPLIED, 0)
+        self.assertEqual(de._BOOK.applied, 0)
         self.assertIn(p, list(body))
 
 
@@ -2226,8 +2227,8 @@ class DeliverableGateTests(unittest.TestCase):
 
     def setUp(self):
         # (validate_resume import intentionally omitted: unused)
-        de._APPLIED = 0
-        de._SKIPS.clear()
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
         workdir = tempfile.mkdtemp()
         self.workdir = workdir
         self.master = os.path.join(workdir, "Test Master Resume.docx")
@@ -2243,8 +2244,8 @@ class DeliverableGateTests(unittest.TestCase):
                 p = path + suffix
                 if os.path.exists(p):
                     os.unlink(p)
-        de._APPLIED = 0
-        de._SKIPS.clear()
+        de._BOOK.applied = 0
+        de._BOOK.skips.clear()
         for var, old in (("RESUME_VALIDATE_ARGS", self._old_env),
                          ("RESUME_WORKFLOW_STATE", self._old_state)):
             if old is not None:
@@ -2290,7 +2291,7 @@ class DeliverableGateTests(unittest.TestCase):
         os.unlink(self.dst)
         _empty_docx(self.dst)
         # Gated (src passed): refused, nothing on disk.
-        de._APPLIED = 0
+        de._BOOK.applied = 0
         root, _body, names, data = self._populate(self.dst, 9)
         cm, _out, err = self._save(self.dst, root, names, data, src=self.master)
         self.assertIsNotNone(cm, "over-cap save must exit 2")
@@ -2342,7 +2343,7 @@ class DeliverableGateTests(unittest.TestCase):
         self.assertIn("word cap deferred", err)
         self.assertTrue(os.path.exists(self.dst))
         wg.advance(state, "seniority-approved")
-        de._APPLIED = 0
+        de._BOOK.applied = 0
         root, body, names, data, _ = de.load(self.dst)
         cm, _out, err = self._save(self.dst, root, names, data,
                                    src=self.master)
@@ -2390,7 +2391,7 @@ class DeliverableGateTests(unittest.TestCase):
             if tt is not None and tt.text and "Quantified win" in tt.text:
                 tt.text = tt.text.replace("Quantified win", "Newer win")
         os.unlink(self.dst)  # fixture empty docx must not count as output
-        de._APPLIED = 0
+        de._BOOK.applied = 0
         cm, _out, err = self._save(self.dst, root, names, data,
                                    src=self.master)
         self.assertIsNotNone(cm, "unapproved role elimination must exit 2")
@@ -2412,11 +2413,66 @@ class DeliverableGateTests(unittest.TestCase):
             tt = p.find(f"{de.W}r/{de.W}t")
             if tt is not None and "Acme, MA" in (tt.text or ""):
                 tt.text = "New Co, City01/2024 – 12/2026"
-        de._APPLIED = 0
+        de._BOOK.applied = 0
         cm, _out, err = self._save(self.dst, root, names, data,
                                    src=self.master)
         self.assertIsNone(cm, err)
         self.assertTrue(os.path.exists(self.dst))
+
+
+class BookKwargTests(unittest.TestCase):
+    """DriftBook plumbing through load()/save(): the module-default book.
+
+    Mutators always record into the module-default de._BOOK (spec D1);
+    save() snapshots that book (it stays at the 5-argument lint cap —
+    no book= kwarg), and load()'s book= kwarg redirects the orig-map
+    population to a caller-held book. Tests redirect accounting by
+    rebinding de._BOOK.
+    """
+
+    def setUp(self):
+        fd, self.path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        doc = (
+            '<?xml version="1.0"?>'
+            '<w:document xmlns:w="' + de.XMLNS + '"><w:body>'
+            "<w:p><w:r><w:t>Alpha bullet</w:t></w:r></w:p>"
+            "<w:p><w:r><w:t>Beta bullet</w:t></w:r></w:p>"
+            "</w:body></w:document>"
+        )
+        with zipfile.ZipFile(self.path, "w") as z:
+            z.writestr("word/document.xml", doc)
+            z.writestr("[Content_Types].xml", "<Types/>")
+
+    def tearDown(self):
+        os.unlink(self.path)
+
+    def test_load_populates_caller_held_book_orig(self):
+        book = DriftBook()
+        module_entries_before = len(de._BOOK.orig)
+        _root, body, _names, _data, _ = de.load(self.path, book=book)
+        self.assertEqual(len(book.orig), 2)  # one entry per paragraph
+        first = de.paras(body)[0]
+        self.assertEqual(book.orig[id(first)], (first, "Alpha bullet"))
+        # Redirect, not mirror: the module-default book gains no entries from
+        # this call (whatever other classes left there stays, untouched).
+        self.assertEqual(len(de._BOOK.orig), module_entries_before)
+
+    def test_save_snapshots_the_module_book(self):
+        # A test redirects accounting by REBINDING the module book; save()
+        # snapshots whatever de._BOOK is — here a book seeded with one
+        # applied edit and one skip.
+        de._BOOK = DriftBook()
+        de._BOOK.record_applied()
+        de._BOOK.record_skip("Seeded Skip")
+        root, _body, names, data, _ = de.load(self.path)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            de.save(self.path, root, names, data)
+        # The report comes from the module book (1 applied, 1 skipped) and
+        # the book is spent by the snapshot.
+        self.assertIn("NOTICE: 1 edits applied, 1 skipped", err.getvalue())
+        self.assertEqual((de._BOOK.applied, de._BOOK.skips), (0, []))
 
 
 if __name__ == "__main__":

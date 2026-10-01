@@ -62,11 +62,9 @@ CLI (inspect structure before editing)::
 # the specific rationale at each site where one is retained.
 
 
-# pylint: disable=invalid-name,global-statement
+# pylint: disable=invalid-name
 # invalid-name: rPr/pPr/numId/… mirror OOXML w:rPr/pPr/numId schema tags
 #   verbatim so template/spec greps stay obvious.
-# global-statement: _APPLIED/_SKIPS/_ELEMENT_FORM_DROPS are module drift
-#   counters read by tests — the drift sidecar's recorded state.
 
 
 import copy
@@ -81,7 +79,7 @@ sys.path.insert(0, __file__.rsplit("/", 1)[0])  # flat-namespace siblings
 # scripts and sibling modules (measure_resume_drops, tailor_resume) import
 # it from docx_edit, the flat-namespace surface, so it is public contract
 # rather than dead code (same pattern as the measure_resume re-export shim).
-from docx_edit_drift import DriftMeta, drift_sidecar  # noqa: F401, pylint: disable=unused-import
+from docx_edit_drift import DriftBook, DriftMeta, drift_sidecar  # noqa: F401, pylint: disable=unused-import
 from docx_edit_gate import _deliverable_gate  # noqa: E402
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
@@ -110,17 +108,18 @@ def prune_sidecar_path(docx, jd_file=None):
     return f"{docx}.prune.{stem}.json"
 
 
-# Original-text snapshot for order-independent prefix resolution.
-# id(p) -> (paragraph, text as of load()/clone time). load() clears it
-# first, so it never spans documents and paragraphs stay alive via `body`
-# for the run — stale entries cannot clash.
-_ORIG = {}
+# Spacer paragraphs clone_after("", …) created for this session — see
+# save()'s managed-spacer note. Separate concern from drift accounting.
 _MANAGED_SPACERS = set()
 
-# Applied/skipped edit accounting for save()'s end-of-run report.
-_APPLIED = 0
-_SKIPS = []  # prefix/label of each skipped edit (recorded by mutators only)
-_ELEMENT_FORM_DROPS = 0  # drop()/drop_role()/drop_section() calls given an element
+# Edit accounting for save()'s end-of-run report: the module-default
+# DriftBook records every applied/skipped edit between load() and save().
+# Mutators record into _BOOK; save() snapshots it (printing the report)
+# and the book resets for the next session. Tests redirect accounting by
+# REBINDING ``de._BOOK = DriftBook()`` instead of resetting module
+# counters; load() also accepts ``book=`` to redirect the orig-map
+# population to a caller-held book.
+_BOOK = DriftBook()
 
 
 def _orig_text(p):
@@ -128,7 +127,7 @@ def _orig_text(p):
 
     ``None`` for paragraphs created after load (unless registered by
     ``clone_after``)."""
-    entry = _ORIG.get(id(p))
+    entry = _BOOK.orig.get(id(p))
     return entry[1] if entry else None
 
 
@@ -143,7 +142,7 @@ def _warn_missing(prefix_or_label, record=True):
     edit exactly once.
     """
     if record:
-        _SKIPS.append(prefix_or_label)
+        _BOOK.record_skip(prefix_or_label)
     print(
         f"warning: target paragraph not found (prefix/label: "
         f"{prefix_or_label!r}); master may have changed — skipping edit",
@@ -167,11 +166,14 @@ def _warn_ambiguous(prefix, samples):
     )
 
 
-def load(path):
+def load(path, book=None):
     """Open a .docx and return (root, body, names, data, W).
 
     Mutate `root`/`body` in place, then pass (root, names, data) to save().
+    ``book=`` redirects the original-text map to a caller-held DriftBook
+    (default: the module book) — used by tests to inspect ``book.orig``.
     """
+    book = book or _BOOK
     ET.register_namespace("w", XMLNS)
     with zipfile.ZipFile(path, "r") as z:
         names = z.namelist()
@@ -181,10 +183,10 @@ def load(path):
     # Snapshot each paragraph's ORIGINAL text so find_p can resolve prefixes
     # order-independently: a script's own later edits can't make one
     # paragraph's current text start with another target's prefix and collide.
-    _ORIG.clear()
+    book.orig.clear()
     _MANAGED_SPACERS.clear()
     for p in paras(body):
-        _ORIG[id(p)] = (p, text_of(p))
+        book.begin(p, text_of(p))
     return root, body, names, data, W
 
 
@@ -229,7 +231,6 @@ def save(path, root, names, data, *, drift=None):
     breakage) is never written at all — there is no .docx on disk to
     convert by hand. See _deliverable_gate.
     """
-    global _APPLIED, _ELEMENT_FORM_DROPS
     src = drift.src if drift else None
     _deliverable_gate(path, root, src)  # BEFORE the write: no gated file on disk
     data["word/document.xml"] = ET.tostring(
@@ -238,12 +239,7 @@ def save(path, root, names, data, *, drift=None):
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zout:
         for n in names:
             zout.writestr(n, data[n])
-    applied = _APPLIED
-    skipped = list(_SKIPS)
-    element_form = _ELEMENT_FORM_DROPS
-    _APPLIED = 0
-    _SKIPS.clear()
-    _ELEMENT_FORM_DROPS = 0
+    applied, skipped, element_form = _BOOK.snapshot()
     if element_form:
         print(
             f"note: {element_form} drop-family call(s) used the element form "
@@ -408,7 +404,6 @@ def set_text(p, text):
     No-op with a stderr warning if ``p`` is ``None`` (target paragraph not
     found in the master) so a script still runs when the master changed.
     """
-    global _APPLIED
     if p is None:
         _warn_missing(text[:40])
         return
@@ -418,7 +413,7 @@ def set_text(p, text):
         t = ET.SubElement(r, W + "t")
         t.text = text
         t.set(SPACE, "preserve")
-        _APPLIED += 1
+        _BOOK.record_applied()
         return
     first = rs[0]
     rPr = first.find(W + "rPr")
@@ -432,7 +427,7 @@ def set_text(p, text):
     if rPr is not None:
         first.remove(rPr)
         first.insert(0, rPr)
-    _APPLIED += 1
+    _BOOK.record_applied()
 
 
 def set_labeled(p, label, value):
@@ -503,8 +498,7 @@ def set_labeled(p, label, value):
     tval = ET.SubElement(rval, W + "t")
     tval.text = value
     tval.set(SPACE, "preserve")
-    global _APPLIED
-    _APPLIED += 1
+    _BOOK.record_applied()
 
 
 def replace_text(p, old, new):
@@ -538,7 +532,7 @@ def replace_text(p, old, new):
         # likely author error is a mismatched `find_p(...)` prefix pointing at
         # the wrong paragraph — so name the paragraph, not `old`, and record
         # the skipped edit so strict mode / drift sidecar still surface it.
-        _SKIPS.append(old)
+        _BOOK.record_skip(old)
         print(
             f"warning: replace_text({old!r}) targeted a paragraph that does "
             f"not contain that text; paragraph starts:"
@@ -563,14 +557,13 @@ def replace_text(p, old, new):
             f"cannot cross runs; no change made, edit skipped",
             file=sys.stderr,
         )
-        _SKIPS.append(old)
+        _BOOK.record_skip(old)
         return
     for r in _runs(p):
         for t in r.findall(W + "t"):
             if t.text and old in t.text:
                 t.text = t.text.replace(old, new)
-    global _APPLIED
-    _APPLIED += 1
+    _BOOK.record_applied()
 
 
 def remove_empty(body, startswith=None):
@@ -629,11 +622,10 @@ def clone_after(body, ref_p, text):
     t.set(SPACE, "preserve")
     idx = list(body).index(ref_p)
     body.insert(idx + 1, new)
-    _ORIG[id(new)] = (new, text)  # register so find_p can resolve it
+    _BOOK.register(new, text)  # register so find_p can resolve it
     if text == "":
         _MANAGED_SPACERS.add(new)
-    global _APPLIED
-    _APPLIED += 1
+    _BOOK.record_applied()
     return new
 
 
@@ -647,8 +639,7 @@ def remove(body, p):
         _warn_missing("(remove)")
         return
     body.remove(p)
-    global _APPLIED
-    _APPLIED += 1
+    _BOOK.record_applied()
 
 
 def drop(body, pfxes):
@@ -682,7 +673,7 @@ def drop(body, pfxes):
         if p is None:
             # find_p already warned (missing or ambiguous, record=False);
             # record the skip under the real prefix for save()'s report.
-            _SKIPS.append(prefix)
+            _BOOK.record_skip(prefix)
             continue
         remove(body, p)
     return paras(body)
@@ -719,7 +710,6 @@ def _prefix_arg(prefix, api):
     paragraph's element records a skip named by its own text instead of
     mutating some other paragraph.
     """
-    global _ELEMENT_FORM_DROPS
     if isinstance(prefix, str):
         return prefix
     tag = getattr(prefix, "tag", None)
@@ -727,7 +717,7 @@ def _prefix_arg(prefix, api):
         # Count instead of printing per call: a batch drop() of ~20 JD-cut
         # bullets printed 22 near-identical note lines, burying the real
         # stderr warnings. save() emits one summary line (see below).
-        _ELEMENT_FORM_DROPS += 1
+        _BOOK.record_element_form_drop()
         return text_of(prefix)
     raise TypeError(
         f"{api}() takes a prefix STRING (a copy-pasteable find_p(ps, '…') "
