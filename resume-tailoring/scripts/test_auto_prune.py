@@ -108,7 +108,7 @@ class _AutoPruneBase(unittest.TestCase):
     def setUp(self):
         self.body = _master_paras()
         self.roles = mr._roles(self.body)
-        self.jd_terms = mr._jd_terms(JD, self.body)
+        self.jd_terms = mr._jd_terms(JD)
         self.candidates = mrd.prune_candidates(self.roles, self.jd_terms,
                                                self.body, protect=())
         self.candidates.extend(auto_prune._intro_candidates(
@@ -269,7 +269,7 @@ class TestPlanDispositions(_AutoPruneBase):
                      if de.text_of(p).startswith("Tools & Technologies:"))
         de.set_text(tools, "Tools & Technologies: COBOL, Fortran")
         roles = mr._roles(body)
-        terms = mr._jd_terms(JD, body)
+        terms = mr._jd_terms(JD)
         candidates = mrd.prune_candidates(roles, terms, body, protect=())
         candidates.extend(auto_prune._intro_candidates(
             body, roles, terms, [de.text_of(p) for p in de.paras(body)]))
@@ -577,7 +577,7 @@ class TestJdContractAndEquivalences(unittest.TestCase):
     def test_theme_recorded_in_emitted_docstring(self):
         body = _master_paras()
         roles = mr._roles(body)
-        jd_terms = mr._jd_terms(_full_contract_jd(), body)
+        jd_terms = mr._jd_terms(_full_contract_jd())
         candidates = mrd.prune_candidates(roles, jd_terms, body,
                                           protect=())
         plan = auto_prune.plan_phase_a(candidates, roles, jd_terms, body)
@@ -591,7 +591,7 @@ class TestJdContractAndEquivalences(unittest.TestCase):
     def test_no_theme_no_line(self):
         body = _master_paras()
         roles = mr._roles(body)
-        jd_terms = mr._jd_terms(_full_contract_jd(), body)
+        jd_terms = mr._jd_terms(_full_contract_jd())
         candidates = mrd.prune_candidates(roles, jd_terms, body,
                                           protect=())
         plan = auto_prune.plan_phase_a(candidates, roles, jd_terms, body)

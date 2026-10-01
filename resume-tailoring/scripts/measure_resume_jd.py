@@ -35,6 +35,13 @@ W = de.W
 SECTION_STYLE = "SectionHeading"  # career/education/proficiencies headings
 
 
+class JdPosting(NamedTuple):
+    """A JD posting — its file path and raw text always travel together
+    (bundled so report helpers stay at the 5-argument lint cap)."""
+    file: str
+    text: str
+
+
 class InferenceSources(NamedTuple):
     """Evidence sources used for no-host JD terms.
 
@@ -190,16 +197,14 @@ def _jd_line_terms(line):
             | _adjacent_bigrams(line))
 
 
-def _jd_missing_terms(jd_text, body, jd_terms=None):
+def _jd_missing_terms(jd_text, body):
     """The engine's positive direction: asks with NO host in the whole
     document — the mining queue and the never-fabricate flags.
 
-    ``jd_terms`` is accepted for signature compatibility and ignored:
-    the engine's ask list IS the determination (the old
-    vocabulary-intersection + side-signal mining it parameterized is
-    retired — prose the stop lists miss never becomes an ask, so it
-    never surfaces as a missing hard skill)."""
-    # pylint: disable=unused-argument
+    The engine's ask list IS the determination (the old
+    vocabulary-intersection + side-signal mining is retired — prose the
+    stop lists miss never becomes an ask, so it never surfaces as a
+    missing hard skill)."""
     asks = jd_asks.parse_asks(jd_text)
     doc_low = re.sub(r"\s+", " ", " ".join(
         de.text_of(p) for p in de.paras(body))).lower()
@@ -337,7 +342,7 @@ def _missing_report_block(jd_text, missing):
     return lines, shown
 
 
-def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None,
+def _jd_report(jd, jd_terms, body=None, sources=None,
                *, extra_missing=()):
     """Lines describing the --jd ranking (printed before the page math).
 
@@ -349,7 +354,9 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None,
     With ``body``, also lists JD qualification terms the resume does not
     host anywhere (_jd_missing_terms) — the 'never fabricate' flags made
     mechanical instead of an agent re-reading the posting — followed by
-    the deterministic INFERENCE MAP over those terms. ``sources`` carries
+    the deterministic INFERENCE MAP over those terms. ``jd`` is the
+    posting (JdPosting: file + text bundled — they always travel
+    together). ``sources`` carries
     the adjacent master body and optional LinkedIn dump. Each no-host term
     gets a mechanical verdict: AUTO-HOST (evidence found — host it) or
     RAISE (no evidence — ask the user). "No literal host" is a flag to
@@ -357,7 +364,8 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None,
     terms (the ATS gap queue) merged into that internal list before the
     map runs, so the map's verdicts cover the combined queue. Keyword-only
     to keep the positional signature at the lint cap.
-    """  # pylint: disable=too-many-arguments
+    """
+    jd_file, jd_text = jd
     tmp_note = tmp_jd_note(jd_file)
     words = len(jd_text.split())
     if not jd_terms:
@@ -387,7 +395,7 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None,
             f"drop match terms); a recruiter's message is fine."
         )
     if body is not None:
-        missing = list(_jd_missing_terms(jd_text, body, jd_terms))
+        missing = list(_jd_missing_terms(jd_text, body))
         for term in extra_missing:
             if term not in missing:
                 missing.append(term)
@@ -399,19 +407,19 @@ def _jd_report(jd_file, jd_text, jd_terms, body=None, sources=None,
     return lines
 
 
-def _print_jd_report(jd_file, jd_text, jd_terms, body, sources=None,
+def _print_jd_report(jd, jd_terms, body, sources=None,
                      *, extra_missing=()):
     """Print the JD report + title-alignment check.
 
-    too-many-arguments: the report needs the merged gap list alongside the
-    five inputs it already takes — a keyword-only extra beats smuggling it
-    through the evidence-sources tuple.
-    """  # pylint: disable=too-many-arguments
-    for line in _jd_report(jd_file, jd_text, jd_terms, body, sources,
+    The report needs the merged gap list alongside the four inputs it
+    already takes — a keyword-only extra beats smuggling it through the
+    evidence-sources tuple.
+    """
+    for line in _jd_report(jd, jd_terms, body, sources,
                            extra_missing=extra_missing):
         print(line)
     print("JD TITLE vs HEADLINE:")
-    lvl, msg = title_alignment_notes(body, jd_text)
+    lvl, msg = title_alignment_notes(body, jd.text)
     tag = {"warn": "WARNING", "ok": "ok", "note": "note"}[lvl]
     print(f"  {tag}: {msg}")
 

@@ -596,7 +596,7 @@ class JDAwareTests(unittest.TestCase):
     def test_jd_terms_intersect_proficiencies_with_jd(self):
         jd = "Hands-on Selenium, Cypress, or Playwright. CI/CD with Jenkins " \
              "or GitHub Actions. Performance testing with Gatling."
-        terms = mr._jd_terms(jd, self._prof_body())
+        terms = mr._jd_terms(jd)
         for want in ("cypress", "playwright", "jenkins", "gatling",
                      "github actions"):
             self.assertIn(want, terms, f"{want!r} must be a JD-matched term")
@@ -608,7 +608,7 @@ class JDAwareTests(unittest.TestCase):
         # the generic-hit-rate guard fires (term hits >50% of bullets).
         jd = "Required Qualifications:\n" \
              "Java, Python, C# programming. SQL and REST APIs."
-        terms = mr._jd_terms(jd, self._prof_body())
+        terms = mr._jd_terms(jd)
         for want in ("java", "python", "c#", "sql", "rest"):
             self.assertIn(want, terms, f"{want!r} must be a JD ask")
 
@@ -616,18 +616,17 @@ class JDAwareTests(unittest.TestCase):
         # The vocabulary intersection is retired: asks are JD-side truth.
         # A repeated anchor term mines even when the resume never claims
         # it (that is exactly the case the add side must surface).
-        body = self._prof_body()
         jd = "Required Qualifications:\n" \
              "Automation ownership required. Automation of deployments. " \
              "Cypress experience a plus."
-        terms = mr._jd_terms(jd, body)
+        terms = mr._jd_terms(jd)
         self.assertIn("automation", terms)
         self.assertIn("cypress", terms)
 
     def test_jd_terms_include_title_vocab(self):
         # 'sdet' comes from the job title line, not the proficiency block.
         jd = "Five or more years as an SDET."
-        terms = mr._jd_terms(jd, self._prof_body())
+        terms = mr._jd_terms(jd)
         self.assertIn("sdet", terms)
 
     def test_jd_terms_include_bullet_only_tool(self):
@@ -635,23 +634,10 @@ class JDAwareTests(unittest.TestCase):
         # the master, absent from the proficiency list) must still be a JD
         # term when the JD names it — otherwise the Snyk bullet falls to the
         # cut list, the very JD-blind bug --jd exists to fix.
-        body = _body([
-            _para("Technical Proficiencies", style="SectionHeading"),
-            _para("Programming Languages: Java, C#, JavaScript, Python"),
-            _para("Certifications", style="SectionHeading"),
-            _para(mr.SECTION_CAREER, style="SectionHeading"),
-            _para("Company ABC, City" + _sample_date() + " – 08/2016",
-                  style=mr.COMPANY_STYLE),
-            _para("Senior SDET", style="JobTitleBlock"),
-            _para("Adhered high-priority compliance and configured Snyk "
-                  "for team repositories", numId=2),
-            _para("Tools & Technologies: Java, SQL"),
-            _para(mr.SECTION_EDUCATION, style="SectionHeading"),
-        ])
         jd = "Required Qualifications:\n" \
              "Exposure to security testing tools (OWASP ZAP, Burp Suite, " \
              "Snyk)."
-        terms = mr._jd_terms(jd, body)
+        terms = mr._jd_terms(jd)
         self.assertIn("snyk", terms)
 
     def test_jd_terms_exclude_common_prose_words(self):
@@ -662,12 +648,12 @@ class JDAwareTests(unittest.TestCase):
         body.append(_para("Increased test coverage and engaged stakeholders"))
         jd = "Drive continuous improvement of test coverage. Engage " \
              "stakeholders across the SDLC."
-        terms = mr._jd_terms(jd, body)
+        terms = mr._jd_terms(jd)
         for banned in ("coverage", "stakeholders"):
             self.assertNotIn(banned, terms)
 
     def test_jd_terms_skip_short_or_numeric_tokens(self):
-        self.assertNotIn("c", mr._jd_terms("C programming", self._prof_body()))
+        self.assertNotIn("c", mr._jd_terms("C programming"))
 
     def test_jd_matched_bullets_never_suggested_while_weak_remain(self):
         # Cypress (JD Required qual) can rank weak and land on the cut list
@@ -750,7 +736,7 @@ class JDAwareTests(unittest.TestCase):
         # specific — and a pathological JD that asks only 'test' now
         # protects honestly (one rule, no negotiation).
         jd = "You will help the team. Help improve and help deliver."
-        terms = mr._jd_terms(jd, self._prof_body())
+        terms = mr._jd_terms(jd)
         for banned in ("help", "improve", "deliver", "team"):
             self.assertNotIn(banned, terms)
 
@@ -928,11 +914,11 @@ class CoreTechNounTests(unittest.TestCase):
            "Validate end-to-end business workflows and system integrations.")
 
     def test_lowercase_integration_in_jd_is_a_term(self):
-        terms = mr._jd_terms(self._JD, self._body())
+        terms = mr._jd_terms(self._JD)
         self.assertIn("integrations", terms)
 
     def test_partner_integration_bullet_is_jd_evidence(self):
-        terms = mr._jd_terms(self._JD, self._body())
+        terms = mr._jd_terms(self._JD)
         partner_bullet = ("Tested partner integrations against "
                 "their sandbox, coordinating with vendor engineers on " "unexpected response codes")
         self.assertTrue(mrd._evidenced(partner_bullet, terms),
@@ -942,18 +928,7 @@ class CoreTechNounTests(unittest.TestCase):
         # A CORE noun the JD names mines as an ask regardless of how many
         # resume bullets host it — the engine has no hit-rate guard; the
         # one rule (host or cut) needs no per-role negotiation.
-        body = _body([
-            _para("Technical Proficiencies", style="SectionHeading"),
-            _para("Databases: SQL Server"),
-            _para(mr.SECTION_CAREER, style="SectionHeading"),
-            _para("Company A" + _sample_date() + " – 08/2016",
-                  style=mr.COMPANY_STYLE),
-            _para("SDET", style="JobTitleBlock"),
-            _para("Validated database one", numId=2),
-            _para("Validated database two", numId=2),
-            _para(mr.SECTION_EDUCATION, style="SectionHeading"),
-        ])
-        terms = mr._jd_terms("SQL and database validation required.", body)
+        terms = mr._jd_terms("SQL and database validation required.")
         self.assertIn("sql", terms)
         # The ask is the compound the JD names; a bare word under a phrase
         # ask stays matchable but the phrase is what must be hosted.
@@ -964,14 +939,7 @@ class CoreTechNounTests(unittest.TestCase):
         # 'closely' is not a core tech noun: lowercase in the JD stays
         # rejected for bullet-only terms.
         jd = "you will be coordinating closely with partner teams"
-        body = _body([
-            _para(mr.SECTION_CAREER, style="SectionHeading"),
-            _para("Company A" + _sample_date() + " – 08/2016",
-                  style=mr.COMPANY_STYLE),
-            _para("SDET", style="JobTitleBlock"),
-            _para("Coordinating closely with partners", numId=2),
-        ])
-        self.assertNotIn("closely", mr._jd_terms(jd, body))
+        self.assertNotIn("closely", mr._jd_terms(jd))
 
 
 class LabelVocabEndToEndTests(unittest.TestCase):
@@ -999,7 +967,7 @@ class LabelVocabEndToEndTests(unittest.TestCase):
 
     def test_specific_label_line_is_jd_evidence_not_candidate(self):
         jd = "Deep hands-on expertise in CI/CD and observability tooling."
-        terms = mr._jd_terms(jd, self._body())
+        terms = mr._jd_terms(jd)
         self.assertIn("ci/cd", terms, "label vocabulary must reach _jd_terms")
         cands = mr._top_block_candidates(self._body(), terms)
         texts = [t for _p, t in cands]
@@ -1012,7 +980,7 @@ class LabelVocabEndToEndTests(unittest.TestCase):
         # whose only JD match is the generic label word is NOT evidence —
         # it becomes a review candidate (Theme Review A decides).
         jd = "Deep hands-on expertise in API testing and backend validation."
-        terms = mr._jd_terms(jd, self._body())
+        terms = mr._jd_terms(jd)
         self.assertIn("api", terms)
         cands = mr._top_block_candidates(self._body(), terms)
         texts = [t for _p, t in cands]
@@ -1023,7 +991,7 @@ class LabelVocabEndToEndTests(unittest.TestCase):
 
     def test_off_jd_label_lines_still_candidates(self):
         jd = "Deep hands-on expertise in API testing."
-        terms = mr._jd_terms(jd, self._body())
+        terms = mr._jd_terms(jd)
         cands = mr._top_block_candidates(self._body(), terms)
         texts = [t for _p, t in cands]
         self.assertTrue(any("Performance Boot Camp" in t for t in texts))
@@ -1331,7 +1299,7 @@ class PruneCandidatesTests(unittest.TestCase):
     def _cands(self, jd="Hands-on Cypress. CI/CD with Jenkins."):
         body = self._cand_body()
         roles = mr._roles(body)
-        terms = mr._jd_terms(jd, body)
+        terms = mr._jd_terms(jd)
         return mrd.prune_candidates(roles, terms, body)
 
     def test_schema_shape(self):
@@ -1385,8 +1353,7 @@ class PruneCandidatesTests(unittest.TestCase):
         body = self._cand_body()
         roles = mr._roles(body)
         cands = mrd.prune_candidates(
-            roles, mr._jd_terms("Hands-on Cypress. CI/CD with Jenkins.",
-                                body), body)
+            roles, mr._jd_terms("Hands-on Cypress. CI/CD with Jenkins."), body)
         tools = next(c for c in cands
                      if c["kind"] == "list-trim"
                      and c["text"].startswith("Tools & Technologies:"))
@@ -1663,7 +1630,7 @@ class ResolvedJdTermsTests(unittest.TestCase):
         # passed (regression: main computed jd_terms only inside the
         # --simulate block and silently fell back to JD-blind ranking).
         terms = mr._resolved_jd_terms(
-            "Required: Python and SQL.", self._body(), False, None)
+            "Required: Python and SQL.", False, None)
         self.assertIn("python", terms)
         self.assertIn("sql", terms)
 
@@ -1671,14 +1638,14 @@ class ResolvedJdTermsTests(unittest.TestCase):
         # The simulate block pre-computes terms from the PRE-DROP body;
         # the helper passes them through untouched.
         self.assertEqual(
-            mr._resolved_jd_terms(None, None, True, {"python"}), {"python"})
+            mr._resolved_jd_terms(None, True, {"python"}), {"python"})
 
     def test_with_simulate_and_no_jd_yields_empty(self):
-        self.assertEqual(mr._resolved_jd_terms(None, None, True, None), set())
+        self.assertEqual(mr._resolved_jd_terms(None, True, None), set())
 
     def test_no_jd_text_yields_empty_without_simulate(self):
         self.assertEqual(
-            mr._resolved_jd_terms(None, self._body(), False, None), set())
+            mr._resolved_jd_terms(None, False, None), set())
 
 
 class GapIfDroppedTests(unittest.TestCase):
@@ -1864,7 +1831,7 @@ class JdReportTests(unittest.TestCase):
 
     def test_full_term_list_printed_when_many(self):
         terms = {f"tool{i}" for i in range(12)}
-        lines = mr._jd_report("jd.txt", "word " * 400, terms)
+        lines = mr._jd_report(mr.JdPosting("jd.txt", "word " * 400), terms)
         joined = "\n".join(lines)
         for i in range(12):
             self.assertIn(f"tool{i}", joined)
@@ -1875,45 +1842,45 @@ class JdReportTests(unittest.TestCase):
         # (it is appended after `lines` exists) — this test exercises a /tmp
         # path on both the ranked path and the no-terms early return.
         # Both must carry the note.
-        lines = mr._jd_report("/tmp/somejd.txt", "word " * 400,
+        lines = mr._jd_report(mr.JdPosting("/tmp/somejd.txt", "word " * 400),
                               {"playwright"})
         self.assertTrue(
             any("/tmp/somejd.txt" in l and "jd_<target>.txt" in l
                 for l in lines), lines)
 
     def test_tmp_jd_note_on_no_terms_path(self):
-        lines = mr._jd_report("/tmp/somejd.txt", "garbage text", set())
+        lines = mr._jd_report(mr.JdPosting("/tmp/somejd.txt", "garbage text"), set())
         self.assertTrue(any("jd_<target>.txt" in l for l in lines), lines)
 
     def test_persistent_jd_path_has_no_note(self):
-        lines = mr._jd_report("jd_acme.txt", "word " * 400, {"playwright"})
+        lines = mr._jd_report(mr.JdPosting("jd_acme.txt", "word " * 400), {"playwright"})
         self.assertFalse(any("/tmp" in l for l in lines), lines)
 
     def test_word_count_reported(self):
-        lines = mr._jd_report("jd.txt", "word " * 400, {"python"})
+        lines = mr._jd_report(mr.JdPosting("jd.txt", "word " * 400), {"python"})
         self.assertIn("(400 words)", "\n".join(lines))
 
     def test_short_file_fidelity_note(self):
         # A full JD posting is rarely <100 words; if the file is, flag that
         # it may be a summary rather than the verbatim posting.
-        lines = mr._jd_report("jd.txt", "short jd text " * 5, {"python"})
+        lines = mr._jd_report(mr.JdPosting("jd.txt", "short jd text " * 5), {"python"})
         self.assertIn("verbatim", "\n".join(lines))
 
     def test_normal_full_jd_no_fidelity_note(self):
-        lines = mr._jd_report("jd.txt", "word " * 400, {"python"})
+        lines = mr._jd_report(mr.JdPosting("jd.txt", "word " * 400), {"python"})
         self.assertNotIn("verbatim", "\n".join(lines))
 
     def test_external_gap_is_sent_through_inference_map(self):
         body = _body([_para("Used a unit testing framework for components.")])
         lines = mr._jd_report(
-            "jd.txt", "word " * 400, {"component-level testing"},
+            mr.JdPosting("jd.txt", "word " * 400), {"component-level testing"},
             body=body, extra_missing=("component-level testing",))
         joined = "\n".join(lines)
         self.assertIn("component-level testing", joined)
         self.assertIn("AUTO-HOST", joined)
 
     def test_no_terms_fallback_message(self):
-        lines = mr._jd_report("jd.txt", "word " * 400, set())
+        lines = mr._jd_report(mr.JdPosting("jd.txt", "word " * 400), set())
         self.assertTrue(any("no candidate-tech terms" in ln for ln in lines))
 
 
@@ -2009,7 +1976,7 @@ class InferenceMapTests(unittest.TestCase):
         # _jd_report emits the map when the body misses JD terms.
         jd = ("Required Qualifications:\n"
               "5+ years of experience with AWS Services and Ontology\n")
-        lines = mr._jd_report("jd.txt", jd, {"sql"}, self._body())
+        lines = mr._jd_report(mr.JdPosting("jd.txt", jd), {"sql"}, self._body())
         joined = "\n".join(lines)
         self.assertIn("JD terms with NO host", joined)
         self.assertIn("INFERENCE MAP", joined)
@@ -2144,7 +2111,7 @@ class JdMissingTermsTests(unittest.TestCase):
 
     def test_reports_jd_skills_with_no_host(self):
         missing = {t.lower() for t in
-                   mr._jd_missing_terms(self.JD, self._body(), set())}
+                   mr._jd_missing_terms(self.JD, self._body())}
         self.assertIn("rest assured", missing)
         self.assertIn("soapui", missing)
         # The JD asks for the 'Agile development' process — the ask is the
@@ -2153,7 +2120,7 @@ class JdMissingTermsTests(unittest.TestCase):
 
     def test_hosted_skills_not_reported(self):
         missing = {t.lower() for t in
-                   mr._jd_missing_terms(self.JD, self._body(), set())}
+                   mr._jd_missing_terms(self.JD, self._body())}
         for hosted in ("java", "cucumber", "testng", "sql", "selenium web"):
             self.assertNotIn(hosted, missing)
 
@@ -2161,7 +2128,7 @@ class JdMissingTermsTests(unittest.TestCase):
         # 'we build things' is mission prose and 'Required
         # Qualifications:' is a heading — neither may surface as a
         # missing skill; the title line is skipped wholesale.
-        missing = mr._jd_missing_terms(self.JD, self._body(), set())
+        missing = mr._jd_missing_terms(self.JD, self._body())
         self.assertNotIn("acmeco", [t.lower() for t in missing])
         self.assertNotIn("qualifications",
                          [t.lower() for t in missing])
@@ -2174,7 +2141,7 @@ class JdMissingTermsTests(unittest.TestCase):
                    mr._jd_missing_terms(
                        "Hi there, I'm recruiting for a Senior QA Engineer "
                        "role. REST Assured and SoapUI experience would be " "great.",
-                       self._body(), set())}
+                       self._body())}
         self.assertIn("rest assured", missing)
         self.assertIn("soapui", missing)
 
@@ -2265,7 +2232,7 @@ class JdTermRecallTests(unittest.TestCase):
         # the old _jd_capitalized-only gate rejected every one of them, so
         # the plan flagged the AI-adoption bullets as OFF-JD ("no JD
         # evidence") while they carried the JD's literal core ask.
-        terms = mr._jd_terms(self.JD, self._body())
+        terms = mr._jd_terms(self.JD)
         for want in ("agents", "context", "sdlc"):
             self.assertIn(want, terms, f"{want!r} is a core JD ask")
 
@@ -2273,14 +2240,14 @@ class JdTermRecallTests(unittest.TestCase):
         # The master's GEICO intro (kept, rewritten content) hosts the
         # 'harness layer' — mining only numbered bullets made every
         # intro-hosted ask lexically invisible to the prune plan.
-        terms = mr._jd_terms(self.JD, self._body())
+        terms = mr._jd_terms(self.JD)
         self.assertIn("harness", terms)
 
     def test_compound_metric_bigrams_mine(self):
         # 'cycle time' / 'review latency' are the JD's measurement asks; the
         # single-token scan cannot see compounds, so the RCA bullet read as
         # evidence-free and the coverage map printed 'own' as the ask.
-        terms = mr._jd_terms(self.JD, self._body())
+        terms = mr._jd_terms(self.JD)
         for want in ("cycle time", "review latency"):
             self.assertIn(want, terms)
 
@@ -2306,7 +2273,7 @@ class JdTermRecallTests(unittest.TestCase):
         # prose.
         bullet = ("Served as a subject matter expert for Karate framework, "
                   "hosting training sessions.")
-        terms = mr._jd_terms(self.JD, self._body())
+        terms = mr._jd_terms(self.JD)
         self.assertFalse(mrd._evidenced(bullet, terms),
                          "unevidenced bullet must not be protected")
 
@@ -2314,28 +2281,15 @@ class JdTermRecallTests(unittest.TestCase):
         # 'Triaged'/'Developed'/'Reviewed' open bullets — they are the
         # candidate's ACTION VERBS. Morphological variant matching must not
         # admit the verb ('reviewed'→'review') as a JD ask via frequency.
-        body = _body([
-            _para("Career Experience", style="SectionHeading"),
-            _para("Acme, City" + _sample_date() + " – 08/2016",
-                  style=mr.COMPANY_STYLE),
-            _para("Reviewed production incidents weekly.", numId=2),
-            _para("Reviewed handbooks for the compliance team.", numId=2),
-        ])
         jd = "Review latency matters. Every change gets a review."
-        self.assertNotIn("reviewed", mr._jd_terms(jd, body))
+        self.assertNotIn("reviewed", mr._jd_terms(jd))
 
     def test_state_code_acronyms_not_mined(self):
         # Acronyms admit on WHOLE-WORD JD presence: 'CA' from 'San Diego,
         # CA' headers and 'OS'/'IT' from prose must not mine as terms (a
         # 2-char substring check matches 'ca' inside 'candidate').
-        body = _body([
-            _para("Career Experience", style="SectionHeading"),
-            _para("Acme, San Diego, CA" + _sample_date() + " – 08/2016",
-                  style=mr.COMPANY_STYLE),
-            _para("Built macOS and iOS test harnesses", numId=2),
-        ])
         jd = "Build the platform the top firms run on."
-        terms = mr._jd_terms(jd, body)
+        terms = mr._jd_terms(jd)
         for banned in ("ca", "os", "it", "id", "ms", "ng"):
             self.assertNotIn(banned, terms)
 
@@ -2343,15 +2297,8 @@ class JdTermRecallTests(unittest.TestCase):
         # 'RCA' is a 3-char acronym: the len>=4 token scan never saw it,
         # and 'RCA drafting' is lowercase-adjacent prose to the capitalization
         # gate. Acronym extraction from the resume's '(RCAs)' hosts it.
-        body = _body([
-            _para("Career Experience", style="SectionHeading"),
-            _para("Acme, City" + _sample_date() + " – 08/2016",
-                  style=mr.COMPANY_STYLE),
-            _para("Triaged production incidents, authoring root cause "
-                  "analyses (RCAs) and reviewing them.", numId=2),
-        ])
         jd = "incident triage and RCA drafting. The RCA feeds the fix."
-        self.assertIn("rca", mr._jd_terms(jd, body))
+        self.assertIn("rca", mr._jd_terms(jd))
 
     def test_ask_section_headers_collect_quals(self):
         # The fixed canonical headers (SKILL Step 1) are the ONLY
@@ -2380,7 +2327,7 @@ class JdTermRecallTests(unittest.TestCase):
                   style=mr.COMPANY_STYLE),
             _para("Built web platform services", numId=2),
         ])
-        missing = {t.lower() for t in mr._jd_missing_terms(jd, body, set())}
+        missing = {t.lower() for t in mr._jd_missing_terms(jd, body)}
         self.assertIn("kotlin", missing)
         self.assertIn("swift", missing)
         # Mission prose (company, before the first ask section)
@@ -2395,7 +2342,8 @@ class JdTermRecallTests(unittest.TestCase):
              ", ".join(f"Tool{i}" for i in range(40)) + \
              " expertise required."
         body = self._body()
-        lines = mr._jd_report("jd.txt", jd, {"selenium"}, body=body)
+        lines = mr._jd_report(mr.JdPosting("jd.txt", jd), {"selenium"},
+                             body=body)
         missing_block = re.sub(r"\s+", " ", "\n".join(lines))
         self.assertIn("more, strongest signals shown first", missing_block)
 
@@ -2433,7 +2381,7 @@ class KeepTrimCandidatesTests(unittest.TestCase):
             "Built Selenium suites with Java, TestNG and Playwright. "
             "Ran weekly standups and sprint retrospectives.")
         section = mr._keep_trim_section(mr._roles(body),
-                                        mr._jd_terms(jd, body), body)
+                                        mr._jd_terms(jd), body)
         self.assertIn("WORD-LEVEL TRIM CANDIDATES", section)
         self.assertIn("JD does not name: playwright, testng", section)
         self.assertIn("sentence with no JD evidence", section)
@@ -2454,7 +2402,7 @@ class KeepTrimCandidatesTests(unittest.TestCase):
             _para("Automated QA: TestNG, Selenium, Playwright"),
         ])
         section = mr._keep_trim_section(mr._roles(body),
-                                        mr._jd_terms(jd, body), body)
+                                        mr._jd_terms(jd), body)
         self.assertIn("find_p(ps, ", section)
         self.assertIn("- JD does not name: testng, playwright", section)
         self.assertNotIn("no JD term on this line", section)
@@ -2471,7 +2419,7 @@ class KeepTrimCandidatesTests(unittest.TestCase):
             _para("Tools & Technologies: TestNG, JUnit"),
         ])
         section = mr._keep_trim_section(mr._roles(body),
-                                        mr._jd_terms(jd, body), body)
+                                        mr._jd_terms(jd), body)
         self.assertIn("no JD term on this line — whole-line "
                       "cut (TOP-BLOCK rule), not token trimming", section)
 
@@ -2486,7 +2434,7 @@ class KeepTrimCandidatesTests(unittest.TestCase):
             _para("Code Review Standards: Gerrit, GitHub"),
         ])
         section = mr._keep_trim_section(mr._roles(body),
-                                        mr._jd_terms(jd, body), body)
+                                        mr._jd_terms(jd), body)
         self.assertIn("Code Review Standards", section or "")
         self.assertIn("gerrit, github", section or "")
 
@@ -2502,7 +2450,7 @@ class KeepTrimCandidatesTests(unittest.TestCase):
             "Ran root-cause triage on flaky builds with Kafka. "
             "Attended optional office socials.")
         section = mr._keep_trim_section(mr._roles(body),
-                                        mr._jd_terms(jd, body), body)
+                                        mr._jd_terms(jd), body)
         self.assertNotIn("sentence with no JD evidence: \"Ran root-cause",
                          section)
         self.assertIn("Attended optional office socials", section)
@@ -2521,7 +2469,7 @@ class KeepTrimCandidatesTests(unittest.TestCase):
                   numId=2),
         ])
         section = mr._keep_trim_section(mr._roles(body),
-                                        mr._jd_terms(jd, body), body)
+                                        mr._jd_terms(jd), body)
         self.assertNotIn("Organized team meetings", section or "")
 
     def test_silent_without_jd(self):
@@ -2986,7 +2934,7 @@ class RequirementsSummaryTests(unittest.TestCase):
                   numId=2),
         ])
         roles = mr._roles(body)
-        jd_terms = mr._jd_terms(jd, body)
+        jd_terms = mr._jd_terms(jd)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             mr._print_jd_coverage(roles, body, jd, jd_terms)
@@ -3007,7 +2955,7 @@ class RequirementsSummaryTests(unittest.TestCase):
                   numId=2),
         ])
         roles = mr._roles(body)
-        jd_terms = mr._jd_terms(jd, body)
+        jd_terms = mr._jd_terms(jd)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             mr._print_jd_coverage(roles, body, jd, jd_terms)
@@ -3033,7 +2981,7 @@ class RequirementsSummaryTests(unittest.TestCase):
                   numId=2),
         ])
         roles = mr._roles(body)
-        jd_terms = mr._jd_terms(jd, body)
+        jd_terms = mr._jd_terms(jd)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             mr._print_jd_coverage(roles, body, jd, jd_terms)

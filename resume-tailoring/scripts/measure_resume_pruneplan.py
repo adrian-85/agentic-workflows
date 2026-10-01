@@ -21,6 +21,7 @@ from measure_resume_drops import (  # noqa: E402
     prune_candidates)
 from measure_resume_format import _roles  # noqa: E402
 from measure_resume_jd import (  # noqa: E402
+    JdPosting,
     InferenceSources,
     _print_jd_coverage,
     _print_jd_report,
@@ -107,7 +108,7 @@ def _main_prune_plan(args):
           "count is decided. Page/word math on the unpruned master is "
           "never measured; prune, then measure the tailored copy " "(SKILL Step 5).")
     print()
-    _print_jd_report(args.jd_file, args.jd_text, jd_terms, body,
+    _print_jd_report(JdPosting(args.jd_file, args.jd_text), jd_terms, body,
                      InferenceSources(linkedin_text=args.evidence_text))
     _print_jd_coverage(roles, body, args.jd_text, jd_terms)
     _print_jd_audit(roles, body, jd_terms, args.protect)

@@ -149,14 +149,13 @@ import gap_queue  # noqa: E402
 import jd_asks  # noqa: E402
 
 
-def _jd_terms(jd_text, body=None):
+def _jd_terms(jd_text):
     """The engine's ask phrases as a set (one extraction shared with
     ats_audit and auto_prune).
 
-    ``body`` is accepted for signature compatibility and unused — asks
-    are JD-side truth, never resume-intersected (the old
+    Asks are JD-side truth, never resume-intersected (the old
     vocabulary-intersection engine protected exactly the content this
-    workflow exists to cut)."""  # pylint: disable=unused-argument
+    workflow exists to cut)."""
     return {a.phrase for a in jd_asks.parse_asks(jd_text)}
 
 from jd_asks import (  # engine home: JD parsing names live here now
@@ -166,6 +165,7 @@ from jd_asks import (  # engine home: JD parsing names live here now
 )
 
 from measure_resume_jd import (
+    JdPosting,
     HEADLINE_STYLE,
     InferenceSources,
     INFERENCE_FAMILIES,
@@ -263,7 +263,7 @@ def _default_target_note(total_pages, target, is_default):
             "= 3) so the reclaim plan measures the goal actually agreed on.")
 
 
-def _resolved_jd_terms(jd_text, body, simulate, sim_jd_terms):
+def _resolved_jd_terms(jd_text, simulate, sim_jd_terms):
     """JD terms the --jd report and DROP PLAN rank with.
 
     With ``--simulate`` the terms come from the PRE-DROP body (computed
@@ -272,7 +272,7 @@ def _resolved_jd_terms(jd_text, body, simulate, sim_jd_terms):
     made ``--jd`` silently JD-blind when ``--simulate`` was absent."""
     if simulate:
         return set(sim_jd_terms) if sim_jd_terms is not None else set()
-    return _jd_terms(jd_text, body) if jd_text else set()
+    return _jd_terms(jd_text) if jd_text else set()
 
 
 def _print_usage():
@@ -367,7 +367,7 @@ def _print_simulate(docx, simulate, jd_file, jd_text, td):
     _, pre_body, _, _, _ = de.load(docx)
     pre_roles = _roles(pre_body)
     if jd_file:
-        sim_jd_terms = _jd_terms(jd_text, pre_body)
+        sim_jd_terms = _jd_terms(jd_text)
     sim_path = os.path.join(td, "simulated.docx")
     docx, dropped = _apply_simulate(docx, simulate, sim_path)
     print("SIMULATED seniority alignment — the file on disk was "
@@ -688,10 +688,10 @@ def _load_and_render(args):
         _, body, _, _, _ = de.load(docx)
         roles = _roles(body)
         jd_terms = _resolved_jd_terms(
-            args.jd_text, body, args.simulate, sim_jd_terms)
+            args.jd_text, args.simulate, sim_jd_terms)
         if args.jd_file:
             internal_missing = _jd_missing_terms(
-                args.jd_text, body, jd_terms)
+                args.jd_text, body)
             if master_body is None and internal_missing:
                 _fail_without_master(
                     "JD terms with NO host in the resume")
@@ -700,7 +700,7 @@ def _load_and_render(args):
             if master_body is None and extra_missing:
                 _fail_without_master("external ATS gap")
             _print_jd_report(
-                args.jd_file, args.jd_text, jd_terms, body,
+                JdPosting(args.jd_file, args.jd_text), jd_terms, body,
                 InferenceSources(linkedin_text=args.evidence_text,
                                  master_body=master_body,
                                  soft_terms=soft_terms),

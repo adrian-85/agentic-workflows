@@ -104,8 +104,7 @@ def _squeeze_jd_setup(jd_file, docx, plan_only):
     jd_terms = set()
     if jd_file:
         jd_text = read_jd_text(jd_file)
-        _root, body0, _n, _d, _ = de.load(docx)
-        jd_terms = mr._jd_terms(jd_text, body0)
+        jd_terms = mr._jd_terms(jd_text)
         print(f"JD-aware ranking: {len(jd_terms)} term(s) matched from "
               f"{jd_file}")
 

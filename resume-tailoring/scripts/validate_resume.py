@@ -605,7 +605,7 @@ def _jd_checks(jd_path, body, span, opts, ctx):
         # measure (planning); the deliverable gate runs HERE, so bullets
         # with no unified ask evidence surface at render time too — a
         # clean render is not automatically a JD-tight resume.
-        jd_fit = mr._jd_fit_audit(mr._roles(body), mr._jd_terms(jd_text, body),
+        jd_fit = mr._jd_fit_audit(mr._roles(body), mr._jd_terms(jd_text),
                                   protect=opts.protect)
         if jd_fit:
             flagged = sum(1 for s in jd_fit for l in s.splitlines()
