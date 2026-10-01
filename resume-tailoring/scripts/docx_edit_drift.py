@@ -1,14 +1,23 @@
-"""Drift-sidecar bookkeeping for docx_edit.save().
+"""Drift bookkeeping for docx_edit.save().
 
 Split from docx_edit.py (same reason as docx_edit_gate.py) so the editor
 core stays focused and under the module-size lint cap with headroom for
 future work. This module is a LEAF: it imports only the stdlib and never
 docx_edit, so docx_edit can import it at module load with no cycle.
 
-Owns the ``<path>.drift.json`` sidecar: the per-script applied-edit
-baseline, the master sha256 (MASTER CHANGED detection), and the
-folds-must-be-additive paragraph count check. See docx_edit.save()'s
-docstring for the behavioral contract; only the bookkeeping lives here.
+Two concerns live here, both serving save()'s drift reporting:
+
+* ``DriftBook`` — the IN-MEMORY edit accounting between load() and the
+  next save(): applied/skipped/element-form counters plus the
+  original-text map (id(p) -> (p, text at load/clone time)) that find_p
+  resolves prefixes against. It replaces docx_edit's former module-level
+  mutable counters; docx_edit keeps a module-default ``_BOOK`` and
+  tests rebind a fresh book instead of resetting globals.
+* ``drift_sidecar`` — the ``<path>.drift.json`` sidecar: the per-script
+  applied-edit baseline, the master sha256 (MASTER CHANGED detection),
+  and the folds-must-be-additive paragraph count check. See
+  docx_edit.save()'s docstring for the behavioral contract; only the
+  bookkeeping lives here.
 """
 
 import hashlib
@@ -109,3 +118,58 @@ def drift_sidecar(path, drift, applied, root):
     except OSError:
         pass  # sidecar is best-effort; never fails the save
     return master_changed
+
+
+class DriftBook:
+    """Accumulates edit accounting between load() and the next save().
+
+    save() reads a snapshot of these values to print its end-of-run
+    report, then the book resets for the next session. DO NOT rely on
+    the counter values after save() has snapshotted the book.
+    """
+
+    def __init__(self) -> None:
+        self.applied = 0
+        self.skips: list[str] = []
+        self.element_form_drops = 0
+        # id(p) -> (paragraph, text as of load()/clone time). Cleared by
+        # load() (never save()) — paragraphs stay alive via `body` for the
+        # run, so stale entries cannot clash.
+        self.orig: dict[int, tuple] = {}
+
+    # -- mutator entry points (called by docx_edit's mutators) --
+    def record_applied(self) -> None:
+        """Count one landed edit."""
+        self.applied += 1
+
+    def record_skip(self, prefix_or_label: str) -> None:
+        """Record one skipped edit (reported by save(); strict fails)."""
+        self.skips.append(prefix_or_label)
+
+    def record_element_form_drop(self) -> None:
+        """Count one drop-family call given an element, not a prefix."""
+        self.element_form_drops += 1
+
+    # -- original-text registration (replaces the _ORIG map) --
+    def begin(self, p, text: str) -> None:
+        """load(): record a paragraph's ORIGINAL text for later resolution."""
+        self.orig[id(p)] = (p, text)
+
+    def register(self, p, text: str) -> None:
+        """clone_after(): register a NEW paragraph so find_p can resolve it."""
+        self.orig[id(p)] = (p, text)
+
+    def snapshot(self) -> tuple[int, list[str], int]:
+        """save(): read + reset the counters atomically (for the report).
+
+        Returns (applied, skips copy, element_form_drops) and leaves the
+        book zeroed; ``orig`` is NOT spent — the load()→save() window may
+        still resolve prefixes after a snapshot.
+        """
+        applied = self.applied
+        skips = list(self.skips)
+        element_form = self.element_form_drops
+        self.applied = 0
+        self.skips.clear()
+        self.element_form_drops = 0
+        return applied, skips, element_form
