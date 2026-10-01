@@ -560,7 +560,7 @@ class DropTests(unittest.TestCase):
             p = ET.SubElement(body, W + "p")
             t = ET.SubElement(p, W + "t")
             t.text = text
-            de._BOOK.orig[id(p)] = (p, de.text_of(p))
+            de._BOOK.register(p, de.text_of(p))
         self.body = body
         de._BOOK.applied = 0
         de._BOOK.skips.clear()
@@ -692,7 +692,7 @@ class DropRoleTests(unittest.TestCase):
         self.body = ET.Element(W + "body")
         for p in ps:
             self.body.append(p)
-            de._BOOK.orig[id(p)] = (p, de.text_of(p))
+            de._BOOK.register(p, de.text_of(p))
         de._BOOK.applied = 0
         de._BOOK.skips.clear()
 
@@ -771,7 +771,7 @@ class DropRoleTests(unittest.TestCase):
                   mkstyled("Tools & Technologies: Java", "BodyText"),
                   mkstyled("", "BodyText")):
             body.append(p)
-            de._BOOK.orig[id(p)] = (p, de.text_of(p))
+            de._BOOK.register(p, de.text_of(p))
         try:
             de.drop_role(body, "Company A")
             self.assertEqual([de.text_of(p) for p in de.paras(body)], [])
@@ -785,7 +785,7 @@ class DropRoleTests(unittest.TestCase):
                   mkstyled("Bullet", "Body", numId=3),
                   mkstyled("Summary", "Heading")):
             body.append(p)
-            de._BOOK.orig[id(p)] = (p, de.text_of(p))
+            de._BOOK.register(p, de.text_of(p))
         try:
             de.drop_role(body, "Employer X", company_style="Employer",
                          boundary_styles=("Employer", "Heading"))
@@ -839,7 +839,7 @@ class StubRoleTests(unittest.TestCase):
         self.body = ET.Element(W + "body")
         for p in ps:
             self.body.append(p)
-            de._BOOK.orig[id(p)] = (p, de.text_of(p))
+            de._BOOK.register(p, de.text_of(p))
         de._BOOK.applied = 0
         de._BOOK.skips.clear()
 
@@ -897,7 +897,7 @@ class DropSectionTests(unittest.TestCase):
         self.body = ET.Element(W + "body")
         for p in ps:
             self.body.append(p)
-            de._BOOK.orig[id(p)] = (p, de.text_of(p))
+            de._BOOK.register(p, de.text_of(p))
         de._BOOK.applied = 0
         de._BOOK.skips.clear()
 
@@ -941,7 +941,7 @@ class OriginalTextResolutionTests(unittest.TestCase):
 
     def _register(self, *ps):
         for p in ps:
-            de._BOOK.orig[id(p)] = (p, de.text_of(p))
+            de._BOOK.register(p, de.text_of(p))
 
     def test_earlier_rewrite_cannot_collide_with_anothers_prefix(self):
         # Exact collision from an earlier tailoring run: two tools lines with
