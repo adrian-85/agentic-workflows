@@ -64,30 +64,14 @@ them. Re-run render_pdf.sh after cutting to verify.
 # the specific rationale at each site where one is retained.
 
 
-# pylint: disable=unused-import
-# measure_resume/validate_resume is the legacy RE-EXPORT shim: it preserves
-# the full mr.*/vr.* surface (imports that appear unused are the re-export
-# contract). Keep this header ONLY while the flat-namespace consumers
-# resolve these names through the shim.
-
-
-
-import contextlib
-import io
-import json
 import math
 from typing import NamedTuple
 import os
-import re
-import shutil
-import subprocess
 import sys
 import tempfile
-import textwrap
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
-import script_args  # noqa: E402
 from script_args import (MAX_WORDS, extract_common, extract_flag,  # noqa: E402
                          extract_flag_all, maybe_help, read_jd_text,
                          word_tokens)
@@ -225,6 +209,47 @@ from measure_resume_drops import (
     _suggest_drops,
     _top_role_batch,
     prune_candidates)
+# The flat-namespace re-export surface: every sibling name this shim
+# re-exports for its consumers. Explicit so the re-export contract is
+# auditable and pylint sees each listed import as the deliberate
+# re-export it is.
+__all__ = [
+    "BULLET_STYLES", "Budget", "COMPANY_STYLE", "CORE_TECH_NOUNS", "DATE_RE",
+    "GENERIC_PHRASES", "HEADLINE_STYLE", "INFERENCE_FAMILIES",
+    "InferenceSources", "JD_COMPANY_VOICE_RE", "JD_CONCEPTS",
+    "JD_SELF_ASSESSMENT", "JD_SEQ_TERM_RE", "JD_SHORT_WORDS",
+    "JD_SOFT_SKILL_RE", "JD_STOP", "JD_WORD_TERM_RE", "JdPosting",
+    "SECTION_CAREER", "SECTION_EDUCATION", "SECTION_PROFICIENCIES",
+    "SECTION_STYLE", "TITLE_LABEL_RE", "TITLE_MAX_WORDS",
+    "TITLE_RANK_PATTERNS", "VOCAB_STYLE", "_DROP_ACTION",
+    "_INFERENCE_MATCH_CAP", "_NUMBER", "_adjacent_bigrams",
+    "_adjacent_master_body", "_all_bullet_texts", "_apply_simulate",
+    "_batch_section", "_boundaries_without_spacer", "_bullet_terms",
+    "_company_key", "_concept_hits", "_dead_end_roles", "_drop_created_gaps",
+    "_drop_plan_lines", "_drop_sections", "_drop_suggestions",
+    "_education_cost", "_fail_without_master", "_family_roots",
+    "_fixed_top_cost", "_flat_from_pages", "_gap_if_dropped",
+    "_headline_text", "_inference_map", "_inference_variants", "_is_footer",
+    "_is_protected", "_iter_plan_roles", "_jd_capitalized", "_jd_fit_audit",
+    "_jd_hits", "_jd_line_terms", "_jd_line_terms_map", "_jd_listing_lines",
+    "_jd_missing_terms", "_jd_report", "_jd_requirement_coverage",
+    "_jd_requirement_lines", "_jd_title", "_keep_trim_section",
+    "_layout_hints", "_line_terms", "_main_prune_plan",
+    "_match_roles_to_pages", "_measured_lines_per_bullet", "_norm",
+    "_page_fill", "_page_lines", "_page_removal_note", "_pdf_pages_text",
+    "_preceding_role_key", "_print_disposition_checklist", "_print_jd_audit",
+    "_print_jd_coverage", "_print_jd_report", "_print_top_block_lines",
+    "_proficiency_block", "_protected_count", "_protected_top_role_section",
+    "_reclaim_batch", "_render_pdf", "_role_header_flat",
+    "_role_jd_evidence_lines", "_role_span_months", "_roles",
+    "_suggest_drops", "_title_rank", "_top_block_candidates",
+    "_top_role_batch", "_visible_span", "_vocab_terms", "_weakness_key",
+    "_wrapped_tools", "_write_prune_sidecar", "prune_candidates",
+    "title_alignment_notes",
+]
+
+
+
 
 def _is_master_input(docx):
     """True when <docx> is the master resume — the same convention

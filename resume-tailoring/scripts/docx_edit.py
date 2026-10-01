@@ -75,12 +75,21 @@ import zipfile
 from xml.etree import ElementTree as ET
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])  # flat-namespace siblings
-# unused-import: DriftMeta is a deliberate RE-EXPORT — emitted tailor
-# scripts and sibling modules (measure_resume_drops, tailor_resume) import
-# it from docx_edit, the flat-namespace surface, so it is public contract
-# rather than dead code (same pattern as the measure_resume re-export shim).
-from docx_edit_drift import DriftBook, DriftMeta, drift_sidecar  # noqa: F401, pylint: disable=unused-import
+from docx_edit_drift import DriftBook, DriftMeta, drift_sidecar
 from docx_edit_gate import _deliverable_gate  # noqa: E402
+
+# The editor's public surface (api.md documents it; emitted tailor scripts
+# import from it). DriftMeta is re-exported from its home module here so
+# pre-existing emitted scripts keep resolving it through docx_edit —
+# __all__ marks that re-export as deliberate.
+__all__ = [
+    "DriftMeta", "JOB_TITLE_STYLE", "ROLE_STYLE", "SECTION_STYLE", "SPACE",
+    "TITLE_STYLE", "W", "XMLNS", "clone_after", "drop", "drop_role",
+    "drop_section", "find_p", "load", "merge_into", "paras",
+    "prune_sidecar_path", "remove", "remove_empty", "replace_text", "save",
+    "set_labeled", "set_text", "shortest_unique_prefix", "stub_role",
+    "style_and_numid", "text_of",
+]
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 XMLNS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"

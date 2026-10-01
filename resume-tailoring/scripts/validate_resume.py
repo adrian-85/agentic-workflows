@@ -95,19 +95,10 @@ Usage:
 # the specific rationale at each site where one is retained.
 
 
-# pylint: disable=unused-import
-# measure_resume/validate_resume is the legacy RE-EXPORT shim: it preserves
-# the full mr.*/vr.* surface (imports that appear unused are the re-export
-# contract). Keep this header ONLY while the flat-namespace consumers
-# resolve these names through the shim.
-
-
-
 import json
 import os
 import re
 import sys
-import unicodedata
 from dataclasses import dataclass
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -168,6 +159,24 @@ from validate_resume_master import (
     _norm_text,
     _role_groups,
     _role_integrity_errors)
+# The flat-namespace re-export surface: every sibling name this shim
+# re-exports for its consumers. Explicit so the re-export contract is
+# auditable and pylint sees each listed import as the deliberate
+# re-export it is.
+__all__ = [
+    "DATE_RANGE", "DEGREE_RE", "EQUIV_CLAUSE_RE", "LIST_STYLES",
+    "MAX_BULLETS_PER_ROLE", "PARA_WORD_CAP", "SUMMARY_STYLE", "TITLE_STYLE",
+    "YEARS_RE", "_ASCII_OK_CHARS", "_TOOLS_LABEL_RE", "_bullet_cap_errors",
+    "_claim_years", "_company_headers", "_editable_word_cap_errors",
+    "_education_gate", "_final_presentation_errors", "_find_master",
+    "_has_education", "_history_gap_errors", "_is_bullet",
+    "_jd_states_years_ask", "_load_master_body", "_master_span",
+    "_master_texts", "_near_duplicates", "_norm_text", "_prose_paragraphs",
+    "_punctuation_errors", "_readability_guidance", "_region",
+    "_repeated_word_notes", "_role_groups", "_role_integrity_errors",
+    "_structural_errors", "_summary_paragraph", "_text_integrity_errors",
+    "_word_count",
+]
 
 @dataclass
 class TreeOptions:
