@@ -339,7 +339,7 @@ class TestEmittedScript(_AutoPruneBase):
         # authoring helpers ship in the emitted import block up front.
         # (Anchor on the list definition: the docstring also names
         # MACHINE_DROPS in prose.)
-        header = self._script().split("MACHINE_DROPS = [")[0]
+        header = self._script().split("MACHINE_DROPS = [", maxsplit=1)[0]
         for name in ("clone_after", "drop_role", "merge_into",
                      "set_labeled", "stub_role"):
             self.assertIn(name, header)

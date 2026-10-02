@@ -364,16 +364,18 @@ def _script_list_literal(tree, name):
     list literal (computed lists cannot be statically verified — skip
     rather than guess)."""
     for node in tree.body:
-        if (isinstance(node, ast.Assign)
-                and len(node.targets) == 1
-                and isinstance(node.targets[0], ast.Name)
-                and node.targets[0].id == name
-                and isinstance(node.value, ast.List)
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not (isinstance(target, ast.Name) and target.id == name):
+            continue
+        value = node.value
+        if not (isinstance(value, ast.List)
                 and all(isinstance(e, ast.Constant)
                         and isinstance(e.value, str)
-                        for e in node.value.elts)):
-            return (node.lineno,
-                    [e.value for e in node.value.elts])
+                        for e in value.elts)):
+            continue
+        return (node.lineno, [e.value for e in value.elts])
     return None
 
 
@@ -458,9 +460,8 @@ def lint_script(docx_path, script_path):
     if tree is None:
         return rc
     targets = _script_find_p_prefixes(tree)
-    if _report_undefined_names(_script_undefined_names(tree)):
-        return 1
-    if _report_restore_mismatches(_script_restore_mismatches(tree)):
+    if (_report_undefined_names(_script_undefined_names(tree))
+            or _report_restore_mismatches(_script_restore_mismatches(tree))):
         return 1
     if not targets:
         print(f"lint: no find_p calls found in {script_path} — nothing "
