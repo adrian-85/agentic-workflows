@@ -340,7 +340,8 @@ the token in `RESUME_VALIDATE_ARGS` (it writes then), then render.
 After the content edits (Steps 5–7), run `scripts/measure_resume.py <target.docx> [TARGET_PAGES]` —
 it renders once and reports the per-role line cost and the **exact reclaim gap** to the target page
 count, so you plan the oldest-role cuts as a batch instead of discovering them through a cut-render
-loop. Pass the agreed Step-4 target positionally (`measure_resume.py <target.docx> 3`) — measuring
+loop. Pass the agreed target positionally (`measure_resume.py <target.docx> 3`) or let it fall
+back to the state's recorded `target_pages` (see the render section below) — measuring
 against the 2-page default while over it prints a NOTE and over-reports the gap. Use its **BATCH
 RECLAIM PLAN** (measured lines-per-bullet from the actual render, oldest roles first) rather than
 estimating savings, and read its **page-fill table**: an underfilled page or a role header stranded
@@ -677,10 +678,13 @@ RESUME_RENDER_PHASE=final RESUME_WORKFLOW_STATE=<state> \
   ./scripts/render_pdf.sh --target-pages 3 --verbose "<output>.docx"  # final verification
 ```
 
-The render's page target defaults to 2 — but first it falls back to the `target_pages` the budgets
-gate recorded (`budgets --target-pages N`, the Step-5 agreed target), and only then to 2. Pass
-`--target-pages N` (or `TARGET_PAGES`) to override, so the overflow report measures against the
-goal you actually agreed on (3 for senior/Staff, not the 2-page default).
+The render's page target defaults to 2 — but first it falls back to the `target_pages` recorded
+in the workflow state (`advance ... seniority-approved --target-pages N` records the Step-5
+agreement; the budgets gate re-records it), and only then to 2. Pass `--target-pages N` (or
+`TARGET_PAGES`) to override, so the overflow report measures against the goal you actually
+agreed on (3 for senior/Staff, not the 2-page default). `measure_resume.py` resolves its target
+the same way — positional target first, then `TARGET_PAGES`, then the state's `target_pages`
+(`RESUME_WORKFLOW_STATE` or the `<build>.docx.workflow.json` sibling), then the 2-page default.
 
 `render_pdf.sh` **validates first** (runs `validate_resume.py`): it refuses to render on blocking
 errors — an orphan job title, a company without a title, content orphaned after a Tools line,

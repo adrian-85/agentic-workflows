@@ -17,6 +17,24 @@ import workflow_gate as wg
 class StateTransitionTests(unittest.TestCase):
     """Workflow phases advance once and in the required order."""
 
+    def test_seniority_approval_records_the_agreed_page_target(self):
+        # The page target is agreed at Step 5 (the drop-plan presentation)
+        # but the state recorded it only at budgets (Step 9's end) — every
+        # mid-loop measure/render between those measured against the
+        # 2-page default instead (contradictory ON/UNDER-target churn in
+        # session 01a0fa53). seniority-approved now accepts --target-pages
+        # and records it where the agreement happens; render_pdf.sh and
+        # measure_resume.py fall back to the state.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            wg.advance(path, "prune-theme-reviewed")
+            wg.advance(path, "ats-audited")
+            wg.advance(path, "ats-theme-reviewed")
+            wg.advance(path, "seniority-approved",
+                       state_updates={"target_pages": 3})
+            self.assertEqual(wg.load_state(path)["target_pages"], 3)
+
     def test_transitions_follow_theme_first_order(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "target.workflow.json")

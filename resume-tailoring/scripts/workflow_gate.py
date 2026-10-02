@@ -280,7 +280,8 @@ def _next_hint(phase):
         "ats-audited": "workflow_gate.py template ats <state> > theme_review_<target>_ats.json, "
                       "fill it, then: workflow_gate.py review <state> <filled.json>",
         "ats-theme-reviewed": "present the measured seniority drop plan; after the USER "
-                              "approves: workflow_gate.py advance <state> seniority-approved",
+                              "approves: workflow_gate.py advance <state> "
+                              "seniority-approved --target-pages <N>",
         "seniority-approved": "workflow_gate.py budgets <state> --words <N> --spill-lines <N> "
                               "[--target-pages <N>]",
         "budgets-closed": "workflow_gate.py spacers <state> [--omitted \"<role header>;...\"]",
@@ -377,10 +378,15 @@ def _main(argv=None):
         "advance", usage=(
             "workflow_gate.py advance <state> {"
             + "|".join(PHASES[1:])
-            + "}   # e.g. advance 'Name Resume - Target.docx.workflow.json' "
-              "seniority-approved"))
+            + "} [--target-pages N]   # e.g. advance 'Name Resume - Target"
+              ".docx.workflow.json' seniority-approved --target-pages 3"))
     advance_parser.add_argument("state")
     advance_parser.add_argument("phase", choices=PHASES[1:])
+    advance_parser.add_argument(
+        "--target-pages", type=int,
+        help="records the page target agreed at Step 5 (seniority "
+             "approval); render_pdf.sh and measure_resume.py fall back "
+             "to it when a run omits an explicit target")
     require_parser = sub.add_parser("require")
     require_parser.add_argument("state")
     require_parser.add_argument("phase", choices=PHASES)
@@ -442,7 +448,14 @@ def _dispatch(args):
     elif args.command == "template":
         print_review_template(args.kind, args.state)
     elif args.command == "advance":
-        advance(args.state, args.phase)
+        updates = {}
+        if args.target_pages is not None:
+            if args.phase != "seniority-approved":
+                raise GateError(
+                    "--target-pages records the page target agreed at "
+                    "Step 5 — pass it with seniority-approved")
+            updates["target_pages"] = args.target_pages
+        advance(args.state, args.phase, state_updates=updates or None)
     elif args.command == "budgets":
         close_budgets(args.state, args.words, args.spill_lines,
                       args.attempted_page_removal, args.target_pages)

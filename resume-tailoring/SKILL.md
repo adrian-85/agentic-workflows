@@ -468,8 +468,11 @@ recorded baseline set (schema: [docs/api.md](docs/api.md)).
 
 Run this step only after Theme Review B closes the baseline ATS findings (internal + the early
 external scan's merged queue). Record the user's approved
-role-drop decision with `workflow_gate.py advance <state> seniority-approved` before editing the
-script.
+role-drop decision with `workflow_gate.py advance <state> seniority-approved --target-pages <N>`
+before editing the script — `--target-pages` records the agreed page target where it is agreed
+(Step 5): every later `measure_resume.py` run without an explicit target and every
+`render_pdf.sh` without `--target-pages` then falls back to the state, so mid-loop runs stop
+contradicting each other against the 2-page default (pass it explicitly only to override).
 
 The seniority proposal must preserve any role that carries unique company-focus, domain, mission, or
 capability evidence, even when that evidence has few literal JD matches.

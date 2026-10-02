@@ -64,6 +64,7 @@ them. Re-run render_pdf.sh after cutting to verify.
 # the specific rationale at each site where one is retained.
 
 
+import json
 import math
 from typing import NamedTuple
 import os
@@ -260,12 +261,41 @@ def _is_master_input(docx):
     return os.path.basename(docx).endswith(" Master Resume.docx")
 
 
+def _state_target_pages(docx):
+    """The agreed page target recorded in the workflow state, or None.
+
+    ``advance ... seniority-approved --target-pages N`` records the
+    Step-5 agreement (``budgets`` re-records it), and render_pdf.sh
+    already falls back to the state — measure resolves the same way, so
+    a run without an explicit target measures against the goal the
+    user actually approved instead of the 2-page default. Reads
+    ``RESUME_WORKFLOW_STATE`` first, then the conventional sibling
+    sidecar (``<build>.docx.workflow.json``); missing, targetless, or
+    corrupt states fall through to None, never a crash."""
+    for path in (os.environ.get("RESUME_WORKFLOW_STATE"),
+                 docx + ".workflow.json"):
+        if not path:
+            continue
+        try:
+            with open(path, encoding="utf-8") as fh:
+                value = json.load(fh).get("target_pages")
+        except (OSError, ValueError):
+            continue
+        if isinstance(value, int) and value > 0:
+            return value
+    return None
+
+
 def _target_from_args(kept):
-    """(target, is_default) from the positional args or TARGET_PAGES env."""
+    """(target, is_default) from the positional args, TARGET_PAGES env,
+    or the workflow state's recorded target_pages — default 2 last."""
     if len(kept) > 1:
         return int(kept[1]), False
     if "TARGET_PAGES" in os.environ:
         return int(os.environ["TARGET_PAGES"]), False
+    state_target = _state_target_pages(kept[0])
+    if state_target:
+        return state_target, False
     return 2, True
 
 

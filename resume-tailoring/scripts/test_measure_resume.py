@@ -2014,6 +2014,62 @@ class TargetNoteTests(unittest.TestCase):
                 os.environ["TARGET_PAGES"] = saved
         self.assertEqual(mr._target_from_args(["doc.docx", "3"]), (3, False))
 
+    def _no_state_env(self):
+        # Neither fallback source may leak between tests.
+        saved_state = os.environ.get("RESUME_WORKFLOW_STATE")
+        saved_pages = os.environ.get("TARGET_PAGES")
+        os.environ.pop("RESUME_WORKFLOW_STATE", None)
+        os.environ.pop("TARGET_PAGES", None)
+        return (saved_state, saved_pages)
+
+    def _restore_env(self, saved):
+        saved_state, saved_pages = saved
+        for key, value in (("RESUME_WORKFLOW_STATE", saved_state),
+                           ("TARGET_PAGES", saved_pages)):
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    def test_state_target_pages_is_the_fallback_after_env(self):
+        # advance ... seniority-approved --target-pages N records the
+        # Step-5 agreement; a measure run without an explicit target
+        # reads it from the workflow state (sibling sidecar or
+        # RESUME_WORKFLOW_STATE) instead of the 2-page default — the
+        # mid-loop churn in session 01a0fa53 came from measuring the
+        # same build against target 2 and target 3 in different calls.
+        saved = self._no_state_env()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                docx = os.path.join(tmp, "build.docx")
+                with open(docx + ".workflow.json", "w",
+                          encoding="utf-8") as fh:
+                    fh.write('{"phase": "seniority-approved", '
+                             '"target_pages": 3}')
+                self.assertEqual(mr._target_from_args([docx]), (3, False))
+                # explicit beats state: positional and env both win
+                self.assertEqual(mr._target_from_args([docx, "2"]),
+                                 (2, False))
+                os.environ["TARGET_PAGES"] = "4"
+                self.assertEqual(mr._target_from_args([docx]), (4, False))
+                os.environ.pop("TARGET_PAGES", None)
+            # no state sidecar -> default, and never a crash on a
+            # missing, targetless, or corrupt state
+            self.assertEqual(mr._target_from_args(["absent.docx"]),
+                             (2, True))
+            with tempfile.TemporaryDirectory() as tmp:
+                docx = os.path.join(tmp, "build.docx")
+                with open(docx + ".workflow.json", "w",
+                          encoding="utf-8") as fh:
+                    fh.write('{"phase": "pruned"}')
+                self.assertEqual(mr._target_from_args([docx]), (2, True))
+                with open(docx + ".workflow.json", "w",
+                          encoding="utf-8") as fh:
+                    fh.write('not json')
+                self.assertEqual(mr._target_from_args([docx]), (2, True))
+        finally:
+            self._restore_env(saved)
+
 
 class PageRemovalNoteTests(unittest.TestCase):
     """Page removal is permitted only for a spill of five lines or fewer."""
