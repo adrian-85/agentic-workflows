@@ -12,7 +12,6 @@ so `python3 scripts/docx_edit.py` keeps working unchanged.
 import ast
 import builtins
 import contextlib
-import difflib
 import io
 import json
 import os
@@ -380,14 +379,12 @@ def _script_list_literal(tree, name):
 
 
 def _nearest_drops(entry, drops):
-    """MACHINE_DROPS entries closest to a mismatched RESTORES entry —
-    prefix kinship first (the machine's entries are uniqueness-truncated
-    prefixes, so a mismatched restore usually extends or shortens one),
-    then edit distance for renames."""
-    kin = [d for d in drops if d.startswith(entry) or entry.startswith(d)]
-    if kin:
-        return sorted(kin, key=len)[:3]
-    return difflib.get_close_matches(entry, drops, n=3, cutoff=0.25)
+    """MACHINE_DROPS entries kin to a mismatched RESTORES entry — one is
+    a prefix of the other, which is exactly the truncation mismatch the
+    restore author hit."""
+    return sorted((d for d in drops
+                   if d.startswith(entry) or entry.startswith(d)),
+                  key=len)[:3]
 
 
 def _script_restore_mismatches(tree):
