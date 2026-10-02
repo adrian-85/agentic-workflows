@@ -429,8 +429,9 @@ def _report_restore_mismatches(mismatches):
               f"exact match, so this restore never fires (copy the entry "
               f"verbatim from MACHINE_DROPS){hint}", file=sys.stderr)
     if mismatches:
-        print(f"lint: {len(mismatches)} RESTORES entr"
-              f"{'y' if len(mismatches) == 1 else 'ies'} match no "
+        noun = ("entry matches no" if len(mismatches) == 1
+                else "entries match no")
+        print(f"lint: {len(mismatches)} RESTORES {noun} "
               "MACHINE_DROPS entry — the bullets restore as dropped and "
               "later set_text anchors on them fail; fix before running",
               file=sys.stderr)
