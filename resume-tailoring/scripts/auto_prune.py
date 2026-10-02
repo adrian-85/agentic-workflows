@@ -55,8 +55,6 @@ from docx_edit import (SECTION_STYLE, paras, shortest_unique_prefix,  # noqa: E4
                        text_of, prune_sidecar_path)
 from measure_resume_drops import _sentence_clauses, _weakness_key, \
     prune_candidates  # noqa: E402
-from measure_resume_format import (BULLET_STYLES, COMPANY_STYLE,
-                                   SECTION_PROFICIENCIES)
 import measure_resume_format as mrf  # noqa: E402
 import jd_asks  # noqa: E402
 import jd_sections  # noqa: E402
@@ -194,11 +192,11 @@ def _top_sections(body):
             if started and heading is not None:
                 out.append((heading, contents))
             heading, contents = (t.strip(), []) if t.strip() else (None, [])
-            started = started or t.strip() == SECTION_PROFICIENCIES
+            started = started or t.strip() == mrf.SECTION_PROFICIENCIES
             continue
         if not started:
             continue
-        if style == COMPANY_STYLE and t.strip():
+        if style == mrf.COMPANY_STYLE and t.strip():
             break  # career region begins
         if heading is not None and t.strip():
             contents.append(t.strip())
@@ -741,13 +739,13 @@ def _intro_candidates(body, _roles, _jd_terms, all_texts):
     for p in de.paras(body):
         style, num_id = de.style_and_numid(p)
         txt = de.text_of(p).strip()
-        if style == COMPANY_STYLE and txt:
+        if style == mrf.COMPANY_STYLE and txt:
             cur = txt
             continue
         if cur is None or not txt:
             continue
         is_bullet = (num_id is not None and num_id != "0") or \
-            style in BULLET_STYLES
+            style in mrf.BULLET_STYLES
         if is_bullet or (txt.lower().startswith("tool") and
                          "technolog" in txt.lower()):
             continue
