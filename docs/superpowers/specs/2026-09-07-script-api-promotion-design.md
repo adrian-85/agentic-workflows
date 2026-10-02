@@ -1,7 +1,7 @@
 # Script API Promotion (defer W0212) — Design Spec
 
 **Date**: 2026-09-07 (inventory refreshed 2026-10-02)
-**Status**: In implementation — inventory refreshed against the post-split tree
+**Status**: Implemented (2026-10-02) — inventory refreshed against the post-split tree, then landed as planned
 **Author**: Pi Agent (brainstorming session), inventory from pylint 4.0.8
 run
 

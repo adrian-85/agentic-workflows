@@ -53,7 +53,7 @@ authoring:
   STUB — company header, job title(s), Tools & Technologies row, blank spacers, and the ONE bullet
   whose text starts with the keep-prefix. The gap-intolerant alternative to `drop_role`: an interior
   role that must leave the visible span is stubbed, never dropped (a drop opens an employment gap,
-  and `validate_resume` blocks that outright — `measure_resume_format._drop_created_gaps` is the
+  and `validate_resume` blocks that outright — `measure_resume_format.drop_created_gaps` is the
   shared detector and `measure_resume --simulate` prints `INTERIOR GAP`). A missing role or keep
   prefix records a skip and mutates nothing.
 - **`save()` drift sidecar**: auto-maintains `<dst>.drift.json` keyed by the calling script. First
@@ -271,7 +271,7 @@ Dropping an interior role (surviving roles on both sides) opens an employment ho
 can kill an application, so it is never an approvable state. `validate_resume._history_gap_errors`
 runs unconditionally (not just when the ≥2y seniority gate fires) and BLOCKS the deliverable with
 `employment history gap: ...` regardless of `--seniority-approved`. `measure_resume --simulate`
-prints `INTERIOR GAP` for such a drop at plan time (`measure_resume_format._drop_created_gaps`).
+prints `INTERIOR GAP` for such a drop at plan time (`measure_resume_format.drop_created_gaps`).
 The fix is `stub_role`, never an approval token:
 
 ```python

@@ -225,7 +225,7 @@ diff before merge (user-confirmed).
 | C0103 invalid-name (numId ×3) | 3 | **Suppress** | inline `# pylint: disable=invalid-name` at the 3 sites in `measure_resume.py`/`validate_resume.py` (OOXML vocabulary) |
 | W0603 global-statement (docx_edit) | 7 | **Fixed** | DriftBook refactor landed (2026-09-30, spec `2026-09-07-driftbook-refactor-design.md`): counters live on a `DriftBook` object in `docx_edit_drift.py`; the file-header `global-statement` disable is REMOVED |
 | C0413 wrong-import-position | 6 | **Suppress** | file-header disable on the 5 flat-namespace scripts (the `sys.path.insert(0, …)` bootstrap precedes sibling imports by necessity); `ai-judge/judge.py` hoists the insert to top + inline disable on its import line |
-| W0212 protected-access | 26 | **Suppress** | global disable in `pyproject.toml` (convention rationale above; API promotion deferred) |
+| W0212 protected-access | 26 | **Suppress → Fixed** | global disable REMOVED (2026-10-02, spec `2026-09-07-script-api-promotion-design.md`): the 18 shared helpers were promoted to public names; test files keep per-file white-box pragmas only |
 | R0902 too-many-instance-attributes | 1 | **Suppress** | class-line disable on `StepRecord` (data record mirroring wire schema) |
 | R0903 too-few-public-methods | 1 | **Suppress** | class-line disable on mock-api `Store` |
 | W0718 broad-exception-caught | 5 | **Suppress** | inline `# pylint: disable=broad-exception-caught` at true process boundaries with comment (user-approved): cli server-wait retry, adversarial payload truncation, adversarial probe isolation, validate master-parse boundary |
