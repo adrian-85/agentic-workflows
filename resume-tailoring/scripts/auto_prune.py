@@ -56,7 +56,8 @@ from docx_edit import (SECTION_STYLE, paras, shortest_unique_prefix,  # noqa: E4
 from measure_resume_drops import _sentence_clauses, _weakness_key, \
     prune_candidates  # noqa: E402
 from measure_resume_format import (BULLET_STYLES, COMPANY_STYLE,
-                                   SECTION_PROFICIENCIES, _roles)
+                                   SECTION_PROFICIENCIES)
+import measure_resume_format as mrf  # noqa: E402
 import jd_asks  # noqa: E402
 import jd_sections  # noqa: E402
 import workflow_gate  # noqa: E402
@@ -769,7 +770,7 @@ def _load_candidates(docx, jd_text):
     when the JD has no intersection with the resume's vocabulary or
     yields no prune candidates (nothing to machine-prune)."""
     _, body, _, _, _ = de.load(docx)
-    roles = _roles(body)
+    roles = mrf.roles(body)
     jd_terms = {a.phrase for a in jd_asks.parse_asks(jd_text)}
     if not jd_terms:
         print("error: no JD asks were extracted — check the JD file is the "

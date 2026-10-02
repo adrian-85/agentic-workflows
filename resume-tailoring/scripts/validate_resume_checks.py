@@ -230,7 +230,7 @@ def _final_presentation_errors(body, omitted_spacers=()):
     unrecorded missing spacer still blocks.
     """
     errors = []
-    roles = mr._roles(body)
+    roles = mr.roles(body)
     for role in roles:
         if not role["has_tools"]:
             errors.append(
@@ -242,7 +242,7 @@ def _final_presentation_errors(body, omitted_spacers=()):
         value = text.split(":", 1)[1].strip() if ":" in text else ""
         if not value:
             errors.append("Tools & Technologies row has no value row")
-    missing = [header for header, _anchor in mr._boundaries_without_spacer(body)]
+    missing = [header for header, _anchor in mr.boundaries_without_spacer(body)]
     norm_omitted = {_norm_ws(o) for o in omitted_spacers}
     unrecorded = []
     for header in missing:
@@ -515,7 +515,7 @@ def _readability_guidance(body, summary, *, region=None,
     # gate, not only in measure's report (which fires only when the
     # last page has slack, so an agent skipping measure never saw it).
     spacer_gaps = ([] if is_master
-                   else mr._boundaries_without_spacer(body))
+                   else mr.boundaries_without_spacer(body))
     if spacer_gaps:
         # FULL headers, never truncated: the spacer gate matches recorded
         # omissions against the complete header text verbatim, so a

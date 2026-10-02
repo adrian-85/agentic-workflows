@@ -65,14 +65,14 @@ def _sample_date():
 
 
 class CompanyKeyTests(unittest.TestCase):
-    """_company_key strips a trailing date to yield a PDF-match prefix."""
+    """company_key strips a trailing date to yield a PDF-match prefix."""
 
     def test_default_date_pattern(self):
         # Verbatim reference pin: strips the MM/YYYY date and
         # whitespace-normalizes the company portion. Update when DATE_RE
         # is re-configured for a different date format.
         self.assertEqual(
-            mr._company_key("Company ABC, Phoenix, AZ06/2013 – 08/2016"),
+            mr.company_key("Company ABC, Phoenix, AZ06/2013 – 08/2016"),
             "Company ABC, Phoenix, AZ",
         )
 
@@ -81,7 +81,7 @@ class CompanyKeyTests(unittest.TestCase):
         try:
             mrf.DATE_RE = re.compile(r"\d{4}-\d{2}")
             self.assertEqual(
-                mr._company_key("Widgets Inc2024-03 – 2025-01"),
+                mr.company_key("Widgets Inc2024-03 – 2025-01"),
                 "Widgets Inc",
             )
         finally:
@@ -89,7 +89,7 @@ class CompanyKeyTests(unittest.TestCase):
 
 
 class RolesTests(unittest.TestCase):
-    """_roles finds roles between the career/education sections."""
+    """roles finds roles between the career/education sections."""
 
     def _default_body(self):
         """The reference resume's structure, built from the CURRENT constants
@@ -105,7 +105,7 @@ class RolesTests(unittest.TestCase):
         ])
 
     def test_parses_default_structure(self):
-        roles = mr._roles(self._default_body())
+        roles = mr.roles(self._default_body())
         self.assertEqual(len(roles), 1)
         r = roles[0]
         self.assertEqual(r["key"], "Company ABC, Phoenix, AZ")
@@ -115,19 +115,19 @@ class RolesTests(unittest.TestCase):
     def test_roles_capture_bullet_texts_in_order(self):
         # The DROP PLAN needs the actual bullet texts (not just a count) to
         # rank weakest-first and emit copy-pasteable find_p prefixes.
-        roles = mr._roles(self._default_body())
+        roles = mr.roles(self._default_body())
         self.assertEqual(roles[0]["bullet_texts"], ["Bullet one", "Bullet two"])
 
     def test_bullet_texts_excludes_tools_line(self):
         # A Tools line is not a cuttable bullet and must not be ranked.
-        roles = mr._roles(self._default_body())
+        roles = mr.roles(self._default_body())
         self.assertNotIn("Tools & Technologies: Java, SQL",
                          roles[0]["bullet_texts"])
 
     def test_counts_bullets_with_style_level_numbering(self):
         # A resume whose bullets are numbered by the PARAGRAPH STYLE (e.g.
         # Word built-in "List Bullet": <w:numPr> lives in styles.xml, not on
-        # the paragraph) has no paragraph numId. _roles must count those via
+        # the paragraph) has no paragraph numId. roles must count those via
         # BULLET_STYLES, or a style-numbered resume reports bullets=0 and the
         # reclaim plan is empty.
         body = _body([
@@ -138,7 +138,7 @@ class RolesTests(unittest.TestCase):
             _para("Bullet two", style="ListBullet"),
             _para(mr.SECTION_EDUCATION, style="SectionHeading"),
         ])
-        roles = mr._roles(body)
+        roles = mr.roles(body)
         self.assertEqual(len(roles), 1)
         self.assertEqual(roles[0]["bullets"], 2,
                          "style-numbered bullets must count via BULLET_STYLES")
@@ -156,7 +156,7 @@ class RolesTests(unittest.TestCase):
                 _para("Bullet one", style="MyBullet"),
                 _para(mr.SECTION_EDUCATION, style="SectionHeading"),
             ])
-            roles = mr._roles(body)
+            roles = mr.roles(body)
         finally:
             mrf.BULLET_STYLES = saved
         self.assertEqual(roles[0]["bullets"], 1)
@@ -177,7 +177,7 @@ class RolesTests(unittest.TestCase):
                 _para("Shipped the thing", numId=1),
                 _para("Training", style="SectionHeading"),
             ])
-            roles = mr._roles(body)
+            roles = mr.roles(body)
         finally:
             (mrf.SECTION_CAREER, mrf.SECTION_EDUCATION,
              mrf.COMPANY_STYLE, mrf.DATE_RE) = saved
@@ -253,7 +253,7 @@ class LayoutAndReclaimTests(unittest.TestCase):
             ({"key": "A", "bullets": 2, "has_tools": False}, 1, 1, 8),
             ({"key": "B", "bullets": 1, "has_tools": True}, 1, 2, 5),
         ]
-        per = mr._measured_lines_per_bullet(matched)
+        per = mr.measured_lines_per_bullet(matched)
         self.assertAlmostEqual(per, 8 / 3, places=6)
 
     def test_reclaim_batch_oldest_first_whole_role(self):
@@ -265,7 +265,7 @@ class LayoutAndReclaimTests(unittest.TestCase):
         ]
         # Match the (r, sp, ep, rendered) tuple shape used by main().
         wrapped = [(d, 1, 1, 26 if d["key"] == "Recent" else 6) for d in matched]
-        plan, remaining = mr._reclaim_batch(wrapped, 2.5, 5)
+        plan, remaining = mr.reclaim_batch(wrapped, 2.5, 5)
         self.assertEqual(plan[0][0], "Oldest")
         self.assertIn("whole role", plan[0][1])
         self.assertLessEqual(remaining, 0)
@@ -279,7 +279,7 @@ class LayoutAndReclaimTests(unittest.TestCase):
         wrapped = [
             (d, i, i, 5) for i, d in enumerate(matched, start=1)
         ]
-        plan, _ = mr._reclaim_batch(wrapped, 2.5, 6)
+        plan, _ = mr.reclaim_batch(wrapped, 2.5, 6)
         # Oldest first: Old (whole role, 5), then Middle (1 bullet, 2.5).
         self.assertEqual([p[0] for p in plan], ["Old", "Middle"])
         self.assertIn("drop 1 bullet", plan[1][1])
@@ -596,7 +596,7 @@ class JDAwareTests(unittest.TestCase):
     def test_jd_terms_intersect_proficiencies_with_jd(self):
         jd = "Hands-on Selenium, Cypress, or Playwright. CI/CD with Jenkins " \
              "or GitHub Actions. Performance testing with Gatling."
-        terms = mr._jd_terms(jd)
+        terms = mr.jd_terms(jd)
         for want in ("cypress", "playwright", "jenkins", "gatling",
                      "github actions"):
             self.assertIn(want, terms, f"{want!r} must be a JD-matched term")
@@ -608,7 +608,7 @@ class JDAwareTests(unittest.TestCase):
         # the generic-hit-rate guard fires (term hits >50% of bullets).
         jd = "Required Qualifications:\n" \
              "Java, Python, C# programming. SQL and REST APIs."
-        terms = mr._jd_terms(jd)
+        terms = mr.jd_terms(jd)
         for want in ("java", "python", "c#", "sql", "rest"):
             self.assertIn(want, terms, f"{want!r} must be a JD ask")
 
@@ -619,14 +619,14 @@ class JDAwareTests(unittest.TestCase):
         jd = "Required Qualifications:\n" \
              "Automation ownership required. Automation of deployments. " \
              "Cypress experience a plus."
-        terms = mr._jd_terms(jd)
+        terms = mr.jd_terms(jd)
         self.assertIn("automation", terms)
         self.assertIn("cypress", terms)
 
     def test_jd_terms_include_title_vocab(self):
         # 'sdet' comes from the job title line, not the proficiency block.
         jd = "Five or more years as an SDET."
-        terms = mr._jd_terms(jd)
+        terms = mr.jd_terms(jd)
         self.assertIn("sdet", terms)
 
     def test_jd_terms_include_bullet_only_tool(self):
@@ -637,7 +637,7 @@ class JDAwareTests(unittest.TestCase):
         jd = "Required Qualifications:\n" \
              "Exposure to security testing tools (OWASP ZAP, Burp Suite, " \
              "Snyk)."
-        terms = mr._jd_terms(jd)
+        terms = mr.jd_terms(jd)
         self.assertIn("snyk", terms)
 
     def test_jd_terms_exclude_common_prose_words(self):
@@ -648,12 +648,12 @@ class JDAwareTests(unittest.TestCase):
         body.append(_para("Increased test coverage and engaged stakeholders"))
         jd = "Drive continuous improvement of test coverage. Engage " \
              "stakeholders across the SDLC."
-        terms = mr._jd_terms(jd)
+        terms = mr.jd_terms(jd)
         for banned in ("coverage", "stakeholders"):
             self.assertNotIn(banned, terms)
 
     def test_jd_terms_skip_short_or_numeric_tokens(self):
-        self.assertNotIn("c", mr._jd_terms("C programming"))
+        self.assertNotIn("c", mr.jd_terms("C programming"))
 
     def test_jd_matched_bullets_never_suggested_while_weak_remain(self):
         # Cypress (JD Required qual) can rank weak and land on the cut list
@@ -736,7 +736,7 @@ class JDAwareTests(unittest.TestCase):
         # specific — and a pathological JD that asks only 'test' now
         # protects honestly (one rule, no negotiation).
         jd = "You will help the team. Help improve and help deliver."
-        terms = mr._jd_terms(jd)
+        terms = mr.jd_terms(jd)
         for banned in ("help", "improve", "deliver", "team"):
             self.assertNotIn(banned, terms)
 
@@ -914,11 +914,11 @@ class CoreTechNounTests(unittest.TestCase):
            "Validate end-to-end business workflows and system integrations.")
 
     def test_lowercase_integration_in_jd_is_a_term(self):
-        terms = mr._jd_terms(self._JD)
+        terms = mr.jd_terms(self._JD)
         self.assertIn("integrations", terms)
 
     def test_partner_integration_bullet_is_jd_evidence(self):
-        terms = mr._jd_terms(self._JD)
+        terms = mr.jd_terms(self._JD)
         partner_bullet = ("Tested partner integrations against "
                 "their sandbox, coordinating with vendor engineers on " "unexpected response codes")
         self.assertTrue(mrd._evidenced(partner_bullet, terms),
@@ -928,7 +928,7 @@ class CoreTechNounTests(unittest.TestCase):
         # A CORE noun the JD names mines as an ask regardless of how many
         # resume bullets host it — the engine has no hit-rate guard; the
         # one rule (host or cut) needs no per-role negotiation.
-        terms = mr._jd_terms("SQL and database validation required.")
+        terms = mr.jd_terms("SQL and database validation required.")
         self.assertIn("sql", terms)
         # The ask is the compound the JD names; a bare word under a phrase
         # ask stays matchable but the phrase is what must be hosted.
@@ -939,11 +939,11 @@ class CoreTechNounTests(unittest.TestCase):
         # 'closely' is not a core tech noun: lowercase in the JD stays
         # rejected for bullet-only terms.
         jd = "you will be coordinating closely with partner teams"
-        self.assertNotIn("closely", mr._jd_terms(jd))
+        self.assertNotIn("closely", mr.jd_terms(jd))
 
 
 class LabelVocabEndToEndTests(unittest.TestCase):
-    """Label words flow through _jd_terms: a proficiencies line whose
+    """Label words flow through jd_terms: a proficiencies line whose
     label or values carry SPECIFIC JD evidence is not a TOP-BLOCK cut
     candidate. A GENERIC-only label ('API & Web Services' against a JD
     asking 'API testing') does not protect the line — generic vocabulary
@@ -967,8 +967,8 @@ class LabelVocabEndToEndTests(unittest.TestCase):
 
     def test_specific_label_line_is_jd_evidence_not_candidate(self):
         jd = "Deep hands-on expertise in CI/CD and observability tooling."
-        terms = mr._jd_terms(jd)
-        self.assertIn("ci/cd", terms, "label vocabulary must reach _jd_terms")
+        terms = mr.jd_terms(jd)
+        self.assertIn("ci/cd", terms, "label vocabulary must reach jd_terms")
         cands = mr._top_block_candidates(self._body(), terms)
         texts = [t for _p, t in cands]
         self.assertFalse(
@@ -980,7 +980,7 @@ class LabelVocabEndToEndTests(unittest.TestCase):
         # whose only JD match is the generic label word is NOT evidence —
         # it becomes a review candidate (Theme Review A decides).
         jd = "Deep hands-on expertise in API testing and backend validation."
-        terms = mr._jd_terms(jd)
+        terms = mr.jd_terms(jd)
         self.assertIn("api", terms)
         cands = mr._top_block_candidates(self._body(), terms)
         texts = [t for _p, t in cands]
@@ -991,7 +991,7 @@ class LabelVocabEndToEndTests(unittest.TestCase):
 
     def test_off_jd_label_lines_still_candidates(self):
         jd = "Deep hands-on expertise in API testing."
-        terms = mr._jd_terms(jd)
+        terms = mr.jd_terms(jd)
         cands = mr._top_block_candidates(self._body(), terms)
         texts = [t for _p, t in cands]
         self.assertTrue(any("Performance Boot Camp" in t for t in texts))
@@ -1298,8 +1298,8 @@ class PruneCandidatesTests(unittest.TestCase):
 
     def _cands(self, jd="Hands-on Cypress. CI/CD with Jenkins."):
         body = self._cand_body()
-        roles = mr._roles(body)
-        terms = mr._jd_terms(jd)
+        roles = mr.roles(body)
+        terms = mr.jd_terms(jd)
         return mrd.prune_candidates(roles, terms, body)
 
     def test_schema_shape(self):
@@ -1351,9 +1351,9 @@ class PruneCandidatesTests(unittest.TestCase):
         # REGRESSION: Tools-line candidates must carry their owning role
         # key so drop_role() covers them during prune validation.
         body = self._cand_body()
-        roles = mr._roles(body)
+        roles = mr.roles(body)
         cands = mrd.prune_candidates(
-            roles, mr._jd_terms("Hands-on Cypress. CI/CD with Jenkins."), body)
+            roles, mr.jd_terms("Hands-on Cypress. CI/CD with Jenkins."), body)
         tools = next(c for c in cands
                      if c["kind"] == "list-trim"
                      and c["text"].startswith("Tools & Technologies:"))
@@ -1651,7 +1651,7 @@ class ResolvedJdTermsTests(unittest.TestCase):
 class GapIfDroppedTests(unittest.TestCase):
     """_gap_if_dropped: interior whole-role drops open employment gaps."""
 
-    def _roles(self):
+    def roles(self):
         return [
             {"key": "acme", "raw": "Acme01/2024 – 06/2025"},
             {"key": "globex", "raw": "Globex09/2023 – 12/2023"},
@@ -1662,13 +1662,13 @@ class GapIfDroppedTests(unittest.TestCase):
     def test_interior_drop_opens_gap(self):
         # Dropping Globex leaves Initech (ends 08/2023) next to Acme
         # (starts 01/2024): a 5-month gap.
-        self.assertEqual(mr._gap_if_dropped(self._roles(), "globex"), 5)
+        self.assertEqual(mr._gap_if_dropped(self.roles(), "globex"), 5)
 
     def test_oldest_drop_no_gap(self):
-        self.assertEqual(mr._gap_if_dropped(self._roles(), "hooli"), 0)
+        self.assertEqual(mr._gap_if_dropped(self.roles(), "hooli"), 0)
 
     def test_newest_drop_no_gap(self):
-        self.assertEqual(mr._gap_if_dropped(self._roles(), "acme"), 0)
+        self.assertEqual(mr._gap_if_dropped(self.roles(), "acme"), 0)
 
     def test_gapless_interior_drop_no_gap(self):
         roles = [
@@ -1678,14 +1678,14 @@ class GapIfDroppedTests(unittest.TestCase):
         self.assertEqual(mr._gap_if_dropped(roles, "a"), 0)
 
     def test_unknown_key_no_gap(self):
-        self.assertEqual(mr._gap_if_dropped(self._roles(), "nope"), 0)
+        self.assertEqual(mr._gap_if_dropped(self.roles(), "nope"), 0)
 
 
 class VisibleSpanTests(unittest.TestCase):
-    """_visible_span parses company-header date ranges into a span."""
+    """visible_span parses company-header date ranges into a span."""
 
     def test_mm_yyyy_dates(self):
-        first, last = mr._visible_span([
+        first, last = mr.visible_span([
             "Acme, MA (Remote)05/2021 – 02/2023", "Globex, TX03/2017 – 04/2018",
         ])
         self.assertAlmostEqual(first, 2017 + 2 / 12, places=2)
@@ -1695,7 +1695,7 @@ class VisibleSpanTests(unittest.TestCase):
         saved = mr.DATE_RE
         try:
             mrf.DATE_RE = re.compile(r"\d{4}-\d{2}")
-            first, last = mr._visible_span([
+            first, last = mr.visible_span([
                 "Widgets Inc2024-03 – 2025-01",
             ])
         finally:
@@ -1704,10 +1704,10 @@ class VisibleSpanTests(unittest.TestCase):
         self.assertAlmostEqual(last, 2025, places=2)
 
     def test_no_dates_none(self):
-        self.assertEqual(mr._visible_span(["no date here"]), (None, None))
+        self.assertEqual(mr.visible_span(["no date here"]), (None, None))
 
     def test_empty_headers_none(self):
-        self.assertEqual(mr._visible_span([]), (None, None))
+        self.assertEqual(mr.visible_span([]), (None, None))
 
 
 class TitleAlignmentTests(unittest.TestCase):
@@ -2280,7 +2280,7 @@ class JdTermRecallTests(unittest.TestCase):
         # the old _jd_capitalized-only gate rejected every one of them, so
         # the plan flagged the AI-adoption bullets as OFF-JD ("no JD
         # evidence") while they carried the JD's literal core ask.
-        terms = mr._jd_terms(self.JD)
+        terms = mr.jd_terms(self.JD)
         for want in ("agents", "context", "sdlc"):
             self.assertIn(want, terms, f"{want!r} is a core JD ask")
 
@@ -2288,14 +2288,14 @@ class JdTermRecallTests(unittest.TestCase):
         # The master's GEICO intro (kept, rewritten content) hosts the
         # 'harness layer' — mining only numbered bullets made every
         # intro-hosted ask lexically invisible to the prune plan.
-        terms = mr._jd_terms(self.JD)
+        terms = mr.jd_terms(self.JD)
         self.assertIn("harness", terms)
 
     def test_compound_metric_bigrams_mine(self):
         # 'cycle time' / 'review latency' are the JD's measurement asks; the
         # single-token scan cannot see compounds, so the RCA bullet read as
         # evidence-free and the coverage map printed 'own' as the ask.
-        terms = mr._jd_terms(self.JD)
+        terms = mr.jd_terms(self.JD)
         for want in ("cycle time", "review latency"):
             self.assertIn(want, terms)
 
@@ -2321,7 +2321,7 @@ class JdTermRecallTests(unittest.TestCase):
         # prose.
         bullet = ("Served as a subject matter expert for Karate framework, "
                   "hosting training sessions.")
-        terms = mr._jd_terms(self.JD)
+        terms = mr.jd_terms(self.JD)
         self.assertFalse(mrd._evidenced(bullet, terms),
                          "unevidenced bullet must not be protected")
 
@@ -2330,14 +2330,14 @@ class JdTermRecallTests(unittest.TestCase):
         # candidate's ACTION VERBS. Morphological variant matching must not
         # admit the verb ('reviewed'→'review') as a JD ask via frequency.
         jd = "Review latency matters. Every change gets a review."
-        self.assertNotIn("reviewed", mr._jd_terms(jd))
+        self.assertNotIn("reviewed", mr.jd_terms(jd))
 
     def test_state_code_acronyms_not_mined(self):
         # Acronyms admit on WHOLE-WORD JD presence: 'CA' from 'San Diego,
         # CA' headers and 'OS'/'IT' from prose must not mine as terms (a
         # 2-char substring check matches 'ca' inside 'candidate').
         jd = "Build the platform the top firms run on."
-        terms = mr._jd_terms(jd)
+        terms = mr.jd_terms(jd)
         for banned in ("ca", "os", "it", "id", "ms", "ng"):
             self.assertNotIn(banned, terms)
 
@@ -2346,7 +2346,7 @@ class JdTermRecallTests(unittest.TestCase):
         # and 'RCA drafting' is lowercase-adjacent prose to the capitalization
         # gate. Acronym extraction from the resume's '(RCAs)' hosts it.
         jd = "incident triage and RCA drafting. The RCA feeds the fix."
-        self.assertIn("rca", mr._jd_terms(jd))
+        self.assertIn("rca", mr.jd_terms(jd))
 
     def test_ask_section_headers_collect_quals(self):
         # The fixed canonical headers (SKILL Step 1) are the ONLY
@@ -2428,8 +2428,8 @@ class KeepTrimCandidatesTests(unittest.TestCase):
         body = self._body_with_bullet(
             "Built Selenium suites with Java, TestNG and Playwright. "
             "Ran weekly standups and sprint retrospectives.")
-        section = mr._keep_trim_section(mr._roles(body),
-                                        mr._jd_terms(jd), body)
+        section = mr._keep_trim_section(mr.roles(body),
+                                        mr.jd_terms(jd), body)
         self.assertIn("WORD-LEVEL TRIM CANDIDATES", section)
         self.assertIn("JD does not name: playwright, testng", section)
         self.assertIn("sentence with no JD evidence", section)
@@ -2449,8 +2449,8 @@ class KeepTrimCandidatesTests(unittest.TestCase):
             _para("Technical Proficiencies", style="SectionHeading"),
             _para("Automated QA: TestNG, Selenium, Playwright"),
         ])
-        section = mr._keep_trim_section(mr._roles(body),
-                                        mr._jd_terms(jd), body)
+        section = mr._keep_trim_section(mr.roles(body),
+                                        mr.jd_terms(jd), body)
         self.assertIn("find_p(ps, ", section)
         self.assertIn("- JD does not name: testng, playwright", section)
         self.assertNotIn("no JD term on this line", section)
@@ -2466,8 +2466,8 @@ class KeepTrimCandidatesTests(unittest.TestCase):
             _para("Built Selenium suites with Java.", numId=2),
             _para("Tools & Technologies: TestNG, JUnit"),
         ])
-        section = mr._keep_trim_section(mr._roles(body),
-                                        mr._jd_terms(jd), body)
+        section = mr._keep_trim_section(mr.roles(body),
+                                        mr.jd_terms(jd), body)
         self.assertIn("no JD term on this line — whole-line "
                       "cut (TOP-BLOCK rule), not token trimming", section)
 
@@ -2481,8 +2481,8 @@ class KeepTrimCandidatesTests(unittest.TestCase):
             _para("Technical Proficiencies", style="SectionHeading"),
             _para("Code Review Standards: Gerrit, GitHub"),
         ])
-        section = mr._keep_trim_section(mr._roles(body),
-                                        mr._jd_terms(jd), body)
+        section = mr._keep_trim_section(mr.roles(body),
+                                        mr.jd_terms(jd), body)
         self.assertIn("Code Review Standards", section or "")
         self.assertIn("gerrit, github", section or "")
 
@@ -2497,8 +2497,8 @@ class KeepTrimCandidatesTests(unittest.TestCase):
             "Built Selenium suites for regression coverage. "
             "Ran root-cause triage on flaky builds with Kafka. "
             "Attended optional office socials.")
-        section = mr._keep_trim_section(mr._roles(body),
-                                        mr._jd_terms(jd), body)
+        section = mr._keep_trim_section(mr.roles(body),
+                                        mr.jd_terms(jd), body)
         self.assertNotIn("sentence with no JD evidence: \"Ran root-cause",
                          section)
         self.assertIn("Attended optional office socials", section)
@@ -2516,14 +2516,14 @@ class KeepTrimCandidatesTests(unittest.TestCase):
             _para("Organized team meetings and maintained trackers.",
                   numId=2),
         ])
-        section = mr._keep_trim_section(mr._roles(body),
-                                        mr._jd_terms(jd), body)
+        section = mr._keep_trim_section(mr.roles(body),
+                                        mr.jd_terms(jd), body)
         self.assertNotIn("Organized team meetings", section or "")
 
     def test_silent_without_jd(self):
         body = self._body_with_bullet("Built Selenium suites with Java.")
         self.assertIsNone(
-            mr._keep_trim_section(mr._roles(body), set(), body))
+            mr._keep_trim_section(mr.roles(body), set(), body))
 
 
 class JdRequirementCoverageTests(unittest.TestCase):
@@ -2551,7 +2551,7 @@ class JdRequirementCoverageTests(unittest.TestCase):
 
     def test_covered_line_lists_host_bullet(self):
         jd, body = self._jd_and_body()
-        result = mr._jd_requirement_coverage(mr._roles(body), body, jd)
+        result = mr._jd_requirement_coverage(mr.roles(body), body, jd)
         self.assertTrue(any(s == "covered" and "Selenium" in label
                             for label, s, _ in result), result)
         self.assertTrue(any("Acme" in detail
@@ -2560,7 +2560,7 @@ class JdRequirementCoverageTests(unittest.TestCase):
 
     def test_uncovered_line_flagged(self):
         jd, body = self._jd_and_body()
-        result = mr._jd_requirement_coverage(mr._roles(body), body, jd)
+        result = mr._jd_requirement_coverage(mr.roles(body), body, jd)
         self.assertTrue(any(s == "uncovered" and "Terraform" in label
                             for label, s, _ in result), result)
         self.assertTrue(any("never fabricate" in detail
@@ -2571,7 +2571,7 @@ class JdRequirementCoverageTests(unittest.TestCase):
         # Kubernetes/Helm live only on the Tools line: [weak] with the
         # Step-5 weave instruction, not [covered].
         jd, body = self._jd_and_body()
-        result = mr._jd_requirement_coverage(mr._roles(body), body, jd)
+        result = mr._jd_requirement_coverage(mr.roles(body), body, jd)
         self.assertTrue(any(s == "weak" and "Kubernetes" in label
                             for label, s, _ in result), result)
         self.assertTrue(any("weave" in detail
@@ -2584,7 +2584,7 @@ class JdRequirementCoverageTests(unittest.TestCase):
     def test_no_qualification_section_is_silent(self):
         _jd, body = self._jd_and_body()
         self.assertEqual(
-            mr._jd_requirement_coverage(mr._roles(body), body,
+            mr._jd_requirement_coverage(mr.roles(body), body,
                                         "Hi there, let's talk."),
             [])
 
@@ -2595,7 +2595,7 @@ class JdRequirementCoverageTests(unittest.TestCase):
         jd, body = self._jd_and_body()
         jd += ("Excellent communication, stakeholder management, and "
                "technical leadership skills\n")
-        result = mr._jd_requirement_coverage(mr._roles(body), body, jd)
+        result = mr._jd_requirement_coverage(mr.roles(body), body, jd)
         self.assertTrue(any(s == "by_hand" and "soft-skill" in detail
                             for _, s, detail in result), result)
 
@@ -2617,14 +2617,14 @@ class SpacerBoundaryTests(unittest.TestCase):
         return _body(ps)
 
     def test_boundary_without_spacer_reported(self):
-        gaps = mr._boundaries_without_spacer(self._body(False))
+        gaps = mr.boundaries_without_spacer(self._body(False))
         self.assertEqual(len(gaps), 1)
         header, anchor = gaps[0]
         self.assertIn("Globex", header)
         self.assertIn("first framework", anchor)
 
     def test_boundary_with_spacer_silent(self):
-        self.assertEqual(mr._boundaries_without_spacer(self._body(True)),
+        self.assertEqual(mr.boundaries_without_spacer(self._body(True)),
                          [])
 
 
@@ -2636,7 +2636,7 @@ class JdFitAuditTests(unittest.TestCase):
     names) after other roles closed the gap. JD alignment is the FIRST
     priority: weak and OFF-JD bullets must surface even when on target."""
 
-    def _roles(self, *bullet_groups):
+    def roles(self, *bullet_groups):
         return [{"key": f"Role{i}",
                  "raw": f"Role{i}, City 01/2020 \u2013 02/2021",
                  "bullets": len(bs), "bullet_texts": list(bs),
@@ -2647,7 +2647,7 @@ class JdFitAuditTests(unittest.TestCase):
         # 2 strong + 1 zero-hit bullet: the audit names the OFF-JD bullet
         # even though the role is under any cap and the page math needs
         # nothing.
-        roles = self._roles([
+        roles = self.roles([
             "Advised engineer working on the Playwright test framework on best practices.",
 
             "Developed a semi-autonomous agentic workflow using sub-agents "
@@ -2655,7 +2655,7 @@ class JdFitAuditTests(unittest.TestCase):
             "Coordinated across teams to establish meeting cadences and "
             "enhance documentation practices.",
         ])
-        sections = mr._jd_fit_audit(roles, {"playwright", "agentic"})
+        sections = mr.jd_fit_audit(roles, {"playwright", "agentic"})
         self.assertEqual(len(sections), 1)
         self.assertIn("JD-FIT AUDIT (Role0): 2 of 3 bullet(s) carry JD "
                       "evidence", sections[0])
@@ -2666,40 +2666,40 @@ class JdFitAuditTests(unittest.TestCase):
     def test_all_evidenced_role_is_silent(self):
         # One rule, no weak class: both bullets host a SPECIFIC ask, so
         # the audit stays silent about this role.
-        roles = self._roles([
+        roles = self.roles([
             "Configured CI pipelines to trigger tests based on cross dependency changes.",
 
             "Advised engineer working on the Playwright test framework on best practices.",
 
         ])
-        sections = mr._jd_fit_audit(roles, {"ci", "playwright"})
+        sections = mr.jd_fit_audit(roles, {"ci", "playwright"})
         self.assertEqual(len(sections), 0)
 
     def test_generic_only_evidence_role_is_flagged(self):
         # Generic vocabulary alone (test/testing/...) is not evidence:
         # the JD-FIT AUDIT flags the role for theme review instead of
         # staying silent because every bullet says "test".
-        roles = self._roles([
+        roles = self.roles([
             "Configured CI pipelines to trigger tests based on cross dependency changes.",
 
             "Advised engineer working on the Playwright test framework on best practices.",
 
         ])
-        sections = mr._jd_fit_audit(roles, {"test"})
+        sections = mr.jd_fit_audit(roles, {"test"})
         self.assertEqual(len(sections), 1)
 
     def test_mostly_irrelevant_role_is_stub_candidate(self):
         # 2 of 3 bullets carry no JD evidence: stub guidance fires — cut
         # to the strongest bullet; keep a 1-bullet stub only to prevent
         # an employment gap.
-        roles = self._roles([
+        roles = self.roles([
             "Coordinated across teams to establish meeting cadences and "
             "enhance documentation practices.",
             "Organized team events and maintained the shared calendar.",
             "Developed a semi-autonomous agentic workflow using sub-agents "
             "to improve test coverage.",
         ])
-        sections = mr._jd_fit_audit(roles, {"agentic"})
+        sections = mr.jd_fit_audit(roles, {"agentic"})
         self.assertEqual(len(sections), 1)
         self.assertIn("STUB CANDIDATE", sections[0])
         self.assertIn("1-bullet stub", sections[0])
@@ -2707,29 +2707,29 @@ class JdFitAuditTests(unittest.TestCase):
     def test_all_jd_evidence_role_is_silent(self):
         # Each term hits exactly one of two bullets (not >half the role),
         # so both classify strong and the audit stays silent.
-        roles = self._roles([
+        roles = self.roles([
             "Advised engineer working on the Playwright test framework on best practices.",
 
             "Developed a semi-autonomous agentic workflow using sub-agents "
             "to improve test coverage.",
         ])
-        self.assertEqual(mr._jd_fit_audit(roles, {"playwright", "agentic"}),
+        self.assertEqual(mr.jd_fit_audit(roles, {"playwright", "agentic"}),
                          [])
 
     def test_no_jd_terms_is_silent(self):
-        self.assertEqual(mr._jd_fit_audit(self._roles(["any bullet"]), set()),
+        self.assertEqual(mr.jd_fit_audit(self.roles(["any bullet"]), set()),
                          [])
 
     def test_protected_bullet_counts_as_evidence(self):
         # --protect marks candidate-specific facts the user confirmed (a
         # sandbox duty, a named partner): the JD text cannot name them, so
         # zero term hits must NOT read as OFF-JD.
-        roles = self._roles([
+        roles = self.roles([
             "Tested American Express partner integrations against their sandbox.",
 
         ])
         self.assertEqual(
-            mr._jd_fit_audit(roles, {"playwright"},
+            mr.jd_fit_audit(roles, {"playwright"},
                              protect=("partner integrations",)), [])
 
 
@@ -2783,7 +2783,7 @@ class CoverageTermsVisibilityTests(unittest.TestCase):
 
         _Ctx.jd_terms = {"sql", "kubernetes"}
         _Ctx.jd_text = jd
-        _Ctx.roles = mr._roles(body)
+        _Ctx.roles = mr.roles(body)
         _Ctx.body = body
 
         buf = io.StringIO()
@@ -2811,7 +2811,7 @@ class CoverageTermsVisibilityTests(unittest.TestCase):
 
         _Ctx.jd_terms = {"kubernetes"}
         _Ctx.jd_text = jd
-        _Ctx.roles = mr._roles(body)
+        _Ctx.roles = mr.roles(body)
         _Ctx.body = body
 
         buf = io.StringIO()
@@ -2981,8 +2981,8 @@ class RequirementsSummaryTests(unittest.TestCase):
             _para("Built test suites with Selenium WebDriver and Java.",
                   numId=2),
         ])
-        roles = mr._roles(body)
-        jd_terms = mr._jd_terms(jd)
+        roles = mr.roles(body)
+        jd_terms = mr.jd_terms(jd)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             mr._print_jd_coverage(roles, body, jd, jd_terms)
@@ -3002,8 +3002,8 @@ class RequirementsSummaryTests(unittest.TestCase):
             _para("Built test suites with Selenium WebDriver and Java.",
                   numId=2),
         ])
-        roles = mr._roles(body)
-        jd_terms = mr._jd_terms(jd)
+        roles = mr.roles(body)
+        jd_terms = mr.jd_terms(jd)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             mr._print_jd_coverage(roles, body, jd, jd_terms)
@@ -3028,8 +3028,8 @@ class RequirementsSummaryTests(unittest.TestCase):
             _para("Built test suites with Selenium WebDriver and Java.",
                   numId=2),
         ])
-        roles = mr._roles(body)
-        jd_terms = mr._jd_terms(jd)
+        roles = mr.roles(body)
+        jd_terms = mr.jd_terms(jd)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             mr._print_jd_coverage(roles, body, jd, jd_terms)
@@ -3164,7 +3164,7 @@ class AuditAnchorTests(unittest.TestCase):
     audit alone (was: previews only, and the agent re-derived prefixes by
     hand)."""
 
-    def _roles(self):
+    def roles(self):
         return [{"key": "Acme, City",
                  "raw": "Acme, City 01/2020 – 02/2021",
                  "bullets": 2,
@@ -3179,11 +3179,11 @@ class AuditAnchorTests(unittest.TestCase):
         texts = ["Advised engineer working on the Playwright test "
                  "framework on best practices.", "Coordinated across teams to establish meeting "
                  "cadences."]
-        sections = mr._jd_fit_audit(self._roles(), {"playwright"},
+        sections = mr.jd_fit_audit(self.roles(), {"playwright"},
                                     all_texts=texts)
         self.assertIn('find_p(ps, "Coordi"', sections[0])
 
     def test_fallback_without_all_texts(self):
-        sections = mr._jd_fit_audit(self._roles(), {"playwright"})
+        sections = mr.jd_fit_audit(self.roles(), {"playwright"})
         self.assertIn("Coordinated across teams", sections[0])
         self.assertNotIn("find_p(", sections[0])

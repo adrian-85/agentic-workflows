@@ -26,7 +26,7 @@ def _evidenced(text, jd_terms):
     unit: True when it hosts at least one ask. THE keep/cut rule — no
     strong/weak negotiation exists any more."""
     return bool(jd_asks.evidence_set(text.lower(), jd_terms))
-from measure_resume_format import (_norm, _page_fill, _page_lines,  # noqa: E402
+from measure_resume_format import (_norm, _page_fill, page_lines,  # noqa: E402
     _preceding_role_key, _proficiency_block, _role_header_flat)
 
 W = de.W
@@ -58,7 +58,7 @@ def _suggest_drops(bullet_texts, budget, protect=(), jd_terms=()):
     return ranked[:budget]
 
 
-def _drop_suggestions(bullet_texts, budget, all_texts=None, protect=(),
+def drop_suggestions(bullet_texts, budget, all_texts=None, protect=(),
                       jd_terms=()):
     """[(find_p_prefix, full_bullet_text)] for the `budget` weakest cuttable
     bullets — the structured form behind the DROP PLAN's copy-pasteable
@@ -94,7 +94,7 @@ def _drop_plan_lines(bullet_texts, budget, all_texts=None, protect=(),
     """
     return [
         f'find_p(ps, "{prefix}")  # {text}'
-        for prefix, text in _drop_suggestions(
+        for prefix, text in drop_suggestions(
             bullet_texts, budget, all_texts=all_texts, protect=protect,
             jd_terms=jd_terms)
     ]
@@ -112,7 +112,7 @@ def _protected_count(bullets, protect=(), jd_terms=()):
                or _evidenced(b, jd_terms))
 
 
-def _iter_plan_roles(plan, roles):
+def iter_plan_roles(plan, roles):
     """Yield (role, m) per plan entry whose action is a drop-N-bullet and
     whose role still exists — shared by _dead_end_roles and squeeze_resume
     (dedupes the resolve/guard preamble)."""
@@ -132,7 +132,7 @@ def _dead_end_roles(plan, roles, protect=(), jd_terms=()):
     The honest fixes are TOP-BLOCK RECLAIM CANDIDATES, a Tools-line trim,
     or a whole-role drop — not slicing kept bullets."""
     dead = []
-    for key, role, m in _iter_plan_roles(plan, roles):
+    for key, role, m in iter_plan_roles(plan, roles):
         bullets = role.get("bullet_texts") or []
         n = int(m.group(1))
         protected = _protected_count(bullets, protect=protect,
@@ -570,7 +570,7 @@ def prune_candidates(roles, jd_terms, body, protect=()):
     return out
 
 
-def _jd_fit_audit(roles, jd_terms, protect=(), all_texts=None):
+def jd_fit_audit(roles, jd_terms, protect=(), all_texts=None):
     """Per-role JD-fit audit — printed for EVERY role when --jd is passed.
 
     Classifies every bullet by JD alignment strength: strong/practice-
@@ -683,7 +683,7 @@ def _drop_sections(plan, roles, all_texts=None, protect=(), jd_terms=()):
     agent re-derive it by reading each suggestion against the JD.
     """
     sections = []
-    for _key, role, m in _iter_plan_roles(plan, roles):
+    for _key, role, m in iter_plan_roles(plan, roles):
         n = int(m.group(1))
         section = _drop_entry_section(role, n, all_texts=all_texts,
                                       protect=protect, jd_terms=jd_terms)
@@ -815,7 +815,7 @@ def _page_fill_table(fills, capacity, pages_text):
 
 def _page_fill_next_first(pages_text, i):
     """First line of page i+1 (truncated), for the underfill note."""
-    nxt = _page_lines(pages_text[i])
+    nxt = page_lines(pages_text[i])
     return nxt[0][:60] if nxt else "(blank)"
 
 
@@ -824,7 +824,7 @@ def _widow_notes(matched, pages_text):
     out = []
     flat = [(pi, _norm(l), l) for pi, ptext in
             enumerate(pages_text, start=1)
-            for l in _page_lines(ptext)]
+            for l in page_lines(ptext)]
     keys = [r["key"] for r, *_ in matched]
     for r, *_ in matched:
         idx = _role_header_flat(flat, r["key"])
@@ -860,7 +860,7 @@ def _page_removal_note(total_pages, target, overflow_lines):
             "Do not launch broad compression when the spill exceeds five " "lines (SKILL Step 9).")
 
 
-def _measured_lines_per_bullet(matched):
+def measured_lines_per_bullet(matched):
     """Average rendered lines per bullet, measured from THIS render.
 
     Attributes each role's rendered lines to bullets by subtracting a
@@ -883,7 +883,7 @@ def _measured_lines_per_bullet(matched):
     return total_bullet_lines / bullet_count if bullet_count else 2.0
 
 
-def _reclaim_batch(matched, per_bullet, gap):
+def reclaim_batch(matched, per_bullet, gap):
     """Oldest-first concrete cut list sized to `gap` (lines).
 
     The skill rule is: cut the OLDEST roles first. For each oldest role with

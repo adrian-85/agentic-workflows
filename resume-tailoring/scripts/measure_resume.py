@@ -90,25 +90,25 @@ from measure_resume_format import (
     SECTION_CAREER,
     SECTION_EDUCATION,
     SECTION_PROFICIENCIES,
-    _company_key,
-    _drop_created_gaps,
+    company_key,
+    drop_created_gaps,
     _education_cost,
     _fixed_top_cost,
     _flat_from_pages,
     _gap_if_dropped,
     _is_footer,
-    _match_roles_to_pages,
+    match_roles_to_pages,
     _norm,
     _page_fill,
-    _page_lines,
-    _pdf_pages_text,
+    page_lines,
+    pdf_pages_text,
     _preceding_role_key,
     _proficiency_block,
-    _render_pdf,
+    render_pdf,
     _role_header_flat,
     _role_span_months,
-    _roles,
-    _visible_span,
+    roles,
+    visible_span,
     _wrapped_tools)
 
 from measure_resume_jd_terms import (
@@ -134,7 +134,7 @@ import gap_queue  # noqa: E402
 import jd_asks  # noqa: E402
 
 
-def _jd_terms(jd_text):
+def jd_terms(jd_text):
     """The engine's ask phrases as a set (one extraction shared with
     ats_audit and auto_prune).
 
@@ -161,7 +161,7 @@ from measure_resume_jd import (
     TITLE_MAX_WORDS,
     TITLE_RANK_PATTERNS,
     _INFERENCE_MATCH_CAP,
-    _boundaries_without_spacer,
+    boundaries_without_spacer,
     _family_roots,
     _headline_text,
     _inference_map,
@@ -195,16 +195,16 @@ from measure_resume_drops import (
     _dead_end_roles,
     _drop_plan_lines,
     _drop_sections,
-    _drop_suggestions,
-    _iter_plan_roles,
-    _jd_fit_audit,
+    drop_suggestions,
+    iter_plan_roles,
+    jd_fit_audit,
     _jd_listing_lines,
     _keep_trim_section,
     _layout_hints,
-    _measured_lines_per_bullet,
+    measured_lines_per_bullet,
     _protected_count,
     _protected_top_role_section,
-    _reclaim_batch,
+    reclaim_batch,
     _role_jd_evidence_lines,
     _page_removal_note,
     _suggest_drops,
@@ -225,26 +225,26 @@ __all__ = [
     "TITLE_RANK_PATTERNS", "VOCAB_STYLE", "_DROP_ACTION",
     "_INFERENCE_MATCH_CAP", "_NUMBER", "_adjacent_bigrams",
     "_adjacent_master_body", "_all_bullet_texts", "_apply_simulate",
-    "_batch_section", "_boundaries_without_spacer", "_bullet_terms",
-    "_company_key", "_concept_hits", "_dead_end_roles", "_drop_created_gaps",
-    "_drop_plan_lines", "_drop_sections", "_drop_suggestions",
+    "_batch_section", "boundaries_without_spacer", "_bullet_terms",
+    "company_key", "_concept_hits", "_dead_end_roles", "drop_created_gaps",
+    "_drop_plan_lines", "_drop_sections", "drop_suggestions",
     "_education_cost", "_fail_without_master", "_family_roots",
     "_fixed_top_cost", "_flat_from_pages", "_gap_if_dropped",
     "_headline_text", "_inference_map", "_inference_variants", "_is_footer",
-    "_is_protected", "_iter_plan_roles", "_jd_capitalized", "_jd_fit_audit",
+    "_is_protected", "iter_plan_roles", "_jd_capitalized", "jd_fit_audit",
     "_jd_hits", "_jd_line_terms", "_jd_line_terms_map", "_jd_listing_lines",
     "_jd_missing_terms", "_jd_report", "_jd_requirement_coverage",
     "_jd_requirement_lines", "_jd_title", "_keep_trim_section",
     "_layout_hints", "_line_terms", "_main_prune_plan",
-    "_match_roles_to_pages", "_measured_lines_per_bullet", "_norm",
-    "_page_fill", "_page_lines", "_page_removal_note", "_pdf_pages_text",
+    "match_roles_to_pages", "measured_lines_per_bullet", "_norm",
+    "_page_fill", "page_lines", "_page_removal_note", "pdf_pages_text",
     "_preceding_role_key", "_print_disposition_checklist", "_print_jd_audit",
     "_print_jd_coverage", "_print_jd_report", "_print_top_block_lines",
     "_proficiency_block", "_protected_count", "_protected_top_role_section",
-    "_reclaim_batch", "_render_pdf", "_role_header_flat",
-    "_role_jd_evidence_lines", "_role_span_months", "_roles",
+    "reclaim_batch", "render_pdf", "_role_header_flat",
+    "_role_jd_evidence_lines", "_role_span_months", "roles",
     "_suggest_drops", "_title_rank", "_top_block_candidates",
-    "_top_role_batch", "_visible_span", "_vocab_terms", "_weakness_key",
+    "_top_role_batch", "visible_span", "_vocab_terms", "_weakness_key",
     "_wrapped_tools", "_write_prune_sidecar", "prune_candidates",
     "title_alignment_notes",
 ]
@@ -327,7 +327,7 @@ def _resolved_jd_terms(jd_text, simulate, sim_jd_terms):
     made ``--jd`` silently JD-blind when ``--simulate`` was absent."""
     if simulate:
         return set(sim_jd_terms) if sim_jd_terms is not None else set()
-    return _jd_terms(jd_text) if jd_text else set()
+    return jd_terms(jd_text) if jd_text else set()
 
 
 def _print_usage():
@@ -402,7 +402,7 @@ def _print_simulate_gaps(pre_roles, dropped):
     """
     pre_headers = [r["raw"] for r in pre_roles]
     kept_headers = [h for h in pre_headers if h not in dropped]
-    for gap, header in _drop_created_gaps(pre_headers, kept_headers):
+    for gap, header in drop_created_gaps(pre_headers, kept_headers):
         print(f"  WARNING: INTERIOR GAP — dropping {header} leaves a "
               f"~{gap}-month employment hole between its surviving "
               f"neighbors. A visible gap can kill an application: STUB "
@@ -420,9 +420,9 @@ def _print_simulate(docx, simulate, jd_file, jd_text, td):
     if not simulate:
         return docx, sim_jd_terms
     _, pre_body, _, _, _ = de.load(docx)
-    pre_roles = _roles(pre_body)
+    pre_roles = roles(pre_body)
     if jd_file:
-        sim_jd_terms = _jd_terms(jd_text)
+        sim_jd_terms = jd_terms(jd_text)
     sim_path = os.path.join(td, "simulated.docx")
     docx, dropped = _apply_simulate(docx, simulate, sim_path)
     print("SIMULATED seniority alignment — the file on disk was "
@@ -460,7 +460,7 @@ def _print_page_summary(ctx):
                                 ctx.default_target)
     if note:
         print(note)
-    first, last = _visible_span([r["raw"] for r in ctx.roles])
+    first, last = visible_span([r["raw"] for r in ctx.roles])
     if first is not None:
         print(f"TIMELINE: roles span {first:.0f} – {last:.0f} "
               f"(~{last - first:.1f} years shown)")
@@ -536,9 +536,9 @@ def _print_reclaim_batch(ctx):
     print()
     print(f"RECLAIM PLAN: drop ~{ctx.overflow_lines} rendered line(s) to "
           f"reach {ctx.target} page(s).")
-    per = _measured_lines_per_bullet(ctx.matched)
+    per = measured_lines_per_bullet(ctx.matched)
     required = ctx.overflow_lines + per
-    plan, remaining = _reclaim_batch(ctx.matched, per, required)
+    plan, remaining = reclaim_batch(ctx.matched, per, required)
     top = _top_block_candidates(ctx.body, ctx.jd_terms)
     batch, plan, feasible = _top_role_batch(
         ctx.matched, plan,
@@ -699,7 +699,7 @@ def _print_layout_summary(ctx):
     if page_note:
         print(page_note)
     if ctx.over <= 0 and fills and fills[-1] < ctx.capacity:
-        gaps = _boundaries_without_spacer(ctx.body)
+        gaps = boundaries_without_spacer(ctx.body)
         if gaps:
             names = [h[:36] for h, _ in gaps]
             print()
@@ -741,8 +741,8 @@ def _load_and_render(args):
         docx, sim_jd_terms = _print_simulate(
             source_docx, args.simulate, args.jd_file, args.jd_text, td)
         _, body, _, _, _ = de.load(docx)
-        roles = _roles(body)
-        jd_terms = _resolved_jd_terms(
+        body_roles = roles(body)
+        resolved_terms = _resolved_jd_terms(
             args.jd_text, args.simulate, sim_jd_terms)
         if args.jd_file:
             internal_missing = _jd_missing_terms(
@@ -755,15 +755,15 @@ def _load_and_render(args):
             if master_body is None and extra_missing:
                 _fail_without_master("external ATS gap")
             _print_jd_report(
-                JdPosting(args.jd_file, args.jd_text), jd_terms, body,
+                JdPosting(args.jd_file, args.jd_text), resolved_terms, body,
                 InferenceSources(linkedin_text=args.evidence_text,
                                  master_body=master_body,
                                  soft_terms=soft_terms),
                 extra_missing=tuple(extra_missing))
-        pdf = _render_pdf(docx, td)
-        pages_text = _pdf_pages_text(pdf)
+        pdf = render_pdf(docx, td)
+        pages_text = pdf_pages_text(pdf)
         total_pages = len(pages_text)
-    return body, roles, jd_terms, pages_text, total_pages
+    return body, body_roles, resolved_terms, pages_text, total_pages
 
 
 class _Args(NamedTuple):
@@ -807,23 +807,23 @@ def _parse_measure_args():
                  evidence_text, ats_report, protect, simulate)
 
 
-def _build_ctx(args, body, roles, jd_terms, pages_text):
+def _build_ctx(args, body, body_roles, resolved_terms, pages_text):
     """Compute page-math metrics and build the _ReportCtx."""
     total_pages = len(pages_text)
-    matched = _match_roles_to_pages(roles, pages_text)
-    fixed_top = _fixed_top_cost(pages_text, roles)
+    matched = match_roles_to_pages(body_roles, pages_text)
+    fixed_top = _fixed_top_cost(pages_text, body_roles)
     edu = _education_cost(pages_text)
     capacity = max(_page_fill(pages_text)) if pages_text else 0
     role_lines = sum(m[3] for m in matched)
     over = total_pages - args.target
-    overflow_lines = (sum(len(_page_lines(p)) for p in pages_text[args.target:])
+    overflow_lines = (sum(len(page_lines(p)) for p in pages_text[args.target:])
                       if over > 0 else 0)
     wrapped = _wrapped_tools(_flat_from_pages(pages_text), matched)
     return _ReportCtx(
         target=args.target, default_target=args.default_target,
-        jd_text=args.jd_text, jd_terms=jd_terms,
+        jd_text=args.jd_text, jd_terms=resolved_terms,
         protect=args.protect,
-        body=body, roles=roles, matched=matched, pages_text=pages_text,
+        body=body, roles=body_roles, matched=matched, pages_text=pages_text,
         total_pages=total_pages, over=over, overflow_lines=overflow_lines,
         capacity=capacity, fixed_top=fixed_top, role_lines=role_lines,
         edu=edu, wrapped=wrapped)
@@ -836,8 +836,8 @@ def main():  # CLI entry: prune-plan on the master, full page math otherwise
     if _is_master_input(args.docx):
         _main_prune_plan(args)
         return
-    body, roles, jd_terms, pages_text, _ = _load_and_render(args)
-    ctx = _build_ctx(args, body, roles, jd_terms, pages_text)
+    body, body_roles, resolved_terms, pages_text, _ = _load_and_render(args)
+    ctx = _build_ctx(args, body, body_roles, resolved_terms, pages_text)
     _print_page_summary(ctx)
     _print_cost_table(ctx)
     _print_tools_wrap(ctx)

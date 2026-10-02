@@ -76,8 +76,8 @@ def _next_batch(roles, plan, all_texts, protect=(), jd_terms=()):
     oldest-role-first (plan order), JD-aware. Whole-role plan entries yield
     nothing (the seniority decision is the user's)."""
     out = []
-    for _key, role, m in mr._iter_plan_roles(plan, roles):
-        out.extend(mr._drop_suggestions(
+    for _key, role, m in mr.iter_plan_roles(plan, roles):
+        out.extend(mr.drop_suggestions(
             role.get("bullet_texts") or [], int(m.group(1)),
             all_texts=all_texts, protect=protect, jd_terms=jd_terms))
     return out
@@ -104,7 +104,7 @@ def _squeeze_jd_setup(jd_file, docx, plan_only):
     jd_terms = set()
     if jd_file:
         jd_text = read_jd_text(jd_file)
-        jd_terms = mr._jd_terms(jd_text)
+        jd_terms = mr.jd_terms(jd_text)
         print(f"JD-aware ranking: {len(jd_terms)} term(s) matched from "
               f"{jd_file}")
 
@@ -155,19 +155,19 @@ def _render_iter(cfg, root, names, data):
         if cfg.plan_only:
             probe = os.path.join(td, "plan_probe.docx")
             de.save(probe, root, names, data)
-            pdf = mr._render_pdf(probe, td)
+            pdf = mr.render_pdf(probe, td)
         else:
-            pdf = mr._render_pdf(cfg.docx, td)
-        return mr._pdf_pages_text(pdf)
+            pdf = mr.render_pdf(cfg.docx, td)
+        return mr.pdf_pages_text(pdf)
 
 
 def _next_squeeze_batch(body, roles, pages_text, cfg):
     """Compute the next JD-safe bullet cut batch. Returns the batch list
     (possibly empty) — an empty batch means no safe cuts remain."""
-    overflow = sum(len(mr._page_lines(p)) for p in pages_text[cfg.target:])
-    matched = mr._match_roles_to_pages(roles, pages_text)
-    per = mr._measured_lines_per_bullet(matched)
-    plan, _remaining = mr._reclaim_batch(matched, per, overflow + per)
+    overflow = sum(len(mr.page_lines(p)) for p in pages_text[cfg.target:])
+    matched = mr.match_roles_to_pages(roles, pages_text)
+    per = mr.measured_lines_per_bullet(matched)
+    plan, _remaining = mr.reclaim_batch(matched, per, overflow + per)
     all_texts = [de.text_of(p) for p in de.paras(body)]
     return _next_batch(roles, plan, all_texts, protect=cfg.protect,
                        jd_terms=cfg.jd_terms)
@@ -200,7 +200,7 @@ def main():
         if total <= cfg.target:
             log["final_pages"] = total
             break
-        batch = _next_squeeze_batch(body, mr._roles(body), pages_text, cfg)
+        batch = _next_squeeze_batch(body, mr.roles(body), pages_text, cfg)
         if not batch:
             print("  no JD-safe bullet cuts remain — every remaining bullet "
                   "is JD-matched or protected. Cuts can still come from ANY "

@@ -801,14 +801,14 @@ class HistoryGapTests(unittest.TestCase):
 
 
 class DropCreatedGapsUnitTests(unittest.TestCase):
-    """_drop_created_gaps: the shared window math (newest-first headers)."""
+    """drop_created_gaps: the shared window math (newest-first headers)."""
 
     def test_interior_drop_reports_the_window(self):
         master = ["Co A, City01/2020 - 06/2021",
                   "Co B, City01/2018 - 06/2019",
                   "Co C, City01/2016 - 06/2017"]
         build = [master[0], master[2]]
-        gaps = mrf._drop_created_gaps(master, build)
+        gaps = mrf.drop_created_gaps(master, build)
         self.assertEqual(len(gaps), 1)
         self.assertEqual(gaps[0][1], master[1])
         self.assertEqual(gaps[0][0], 31)  # 01/2020 - 06/2017
@@ -818,11 +818,11 @@ class DropCreatedGapsUnitTests(unittest.TestCase):
                   "Co B, City01/2018 - 06/2019",
                   "Co C, City01/2016 - 06/2017"]
         build = [master[0], master[1]]
-        self.assertEqual(mrf._drop_created_gaps(master, build), [])
+        self.assertEqual(mrf.drop_created_gaps(master, build), [])
 
     def test_undated_headers_are_skipped(self):
         master = ["Co A, City", "Co B, City01/2018 - 06/2019"]
-        self.assertEqual(mrf._drop_created_gaps(master, [master[1]]), [])
+        self.assertEqual(mrf.drop_created_gaps(master, [master[1]]), [])
 
 
 class SeniorityGateTests(unittest.TestCase):
@@ -1206,7 +1206,7 @@ class GuidanceTests(unittest.TestCase):
         # recorded via workflow_gate spacers --omitted) is exempt; an
         # unrecorded one still blocks.
         b, _s = self._two_role_body(with_spacer=False)
-        header = mr._boundaries_without_spacer(b)[0][0]
+        header = mr.boundaries_without_spacer(b)[0][0]
         errors = vrc._final_presentation_errors(b, omitted_spacers=[header])
         self.assertFalse(any("spacer" in e for e in errors), errors)
         self.assertTrue(any("Tools & Technologies" in e for e in errors),
@@ -1218,7 +1218,7 @@ class GuidanceTests(unittest.TestCase):
         # alone.
         b, _s = self._two_role_body(with_spacer=False)
         errors = vrc._final_presentation_errors(b)
-        headers = [h for h, _a in mr._boundaries_without_spacer(b)]
+        headers = [h for h, _a in mr.boundaries_without_spacer(b)]
         hint = next(e for e in errors if "--omitted" in e)
         self.assertIn("workflow_gate.py spacers", hint)
         self.assertIn(";".join(headers), hint)
@@ -1228,7 +1228,7 @@ class GuidanceTests(unittest.TestCase):
         # recorded entry that matches no boundary is named so it can be
         # re-recorded instead of silently ignored.
         b, _s = self._two_role_body(with_spacer=False)
-        header = mr._boundaries_without_spacer(b)[0][0]
+        header = mr.boundaries_without_spacer(b)[0][0]
         padded = "  ".join(header.split())
         errors = vrc._final_presentation_errors(b, omitted_spacers=[padded])
         self.assertFalse(any("lacks a persisted spacer" in e for e in errors), errors)
@@ -1241,7 +1241,7 @@ class GuidanceTests(unittest.TestCase):
         # omissions from the RESUME_WORKFLOW_STATE sidecar, so a spacer
         # the gate recorded as omitted does not block the deliverable.
         b, _s = self._two_role_body(with_spacer=False)
-        header = mr._boundaries_without_spacer(b)[0][0]
+        header = mr.boundaries_without_spacer(b)[0][0]
         state_fd, state_path = tempfile.mkstemp(suffix=".workflow.json")
         os.close(state_fd)
         saved_env = (os.environ.get("RESUME_RENDER_PHASE"),

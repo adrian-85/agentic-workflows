@@ -281,7 +281,7 @@ def _jd_requirement_coverage(roles, body, jd_text):
     return out
 
 
-def _boundaries_without_spacer(body):
+def boundaries_without_spacer(body):
     """Inter-role boundaries with no blank spacer paragraph before the
     next company header — the readability pause of SKILL Step 9's
     spacing step, reported instead of remembered. Returns

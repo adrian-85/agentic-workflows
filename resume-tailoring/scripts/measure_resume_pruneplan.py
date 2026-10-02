@@ -16,10 +16,10 @@ import sys
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import docx_edit as de  # noqa: E402
 from measure_resume_drops import (  # noqa: E402
-    _jd_fit_audit,
     _keep_trim_section,
+    jd_fit_audit,
     prune_candidates)
-from measure_resume_format import _roles  # noqa: E402
+import measure_resume_format as mrf  # noqa: E402
 from measure_resume_jd import (  # noqa: E402
     JdPosting,
     InferenceSources,
@@ -34,8 +34,8 @@ def _print_jd_audit(roles, body, jd_terms, protect):
     if not jd_terms:
         return
     all_texts = [de.text_of(p) for p in de.paras(body)]
-    audit = _jd_fit_audit(roles, jd_terms, protect=protect,
-                          all_texts=all_texts)
+    audit = jd_fit_audit(roles, jd_terms, protect=protect,
+                         all_texts=all_texts)
     if audit:
         print("JD-FIT AUDIT (every role — cut every OFF-JD/weak bullet "
               "listed here in the FIRST pass, no page-math condition; "
@@ -99,7 +99,7 @@ def _main_prune_plan(args):
               "prune-planned; measure the tailored copy for page math)")
         print()
     _, body, _, _, _ = de.load(args.docx)
-    roles = _roles(body)
+    roles = mrf.roles(body)
     jd_terms = {a.phrase for a in jd_asks.parse_asks(args.jd_text)}
     print("PRUNE PLAN — master input: cut everything irrelevant FIRST "
           "(SKILL Step 3) — every OFF-JD/weak bullet, dead sentence, "

@@ -31,7 +31,7 @@ DATE_RE = re.compile(r"\d{1,2}/\d{4}")  # dates on role headers, e.g. 03/2022
 BULLET_STYLES = ("ListBullet",)  # styles whose bullets carry no paragraph numId
 
 
-def _render_pdf(docx_path, outdir):
+def render_pdf(docx_path, outdir):
     """Render docx -> pdf via LibreOffice headless; return the pdf path."""
     base = os.path.basename(docx_path[:-5] if docx_path.endswith(".docx") else docx_path)
     pdf = os.path.join(outdir, base + ".pdf")
@@ -45,7 +45,7 @@ def _render_pdf(docx_path, outdir):
     return pdf
 
 
-def _pdf_pages_text(pdf_path):
+def pdf_pages_text(pdf_path):
     """Return list of page-text strings (one per page), form-feed split.
 
     pdftotext separates pages with a form feed (\f) and emits a trailing
@@ -71,7 +71,7 @@ def _is_footer(line):
     return bool(re.match(r"\s*Page \d+\|\d+\s*$", line))
 
 
-def _page_lines(page_text):
+def page_lines(page_text):
     """Non-empty, non-footer lines of a single page, in order."""
     return [
         l for l in page_text.split("\n")
@@ -83,12 +83,12 @@ def _flat_from_pages(pages_text):
     """Flatten pages to (page_1based, norm_line, raw_line) preserving order."""
     flat = []
     for pi, ptext in enumerate(pages_text, start=1):
-        for l in _page_lines(ptext):
+        for l in page_lines(ptext):
             flat.append((pi, _norm(l), l))
     return flat
 
 
-def _company_key(text):
+def company_key(text):
     """The matchable company-portion of a role-header line (dates stripped).
 
     The master concatenates the company line and the date range with no
@@ -102,7 +102,7 @@ def _company_key(text):
     return _norm(head)
 
 
-def _roles(body):
+def roles(body):
     """Ordered list of roles between the career and education section
     headings (names from SECTION_CAREER / SECTION_EDUCATION). Each role is a
     dict:
@@ -131,15 +131,15 @@ def _roles(body):
     region = ps[start:end]
     texts_r = [de.text_of(p) for p in region]
 
-    roles = []
+    out = []
     cur = None
     for j, p in enumerate(region):
         style, numId = de.style_and_numid(p)
         txt = texts_r[j]
         if style == COMPANY_STYLE and txt.strip():
             if cur:
-                roles.append(cur)
-            cur = {"key": _company_key(txt), "raw": txt,
+                out.append(cur)
+            cur = {"key": company_key(txt), "raw": txt,
                    "bullets": 0, "bullet_texts": [], "has_tools": False}
         elif cur is not None:
             # Count numbered bullets (numId not None and not "0", or a
@@ -151,8 +151,8 @@ def _roles(body):
             elif txt.strip().lower().startswith("tool") and "technolog" in txt.lower():
                 cur["has_tools"] = True
     if cur:
-        roles.append(cur)
-    return roles
+        out.append(cur)
+    return out
 
 
 def _role_span_months(raw):
@@ -167,18 +167,18 @@ def _role_span_months(raw):
     return dates[0], dates[-1]
 
 
-def _gap_if_dropped(roles, key):
+def _gap_if_dropped(parsed_roles, key):
     """Months of employment gap that dropping the role ``key`` would open
     between its two surviving neighbors, else 0.
 
-    ``roles`` is newest-first (document order). Only interior roles can
+    ``parsed_roles`` is newest-first (document order). Only interior roles can
     open a gap — dropping the oldest role just shortens the timeline.
     """
-    idx = next((i for i, r in enumerate(roles) if r["key"] == key), None)
-    if idx is None or idx == 0 or idx + 1 >= len(roles):
+    idx = next((i for i, r in enumerate(parsed_roles) if r["key"] == key), None)
+    if idx is None or idx == 0 or idx + 1 >= len(parsed_roles):
         return 0
-    _, older_end = _role_span_months(roles[idx + 1]["raw"])
-    newer_start, _ = _role_span_months(roles[idx - 1]["raw"])
+    _, older_end = _role_span_months(parsed_roles[idx + 1]["raw"])
+    newer_start, _ = _role_span_months(parsed_roles[idx - 1]["raw"])
     if older_end is None or newer_start is None:
         return 0
     gap = ((newer_start[0] - older_end[0]) * 12
@@ -186,7 +186,7 @@ def _gap_if_dropped(roles, key):
     return max(0, gap)
 
 
-def _drop_created_gaps(master_headers, build_headers):
+def drop_created_gaps(master_headers, build_headers):
     """[(gap_months, dropped_header)] — employment gaps that whole-role
     drops opened between SURVIVING neighbors.
 
@@ -200,11 +200,11 @@ def _drop_created_gaps(master_headers, build_headers):
     (that is the gap-intolerant-drop contract: stub, never gap).
     Headers are newest-first document order; undated headers are
     skipped rather than guessed."""
-    build_keys = {_company_key(h) for h in build_headers}
+    build_keys = {company_key(h) for h in build_headers}
     dropped = [h for h in master_headers
-               if _company_key(h) not in build_keys]
+               if company_key(h) not in build_keys]
     surviving = [h for h in master_headers
-                 if _company_key(h) in build_keys]
+                 if company_key(h) in build_keys]
     out = []
     for i in range(1, len(surviving)):
         newer_start, _ = _role_span_months(surviving[i - 1])
@@ -224,11 +224,11 @@ def _drop_created_gaps(master_headers, build_headers):
     return out
 
 
-def _find_role_starts(roles, flat):
+def _find_role_starts(parsed_roles, flat):
     """Find the line index where each role's header appears (in order)."""
     role_starts = []
     search_from = 0
-    for r in roles:
+    for r in parsed_roles:
         key = r["key"]
         found = None
         for k in range(search_from, len(flat)):
@@ -241,13 +241,13 @@ def _find_role_starts(roles, flat):
     return role_starts
 
 
-def _match_roles_to_pages(roles, pages_text):
+def match_roles_to_pages(parsed_roles, pages_text):
     """Attribute rendered lines to each role by locating its header in the
     PDF text. Returns list of (role, start_page_1based, end_page,
     rendered_lines).
     """
     flat = _flat_from_pages(pages_text)
-    role_starts = _find_role_starts(roles, flat)
+    role_starts = _find_role_starts(parsed_roles, flat)
 
     def find_education_line(from_idx):
         for k in range(from_idx, len(flat)):
@@ -256,7 +256,7 @@ def _match_roles_to_pages(roles, pages_text):
         return len(flat)
 
     results = []
-    for i, r in enumerate(roles):
+    for i, r in enumerate(parsed_roles):
         s = role_starts[i]
         if s is None:
             results.append((r, None, None, 0))
@@ -329,17 +329,17 @@ def _wrapped_tools(flat, matched):
     return results
 
 
-def _fixed_top_cost(pages_text, roles):
+def _fixed_top_cost(pages_text, parsed_roles):
     """Rendered lines before the first role's header (Summary, Proficiencies,
     Certifications, contact/header chrome). This is the mostly-fixed floor the
     agent generally does not compress from.
     """
-    if not roles:
-        return sum(len(_page_lines(p)) for p in pages_text)
-    first_key = roles[0]["key"]
+    if not parsed_roles:
+        return sum(len(page_lines(p)) for p in pages_text)
+    first_key = parsed_roles[0]["key"]
     n = 0
     for ptext in pages_text:
-        for l in _page_lines(ptext):
+        for l in page_lines(ptext):
             if _norm(l).startswith(first_key):
                 return n
             n += 1
@@ -351,7 +351,7 @@ def _education_cost(pages_text):
     n = 0
     started = False
     for ptext in pages_text:
-        for l in _page_lines(ptext):
+        for l in page_lines(ptext):
             if not started and _norm(l) == SECTION_EDUCATION:
                 started = True
             if started:
@@ -359,7 +359,7 @@ def _education_cost(pages_text):
     return n
 
 
-def _visible_span(company_headers):
+def visible_span(company_headers):
     """(start_year_float, end_year_float) across company header date ranges.
 
     ``company_headers`` are full role-header texts (dates included, e.g.
@@ -392,7 +392,7 @@ def _visible_span(company_headers):
 
 def _page_fill(pages_text):
     """Rendered line count per page; capacity = the fullest page."""
-    return [len(_page_lines(p)) for p in pages_text]
+    return [len(page_lines(p)) for p in pages_text]
 
 
 def _role_header_flat(flat, key):

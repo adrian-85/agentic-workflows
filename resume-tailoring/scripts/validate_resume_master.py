@@ -66,7 +66,7 @@ def _company_headers(body):
 def _role_groups(body):
     """[({key, title, bullets})] per company block, document order.
 
-    ``key`` is the date-stripped company portion (mr._company_key), which
+    ``key`` is the date-stripped company portion (mr.company_key), which
     is stable between the master and a tailored copy. Scoped to the career
     region: education entries reuse the company-block style in this format
     and are not roles.
@@ -85,7 +85,7 @@ def _role_groups(body):
         if style == mr.COMPANY_STYLE and t:
             if cur:
                 groups.append(cur)
-            cur = {"key": mr._company_key(t), "title": None, "bullets": []}
+            cur = {"key": mr.company_key(t), "title": None, "bullets": []}
         elif cur is not None:
             if style == TITLE_STYLE and cur["title"] is None:
                 cur["title"] = t
@@ -169,7 +169,7 @@ def _master_span(master_path):
     _root, body = _load_master_body(master_path)
     if body is None:
         return None, None
-    return mr._visible_span(_company_headers(body))
+    return mr.visible_span(_company_headers(body))
 
 
 def _history_gap_errors(master_path, body):
@@ -184,7 +184,7 @@ def _history_gap_errors(master_path, body):
     _root, mbody = _load_master_body(master_path)
     if mbody is None:
         return []
-    gaps = mrf._drop_created_gaps(_company_headers(mbody),
+    gaps = mrf.drop_created_gaps(_company_headers(mbody),
                                   _company_headers(body))
     return [
         f"employment history gap: dropping {header.strip()!r} left a "
