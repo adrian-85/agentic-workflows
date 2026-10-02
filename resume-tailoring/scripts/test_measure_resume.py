@@ -2014,23 +2014,6 @@ class TargetNoteTests(unittest.TestCase):
                 os.environ["TARGET_PAGES"] = saved
         self.assertEqual(mr._target_from_args(["doc.docx", "3"]), (3, False))
 
-    def _no_state_env(self):
-        # Neither fallback source may leak between tests.
-        saved_state = os.environ.get("RESUME_WORKFLOW_STATE")
-        saved_pages = os.environ.get("TARGET_PAGES")
-        os.environ.pop("RESUME_WORKFLOW_STATE", None)
-        os.environ.pop("TARGET_PAGES", None)
-        return (saved_state, saved_pages)
-
-    def _restore_env(self, saved):
-        saved_state, saved_pages = saved
-        for key, value in (("RESUME_WORKFLOW_STATE", saved_state),
-                           ("TARGET_PAGES", saved_pages)):
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
-
     def test_state_target_pages_is_the_fallback_after_env(self):
         # advance ... seniority-approved --target-pages N records the
         # Step-5 agreement; a measure run without an explicit target
@@ -2038,7 +2021,11 @@ class TargetNoteTests(unittest.TestCase):
         # RESUME_WORKFLOW_STATE) instead of the 2-page default — the
         # mid-loop churn in session 01a0fa53 came from measuring the
         # same build against target 2 and target 3 in different calls.
-        saved = self._no_state_env()
+        # Neither fallback source may leak between tests.
+        saved_state = os.environ.get("RESUME_WORKFLOW_STATE")
+        saved_pages = os.environ.get("TARGET_PAGES")
+        os.environ.pop("RESUME_WORKFLOW_STATE", None)
+        os.environ.pop("TARGET_PAGES", None)
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 docx = os.path.join(tmp, "build.docx")
@@ -2068,7 +2055,12 @@ class TargetNoteTests(unittest.TestCase):
                     fh.write('not json')
                 self.assertEqual(mr._target_from_args([docx]), (2, True))
         finally:
-            self._restore_env(saved)
+            for key, value in (("RESUME_WORKFLOW_STATE", saved_state),
+                               ("TARGET_PAGES", saved_pages)):
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
 
 
 class PageRemovalNoteTests(unittest.TestCase):
