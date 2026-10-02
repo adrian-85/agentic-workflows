@@ -1,7 +1,7 @@
 """Tests for diff_resume's --cutset (the Theme Review A master-vs-build diff)."""
 
 # Test method names are self-documenting.
-# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring
+# pylint: disable=missing-function-docstring,missing-class-docstring,missing-module-docstring,protected-access
 import contextlib
 import io
 import os

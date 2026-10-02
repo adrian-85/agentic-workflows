@@ -364,7 +364,7 @@ class P2PClient:
         never marked verified its own right.
         """
         got = get_fn()
-        ok, note = self._check_persisted(got, expected_fields)
+        ok, note = self.check_persisted(got, expected_fields)
         # The create carries verified/verify_note (set by the caller after
         # this). The GET is the verification itself — tag it as the prover
         # (verifies=<create>), never as verified. This method does NOT log;
@@ -375,7 +375,7 @@ class P2PClient:
         return ok, note, got
 
 
-    def _check_persisted(self, got: StepRecord | None,
+    def check_persisted(self, got: StepRecord | None,
                          expected_fields: dict) -> tuple[bool, str]:
         """Return (ok, note) for whether get_fn's response proves the create
         persisted and echoes expected_fields. Does NOT fire or log a GET."""

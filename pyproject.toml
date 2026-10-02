@@ -33,5 +33,5 @@ fail-on = ["C", "W", "R", "E", "F"]
 # and CI went red (49x C0413) — repo-wide here so per-file cleanup
 # passes cannot reintroduce the failure.
 disable = [
-    "protected-access", "wrong-import-position",
+    "wrong-import-position",
 ]

@@ -2,7 +2,7 @@
 
 # Test method names are self-documenting; class and method docstrings are not
 # part of this small state-machine test's contract.
-# pylint: disable=missing-function-docstring,missing-class-docstring
+# pylint: disable=missing-function-docstring,missing-class-docstring,protected-access
 
 import contextlib
 import io

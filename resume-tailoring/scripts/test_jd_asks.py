@@ -1,7 +1,7 @@
 """Tests for jd_asks's fixed-header requirement_lines and the per-run
 evidence-family extension (EXTRA_EVIDENCE_FAMILIES)."""
 
-# pylint: disable=missing-function-docstring
+# pylint: disable=missing-function-docstring,protected-access
 
 import unittest
 
