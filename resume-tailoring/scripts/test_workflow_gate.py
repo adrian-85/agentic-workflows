@@ -420,6 +420,35 @@ class BudgetTargetPagesTests(unittest.TestCase):
             self.assertIsNone(wg.load_state(path)["target_pages"])
 
 
+class AdvanceTargetPagesTests(unittest.TestCase):
+    """The advance CLI records the agreed page target at seniority
+    approval — and only there."""
+
+    def test_advance_cli_records_target_pages_and_rejects_elsewhere(self):
+        # The dispatch wiring for the Step-5 record: --target-pages is
+        # accepted only with seniority-approved and lands in the state,
+        # where measure_resume.py and render_pdf.sh fall back to it.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "target.workflow.json")
+            wg.create_state(path, "Target", "jd_target.txt", "theme")
+            # _main converts GateError to the CLI contract: usage +
+            # message on stderr, SystemExit(2).
+            err = io.StringIO()
+            with self.assertRaises(SystemExit) as blocked:
+                with contextlib.redirect_stderr(err):
+                    wg._main(["advance", path, "prune-theme-reviewed",
+                              "--target-pages", "3"])
+            self.assertEqual(blocked.exception.code, 2)
+            self.assertIn("--target-pages records the page target agreed "
+                          "at Step 5", err.getvalue())
+            for phase in ("prune-theme-reviewed", "ats-audited",
+                          "ats-theme-reviewed"):
+                wg._main(["advance", path, phase])
+            wg._main(["advance", path, "seniority-approved",
+                      "--target-pages", "3"])
+            self.assertEqual(wg.load_state(path)["target_pages"], 3)
+
+
 class StatusTests(unittest.TestCase):
     """`status` answers "what phase am I in and what runs next?" without
     reconstructing the phase from gate errors."""
