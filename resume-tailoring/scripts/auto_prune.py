@@ -435,14 +435,16 @@ def _generic_only_cuts(edits, jd_terms):
 # --------------------------------------------------------------------- #
 # Script emission
 # --------------------------------------------------------------------- #
-# The emitted script imports exactly what the machine emits — no more.
-# Phase 2 extensions add their own imports as they author edits
-# (set_labeled, drop_role, merge_into, ...); the full authoring-time
-# superset lives in the tailor_resume.py template.
+# The emitted script imports the machine's own calls plus the
+# SKILL-mandated Phase 2 helpers (drop_role, clone_after, set_labeled,
+# merge_into, stub_role): sessions repeatedly hit undefined-name lint
+# MISSes extending the import by hand (Steps 5/9 authoring), so the
+# helper imports ship up front and sit unused until Phase 2 uses them.
 _EMITTED_IMPORTS = (
     "import shutil\n\nfrom docx_edit import (\n"
-    "    DriftMeta, drop, drop_section, find_p, load, paras, remove,\n"
-    "    remove_empty, save, set_text,\n" ")\n"
+    "    DriftMeta, clone_after, drop, drop_role, drop_section, find_p,\n"
+    "    load, merge_into, paras, remove, remove_empty, save, set_labeled,\n"
+    "    set_text, stub_role,\n" ")\n"
 )
 
 

@@ -332,11 +332,17 @@ class TestEmittedScript(_AutoPruneBase):
         # no actual whole-role drop call.
         self.assertFalse(_drop_role_calls(self._script()))
 
-    def test_emitted_imports_cover_only_machine_edits(self):
-        # The machine never emits set_labeled (whole-line keeps/cuts only)
-        # and never drop_role — Phase 2 extensions import their own helpers
-        # (the authoring superset lives in the tailor_resume.py template).
-        self.assertNotIn("set_labeled", self._script())
+    def test_emitted_imports_cover_phase2_helpers(self):
+        # drop_role/clone_after/set_labeled (Steps 5/9, Tools lines) are
+        # SKILL-mandated Phase 2 edit types, and sessions repeatedly hit
+        # undefined-name lint MISSes extending the import by hand — the
+        # authoring helpers ship in the emitted import block up front.
+        # (Anchor on the list definition: the docstring also names
+        # MACHINE_DROPS in prose.)
+        header = self._script().split("MACHINE_DROPS = [")[0]
+        for name in ("clone_after", "drop_role", "merge_into",
+                     "set_labeled", "stub_role"):
+            self.assertIn(name, header)
 
     def test_every_candidate_covered(self):
         # docx_edit_cli reads from a path — write the script to disk
