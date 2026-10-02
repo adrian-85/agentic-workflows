@@ -485,11 +485,9 @@ def _script_header(plan, src, dst, meta):
         "No agent judgment and no cut report — the agent's work starts at SKILL Phase 2",
         "on this build, in main()'s marked Phase 2 section (append-only; never",
         "edit machine_phase(), MACHINE_DROPS, or the machine's set_text calls).",
-        "A Theme Review A restore of a machine-cut bullet copies that",
-        "bullet's MACHINE_DROPS entry VERBATIM into RESTORES (entries are",
-        "uniqueness-truncated prefixes — a full-sentence entry never",
-        "matches; the drop pass skips only exact matches and the lint",
-        "reports a dead entry) — and the rewrite, if any, goes in",
+        "A Theme Review A restore copies the cut bullet's MACHINE_DROPS",
+        "entry VERBATIM into RESTORES (entries are truncated prefixes;",
+        "the lint catches a dead entry) — and the rewrite, if any, goes in",
         "the Phase 2 section. Re-run:", "", f'    cd "$(dirname "$0")/.." && python3 '
         f'scripts/{meta["script_name"]}', "", f'Gates after Theme Review B: RESUME_WORKFLOW_STATE='
         f'"{meta.get("state_name", dst + ".workflow.json")}" '
