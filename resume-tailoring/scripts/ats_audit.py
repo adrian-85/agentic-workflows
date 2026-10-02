@@ -201,9 +201,9 @@ def _jd_literal_terms(jd_text):
     qualification_lines = jd_asks.requirement_lines(jd_text)
     if not qualification_lines:
         return jd_asks.hard_phrases(jd_text)
-    scope = jd_asks._norm_text(" ".join(qualification_lines))
+    scope = jd_asks.norm_text(" ".join(qualification_lines))
     return [t for t in jd_asks.hard_phrases(jd_text)
-            if jd_asks._norm_text(t) in scope]
+            if jd_asks.norm_text(t) in scope]
 
 
 def _audit_jd(text_low, jd_text):
@@ -211,7 +211,7 @@ def _audit_jd(text_low, jd_text):
     missing)."""
     terms = _jd_literal_terms(jd_text)
     missing = [t for t in terms
-               if not jd_asks._phrase_evidence(text_low, t, "hard")]
+               if not jd_asks.phrase_evidence(text_low, t, "hard")]
     return len(terms) - len(missing), missing
 
 

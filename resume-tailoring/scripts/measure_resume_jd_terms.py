@@ -295,7 +295,7 @@ def _jd_term_freq(term, jd_low):
     return total
 
 
-def _norm_text(text):
+def norm_text(text):
     """Lowercased with hyphens/slashes as spaces — bigram-mining form so
     "cycle-time"/"CI/CD" phrase boundaries tokenize like the JD's."""
     return re.sub(r"[-/]+", " ", text.lower())
@@ -359,7 +359,7 @@ def _adjacent_bigrams(text):
     time' joins, but 'time, review' does not (punctuation breaks a
     compound), and a stop word between two content words ('measured on
     adoption') never yields a false compound ('measured adoption')."""
-    norm = _norm_text(text)
+    norm = norm_text(text)
     toks = [(m.group(0), m.start(), m.end())
             for m in re.finditer(r"[a-z0-9][a-z0-9#+]*", norm)]
     out = set()
@@ -400,14 +400,14 @@ def _jd_hits(text, jd_terms):
     token); a sentence-final period passes.
     """
     low = text.lower()
-    low_norm = _norm_text(text)
+    low_norm = norm_text(text)
     out = []
     for t in jd_terms:
         if " " in t:
             # Hyphen/slash-normalized fallback: a resume hosts 'pull-request'
             # where the JD asks for 'pull request' — the same literal ask
             # under the unified matcher.
-            if t in low or _norm_text(t) in low_norm:
+            if t in low or norm_text(t) in low_norm:
                 out.append(t)
             continue
         cands = {t}

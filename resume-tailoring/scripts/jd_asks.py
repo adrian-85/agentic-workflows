@@ -38,7 +38,7 @@ from measure_resume_jd_terms import (CORE_TECH_NOUNS, JD_CONCEPTS,  # noqa: E402
                                      JD_METRIC_HEADS, JD_SOFT_SKILL_RE,
                                      JD_STOP, _acronym_terms,
                                      _adjacent_bigrams, _jd_term_freq,
-                                     _norm_text)
+                                     norm_text)
 
 # --------------------------------------------------------------------- #
 # Qualification-section detection (moved from measure_resume_jd — the
@@ -400,7 +400,7 @@ def parse_asks(jd_text):
     parallelized' — true duplicates): a token under a phrase ask stays
     matchable, because hosting 'Python' does not host 'Python
     scripting'."""
-    jd_norm = _norm_text(jd_text)
+    jd_norm = norm_text(jd_text)
     tokens, phrases = set(), set()
     qual = requirement_lines(jd_text)
     # No recognized heading (a recruiter's message / freeform posting):
@@ -564,7 +564,7 @@ def _concept_hosted(text_low, phrase_low):
     return False
 
 
-def _phrase_evidence(text_low, phrase, kind):
+def phrase_evidence(text_low, phrase, kind):
     """Apply the engine's matcher for one ask phrase and its equivalents."""
     matcher = _concept_hosted if kind == "concept" else hosted
     return any(matcher(text_low, candidate)
@@ -592,7 +592,7 @@ def _raw_evidence_set(text_low, phrases):
     applies — so callers that pass ask phrases as a plain set (the
     shim's ``jd_terms``) get exactly the engine's determination."""
     return {p for p in phrases
-            if _phrase_evidence(text_low, p,
+            if phrase_evidence(text_low, p,
                                 "concept" if p in JD_CONCEPTS else "hard")}
 
 

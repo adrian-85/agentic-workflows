@@ -64,7 +64,7 @@ class ExtraEvidenceFamiliesTests(unittest.TestCase):
         """A JD-specific term ('iv&v') whose truthful equivalent is worded
         differently in the resume ('testing') hosts via the extension."""
         jd_asks.EXTRA_EVIDENCE_FAMILIES["iv&v"] = ("iv&v", "testing")
-        self.assertTrue(jd_asks._phrase_evidence(
+        self.assertTrue(jd_asks.phrase_evidence(
             "performed independent testing", "iv&v", "hard"))
 
     def test_default_families_unaffected_by_empty_extra(self):
@@ -137,13 +137,13 @@ expectations:
 
     def test_bash_hosts_via_wsl_and_unix_via_linux(self):
         """WSL is Bash on Linux; Linux is the Unix-family environment."""
-        ev = jd_asks._phrase_evidence
+        ev = jd_asks.phrase_evidence
         self.assertTrue(ev("automation in wsl", "bash", "hard"))
         self.assertTrue(ev("linux servers", "unix", "hard"))
 
     def test_degree_phrase_hosts_via_bachelor(self):
         """'Computer Science' is hosted by the held degree line."""
-        self.assertTrue(jd_asks._phrase_evidence(
+        self.assertTrue(jd_asks.phrase_evidence(
             "bachelor's degree", "computer science", "hard"))
 
     def test_audits_qualification_scope_not_whole_posting(self):
