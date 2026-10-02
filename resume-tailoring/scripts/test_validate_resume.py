@@ -1161,13 +1161,19 @@ class GuidanceTests(unittest.TestCase):
     def test_missing_role_spacers_warn(self):
         # SKILL Step 8's default: spacers are ALWAYS added unless the
         # page target conflicts. The render gate surfaces the boundary list
-        # directly.
+        # directly — with FULL headers and the omission-ready --omitted
+        # value, because the gate matches recorded omissions against full
+        # header text verbatim (a truncated copy-paste never matches).
         b, s = self._two_role_body(with_spacer=False)
         notes = vr._readability_guidance(b, s)
         warns = [c for lvl, c in notes if lvl == "warn"]
-        self.assertTrue(any("readability spacer" in w and "Globex" in w
-                            for w in warns), warns)
-        self.assertTrue(any("clone_after" in w for w in warns), warns)
+        spacer_warns = [w for w in warns if "readability spacer" in w]
+        full = "Globex, CA (Remote)01/2022 \u2013 12/2023"
+        self.assertTrue(spacer_warns, warns)
+        self.assertTrue(all(full in w for w in spacer_warns), spacer_warns)
+        self.assertTrue(any("--omitted" in w for w in spacer_warns),
+                        spacer_warns)
+        self.assertTrue(any("clone_after" in w for w in spacer_warns), warns)
 
     def test_spacers_present_no_warn(self):
         b, s = self._two_role_body(with_spacer=True)

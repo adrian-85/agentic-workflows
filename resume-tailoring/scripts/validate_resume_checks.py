@@ -517,12 +517,19 @@ def _readability_guidance(body, summary, *, region=None,
     spacer_gaps = ([] if is_master
                    else mr._boundaries_without_spacer(body))
     if spacer_gaps:
-        names = ", ".join(h[:36] for h, _a in spacer_gaps)
+        # FULL headers, never truncated: the spacer gate matches recorded
+        # omissions against the complete header text verbatim, so a
+        # warning that truncates hands the agent a string the gate will
+        # reject ("recorded spacer omissions matched no boundary").
+        omitted = ";".join(h for h, _a in spacer_gaps)
         notes.append(("warn",
             f"{len(spacer_gaps)} role boundary/boundaries lack the "
-            f"readability spacer ({names}) — add them via clone_after"
+            f"readability spacer ({omitted}) — add them via clone_after"
             f'(body, find_p(ps, "<Tools line>"), "") unless doing so '
-            f"pushes the build past the page target (SKILL Step 9)"))
+            f"pushes the build past the page target (SKILL Step 9); when "
+            f"omitting under page pressure, record the FULL headers "
+            f'verbatim: workflow_gate.py spacers <state> --omitted "'
+            f'{omitted}"'))
     return notes
 
 
