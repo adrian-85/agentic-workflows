@@ -12,6 +12,7 @@ so `python3 scripts/docx_edit.py` keeps working unchanged.
 import ast
 import builtins
 import contextlib
+import difflib
 import io
 import json
 import os
@@ -357,6 +358,83 @@ def _report_undefined_names(undefined):
     return bool(undefined)
 
 
+def _script_list_literal(tree, name):
+    """(lineno, [strings]) for a module-level ``NAME = [...]`` list of
+    string constants, or None when the name is absent or not a plain
+    list literal (computed lists cannot be statically verified — skip
+    rather than guess)."""
+    for node in tree.body:
+        if (isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id == name
+                and isinstance(node.value, ast.List)
+                and all(isinstance(e, ast.Constant)
+                        and isinstance(e.value, str)
+                        for e in node.value.elts)):
+            return (node.lineno,
+                    [e.value for e in node.value.elts])
+    return None
+
+
+def _nearest_drops(entry, drops):
+    """MACHINE_DROPS entries closest to a mismatched RESTORES entry —
+    prefix kinship first (the machine's entries are uniqueness-truncated
+    prefixes, so a mismatched restore usually extends or shortens one),
+    then edit distance for renames."""
+    kin = [d for d in drops if d.startswith(entry) or entry.startswith(d)]
+    if kin:
+        return sorted(kin, key=len)[:3]
+    return difflib.get_close_matches(entry, drops, n=3, cutoff=0.25)
+
+
+def _script_restore_mismatches(tree):
+    """(lineno, entry, nearest) for RESTORES entries matching no
+    MACHINE_DROPS entry.
+
+    The drop pass skips only on exact string equality
+    (``[p for p in MACHINE_DROPS if p not in RESTORES]``), and the
+    machine's entries are uniqueness-truncated prefixes — a restore
+    authored from the cut-set diff's full sentence (or the --prefixes
+    dump's wider prefix) silently fails to restore: the paragraph
+    drops anyway and the failure surfaces later as a confusing
+    set_text 'target not found'. This pass reports the mismatch
+    pre-run with the nearest MACHINE_DROPS candidates, so the author
+    copies the exact entry. Skipped entirely when either list is
+    missing or not a plain literal (hand-written scripts)."""
+    drops = _script_list_literal(tree, "MACHINE_DROPS")
+    restores = _script_list_literal(tree, "RESTORES")
+    if drops is None or restores is None:
+        return []
+    drop_set = set(drops[1])
+    mismatches = []
+    for entry in restores[1]:
+        if entry in drop_set:
+            continue
+        nearest = _nearest_drops(entry, drops[1])
+        mismatches.append((restores[0], entry, nearest))
+    return mismatches
+
+
+def _report_restore_mismatches(mismatches):
+    """Print restore-mismatch findings; True when any fired."""
+    for lineno, entry, nearest in mismatches:
+        hint = (f" — nearest MACHINE_DROPS entr"
+                f"{'y' if len(nearest) == 1 else 'ies'}: "
+                + ", ".join(repr(n) for n in nearest)) if nearest else ""
+        print(f"  MISS  line {lineno}: RESTORES entry {entry!r} matches "
+              f"no MACHINE_DROPS entry — the drop pass skips only on "
+              f"exact match, so this restore never fires (copy the entry "
+              f"verbatim from MACHINE_DROPS){hint}", file=sys.stderr)
+    if mismatches:
+        print(f"lint: {len(mismatches)} RESTORES entr"
+              f"{'y' if len(mismatches) == 1 else 'ies'} match no "
+              "MACHINE_DROPS entry — the bullets restore as dropped and "
+              "later set_text anchors on them fail; fix before running",
+              file=sys.stderr)
+    return bool(mismatches)
+
+
 def lint_script(docx_path, script_path):
     """Validate a tailor script's find_p targets against a .docx BEFORE
     running it.
@@ -381,6 +459,8 @@ def lint_script(docx_path, script_path):
         return rc
     targets = _script_find_p_prefixes(tree)
     if _report_undefined_names(_script_undefined_names(tree)):
+        return 1
+    if _report_restore_mismatches(_script_restore_mismatches(tree)):
         return 1
     if not targets:
         print(f"lint: no find_p calls found in {script_path} — nothing "

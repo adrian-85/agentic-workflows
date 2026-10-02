@@ -1753,6 +1753,71 @@ class LintScriptTests(unittest.TestCase):
             os.unlink(docx)
             os.unlink(script)
 
+    def test_restore_entry_matching_no_machine_drop_fails(self):
+        # The two-zone failure mode: a restore authored from the cut-set
+        # diff's full sentence (or the --prefixes dump's 32-char prefix)
+        # silently fails to restore — the drop pass skips only on EXACT
+        # string equality, the paragraph drops anyway, and the failure
+        # surfaces later as a confusing set_text 'target not found'.
+        docx = self._docx_with(
+            "Primary test engineer for NextGen DNA evidence collection.")
+        script = self._script(
+            'from docx_edit import find_p\n', 'ps = None\n',
+            'MACHINE_DROPS = ["Primar", "Define"]\n',
+            'RESTORES = ["Primary test engineer for Next"]\n',
+            'find_p(ps, "Primary test engineer for Next")\n')
+        try:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = dcli.lint_script(docx, script)
+            self.assertEqual(rc, 1)
+            self.assertIn("RESTORES", err.getvalue())
+            self.assertIn("'Primary test engineer for Next'", err.getvalue())
+            self.assertIn("'Primar'", err.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_exact_restore_entry_passes(self):
+        # A RESTORES entry copied verbatim from MACHINE_DROPS restores —
+        # no finding, and the script's find_p targets still lint clean.
+        docx = self._docx_with(
+            "Primary test engineer for NextGen DNA evidence collection.")
+        script = self._script(
+            'from docx_edit import find_p\n', 'ps = None\n',
+            'MACHINE_DROPS = ["Primar", "Define"]\n',
+            'RESTORES = ["Primar"]\n',
+            'find_p(ps, "Primary test engineer for Next")\n')
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = dcli.lint_script(docx, script)
+            self.assertEqual(rc, 0)
+            self.assertIn("all 1", out.getvalue())
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
+    def test_no_machine_drops_list_skips_the_restore_check(self):
+        # Hand-written scripts (no machine zone) and non-literal RESTORES
+        # (computed at run time) are exempt — the lint can only verify
+        # statically-known lists, and a false positive is worse than a
+        # skip.
+        docx = self._docx_with(
+            "Primary test engineer for NextGen DNA evidence collection.")
+        script = self._script(
+            'from docx_edit import find_p\n', 'ps = None\n',
+            'RESTORES = ["anything at all"]\n',
+            'find_p(ps, "Primary test engineer for Next")\n')
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = dcli.lint_script(docx, script)
+            self.assertEqual(rc, 0)
+        finally:
+            os.unlink(docx)
+            os.unlink(script)
+
     def test_summary_edit_is_rejected(self):
         fd, docx = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
