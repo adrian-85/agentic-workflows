@@ -485,8 +485,11 @@ def _script_header(plan, src, dst, meta):
         "No agent judgment and no cut report — the agent's work starts at SKILL Phase 2",
         "on this build, in main()'s marked Phase 2 section (append-only; never",
         "edit machine_phase(), MACHINE_DROPS, or the machine's set_text calls).",
-        "A Theme Review A restore of a machine-cut bullet appends its prefix to",
-        "RESTORES — the drop pass skips it — and the rewrite, if any, goes in",
+        "A Theme Review A restore of a machine-cut bullet copies that",
+        "bullet's MACHINE_DROPS entry VERBATIM into RESTORES (entries are",
+        "uniqueness-truncated prefixes — a full-sentence entry never",
+        "matches; the drop pass skips only exact matches and the lint",
+        "reports a dead entry) — and the rewrite, if any, goes in",
         "the Phase 2 section. Re-run:", "", f'    cd "$(dirname "$0")/.." && python3 '
         f'scripts/{meta["script_name"]}', "", f'Gates after Theme Review B: RESUME_WORKFLOW_STATE='
         f'"{meta.get("state_name", dst + ".workflow.json")}" '
@@ -504,7 +507,8 @@ def _script_drops(plan):
     lines = [
         "",
         "# Machine cut prefixes (Phase 1 dispositions) — never edit.",
-        "# A Theme Review A restore appends the same prefix to RESTORES",
+        "# A Theme Review A restore copies the entry VERBATIM from this",
+        "# list into RESTORES (entries are truncated; exact match only).",
         "# (the drop pass skips it); the rewrite goes in Phase 2.",
         "MACHINE_DROPS = [",
     ]
@@ -580,9 +584,9 @@ def emit_script(plan, src, dst, meta):
 
     Two zones, by author. ``machine_phase()`` holds the machine's
     cuts/trims and is never edited — a Theme Review A restore of a cut
-    bullet appends its prefix to ``RESTORES`` instead (the drop pass
-    skips it) and any rewrite goes in ``main()``'s marked Phase 2
-    section. Phase 2 runs after the machine, so agent rewrites always
+    bullet copies the cut's ``MACHINE_DROPS`` entry verbatim into
+    ``RESTORES`` (the drop pass skips it) and any rewrite goes in
+    ``main()``'s marked Phase 2 section. Phase 2 runs after the machine, so agent rewrites always
     win: a machine trim can no longer overwrite them, run stale after a
     Phase 2 drop, or be lost to a block edit.
 

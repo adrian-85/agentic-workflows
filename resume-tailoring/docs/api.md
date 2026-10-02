@@ -450,7 +450,9 @@ mode** — Phase 1's `auto_prune.py` (SKILL Step 2) is the machine prune's only 
 machine-dispositions every candidate (no agent keeps, no overrides, no cut report), emits the first
 tailor script, and runs it through `run_tailor.sh`. The emitted script has two zones: a
 `machine_phase(body)` function plus its `MACHINE_DROPS` list (machine-authored, never edited — a
-Theme Review A restore of a cut appends the prefix to `RESTORES`, which the drop pass skips) and
+Theme Review A restore of a cut copies that bullet's `MACHINE_DROPS` entry verbatim into
+`RESTORES`; entries are uniqueness-truncated prefixes, the drop pass skips only exact matches,
+and `--lint-script` fails a dead entry pre-run, naming the nearest candidates) and
 `main()`'s marked **Phase 2 section** where the agent appends edits after `machine_phase()` — so
 agent rewrites always win over machine trims, a machine trim can never run stale after a Phase 2
 drop, and a block edit can never lose a machine disposition. A `# kept:` line in an emitted script is always

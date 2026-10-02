@@ -352,9 +352,13 @@ still verifies post-build).
   whitespace-normalized so shifted indices don't noise it up — the CUT list is the theme-review
   work order (the explicit two-path form takes master then build). Judge both sides against
   the Step-1 theme brief:
-  - **Theme-relevant content the prune cut** → restore it: append the cut prefix to the
-    emitted script's `RESTORES` list (the drop pass skips it — never edit `MACHINE_DROPS` or
-    `machine_phase()`), then rewrite it as a fresh, purpose-written host in the role where it
+  - **Theme-relevant content the prune cut** → restore it: copy that bullet's entry **verbatim
+    from the emitted script's `MACHINE_DROPS` list** into `RESTORES` (the drop pass skips only
+    exact matches — never edit `MACHINE_DROPS` or `machine_phase()`). Entries are
+    uniqueness-truncated prefixes (e.g. `"Primar"`), so a full-sentence prefix copied from the
+    cut-set diff or the `--prefixes` dump silently never matches — `--lint-script` reports a
+    dead entry with the nearest `MACHINE_DROPS` candidates pre-run. Then rewrite the restored
+    bullet as a fresh, purpose-written host in the role where it
     lived (the Hosting reference's pattern, available from here for theme
     restores), or, when the matcher cut a truthful equivalent, fix `--equivalence`/evidence
     families and re-run `auto_prune.py` rather than hand-rebuilding. **A re-run resets the
@@ -1055,7 +1059,7 @@ sidecar, `merge_into`; Steps 4, 9 & 12). What's left is judgment:
 | "Keep N" with a drop list that doesn't add up | intended keep + len(drop list) == the role's master bullet count (23 − 16 = 7, not 8); a built role whose count differs from intent is a MISS to fix, not a counting convention (Step 9) |
 | Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 2, 9) |
 | Treating a proficiencies/Tools line as permanent ATS-host real estate | The machine keeps a line whole only when it hosts JD evidence and cuts a line with no ask whole (Step 2, never a partial value list); hosting comes from purpose-written bullet text, not preserved lines |
-| Overriding a prune cut without theme rationale, or hand-editing the emitted cuts | Step 3's theme review is the sanctioned override: append the cut prefix to `RESTORES` and rewrite it as a fresh, purpose-written host, or fix the evidence families and re-run `auto_prune.py`; record the rationale in the script. Never edit the machine zone (`machine_phase()`, `MACHINE_DROPS`, its `set_text` calls) — the machine prune stays the only master consumer and there is no `# kept:` negotiation |
+| Overriding a prune cut without theme rationale, or hand-editing the emitted cuts | Step 3's theme review is the sanctioned override: copy the cut's `MACHINE_DROPS` entry verbatim to `RESTORES` (exact match only — entries are truncated prefixes) and rewrite it as a fresh, purpose-written host, or fix the evidence families and re-run `auto_prune.py`; record the rationale in the script. Never edit the machine zone (`machine_phase()`, `MACHINE_DROPS`, its `set_text` calls) — the machine prune stays the only master consumer and there is no `# kept:` negotiation |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
 | Editing the master from a tailoring session | Never — the master is user-owned and read-only to this workflow; make any master update directly, then re-run Phase 1 |
 | Storing the JD in /tmp | Persist it as `jd_<target>.txt` in the skill root (Step 1) — every tool and the re-run instructions reference that path across runs |
