@@ -463,7 +463,8 @@ drop, and a block edit can never lose a machine disposition. A `# kept:` line in
 machine-generated, never an agent negotiation, and covers three cases: a role's stub keep (it would
 otherwise lose every bullet; timeline gaplessness), a bullet kept WHOLE unmodified (every sentence
 carries JD evidence and it is already within the word cap), and a proficiency/Tools line kept WHOLE
-unmodified (it hosts at least one JD-evidenced item). A user-approved whole-role drop is represented
+unmodified (its label hosts the JD-named category while no evidenced VALUE does — a line with
+evidenced values gets a set_labeled value trim instead). A user-approved whole-role drop is represented
 by `drop_role()` itself, never by a fake `# kept:` comment; per-bullet edits inside that role must
 not remain in the script. Gap-intolerant drops: the drop must be contiguous from the
 OLDEST role or be a `stub_role()` instead — see the Step 5 procedures section.

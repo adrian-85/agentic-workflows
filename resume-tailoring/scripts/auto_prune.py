@@ -19,8 +19,12 @@ agent is already touching the line to host something:
     sentences (fewest-JD-hits first) — never rewrites words within a
     surviving sentence.
   - list-trim (proficiencies/Tools line): a line hosting ANY JD-evidenced
-    chunk is KEPT WHOLE, unmodified; a line hosting NONE is CUT WHOLE —
-    never a partial value list.
+    VALUE is trimmed to its label + the JD-evidenced values (the ruthless
+    rule at list granularity: off-JD values die at prune time, not in the
+    Step 9 budget pass); a Tools & Technologies row hosting NO evidenced
+    value is KEPT WHOLE (the presentation/anchor row for the role); a
+    non-Tools line hosting no evidenced chunk is CUT WHOLE. The machine
+    never rewords a surviving value — it only drops whole values.
   - top-block (no-JD-evidence proficiencies/cert line): CUT. A section
     whose every line is cut is removed whole (drop_section) — an entire
     technical-proficiency category may go.
@@ -172,6 +176,32 @@ def _hosts_jd_chunk(text, jd_terms):
                   for chunk in re.split(r"[,;]", value)))
 
 
+def _trim_list_values(text, jd_terms):
+    """A ``Label: values`` line rewritten with only its JD-evidenced
+    values — the ruthless-prune rule at LIST granularity: the row
+    survives (spacer anchor, presentation, and the proficiencies
+    section's hosting surface stay), but off-JD values die at prune
+    time instead of surviving to the Step 9 budget pass.
+
+    Returns None unless the trim is real: no label, fewer than two
+    value chunks (a single value has nothing to reorganize, and
+    cert-style "Issuer – Issued 03/2026 (ID: x)" tails never split),
+    no evidenced value (a label-only host or a no-evidence row keeps
+    the line WHOLE — the caller's keep/cut rules own those), or
+    nothing to cut."""
+    if ":" not in text:
+        return None
+    label, value = text.split(":", 1)
+    chunks = [c.strip() for c in re.split(r"[,;]", value)]
+    if len([c for c in chunks if c]) < 2:
+        return None
+    kept = [c.rstrip(".,;:!?'\"") for c in chunks
+            if c and jd_asks.evidence_set(c.lower(), jd_terms)]
+    if not kept or len(kept) == len(chunks):
+        return None
+    return f"{label}: {', '.join(kept)}"
+
+
 def _is_tools_line(text):
     """Whether a list candidate is the per-role Tools presentation row."""
     return text.strip().lower().startswith("tools & technologies:")
@@ -278,12 +308,15 @@ def _disposition(c, anchors, role_state, jd_terms):
                             "bullet kept whole — every sentence carries "
                             "JD evidence (auto-prune; nothing to cut)")
     elif kind == "list-trim":
-        if _is_tools_line(text):
+        trimmed_values = _trim_list_values(text, jd_terms)
+        if trimmed_values is not None:
+            payload = "value-trim", ((prefix, text), trimmed_values)
+        elif _is_tools_line(text):
             return "keep", (prefix if prefix else text[:24],
                             "Tools & Technologies row kept for every "
                             "retained role (auto-prune; preserve at least "
                             "one presentation value row)")
-        if _hosts_jd_chunk(text, jd_terms):
+        elif _hosts_jd_chunk(text, jd_terms):
             return "keep", (prefix if prefix else text[:24],
                             "list line kept whole — hosts at least one "
                             "JD-evidenced item (auto-prune; never a " "partial value list)")
@@ -301,6 +334,7 @@ def _walk_candidates(candidates, anchors, role_state, jd_terms):
     empty section lists) as a dict.
     """
     edits = {"drops": [], "removes": [], "keeps": [], "trims": [],
+             "value_trims": [],
              "section_drops": [], "section_keeps": []}
     drops, removes = edits["drops"], edits["removes"]
     drop_keys = set()
@@ -326,6 +360,8 @@ def _walk_candidates(candidates, anchors, role_state, jd_terms):
             edits["keeps"].append(payload)
         elif action == "trim":
             edits["trims"].append(payload)
+        elif action == "value-trim":
+            edits["value_trims"].append(payload)
     return edits
 
 
@@ -390,6 +426,9 @@ def plan_phase_a(candidates, roles, jd_terms, body):
       trims        [(anchor, new_text)]   — set_text rewrites (whole dead
                                              sentences dropped; never a
                                              sub-sentence word/phrase edit)
+      value_trims  [(anchor, new_text)]   — set_labeled rewrites (list
+                                             lines trimmed to their
+                                             JD-evidenced values)
       section_drops [(heading_prefix, heading)] — drop_section calls
       cap_dropped  {text}            — bullets cut only by the per-role cap
       stats        {cut, trim, stub, section}
@@ -404,7 +443,7 @@ def plan_phase_a(candidates, roles, jd_terms, body):
     edits["generic_only"] = _generic_only_cuts(edits, jd_terms)
     edits["stats"] = {
         "cut": len(edits["drops"]) + len(edits["removes"]),
-        "trim": len(edits["trims"]),
+        "trim": len(edits["trims"]) + len(edits["value_trims"]),
         "stub": len(role_state.stubs),
         "generic": len(edits["generic_only"]),
         "section": len(edits["section_drops"])}
@@ -483,7 +522,7 @@ def _script_header(plan, src, dst, meta):
     lines += [
         "No agent judgment and no cut report — the agent's work starts at SKILL Phase 2",
         "on this build, in main()'s marked Phase 2 section (append-only; never",
-        "edit machine_phase(), MACHINE_DROPS, or the machine's set_text calls).",
+        "edit machine_phase(), MACHINE_DROPS, or the machine's set_text/set_labeled calls).",
         "A Theme Review A restore copies the cut bullet's MACHINE_DROPS",
         "entry VERBATIM into RESTORES (entries are truncated prefixes;",
         "the lint catches a dead entry) — and the rewrite, if any, goes in",
@@ -541,6 +580,14 @@ def _script_machine_phase(plan):
                      f"whole, {WORD_CAP}-word cap) ----- #")
     for (prefix, _text), new in plan["trims"]:
         lines.append(f"    set_text(find_p(ps, {_py(prefix)}), {_py(new)})")
+    if plan.get("value_trims"):
+        lines.append("")
+        lines.append("    # ---- list value trims (off-JD values dropped; "
+                     "label + JD-evidenced values survive) --- #")
+    for (prefix, _text), new in plan.get("value_trims", []):
+        label, values = new.split(":", 1)
+        lines.append(f"    set_labeled(find_p(ps, {_py(prefix)}), "
+                     f"{_py(label.strip())}, {_py(values.strip())})")
     if plan["section_drops"]:
         lines.append("")
         lines.append("    # ---- whole-category cuts (emptied sections) "

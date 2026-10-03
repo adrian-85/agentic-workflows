@@ -64,10 +64,11 @@ conflict. Time-in-role and recency are only tiebreakers, never a cut signal and 
 **Phase 1 — relevance assembly.** `auto_prune.py` builds a JD-relevant base from the master. It
 removes unevidenced content (including generic-vocabulary-only bullets — see Core principle),
 whole dead sentences from a kept bullet, and whole non-JD
-proficiency lines — never a sub-sentence word/phrase edit and never a partial value list
-within a kept line. A retained role's `Tools & Technologies` presentation row is always preserved,
-with at least one value row, even when none of its values host a JD term. It never drops a whole
-role and does not perform page/word-budget iteration. Its
+proficiency lines — never a sub-sentence word/phrase edit. A proficiency/Tools line hosting
+JD-evidenced VALUES is trimmed to its label + the evidenced values (whole values only —
+never a reworded value); a `Tools & Technologies` row whose values host none is always preserved
+whole, with at least one value row, even when none of its values host a JD term. It never drops a
+whole role and does not perform page/word-budget iteration. Its
 dispositions are deterministic and complete — Step 3 theme-reviews them against the Step-1 brief and
 overrides where warranted (Core principle).
 
@@ -309,9 +310,12 @@ What the machine does (deterministic; the agent has no lever here):
   technical-proficiency category may go.
 - **TRIM** kept bullets by dropping whole dead SENTENCES (never a sub-sentence word or phrase),
   enforcing the ≤40-word bullet cap by dropping more whole sentences when needed. A
-  proficiency/Tools line hosting ANY JD-evidenced item is kept WHOLE and unmodified; a line
-  hosting NONE is cut whole — never a partial value list. Word-choice tailoring of a surviving
-  sentence or line is Phase 2 agent work (Step 4 hosting, or the Step 9 budget pass), done only
+  proficiency/Tools line hosting JD-evidenced VALUES is trimmed to its label + those values
+  (off-JD values die at prune time — whole values only, never reworded); a non-Tools line whose
+  only evidence is its LABEL is kept whole (the label is the JD-named category), and a line hosting
+  NOTHING is cut whole. A `Tools & Technologies` row with no evidenced value survives whole as
+  the role's presentation/anchor row. Word-choice tailoring of a surviving
+  sentence or value is Phase 2 agent work (Step 4 hosting, or the Step 9 budget pass), done only
   when adding a host to that line.
 - **NEVER drops a whole role** — a role left with zero bullets keeps a one-bullet stub
   (header/title + strongest bullet), so the timeline stays gapless and the seniority gate (Step 5)
@@ -1092,7 +1096,7 @@ sidecar, `merge_into`; Steps 4, 9 & 12). What's left is judgment:
 | Treating a proficiencies/Tools-line host as proof of a JD ask | JD REQUIREMENT COVERAGE prints [weak] for non-bullet hosts — weave the skill into the bullet where it was used (Step 4); [UNCOVERED] means demonstrate it or raise the gap, never fabricate |
 | "Keep N" with a drop list that doesn't add up | intended keep + len(drop list) == the role's master bullet count (23 − 16 = 7, not 8); a built role whose count differs from intent is a MISS to fix, not a counting convention (Step 9) |
 | Cutting a bullet because the role is short, or keeping one because it is recent | Time-in-role is never a cut signal and never an exemption — JD alignment decides first, readability second, tenure/recency only as tiebreakers (Steps 2, 9) |
-| Treating a proficiencies/Tools line as permanent ATS-host real estate | The machine keeps a line whole only when it hosts JD evidence and cuts a line with no ask whole (Step 2, never a partial value list); hosting comes from purpose-written bullet text, not preserved lines |
+| Treating a proficiencies/Tools line as permanent ATS-host real estate | The machine trims a line's values to the JD-evidenced ones and cuts a no-ask line whole (Step 2; whole values only, never reworded); hosting comes from purpose-written bullet text, not preserved lines |
 | Overriding a prune cut without theme rationale, or hand-editing the emitted cuts | Step 3's theme review is the sanctioned override: copy the cut's `MACHINE_DROPS` entry verbatim to `RESTORES` (exact match only — entries are truncated prefixes) and rewrite it as a fresh, purpose-written host, or fix the evidence families and re-run `auto_prune.py`; record the rationale in the script. Never edit the machine zone (`machine_phase()`, `MACHINE_DROPS`, its `set_text` calls) — the machine prune stays the only master consumer and there is no `# kept:` negotiation |
 | Inflating verbs to match the JD ("designed from scratch" for a refactor) | Keep verbs truthful — see Accuracy |
 | Editing the master from a tailoring session | Never — the master is user-owned and read-only to this workflow; make any master update directly, then re-run Phase 1 |

@@ -246,16 +246,18 @@ class TestPlanDispositions(_AutoPruneBase):
         for _anchor, new in self.plan["trims"]:
             self.assertLessEqual(len(new.split()), auto_prune.WORD_CAP)
 
-    def test_list_line_hosting_jd_evidence_is_kept_whole(self):
+    def test_list_line_hosting_jd_evidence_trims_to_evidenced_values(self):
         # The Automation line hosts Cypress/Playwright (JD-evidenced) AND
-        # Karate (not JD-named) — the whole line is kept UNCHANGED, never
-        # reduced to a partial value list.
+        # Karate (not JD-named) — the ruthless rule at list granularity:
+        # the line survives as label + evidenced values, and the off-JD
+        # value dies at prune time (a whole value, never a reworded one).
         c = self._cand("Automation Testing Frameworks:", "list-trim")
         self.assertTrue(c)
         self.assertNotIn(
             c["text"], {t for _p, t in self.plan["drops"]})
-        self.assertTrue(any(head == c["prefix"] or c["text"][:24] in head
-                            for head, _why in self.plan["keeps"]))
+        trims = {a[1]: new for a, new in self.plan["value_trims"]}
+        self.assertEqual(trims.get(c["text"]),
+                         "Automation Testing Frameworks: Cypress, Playwright")
         self.assertFalse(
             any(a[1] == c["text"] for a, _new in self.plan["trims"]))
 
@@ -279,17 +281,46 @@ class TestPlanDispositions(_AutoPruneBase):
         self.assertTrue(any(head == "Tools "
                             for head, _why in plan["keeps"]))
 
-    def test_languages_line_hosting_jd_evidence_is_kept_whole(self):
+    def test_languages_line_trims_to_evidenced_values(self):
         # 'Python' (a capitalized mention) and 'python scripting' (the
         # cue-tail phrase) are BOTH asks under the engine; the Languages
-        # line evidences 'python', so the WHOLE line (Java/COBOL included)
-        # is kept unchanged — never reduced to just the JD-named item.
+        # line evidences 'python', so it trims to label + Python —
+        # Java/COBOL die at prune time (restorable as a Phase 2
+        # set_labeled, never a machine reword).
         c = self._cand("Programming Languages:", "list-trim")
         self.assertTrue(c)
         self.assertNotIn(
             c["text"], {t for _p, t in self.plan["drops"]})
-        self.assertFalse(
-            any(a[1] == c["text"] for a, _new in self.plan["trims"]))
+        trims = {a[1]: new for a, new in self.plan["value_trims"]}
+        self.assertEqual(trims.get(c["text"]),
+                         "Programming Languages: Python")
+
+    def test_mixed_tools_line_trims_to_evidenced_values(self):
+        # Alpha's Tools row mixes evidenced values (Cypress, Jenkins,
+        # Kubernetes) with an off-JD one (COBOL) — the row survives as
+        # the role's anchor/presentation line, minus COBOL.
+        trims = {a[1]: new for a, new in self.plan["value_trims"]}
+        self.assertEqual(
+            trims.get("Tools & Technologies: Cypress, Jenkins, "
+                      "Kubernetes, COBOL"),
+            "Tools & Technologies: Cypress, Jenkins, Kubernetes")
+
+    def test_emitted_script_uses_set_labeled_for_value_trims(self):
+        script = auto_prune.emit_script(
+            self.plan, "m.docx", "out.docx",
+            {"target": "Target", "jd_name": "jd_x.txt",
+             "script_name": "tailor_target.py"})
+        self.assertIn("list value trims", script)
+        # every value trim lands as set_labeled, never set_text
+        for (prefix, _text), new in self.plan["value_trims"]:
+            self.assertIn(
+                f"set_labeled(find_p(ps, {auto_prune._py(prefix)}), ", script)
+            self.assertNotIn(
+                f"set_text(find_p(ps, {auto_prune._py(prefix)}", script)
+            label, values = new.split(":", 1)
+            self.assertIn(
+                f"{auto_prune._py(label.strip())}, "
+                f"{auto_prune._py(values.strip())})", script)
 
     def test_emptied_cert_section_drops_whole(self):
         c = self._cand("Rapid Software Testing", "top-block")
