@@ -334,7 +334,7 @@ class WordCapTests(unittest.TestCase):
     3-page build past the line and the user set the rule."""
 
     @staticmethod
-    def _docx(path, bullet_words=99, bullets=8):
+    def _docx(path, bullet_words=99, bullets=8, summary_text=None):
         fd, real = tempfile.mkstemp(suffix=".docx")
         os.close(fd)
         os.replace(real, path)
@@ -348,12 +348,16 @@ class WordCapTests(unittest.TestCase):
         # 8 bullets (within the per-role cap), unique tokens per bullet so
         # the near-duplicate check stays quiet; bullet_words drives the
         # whole-resume total (8 x 99 + ~8 structural = ~800).
-        for p in [
+        head = [
             mk("Career Experience", style="SectionHeading"),
             mk("Acme, MA (Remote)06/2021 \u2013 05/2026",
                style=mr.COMPANY_STYLE),
             mk("Staff Engineer", style=vr.TITLE_STYLE),
-        ] + [mk(" ".join(f"w{b}_{j}" for j in range(bullet_words))
+        ]
+        if summary_text is not None:
+            head = [mk("Summary", style="SectionHeading"),
+                    mk(summary_text, style=vr.SUMMARY_STYLE)] + head
+        for p in head + [mk(" ".join(f"w{b}_{j}" for j in range(bullet_words))
                 + f" result{b}.", numId=4) for b in range(bullets)]:
             body_el.append(p)
         with contextlib.redirect_stdout(io.StringIO()):
@@ -436,6 +440,39 @@ class WordCapTests(unittest.TestCase):
             self.assertIn("exceeds the 500-word cap", out.getvalue())
         finally:
             os.unlink(path)
+
+    def test_final_render_repetition_blocks(self):
+        # Host-prose quality (SKILL Hosting reference): the Guild Mortgage
+        # session shipped "...by leadership, gaining leadership
+        # experience" because the repetition note was guidance-only.
+        # Mid-run the note stays advisory; the FINAL render blocks it.
+        for phase, expect_blocking in ((None, False), ("final", True)):
+            path = os.path.join(tempfile.mkdtemp(), "Resume - T.docx")
+            old = os.environ.get("RESUME_RENDER_PHASE")
+            if phase is None:
+                os.environ.pop("RESUME_RENDER_PHASE", None)
+            else:
+                os.environ["RESUME_RENDER_PHASE"] = phase
+            try:
+                self._docx(path, bullet_words=20, summary_text=(
+                    "Gained leadership experience across leadership "
+                    "teams."))
+                result = vr.validate_tree(
+                    path, self._body(path), vr.TreeOptions())
+                report = "\n".join(result["lines"])
+                if expect_blocking:
+                    self.assertGreater(result["blocking"], 0, report)
+                    self.assertIn("repeats within", report)
+                    self.assertIn("blocking at final render", report)
+                else:
+                    self.assertEqual(result["blocking"], 0, report)
+                    self.assertIn("repeats within", report)  # GUIDANCE
+            finally:
+                os.unlink(path)
+                if old is None:
+                    os.environ.pop("RESUME_RENDER_PHASE", None)
+                else:
+                    os.environ["RESUME_RENDER_PHASE"] = old
 
 
 class TextIntegrityTests(unittest.TestCase):

@@ -178,7 +178,10 @@ def _audit_word_count(text, max_words, report_count=None):
     if max_words and count > max_words:
         return local_count, [f"{count} words exceeds the {max_words}-word cap by "
                              f"{count - max_words} — cut content, do not "
-                             "shrink fonts (SKILL Steps 3/9)"]
+                             "shrink fonts (SKILL Steps 3/9); the cap funds "
+                             "hosting — cut the weakest content (Step 9 "
+                             "funding priority), never stop hosting or raise "
+                             "a hostable term"]
     return local_count, []
 
 

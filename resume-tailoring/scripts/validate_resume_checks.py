@@ -469,7 +469,8 @@ def _readability_guidance(body, summary, *, region=None,
     Word count, not sentence count. The per-paragraph cap itself is BLOCKING
     (_editable_word_cap_errors, PARAGRAPH CAPS section — master input exempt
     there); this guidance carries only the signals that stay advisory: word
-    repetition (Step 9's re-read catches it by eye; this makes it mechanical),
+    repetition (mechanical here, advisory mid-run — validate_resume promotes
+    it to a blocking TEXT INTEGRITY error at the final render),
     the Step 6 no-sections-between rule, and the Step 8 spacer default
     (suppressed for master input — the master's spacing is the user's
     own formatting, never this workflow's to advise on).

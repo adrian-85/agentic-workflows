@@ -226,6 +226,16 @@ def _run_structural(ctx, region, body, max_words):
     ctx["punct_errors"] = _punctuation_errors(region, _summary_paragraph(body))
     ctx["integrity_errors"] = _text_integrity_errors(
         region, _summary_paragraph(body))
+    if (not ctx["is_master_input"]
+            and os.environ.get("RESUME_RENDER_PHASE") == "final"):
+        # Host-prose quality gate (SKILL Hosting reference): filler
+        # hosting ships repeated content words. The note stays guidance
+        # at every earlier phase; the FINAL render blocks it.
+        ctx["integrity_errors"].extend(
+            f"{note} — blocking at final render: reword so each hosted "
+            "phrase does grammatical work (Hosting reference)"
+            for _, note in _repeated_word_notes(
+                region, _summary_paragraph(body)))
     ctx["dups"] = list(_near_duplicates(region))
     if ctx["is_master_input"]:
         ctx["cap_errors"] = []
@@ -237,7 +247,9 @@ def _run_structural(ctx, region, body, max_words):
         ctx["word_errors"].append(
             f"{ctx['word_count']} words exceeds the {max_words}-word cap by "
             f"{ctx['word_count'] - max_words} — cut content (JD-driven, "
-            "Step 9), do not shrink fonts")
+            "Step 9), do not shrink fonts; the cap funds hosting — cut the "
+            "weakest content (Step 9 funding priority), never stop hosting "
+            "or raise a hostable term")
     ctx["max_words"] = max_words
 
 
