@@ -305,6 +305,13 @@ class TestPlanDispositions(_AutoPruneBase):
                       "Kubernetes, COBOL"),
             "Tools & Technologies: Cypress, Jenkins, Kubernetes")
 
+    def test_trailing_comma_does_not_emit_a_noop_trim(self):
+        # 'Cypress, Playwright,' — every nonempty value evidences; a
+        # trailing comma must not make len(kept) != len(chunks) and
+        # emit a "trim" whose only effect is dropping the comma.
+        self.assertIsNone(auto_prune._trim_list_values(
+            "Tools & Technologies: Cypress, Playwright,", self.jd_terms))
+
     def test_emitted_script_uses_set_labeled_for_value_trims(self):
         script = auto_prune.emit_script(
             self.plan, "m.docx", "out.docx",

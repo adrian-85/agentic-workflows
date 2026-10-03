@@ -193,11 +193,12 @@ def _trim_list_values(text, jd_terms):
         return None
     label, value = text.split(":", 1)
     chunks = [c.strip() for c in re.split(r"[,;]", value)]
-    if len([c for c in chunks if c]) < 2:
+    nonempty = [c for c in chunks if c]
+    if len(nonempty) < 2:
         return None
     kept = [c.rstrip(".,;:!?'\"") for c in chunks
             if c and jd_asks.evidence_set(c.lower(), jd_terms)]
-    if not kept or len(kept) == len(chunks):
+    if not kept or len(kept) == len(nonempty):
         return None
     return f"{label}: {', '.join(kept)}"
 
@@ -580,11 +581,11 @@ def _script_machine_phase(plan):
                      f"whole, {WORD_CAP}-word cap) ----- #")
     for (prefix, _text), new in plan["trims"]:
         lines.append(f"    set_text(find_p(ps, {_py(prefix)}), {_py(new)})")
-    if plan.get("value_trims"):
+    if plan["value_trims"]:
         lines.append("")
         lines.append("    # ---- list value trims (off-JD values dropped; "
                      "label + JD-evidenced values survive) --- #")
-    for (prefix, _text), new in plan.get("value_trims", []):
+    for (prefix, _text), new in plan["value_trims"]:
         label, values = new.split(":", 1)
         lines.append(f"    set_labeled(find_p(ps, {_py(prefix)}), "
                      f"{_py(label.strip())}, {_py(values.strip())})")

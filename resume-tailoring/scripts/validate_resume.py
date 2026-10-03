@@ -223,9 +223,9 @@ def _run_structural(ctx, region, body, max_words):
             and os.environ.get("RESUME_RENDER_PHASE") == "final"):
         ctx["errors"].extend(
             _final_presentation_errors(body, _omitted_spacers()))
-    ctx["punct_errors"] = _punctuation_errors(region, _summary_paragraph(body))
-    ctx["integrity_errors"] = _text_integrity_errors(
-        region, _summary_paragraph(body))
+    summary = _summary_paragraph(body)
+    ctx["punct_errors"] = _punctuation_errors(region, summary)
+    ctx["integrity_errors"] = _text_integrity_errors(region, summary)
     if (not ctx["is_master_input"]
             and os.environ.get("RESUME_RENDER_PHASE") == "final"):
         # Host-prose quality gate (SKILL Hosting reference): filler
@@ -234,8 +234,7 @@ def _run_structural(ctx, region, body, max_words):
         ctx["integrity_errors"].extend(
             f"{note} — blocking at final render: reword so each hosted "
             "phrase does grammatical work (Hosting reference)"
-            for _, note in _repeated_word_notes(
-                region, _summary_paragraph(body)))
+            for _, note in _repeated_word_notes(region, summary))
     ctx["dups"] = list(_near_duplicates(region))
     if ctx["is_master_input"]:
         ctx["cap_errors"] = []

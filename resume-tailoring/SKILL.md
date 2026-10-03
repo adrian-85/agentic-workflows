@@ -839,7 +839,9 @@ every role header with `[N/8 bullets]` (and `[N/8 bullets — OVER CAP]`): a rol
 or an offsetting cut planned in the SAME edit round, not a post-run cap discovery. When no kept
 bullet can truthfully host the ask, author a fresh bullet in the role where the experience lives
 (merge, don't append). Do not trade or cut content inside this hosting loop to solve page or word
-budgets. Record the host, finish Theme Review B, and handle all budget changes later in Step 9.
+budgets (cutting to FUND a host is not a budget trade: make it in the same round, following Step 9's
+funding priority). Record the host, finish Theme Review B, and handle all budget changes later in
+Step 9.
 
 ### 10. Fix grammar and typos in the same pass
 Common catches: `to improving` → `improving` (infinitive), `companies goal` → `company's goal`,
