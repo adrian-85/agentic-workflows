@@ -33,7 +33,11 @@ unit/component testing, or visual checks/visual regression testing are being cut
 ...): a generic word evidences a bullet only when a specific term co-occurs in the same text, so a
 bullet whose only match is "test" is CUT, not kept. The prune eliminates ruthlessly — the restore
 path is Theme Review A's cut-set diff, so leaner builds and smaller later edit rounds beat
-conservative keeps. The goal of every
+conservative keeps. **When in doubt, CUT — on both sides of the machine/agent line: over-cutting is
+the cheap error (a wrongly cut bullet returns as one Theme Review A restore edit), while
+over-keeping is the expensive one (an off-theme survivor resurfaces in every later pass until it
+is cut under budget or score pressure, where the cut competes with JD-matched content).** Kept
+content earns its place at Theme Review A, not by default. The goal of every
 edit — prune review, hosting, squeeze, render — is a resume built towards the central theme, not
 just a keyword collection that passes ATS: after each edit round, re-read the round's changes
 against the theme brief and strengthen the theme's representation where it weakened.
@@ -370,7 +374,10 @@ still verifies post-build).
   restore the theme-relevant ones.
   - **Theme-irrelevant content the prune kept** (term-matched but off-theme) → cut it in the
     positioning pass; the JD-FIT AUDIT's unevidenced bullets are the first candidates, but theme
-    judgment may go beyond them. Record each override's theme rationale as a comment in the
+    judgment may go beyond them. Lexical overlap with a broad JD is not theme evidence — against a
+    QA JD nearly every bullet says "test" or "data" — so when in doubt, cut now: every off-theme
+    survivor resurfaces later as a budget-pass cut made under pressure, competing with JD-matched
+    content for the cap. Record each override's theme rationale as a comment in the
     tailor script. This review — not the machine — is what makes the deliverable read as a
     resume built towards a theme rather than a keyword collection that passes ATS.
 
@@ -668,13 +675,23 @@ validator/machine-enforced).
 - **Word closure second:** if and only if the build exceeds the 1,000-word cap, make a separate
   theme-scoped word pass and record the theme reason for every cut or merge. If the build is at
   or below 1,000 words, do not make score-driven word edits.
+- **Funding priority — the order cuts are chosen whenever content must give (budget pass, or
+  funding a host while the external score is below target):** FIRST the JD-FIT AUDIT's OFF-JD
+  bullets and Theme Review A's theme-irrelevant survivors, THEN redundant or weaker duplicates of
+  an already-hosted theme outcome, THEN leftover Tools values — unique JD-matched hosts are the
+  LAST resort, never the first. When hosting is still open below the external target, the word cap
+  and page target are constraints to engineer around via this order — the cap never stops the
+  hosting loop and never converts a truthfully hostable term into a raise.
 - **Page-removal assessment:** if an extra page remains, measure the rendered spill. Attempt a
   trim-to-remove-page pass only when the spill is **five rendered lines or fewer**. When the spill
   is greater than five lines, retain the page or return to the approved target decision; do not
   launch a broad compression loop.
 - **Spacers last:** after content and budgets settle, add one spacer at each inter-role boundary
   only when it does not create a new page or exceed the agreed target. If a spacer spills, omit the
-  spacer, never theme-aligned content.
+  spacer, never theme-aligned content. Check the measure run's last-page fill BEFORE inserting:
+  add only as many spacers as the last page's rendered-line headroom fits, recording the omitted
+  boundaries at the gate — inserting the full set blind and walking back after a spill is a wasted
+  render/measure cycle.
 
 **Spacer authoring rules:**
 - **Spacers live IN the tailor script's Phase 2 section** — never patched into the built `.docx`
@@ -806,7 +823,14 @@ skills backed by the candidate's own demonstrated history.
 **Host in-bullet first.** A mined host lands as a rewrite or extension of the kept bullet where the
 evidence lives — mirroring the JD's literal phrase only when Theme Review B approves it — never as
 resurrected master prose and never as a keyword list (Step 7). Every bullet stays under the 40-word
-cap. **Count the target role's bullets BEFORE authoring a host** — the `--prefixes` dump annotates
+cap. **And a host reads as natural prose or it does not ship:** merge the JD's phrase into the
+bullet's own sentence structure so it does grammatical work — one concept per sentence, verb-led.
+Never tack a phrase on as trailing filler ("…, gaining leadership experience"), never stack JD
+phrases in one clause ("technical leadership, deep technical expertise, and product vision"), and
+never repeat a content word within a sentence. A bullet that would need three or more hosted
+phrases gets split or re-authored across bullets; when a phrase cannot be woven truthfully AND
+readably into this bullet, host it in a different one — the ATS scores the phrase wherever it
+lives, so a natural sentence elsewhere beats a stuffed one here. **Count the target role's bullets BEFORE authoring a host** — the `--prefixes` dump annotates
 every role header with `[N/8 bullets]` (and `[N/8 bullets — OVER CAP]`): a role at 8 needs a merge
 or an offsetting cut planned in the SAME edit round, not a post-run cap discovery. When no kept
 bullet can truthfully host the ask, author a fresh bullet in the role where the experience lives
@@ -951,7 +975,11 @@ the evidence, so a ceiling presented without one (or without the user being told
 skipped for missing credentials) is a guess — the CEILING DETECTED signal from internal audits
 never substitutes for it. When the match rate stays below
 target and every remaining no-host is (per the Hosting reference's two-state rule) raised and
-unanswered, STOP hosting — do not loop, and do not self-declare the score final. Present the remaining hard AND soft
+unanswered, STOP hosting — do not loop, and do not self-declare the score final. A raise is
+justified ONLY by missing truthful evidence or the user's explicit decline — never by word-cap or
+page pressure (a cap-rationale raise is invalid: fund the host through Step 9's funding priority
+instead), and never for a term the INFERENCE MAP marked AUTO-HOST or a soft skill the kept
+bullets' action verbs evidence. Present the remaining hard AND soft
 skill checklist to the user and get their explicit confirmation that nothing else can be hosted
 truthfully. Only that confirmation closes the loop: report the final rate as "the honest ceiling for
 this target", name the confirmed gaps, and let the user weigh applying. `ats_audit.py` enforces the
@@ -1048,7 +1076,10 @@ sidecar, `merge_into`; Steps 4, 9 & 12). What's left is judgment:
 | Mistake | Fix |
 |---|---|
 | Rebuilding the .docx from scratch | Edit XML in place — `python-docx` drops styles, numbering, hyperlinks |
-| Using `set_text` on a `"Label: values"` line | Collapses to all-bold — use `set_labeled` (Helper library) |
+| Using `set_text` on a `"Label: values"` line | Collapses to all-bold — use `set_labeled(p, label, values)` with the PARAGRAPH first: `set_labeled(find_p(ps, "Tools & Technologies: Go"), "Tools & Technologies", "Go, Python")` — never `set_labeled(body, ...)` (Helper library) |
+| Stopping the hosting loop — or converting hostable terms to raises — because the 1,000-word cap is exhausted | The cap FUNDS hosting: cut OFF-JD bullets, redundant duplicates, and leftover Tools values to make room (Step 9's funding priority). A raise requires missing evidence or the user's decline, never budget pressure (Step 12) |
+| Hosting a JD phrase as trailing filler, or stacking phrases in one clause ("gaining leadership experience"; "technical leadership, deep technical expertise, and product vision") | A host reads as natural prose or it does not ship — weave the phrase into the bullet's sentence structure, one concept per sentence, no repeated content word; split or re-author bullets needing 3+ hosts (Hosting reference) |
+| Re-splicing or replacing the whole Phase 2 section when adding a block | Append new blocks at the section's end — a wholesale replace silently drops earlier edits (budget trims, hosts), and drift re-baselining then hides the loss |
 | Hand-counting an edit budget (`expect_edits=N`) | Never count — `save()`'s drift sidecar records the baseline and warns on change |
 | Hand-rolling whole-role removal in the tailor script | Use `drop_role(body, "<company prefix>")` / `drop_section(body, "Education")` — the library owns the block grammar. A hand-rolled helper that appends before checking the boundary (or only treats Heading1/2 as boundaries) swallows the next `SectionHeading` (Education) and strands later edits as "not found" skips |
 | Verifying the PDF by rendering pages to images | Never works — this harness reads no images. Use `render_pdf.sh --verbose` (page map, last-page tail), `measure_resume.py`'s page-fill table, and `pdftotext` |
