@@ -106,6 +106,11 @@ def advance(path, phase, details=None, state_updates=None):
     if state_updates:
         state.update(state_updates)
     state.setdefault("history", []).append({"phase": phase, **(details or {})})
+    if os.environ.get("RESUME_UNATTENDED") == "1":
+        # Unattended provenance (SKILL.md): a build gated by the job-search
+        # dispatcher (agent-approved tokens) records that fact in its own
+        # state sidecar, so later reviews see who held the authority.
+        state["unattended"] = True
     _write(path, state)
 
 

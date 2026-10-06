@@ -18,6 +18,8 @@ import shutil
 import sys
 import tempfile
 import unittest
+import contextlib
+import io
 import urllib.parse
 from unittest import mock
 
@@ -466,3 +468,23 @@ class TestPostingUrlGuard(unittest.TestCase):
 
     def test_missing_line_returns_none(self):
         self.assertIsNone(ac._posting_url("Principal Software Engineer\n"))
+
+
+class UnattendedRefusalTest(unittest.TestCase):
+    """Unattended runs never submit external scans (code-enforced)."""
+
+    def test_scan_refuses_under_unattended_env(self):
+        """RESUME_UNATTENDED=1 makes scan exit non-zero before any network."""
+        os.environ["RESUME_UNATTENDED"] = "1"
+        self.addCleanup(os.environ.pop, "RESUME_UNATTENDED", None)
+
+        def _no_network(*args, **kwargs):
+            raise AssertionError("scan attempted network under unattended env")
+
+        original = ac._scan_setup
+        ac._scan_setup = _no_network
+        self.addCleanup(setattr, ac, "_scan_setup", original)
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            code = ac.main(["scan", "resume.pdf", "jd_x.txt"])
+        self.assertNotEqual(code, 0)
+        self.assertIn("RESUME_UNATTENDED", out.getvalue())

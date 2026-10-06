@@ -689,6 +689,15 @@ def _save_report(report, company, posting_url, out, provenance=None):
 
 def scan(resume_path, jd_path, opts=None):
     """Poll the ATS until the posting is indexed; return the match result."""
+    # Code-enforced Unattended Mode guard (SKILL.md): external scans use
+    # the user's saved session credentials against a third-party service
+    # and are user-initiated only. The offline `check` command stays
+    # available; `scan` refuses outright.
+    if os.environ.get("RESUME_UNATTENDED") == "1":
+        print("ats_check scan refused: RESUME_UNATTENDED=1 is set — "
+              "external ATS scans are user-initiated only "
+              "(SKILL.md, Unattended Mode)")
+        return 2
     opts = opts if opts is not None else _ScanOpts()
     kinds, _ = _scan_setup(resume_path, jd_path, opts.config)
 

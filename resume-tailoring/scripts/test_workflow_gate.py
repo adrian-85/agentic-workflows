@@ -513,3 +513,32 @@ class StatusTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnattendedProvenanceTests(unittest.TestCase):
+    """Gate transitions stamp unattended provenance into the state."""
+
+    def _state_path(self, tmp):
+        path = os.path.join(tmp, "resume.workflow.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({"phase": "pruned"}, fh)
+        return path
+
+    def test_advance_stamps_unattended_provenance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._state_path(tmp)
+            os.environ["RESUME_UNATTENDED"] = "1"
+            self.addCleanup(os.environ.pop, "RESUME_UNATTENDED", None)
+            wg.advance(path, "prune-theme-reviewed")
+            with open(path, encoding="utf-8") as fh:
+                state = json.load(fh)
+            self.assertIs(state["unattended"], True)
+
+    def test_advance_interactive_run_leaves_no_stamp(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._state_path(tmp)
+            os.environ.pop("RESUME_UNATTENDED", None)
+            wg.advance(path, "prune-theme-reviewed")
+            with open(path, encoding="utf-8") as fh:
+                state = json.load(fh)
+            self.assertNotIn("unattended", state)
