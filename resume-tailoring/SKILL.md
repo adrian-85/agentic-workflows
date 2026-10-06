@@ -1051,6 +1051,26 @@ machine prune, and rebuilds the target from the updated source.
 - The user wants LinkedIn profile edits only (skills, summary, headline). The `docx_edit.py`
   helpers do not apply; advise in chat instead.
 
+## Unattended Mode (RESUME_UNATTENDED=1)
+
+Set ONLY by the job-search workflow's dispatcher when it spawns this skill
+headlessly; a direct, user-driven invocation never sets it. When the variable
+is present:
+
+- The session holds the user's pre-authorization for approval tokens: pass
+  `--seniority-approved` (and any other gate token) via
+  `RESUME_VALIDATE_ARGS` on your own authority — the Common-mistakes rule
+  about needing the user's chat reply does not apply in this mode.
+- Make every judgment call yourself (theme, seniority alignment, page/word
+  budgeting) following the same rules as an interactive run — unattended
+  means no pauses, not lower standards.
+- Never pause for user input. If a gate is genuinely undecidable (e.g. the
+  employment-gap rule fires on a shortened timeline), exit non-zero with the
+  reason in your final message; the job-search workflow records the job as
+  `tailoring-failed` and the user inspects it.
+- The optional external ATS scan (Step 12, `ats_check.py`) is skipped in
+  this mode unless its saved cURL config is already valid.
+
 ## Accuracy: mirror the JD's verbs, but never overclaim
 
 Tailoring rewrites bullets to hit JD language, but the verbs must stay truthful. A JD that asks to
@@ -1124,4 +1144,4 @@ sidecar, `merge_into`; Steps 4, 9 & 12). What's left is judgment:
 | Storing scan-service credentials in the repo | They live in the skill root's `.ats-check/` dot-directory (user's saved cURL exports; gitignored, 0600, invisible to `git add *`); refresh from a logged-in browser when scans 401 (Step 12) |
 | Punctuation in prose (em dash, semicolon, colon, ellipsis) | Periods and commas ONLY — no em dashes, double hyphens, semicolons, colons, or ellipses (`...`); split into a new sentence or use a comma. The Tools line's `Label: values` colon is the one exempt structural colon (Step 10) |
 | Patching spacers (or any edit) into the built `.docx` instead of the tailor script | Author spacers in the script as unrolled literal `clone_after` calls before `save()` — a rebuild wipes manual docx edits and the final render blocks on every missing spacer at once; anchor on the Tools-line text as it exists at call time (a `set_labeled` rewrite changes it), on the PRECEDING role's Tools line (Step 9) |
-| JD asks for fewer years than the candidate has | Offer Step 5 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it. The token needs the user's authority: their chat reply or pre-authorization in the request; never pass it on your own |
+| JD asks for fewer years than the candidate has | Offer Step 5 seniority alignment up front and record approval (`--seniority-approved`) — the render blocks without it. The token needs the user's authority: their chat reply or pre-authorization in the request; never pass it on your own. In Unattended Mode (`RESUME_UNATTENDED=1`) the session itself holds that authority |
