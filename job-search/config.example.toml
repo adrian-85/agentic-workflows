@@ -1,0 +1,42 @@
+# Job-search workflow configuration — EXAMPLE ONLY.
+#
+# Copy to config.toml (gitignored) and fill in your own values. The
+# committed file never contains real personal data: thresholds below are
+# illustrative placeholders, not recommendations.
+
+[pay]
+# Tier thresholds in USD/year. Range postings tier by the TOP of the range;
+# hourly pay annualizes as rate * hours_per_year; a posting with no pay
+# listed classifies as the acceptable tier (spec §4).
+preferred_min = 150000
+acceptable_min = 90000
+hours_per_year = 2080
+currency = "USD"
+
+[profile]
+# Absolute path to your master resume .docx (used for the relevance
+# judgment prompt). Optional: path to a LinkedIn data-export folder.
+relevance_profile_path = "/absolute/path/to/your-master-resume.docx"
+linkedin_export_path = ""
+
+[criteria]
+# Free text rendered into the judgment prompt. Core vs adjacent domains,
+# and the "strong resume match" alternative.
+relevance_domains = """
+EXAMPLE TEXT — replace with your own. Core: testing/quality assurance.
+Adjacent: CI/CD, DevOps, AI, release engineering, developer advocacy or
+enablement. Otherwise include only on a strong match with the resume.
+"""
+
+# Role-based exclusion rule (example wording — the agent judges whether the
+# ROLE directly contributes, employer type is evidence not verdict).
+ethics_rule = """
+EXAMPLE TEXT — replace with your own. Exclude roles that directly
+contribute to the categories you configure here.
+"""
+
+[dispatch]
+# Max concurrent resume-tailoring sessions (FIFO queue behind this).
+max_parallel_tailoring = 3
+# Seconds between requests to the same site.
+request_delay_seconds = 1.5

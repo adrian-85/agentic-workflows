@@ -1,0 +1,27 @@
+# Job-search site list — EXAMPLE ONLY.
+#
+# Copy to sites.toml (gitignored) and list your real sites. Every entry:
+#   name    — label used in reports
+#   url     — the site's search URL WITH its own remote+US filter params and
+#             (where supported) a last-24h date filter baked in. Anything the
+#             site returns is trusted as US-remote (spec §4) — a site whose
+#             URL lacks a remote+US filter gets its postings flagged review.
+#   adapter — platform adapter: greenhouse | ashby | workday | phenom |
+#             eightfold | nextjs-embed | linkedin-guest | indeed-curlfeed
+#   auth    — none | curl-feed
+#
+# Fictional example entries follow.
+
+[[site]]
+name = "Example Corp Careers"
+url = "https://boards.greenhouse.io/examplecorp"
+adapter = "greenhouse"
+auth = "none"
+notes = "Placeholder entry. Greenhouse boards need no auth."
+
+[[site]]
+name = "Example Jobs Board"
+url = "https://jobs.example-board.example/jobs?q=test&l=Remote&fromage=1"
+adapter = "indeed-curlfeed"
+auth = "curl-feed"
+notes = "Placeholder entry. curl-feed sites need auth/Example Jobs Board/curl.txt — saved cURL exports from a logged-in browser session (ats_check pattern). fromage=1 is this example board's last-24h filter."

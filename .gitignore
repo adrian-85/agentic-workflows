@@ -22,6 +22,12 @@ resume-tailoring/theme_review_*.json
 */findings/*
 */judgments/*
 
+# Job-search personal state: real config, site list, credentials, ledgers
+job-search/config.toml
+job-search/sites.toml
+job-search/state/
+job-search/auth/
+
 # Local git identity file — do not commit
 .gitconfig
 
