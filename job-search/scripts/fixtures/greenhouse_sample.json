@@ -1,0 +1,25 @@
+{
+  "jobs": [
+    {
+      "id": 1001,
+      "title": "Staff Software Engineer in Test",
+      "location": {"name": "Remote - US"},
+      "absolute_url": "https://boards.greenhouse.io/examplecorp/jobs/1001",
+      "updated_at": "2026-10-05T08:00:00-04:00",
+      "first_published": "2026-10-05T07:30:00-04:00",
+      "company_name": "Example Corp",
+      "content": "&lt;p&gt;Example Corp seeks a staff engineer in test to own CI/CD quality.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Own test architecture&lt;/li&gt;&lt;li&gt;Drive release quality&lt;/li&gt;&lt;/ul&gt;"
+    },
+    {
+      "id": 1002,
+      "title": "Quality Assurance Engineer",
+      "location": {"name": "Remote"},
+      "absolute_url": "https://boards.greenhouse.io/examplecorp/jobs/1002",
+      "updated_at": "2026-10-04T08:00:00-04:00",
+      "first_published": "2026-10-04T08:00:00-04:00",
+      "company_name": "Example Corp",
+      "content": "&lt;p&gt;QA engineer for release validation.&lt;/p&gt;"
+    }
+  ],
+  "meta": {"total": 2}
+}

@@ -1,0 +1,52 @@
+{
+  "jobs": [
+    {
+      "id": "11111111-aaaa-4bbb-8ccc-222222222222",
+      "title": "Senior Software Development Engineer in Test",
+      "location": "Remote (US)",
+      "publishedAt": "2026-10-05T12:00:00.000+00:00",
+      "isListed": true,
+      "isRemote": true,
+      "workplaceType": "Remote",
+      "jobUrl": "https://jobs.ashbyhq.com/examplecorp/jobs/11111111-aaaa-4bbb-8ccc-222222222222",
+      "descriptionPlain": "Example Corp is hiring a senior SDET to build test infrastructure and own release quality end to end.",
+      "compensation": {
+        "summaryComponents": [
+          {"compensationType": "Salary", "interval": "1 YEAR", "currencyCode": "USD", "minValue": 140000, "maxValue": 180000}
+        ]
+      }
+    },
+    {
+      "id": "33333333-dddd-4eee-8fff-444444444444",
+      "title": "Manual QA Tester",
+      "location": "Remote",
+      "publishedAt": "2026-10-05T10:00:00.000+00:00",
+      "isListed": true,
+      "isRemote": true,
+      "workplaceType": "Remote",
+      "jobUrl": "https://jobs.ashbyhq.com/examplecorp/jobs/33333333-dddd-4eee-8fff-444444444444",
+      "descriptionPlain": "Example Corp manual testing role for release checkpoints.",
+      "compensation": {
+        "summaryComponents": [
+          {"compensationType": "Salary", "interval": "1 YEAR", "currencyCode": "USD", "minValue": 70000, "maxValue": 80000}
+        ]
+      }
+    },
+    {
+      "id": "55555555-6666-4777-8888-999999999999",
+      "title": "Test Automation Contractor",
+      "location": "Remote (US)",
+      "publishedAt": "2026-10-05T09:00:00.000+00:00",
+      "isListed": true,
+      "isRemote": true,
+      "workplaceType": "Remote",
+      "jobUrl": "https://jobs.ashbyhq.com/examplecorp/jobs/55555555-6666-4777-8888-999999999999",
+      "descriptionPlain": "Example Corp contract test automation role.",
+      "compensation": {
+        "summaryComponents": [
+          {"compensationType": "Salary", "interval": "1 HOUR", "currencyCode": "USD", "minValue": 70, "maxValue": 90}
+        ]
+      }
+    }
+  ]
+}
