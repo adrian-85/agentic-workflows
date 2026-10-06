@@ -46,6 +46,14 @@ class GreenhouseAdapterTest(unittest.TestCase):
         self.assertIn("examplecorp", self.requests[0])
         self.assertIn("/v1/boards/", self.requests[0])
 
+    def test_greenhouse_drops_non_remote_locations(self):
+        """Greenhouse self-filters remote from location.name (site's own
+        classification — stronger than a URL param)."""
+        postings = self.adapter.list_postings(GREENHOUSE_SITE, self.http_get)
+        titles = [p.title for p in postings]
+        self.assertNotIn("Onsite Facilities Coordinator", titles)
+        self.assertIn("Staff Software Engineer in Test", titles)
+
     def test_greenhouse_fetch_jd_returns_description_text(self):
         """A posting lacking jd_text gets a detail fetch, tags stripped."""
         postings = self.adapter.list_postings(GREENHOUSE_SITE, self.http_get)
@@ -116,6 +124,12 @@ class AdapterContractTest(unittest.TestCase):
             params = adapters.get_adapter(name).REMOTE_FILTER_PARAMS
             self.assertIsInstance(params, tuple)
             self.assertGreater(len(params), 0, msg=name)
+
+    def test_greenhouse_self_filters_remote(self):
+        """REMOTE_SELF_FILTERED exempts greenhouse from the URL guard."""
+        self.assertTrue(getattr(
+            adapters.get_adapter("greenhouse"), "REMOTE_SELF_FILTERED",
+            False))
 
 
 class HtmlToTextTest(unittest.TestCase):

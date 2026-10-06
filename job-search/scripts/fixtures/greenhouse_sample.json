@@ -3,7 +3,9 @@
     {
       "id": 1001,
       "title": "Staff Software Engineer in Test",
-      "location": {"name": "Remote - US"},
+      "location": {
+        "name": "Remote - US"
+      },
       "absolute_url": "https://boards.greenhouse.io/examplecorp/jobs/1001",
       "updated_at": "2026-10-05T08:00:00-04:00",
       "first_published": "2026-10-05T07:30:00-04:00",
@@ -13,13 +15,29 @@
     {
       "id": 1002,
       "title": "Quality Assurance Engineer",
-      "location": {"name": "Remote"},
+      "location": {
+        "name": "Remote"
+      },
       "absolute_url": "https://boards.greenhouse.io/examplecorp/jobs/1002",
       "updated_at": "2026-10-04T08:00:00-04:00",
       "first_published": "2026-10-04T08:00:00-04:00",
       "company_name": "Example Corp",
       "content": "&lt;p&gt;QA engineer for release validation.&lt;/p&gt;"
+    },
+    {
+      "id": 1003,
+      "title": "Onsite Facilities Coordinator",
+      "location": {
+        "name": "San Francisco, CA"
+      },
+      "absolute_url": "https://boards.greenhouse.io/examplecorp/jobs/1003",
+      "updated_at": "2026-10-05T08:00:00-04:00",
+      "first_published": "2026-10-05T08:00:00-04:00",
+      "company_name": "Example Corp",
+      "content": "&lt;p&gt;Onsite role.&lt;/p&gt;"
     }
   ],
-  "meta": {"total": 2}
+  "meta": {
+    "total": 3
+  }
 }

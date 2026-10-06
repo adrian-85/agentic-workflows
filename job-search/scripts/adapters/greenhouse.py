@@ -13,6 +13,7 @@ from postings import Posting, canonical_id
 
 SOURCE = "greenhouse"
 REMOTE_FILTER_PARAMS = ("location=", "remote")
+REMOTE_SELF_FILTERED = True
 API_BASE = "https://boards-api.greenhouse.io/v1/boards"
 
 
@@ -39,6 +40,9 @@ def list_postings(site, http_get) -> list[Posting]:
     now = datetime.now(timezone.utc)
     postings = []
     for job in payload.get("jobs", []):
+        location_name = (job.get("location") or {}).get("name", "")
+        if "remote" not in location_name.lower():
+            continue
         posted_at = parse_iso_time(job.get("first_published")
                                    or job.get("updated_at"))
         postings.append(Posting(
@@ -48,7 +52,7 @@ def list_postings(site, http_get) -> list[Posting]:
             jd_url=job.get("absolute_url", site.url),
             company=job.get("company_name") or token,
             title=job.get("title", "untitled"),
-            location=(job.get("location") or {}).get("name", ""),
+            location=location_name,
             posted_at=posted_at,
             date_confidence="timestamp" if posted_at else "none",
             pay_raw=None,
