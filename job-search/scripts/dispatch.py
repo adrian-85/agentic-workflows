@@ -8,7 +8,6 @@ once; the rest queue FIFO. Failures never auto-retry (retry-tailor is
 the manual path).
 """
 
-import json
 import os
 import re
 import subprocess
@@ -135,8 +134,3 @@ def _log_session_failure(posting: Posting, result) -> None:
           f"(exit {result.returncode}):")
     for line in tail:
         print(f"  {line}")
-
-
-def outcomes_json(outcomes: list[dict]) -> str:
-    """Outcomes as JSON for report consumption."""
-    return json.dumps(outcomes)

@@ -8,24 +8,19 @@ builders so they cannot drift.
 
 from pathlib import Path
 
-from config import Config
-
 MARK_APPLIED_HINT = ("apply manually, then: python3 scripts/ledger.py "
                      "mark-applied <posting_id>")
 AUTH_REEXPORT_HINT = ("  auth expired: re-export cURL from a logged-in "
                       "session into auth/<site name>/curl.txt")
 
 
-def render_console(state: dict, run_info: dict, cfg: Config) -> str:
+def render_console(state: dict, run_info: dict) -> str:
     """The run's console summary (spec §7 section order)."""
-    del cfg
     return "\n".join(_summary_lines(state, run_info))
 
 
-def write_decisions_md(state: dict, run_info: dict, cfg: Config,
-                       path: Path) -> str:
+def write_decisions_md(state: dict, run_info: dict, path: Path) -> str:
     """Write decisions.md (console superset + details); returns content."""
-    del cfg
     lines = _summary_lines(state, run_info)
     lines.append("")
     lines.append("== DETAILS ==")

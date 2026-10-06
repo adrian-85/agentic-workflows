@@ -9,7 +9,7 @@ cfg.request_delay_seconds.
 
 import time
 import tomllib
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -23,32 +23,11 @@ HTTP_TIMEOUT_SECONDS = 30
 REVIEW_FLAG_DATE = "date-unverified"
 REVIEW_FLAG_REMOTE = "site-url-lacks-remote-us-filter"
 REVIEW_FLAG_JD = "jd-fetch-failed"
-AUTH_DIR_NAME = "auth"
+WORKFLOW_AUTH_DIR = Path(__file__).resolve().parent.parent / "auth"
 
 
 class SitesError(Exception):
     """Raised when a sites file is malformed."""
-
-
-@dataclass(frozen=True)
-class FetchSeams:
-    """Test injection points for fetch_all (defaults hit the network).
-
-    http_get: request callable; sleep: pacing callable; auth_dir: where
-    curl-feed sites find their saved cURL exports.
-    """
-
-    http_get: object = None
-    sleep: object = None
-    auth_dir: Path | None = None
-
-    def resolved(self):
-        """Seams with defaults filled in."""
-        return FetchSeams(
-            http_get=self.http_get or default_http_get,
-            sleep=self.sleep or time.sleep,
-            auth_dir=self.auth_dir,
-        )
 
 
 @dataclass(frozen=True)
@@ -143,6 +122,19 @@ def default_http_get(url, headers=None, data=None) -> HttpResponse:
         return HttpResponse(status, str(exc))
 
 
+@dataclass(frozen=True)
+class FetchSeams:
+    """Test injection points for fetch_all (defaults hit the network).
+
+    http_get: request callable; sleep: pacing callable; auth_dir: where
+    curl-feed sites find their saved cURL exports.
+    """
+
+    http_get: object = default_http_get
+    sleep: object = time.sleep
+    auth_dir: Path = WORKFLOW_AUTH_DIR
+
+
 def fetch_all(sites: list[Site], cfg, state_dir,
               seams: FetchSeams | None = None) -> FetchReport:
     """Fetch every site, gate, dedup, and fetch JD text for survivors.
@@ -150,10 +142,7 @@ def fetch_all(sites: list[Site], cfg, state_dir,
     curl-feed sites get an auth-wrapped http_get built from their saved
     cURL exports (auth_dir defaults to the workflow root's auth/).
     """
-    seams = (seams or FetchSeams()).resolved()
-    if seams.auth_dir is None:
-        seams = replace(seams, auth_dir=Path(__file__).resolve().parent.parent
-                        / AUTH_DIR_NAME)
+    seams = seams or FetchSeams()
     report = FetchReport()
     now = datetime.now(timezone.utc)
     _fetch_sites(sites, seams, report)

@@ -25,7 +25,6 @@ _NUMBER_RE = re.compile(
     r"(?P<num>\d{1,3}(?:,\d{3})+|\d+)(?:\.(?P<frac>\d+))?\s?(?P<k>[kK]\b)?"
 )
 _HOURLY_RE = re.compile(r"\b(?:/hr\b|/hour\b|per hour\b|hourly\b)", re.IGNORECASE)
-_NO_PAY_MARKERS = ("doe", "competitive", "negotiable", "commensurate")
 
 
 @dataclass(frozen=True)
@@ -42,8 +41,6 @@ class PayInfo:
 def parse_pay(raw: str | None, hours_per_year: int = 2080) -> PayInfo:
     """Parse a raw pay string into a PayInfo; unrecognized text is unseen."""
     if not raw or not raw.strip():
-        return PayInfo(seen=False)
-    if raw.strip().lower() in _NO_PAY_MARKERS:
         return PayInfo(seen=False)
 
     currency = _detect_currency(raw)

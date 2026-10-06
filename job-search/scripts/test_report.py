@@ -5,9 +5,6 @@ import unittest
 from pathlib import Path
 
 from report import render_console, write_decisions_md
-from test_helpers import make_config
-
-CFG = make_config()
 
 
 def _event(posting_id, **overrides) -> dict:
@@ -60,7 +57,7 @@ class ConsoleTest(unittest.TestCase):
 
     def test_console_has_all_sections(self):
         """Header, tiers, review, excluded, failed sites, queue."""
-        text = render_console(STATE, RUN_INFO, CFG)
+        text = render_console(STATE, RUN_INFO)
         for marker in ("run42", "abc123def456", "PREFERRED",
                        "apply manually", "mark-applied", "ACCEPTABLE",
                        "REVIEW", "EXCLUDED", "not_relevant", "ethics",
@@ -72,12 +69,12 @@ class ConsoleTest(unittest.TestCase):
 
     def test_applied_never_appears(self):
         """A marked-applied posting never surfaces in the report."""
-        text = render_console(STATE, RUN_INFO, CFG)
+        text = render_console(STATE, RUN_INFO)
         self.assertNotIn("mock:7", text)
 
     def test_failed_site_names_site_and_reexport_hint(self):
         """Auth-expired failures carry the cURL re-export instruction."""
-        text = render_console(STATE, RUN_INFO, CFG)
+        text = render_console(STATE, RUN_INFO)
         self.assertIn("Dead Board", text)
         self.assertIn("re-export", text)
         self.assertIn("curl.txt", text)
@@ -88,10 +85,10 @@ class DecisionsMdTest(unittest.TestCase):
 
     def test_decisions_md_is_superset_of_console(self):
         """Every console line appears in the md, plus rationale detail."""
-        console = render_console(STATE, RUN_INFO, CFG)
+        console = render_console(STATE, RUN_INFO)
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "decisions.md"
-            content = write_decisions_md(STATE, RUN_INFO, CFG, path)
+            content = write_decisions_md(STATE, RUN_INFO, path)
             self.assertTrue(path.exists())
         for line in console.splitlines():
             line = line.strip()

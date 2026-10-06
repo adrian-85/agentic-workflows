@@ -9,8 +9,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from urllib.parse import urlsplit
 
-DATE_CONFIDENCE_VALUES = ("timestamp", "url-filter", "none")
-
 
 @dataclass
 # R0902 disabled: this IS the spec §3 schema — one attribute per schema

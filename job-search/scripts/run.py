@@ -57,8 +57,8 @@ def cmd_search(config_path: str, sites_path: str, state_dir,
 
     run_info = _run_info(fetch_report, run_id, cfg)
     state = ledger.current_state(state_dir)
-    console = report_mod.render_console(state, run_info, cfg)
-    report_mod.write_decisions_md(state, run_info, cfg,
+    console = report_mod.render_console(state, run_info)
+    report_mod.write_decisions_md(state, run_info,
                                   state_dir / "decisions.md")
     print(console)
     if judgments:

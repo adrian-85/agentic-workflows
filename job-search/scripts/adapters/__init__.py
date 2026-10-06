@@ -15,7 +15,6 @@ import json
 import re
 from datetime import datetime, timezone
 from html.parser import HTMLParser
-from pathlib import Path
 
 from postings import Posting, canonical_id
 
@@ -62,15 +61,6 @@ def _validate(name: str, adapter: object) -> None:
         )
 
 
-def available() -> list[str]:
-    """Adapter names available as package modules (plus test registrations)."""
-    names = {
-        path.stem for path in Path(__file__).parent.glob("*.py")
-        if path.stem != "__init__"
-    }
-    return sorted(names | set(REGISTRY))
-
-
 def parse_iso_time(raw):
     """ISO datetime (with offset) to aware datetime; None on failure."""
     if not raw:
@@ -86,19 +76,13 @@ _WITHIN_WINDOW_EXACT = ("just now", "today", "just posted",
 _RELATIVE_RE = re.compile(r"^(\d+)\+?\s*(minute|hour|day)s?\s+ago$")
 
 
-_CARD_REQUIRED_FIELDS = ("url", "jd_url", "company", "title", "location",
-                        "date_confidence")
-
-
 def card_posting(source: str, ext_id: str, **fields) -> Posting:
     """Posting from a parsed card: no timestamp, no pay (agent reads JD).
 
     fields carries the card's per-posting values (url, jd_url, company,
     title, location, date_confidence); everything else is card-shaped.
+    A missing required field raises TypeError from Posting itself.
     """
-    missing = [name for name in _CARD_REQUIRED_FIELDS if name not in fields]
-    if missing:
-        raise ValueError(f"card_posting missing fields: {missing}")
     return Posting(
         posting_id=canonical_id(source, ext_id),
         source=source,
