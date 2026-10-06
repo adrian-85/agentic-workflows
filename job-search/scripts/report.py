@@ -55,8 +55,11 @@ def _summary_lines(state: dict, run_info: dict) -> list[str]:
         f"JOB SEARCH RUN {run_info.get('run_id')} — "
         f"criteria {run_info.get('criteria_version')}",
         f"Sites: {ok_count} ok, {len(failed)} failed",
-        "",
     ]
+    ok_names = [site.get("name") for site in site_results if site.get("ok")]
+    if ok_names:
+        lines.append(f"  ok: {', '.join(str(name) for name in ok_names)}")
+    lines.append("")
     visible = _visible(state)
     lines.extend(_tier("PREFERRED", MARK_APPLIED_HINT,
                        _by_decision(visible, "preferred")))
