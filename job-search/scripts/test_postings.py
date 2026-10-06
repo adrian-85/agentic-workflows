@@ -5,30 +5,10 @@ testing rule).
 """
 
 import unittest
-from datetime import datetime, timedelta
+from datetime import timedelta
 
-from postings import Posting, canonical_id, dedup, is_within_24h
-
-NOW = datetime(2026, 10, 5, 12, 0, 0)
-
-
-def _posting(**overrides):
-    """Synthetic posting with test defaults; overrides applied on top."""
-    base = {
-        "posting_id": "example:1",
-        "source": "example",
-        "url": "https://jobs.example.com/postings/1",
-        "jd_url": "https://jobs.example.com/postings/1",
-        "company": "Example Corp",
-        "title": "Staff Engineer in Test",
-        "location": "US Remote",
-        "posted_at": NOW - timedelta(hours=1),
-        "date_confidence": "timestamp",
-        "pay_raw": "$120,000 - $150,000/yr",
-        "fetched_at": NOW,
-    }
-    base.update(overrides)
-    return Posting(**base)
+from postings import canonical_id, dedup, is_within_24h
+from test_helpers import NOW, make_posting as _posting
 
 
 class CanonicalIdTest(unittest.TestCase):

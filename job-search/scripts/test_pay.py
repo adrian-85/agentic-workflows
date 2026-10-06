@@ -5,18 +5,14 @@ All strings are synthetic examples — no real posting text.
 
 import unittest
 
-from config import Config
 from pay import parse_pay, tier
+from test_helpers import make_config
 
 
-def _cfg(preferred_min: int = 185000, acceptable_min: int = 100000) -> Config:
-    return Config(
-        preferred_min=preferred_min,
-        acceptable_min=acceptable_min,
-        relevance_profile_path="/tmp/example.docx",
-        relevance_domains="example domains",
-        ethics_rule="example rule",
-    )
+def _cfg(preferred_min: int = 185000, acceptable_min: int = 100000):
+    """Pay-test config with explicit thresholds."""
+    return make_config(preferred_min=preferred_min,
+                       acceptable_min=acceptable_min)
 
 
 class ParsePayTest(unittest.TestCase):

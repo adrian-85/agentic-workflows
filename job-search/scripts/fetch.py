@@ -89,8 +89,15 @@ def load_sites(path: str) -> list[Site]:
 
 
 def site_has_remote_filter(site: Site) -> bool:
-    """True when the site URL carries its adapter's remote filter params."""
+    """True when the URL carries filter params OR the adapter self-filters.
+
+    REMOTE_SELF_FILTERED adapters enforce remote per-posting inside
+    list_postings (a stronger deterministic signal than any URL param),
+    so the URL-param guard does not apply to them.
+    """
     adapter = adapter_registry.get_adapter(site.adapter)
+    if getattr(adapter, "REMOTE_SELF_FILTERED", False):
+        return True
     params = getattr(adapter, "REMOTE_FILTER_PARAMS", ())
     return any(param in site.url for param in params)
 

@@ -7,47 +7,26 @@ network, no real site data (spec: testing rule).
 import shutil
 import tempfile
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from pathlib import Path
 
 import adapters
-import config
 import fetch
 import ledger
-from postings import Posting
-
-NOW = datetime.now(timezone.utc)
+from test_helpers import NOW, make_config, make_posting
 
 
-def _cfg(**overrides) -> config.Config:
-    values = {
-        "preferred_min": 150000,
-        "acceptable_min": 90000,
-        "relevance_profile_path": "/tmp/example.docx",
-        "relevance_domains": "example domains",
-        "ethics_rule": "example rule",
-        "request_delay_seconds": 0.01,
-    }
+def _cfg(**overrides):
+    """Fetch-test config (relaxed thresholds, fast delays)."""
+    values = {"preferred_min": 150000, "acceptable_min": 90000,
+              "request_delay_seconds": 0.01}
     values.update(overrides)
-    return config.Config(**values)
+    return make_config(**values)
 
 
-def _posting(**overrides) -> Posting:
-    base = {
-        "posting_id": "mock:1",
-        "source": "mock",
-        "url": "https://jobs.example.com/1",
-        "jd_url": "https://jobs.example.com/1",
-        "company": "Example Corp",
-        "title": "Staff Engineer in Test",
-        "location": "US Remote",
-        "posted_at": NOW - timedelta(hours=1),
-        "date_confidence": "timestamp",
-        "pay_raw": "$100k - $150k",
-        "fetched_at": NOW,
-    }
-    base.update(overrides)
-    return Posting(**base)
+def _posting(**overrides):
+    """Fetch-test posting."""
+    return make_posting(**overrides)
 
 
 class MockAdapter:
@@ -140,6 +119,19 @@ class FetchAllTest(unittest.TestCase):
         self.assertEqual(len(report.candidates), 1)
         self.assertIn("site-url-lacks-remote-us-filter",
                       report.candidates[0].review_flags)
+
+    def test_self_filtered_adapter_skips_url_guard(self):
+        """REMOTE_SELF_FILTERED adapters need no URL filter params."""
+        class SelfFiltered(MockAdapter):
+            """Mock that self-filters remote in list_postings."""
+
+            REMOTE_SELF_FILTERED = True
+
+        report = self._fetch(
+            [_site(url="https://jobs.example.com/search?q=test")],
+            SelfFiltered(postings=[_posting()]))
+        self.assertEqual(len(report.candidates), 1)
+        self.assertEqual(report.candidates[0].review_flags, [])
 
     def test_site_error_isolates(self):
         """One failing site never aborts the run or its neighbors."""

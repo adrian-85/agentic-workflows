@@ -1,0 +1,26 @@
+{
+  "total": 3,
+  "jobPostings": [
+    {
+      "title": "Senior Software Engineer in Test",
+      "externalPath": "/job/US---Remote/Senior-Software-Engineer-in-Test_43130-JOB-1",
+      "locationsText": "US - Remote",
+      "postedOn": "Posted Today",
+      "bulletFields": ["43130-JOB-1"]
+    },
+    {
+      "title": "Quality Engineer, Release Validation",
+      "externalPath": "/job/US---Remote/Quality-Engineer-Release-Validation_43131-JOB-1",
+      "locationsText": "US - Remote",
+      "postedOn": "Posted Yesterday",
+      "bulletFields": ["43131-JOB-1"]
+    },
+    {
+      "title": "Staff Test Architect",
+      "externalPath": "/job/US---Remote/Staff-Test-Architect_43132-JOB-1",
+      "locationsText": "US - San Diego - On Site",
+      "postedOn": "Posted Today",
+      "bulletFields": ["43132-JOB-1"]
+    }
+  ]
+}

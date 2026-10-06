@@ -25,6 +25,7 @@ def _serve(file_name: str, requests: list):
     """http_get stub serving a fixture; records requested URLs."""
     body = (FIXTURES / file_name).read_text(encoding="utf-8")
     def http_get(url, headers=None, data=None):
+        del headers, data
         requests.append(url)
         return HttpResponse(200, body)
     return http_get
@@ -64,6 +65,7 @@ class GreenhouseAdapterTest(unittest.TestCase):
         bare.jd_text = None
         detail = json.dumps({"content": "&lt;p&gt;Detail JD text&lt;/p&gt;"})
         def detail_get(url, headers=None, data=None):
+            del url, headers, data
             return HttpResponse(200, detail)
         text = self.adapter.fetch_jd(GREENHOUSE_SITE, bare, detail_get)
         self.assertIn("Detail JD text", text)
