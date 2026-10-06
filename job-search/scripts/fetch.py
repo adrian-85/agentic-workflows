@@ -11,9 +11,11 @@ import time
 import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.request import Request, urlopen
 
 import adapters as adapter_registry
+import auth
 import ledger
 from postings import Posting, dedup, is_within_24h
 
@@ -21,6 +23,7 @@ HTTP_TIMEOUT_SECONDS = 30
 REVIEW_FLAG_DATE = "date-unverified"
 REVIEW_FLAG_REMOTE = "site-url-lacks-remote-us-filter"
 REVIEW_FLAG_JD = "jd-fetch-failed"
+AUTH_DIR_NAME = "auth"
 
 
 class SitesError(Exception):
@@ -119,27 +122,45 @@ def default_http_get(url, headers=None, data=None) -> HttpResponse:
         return HttpResponse(status, str(exc))
 
 
-def fetch_all(sites: list[Site], cfg, state_dir, http_get=default_http_get,
-              sleep=time.sleep) -> FetchReport:
-    """Fetch every site, gate, dedup, and fetch JD text for survivors."""
+# Seams (http_get/sleep/auth_dir) are test injection points pinned by tests.
+def fetch_all(sites: list[Site], cfg, state_dir,  # pylint: disable=too-many-arguments,too-many-positional-arguments
+              http_get=default_http_get, sleep=time.sleep,
+              auth_dir=None) -> FetchReport:
+    """Fetch every site, gate, dedup, and fetch JD text for survivors.
+
+    curl-feed sites get an auth-wrapped http_get built from their saved
+    cURL exports (auth_dir defaults to the workflow root's auth/).
+    """
+    if auth_dir is None:
+        auth_dir = Path(__file__).resolve().parent.parent / AUTH_DIR_NAME
     report = FetchReport()
     now = datetime.now(timezone.utc)
-    _fetch_sites(sites, http_get, report)
+    _fetch_sites(sites, http_get, report, auth_dir)
     applied = ledger.applied_ids(state_dir)
     pairs = _gate_postings(report, applied, now)
     report.candidates = dedup([posting for _, posting in pairs])
     site_of = {posting.posting_id: site for site, posting in pairs}
     _fetch_jds(report.candidates, site_of, http_get, sleep,
-               cfg.request_delay_seconds)
+               cfg.request_delay_seconds, auth_dir)
     return report
 
 
-def _fetch_sites(sites: list[Site], http_get, report: FetchReport) -> None:
+def _site_http_get(site: Site, http_get, auth_dir: Path):
+    """Wrap http_get with the site's saved session when auth=curl-feed."""
+    if site.auth != "curl-feed":
+        return http_get
+    return auth.build_authed_http_get(site, auth_dir, http_get)
+
+
+def _fetch_sites(sites: list[Site], http_get, report: FetchReport,
+                 auth_dir: Path) -> None:
     """List postings per site; any failure isolates to that site's result."""
     for site in sites:
         try:
             adapter = adapter_registry.get_adapter(site.adapter)
-            postings = adapter.list_postings(site, http_get)
+            postings = adapter.list_postings(site,
+                                             _site_http_get(site, http_get,
+                                                             auth_dir))
             report.site_results.append(SiteResult(site, True, postings))
         except Exception as exc:  # pylint: disable=broad-exception-caught  # boundary: per-site isolation (spec §7)
             report.site_results.append(
@@ -168,8 +189,9 @@ def _gate_postings(report: FetchReport, applied: set[str],
     return pairs
 
 
-def _fetch_jds(candidates: list[Posting], site_of: dict, http_get, sleep,
-               delay_seconds: float) -> None:
+# Pacing + auth seams pinned by tests.
+def _fetch_jds(candidates: list[Posting], site_of, http_get,  # pylint: disable=too-many-arguments,too-many-positional-arguments
+               sleep, delay_seconds: float, auth_dir: Path) -> None:
     """Fetch JD text per candidate, spacing same-site requests by delay."""
     last_call: dict[str, float] = {}
     for posting in candidates:
@@ -177,7 +199,9 @@ def _fetch_jds(candidates: list[Posting], site_of: dict, http_get, sleep,
         _pace(last_call, site.name, sleep, delay_seconds)
         try:
             posting.jd_text = adapter_registry.get_adapter(
-                site.adapter).fetch_jd(site, posting, http_get)
+                site.adapter).fetch_jd(site, posting,
+                                       _site_http_get(site, http_get,
+                                                      auth_dir))
         except Exception:  # pylint: disable=broad-exception-caught  # boundary: JD loss -> review flag, never a run abort
             posting.jd_text = None
             posting.review_flags.append(REVIEW_FLAG_JD)

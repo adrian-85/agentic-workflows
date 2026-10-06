@@ -13,9 +13,11 @@ import html
 import importlib
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
+
+from postings import Posting, canonical_id
 
 REGISTRY: dict[str, object] = {}
 _CONTRACT_ATTRS = ("list_postings", "fetch_jd", "REMOTE_FILTER_PARAMS")
@@ -77,6 +79,48 @@ def parse_iso_time(raw):
         return datetime.fromisoformat(raw)
     except ValueError:
         return None
+
+
+_WITHIN_WINDOW_EXACT = ("just now", "today", "just posted",
+                        "less than a minute ago")
+_RELATIVE_RE = re.compile(r"^(\d+)\+?\s*(minute|hour|day)s?\s+ago$")
+
+
+# One parameter per Posting field — the card shape is the schema.
+def card_posting(source: str, ext_id: str, url: str, jd_url: str,  # pylint: disable=too-many-arguments,too-many-positional-arguments
+                 company: str, title: str, location: str,
+                 date_confidence: str) -> Posting:
+    """Posting from a parsed card: no timestamp, no pay (agent reads JD)."""
+    return Posting(
+        posting_id=canonical_id(source, ext_id),
+        source=source,
+        url=url,
+        jd_url=jd_url,
+        company=company,
+        title=title,
+        location=location,
+        posted_at=None,
+        date_confidence=date_confidence,
+        pay_raw=None,
+        fetched_at=datetime.now(timezone.utc),
+    )
+
+
+def relative_within_window(label: str) -> bool:
+    """Relative date label inside the strict 24h window.
+
+    Accepts LinkedIn-style ("3 hours ago", "Just now") and Indeed-style
+    ("PostedToday", "Posted 3 days ago") labels; callers may pre-strip a
+    leading "posted".
+    """
+    text = label.strip().lower().replace("posted", " ").strip()
+    if text in _WITHIN_WINDOW_EXACT:
+        return True
+    match = _RELATIVE_RE.match(text)
+    if match:
+        count, unit = int(match.group(1)), match.group(2)
+        return unit == "minute" or (unit == "hour" and count < 24)
+    return False
 
 
 def decode_json(response, what: str, error_class):

@@ -14,8 +14,9 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
-from adapters import html_to_text
-from postings import Posting, canonical_id
+from adapters import (card_posting, html_to_text,
+                      relative_within_window)
+from postings import Posting
 
 SOURCE = "linkedin-guest"
 REMOTE_FILTER_PARAMS = ("f_WT=2", "remote")
@@ -111,38 +112,24 @@ def _parse_cards(body: str, site, now) -> list[Posting]:
             continue
         time_match = _TIME_RE.search(chunk)
         if time_match is not None:
-            if not _within_window(time_match.group(1)):
+            if not relative_within_window(html.unescape(time_match.group(1))):
                 continue
             date_confidence = "url-filter"
         else:
             date_confidence = "none"
         link_match = _VIEW_LINK_RE.search(chunk)
-        postings.append(Posting(
-            posting_id=canonical_id(SOURCE, urn.group(1)),
+        postings.append(card_posting(
             source=SOURCE,
+            ext_id=urn.group(1),
             url=link_match.group(1) if link_match else site.url,
             jd_url=f"https://www.linkedin.com/jobs/view/{urn.group(1)}",
             company=_text(_COMPANY_RE.search(chunk)) or site.name,
             title=title or "untitled",
             location=location,
-            posted_at=None,
             date_confidence=date_confidence,
-            pay_raw=None,
-            fetched_at=datetime.now(timezone.utc),
         ))
     return postings
 
-
-def _within_window(relative: str) -> bool:
-    """Relative date label inside the strict 24h window."""
-    label = html.unescape(relative).strip().lower()
-    if label in ("just now", "recently posted", "less than a minute ago"):
-        return True
-    match = re.match(r"(\d+)\s+(minute|hour)s?\s+ago", label)
-    if match:
-        count, unit = int(match.group(1)), match.group(2)
-        return unit == "minute" or count < 24
-    return False
 
 
 def _text(match) -> str:
