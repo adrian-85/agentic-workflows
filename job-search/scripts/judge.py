@@ -32,6 +32,8 @@ class JudgeError(Exception):
 
 @dataclass
 # One attribute per contract field (pay flattened) — the spec §4 schema.
+# Upstream pylint#9058 tracks a method-less-dataclass exemption for
+# R0902; drop this pragma when the repo's pinned pylint ships it.
 class Judgment:  # pylint: disable=too-many-instance-attributes
     """One validated session judgment (spec §4 schema, pay flattened)."""
 

@@ -15,6 +15,8 @@ DATE_CONFIDENCE_VALUES = ("timestamp", "url-filter", "none")
 @dataclass
 # R0902 disabled: this IS the spec §3 schema — one attribute per schema
 # field (13); the schema's shape is fixed by the design doc, not style.
+# Upstream pylint#9058 tracks a method-less-dataclass exemption for
+# R0902; drop this pragma when the repo's pinned pylint ships it.
 class Posting:  # pylint: disable=too-many-instance-attributes
     """One normalized job posting (spec §3 schema plus runtime fields)."""
 

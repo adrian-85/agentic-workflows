@@ -31,6 +31,8 @@ class ConfigError(Exception):
 # R0902 disabled: a config value object legitimately holds one attribute per
 # config knob (10); splitting it would add indirection the spec's §1 config
 # block does not have.
+# Upstream pylint#9058 tracks a method-less-dataclass exemption for
+# R0902; drop this pragma when the repo's pinned pylint ships it.
 class Config:  # pylint: disable=too-many-instance-attributes
     """Workflow configuration; personal values only ever live in config.toml."""
 
