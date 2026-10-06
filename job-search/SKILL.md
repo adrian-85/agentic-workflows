@@ -1,6 +1,6 @@
 ---
 name: job-search
-description: Search configured job sites for last-24h US-remote postings, classify them by pay/relevance/ethics, keep an append-only disposition ledger, and dispatch headless resume-tailoring runs for approved mid-tier jobs. Use when the user asks to run the job search, review dispositions, correct filtering, or mark applications.
+description: Use when the user asks to run the job search, review or correct job-search dispositions, approve auto-tailoring for found postings, or mark a job application as submitted.
 ---
 
 # Job Search
@@ -58,31 +58,22 @@ postings never resurface.
 
 ## Correction loop (when the user disputes a disposition)
 
-1. Append a correction event so the eval trail keeps old→new:
+The mechanics are one command; your judgment is in the criteria edit.
+
+1. Ask the user what the call got wrong, and fix the criteria text that
+   caused it: edit `config.toml` (`[criteria]` or `[pay]`). Editing
+   criteria changes `criteria_version` — every later judgment is
+   attributable to it.
+2. Re-judge just that posting (appends a `corrected` event carrying the
+   old call, re-judges under the new criteria, re-renders
+   `state/decisions.md`):
 
 ```bash
-python3 -c "import sys; sys.path.insert(0, 'scripts'); import ledger; \
-ledger.append_event('state', {'posting_id': '<id>', 'event': 'corrected', \
-'decision': '<new decision>', 'reason': '<reason>', \
-'rationale_short': '<why>'})"
+python3 scripts/run.py rejudge <posting_id>
 ```
 
-2. Fix the criteria: edit the relevant text in `config.toml`
-   (`[criteria]` or `[pay]`). This changes `criteria_version` — every
-   later judgment is attributable to the new criteria.
-3. Re-judge just that posting (fetch already ran; reuse state/candidates):
-
-```bash
-python3 -c "import sys; sys.path.insert(0, 'scripts'); import json, run, \
-judge, config; from pathlib import Path; cfg = config.load_config(\
-'config.toml'); c = run._load_candidates(Path('state')); posting, jd = \
-c['<id>']; posting.jd_text = jd; js = judge.run_judgment(cfg, [posting], \
-'<resume text via scripts/profile_dump.py>'); judge.record_judgments(js, \
-[posting], Path('state'), cfg, 'correction')"
-```
-
-4. Re-render `state/decisions.md` (rerun `run.py search` next invocation
-   re-renders it from the ledger; or rebuild via `report.py`).
+3. Show the new disposition. If the user disputes it again, the criteria
+   edit was wrong — revisit before re-running.
 
 Early mode re-judges every fetched posting every run — criteria tweaks
 take effect on the next search with no extra machinery.

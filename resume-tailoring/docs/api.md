@@ -219,6 +219,15 @@ while the phase sits before `seniority-approved` (hosting rounds still open), sa
 and the `budgets` gate closes it once (SKILL Step 9: budgets close only after every hosting
 round — a mid-hosting trim is rework and thins the resume below what the budget allows).
 
+### Unattended mode — `RESUME_UNATTENDED=1`
+
+Set ONLY by the job-search dispatcher for its headless tailoring runs; never set it for
+user-driven invocations. Effects (machine contract; the authority rules live in SKILL.md,
+Unattended Mode): `workflow_gate.py advance` stamps `"unattended": true` into the state
+sidecar on every transition (provenance: approval tokens were agent-supplied). `ats_check.py
+scan` is unaffected — unattended builds run external scans like interactive ones and degrade
+without the report if the session has expired.
+
 ## Reference template
 
 `scripts/tailor_resume.py` is a **generic template** (placeholder content, no company or recruiter

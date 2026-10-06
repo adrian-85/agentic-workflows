@@ -169,5 +169,62 @@ class ApproveTest(unittest.TestCase):
         self.assertEqual(posting.fetched_at.tzinfo, timezone.utc)
 
 
+class RejudgeTest(unittest.TestCase):
+    """cmd_rejudge: corrected event, single-posting re-judgment, re-render."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+        self.state_dir = self.dir / "state"
+        self.state_dir.mkdir()
+        ledger.append_event(self.state_dir, {
+            "posting_id": "mock:1", "url": "https://jobs.example.com/1",
+            "company": "Example Corp", "title": "Staff Engineer in Test",
+            "event": "judged", "decision": "acceptable", "reason": "none",
+            "rationale_short": "old call", "criteria_version": "aaa111",
+        })
+        run._save_candidates(self.state_dir, "run42", {
+            "mock:1": (make_posting(posting_id="mock:1",
+                                    jd_text="synthetic jd"), "synthetic jd"),
+        })
+        self.config = self.dir / "config.toml"
+        self.config.write_text(
+            "[pay]\npreferred_min = 150000\nacceptable_min = 90000\n"
+            "[profile]\nrelevance_profile_path = \"/tmp/example.docx\"\n"
+            "[criteria]\nrelevance_domains = \"example\"\n"
+            "ethics_rule = \"example\"\n", encoding="utf-8")
+
+    def test_rejudge_records_correction_then_new_judgment(self):
+        """Corrected event carries the old call; judged event carries the new."""
+        seen = {}
+        def fake_judge(cfg, postings, resume_text, runner=None):
+            del cfg, runner
+            seen["postings"] = [p.posting_id for p in postings]
+            seen["resume"] = resume_text
+            return [judge_mod.Judgment(
+                posting_id="mock:1", decision="preferred", reason="none",
+                pay_seen=True, pay_top=200000, pay_annualized=200000,
+                pay_basis="range_top", rationale_short="revised call")]
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            run.cmd_rejudge(str(self.config), self.state_dir, "mock:1",
+                            _judge=fake_judge,
+                            _resume=lambda _path: "RESUME TEXT")
+        self.assertEqual(seen["postings"], ["mock:1"])
+        self.assertEqual(seen["resume"], "RESUME TEXT")
+        events = ledger.current_state(self.state_dir)
+        self.assertEqual(events["mock:1"]["decision"], "preferred")
+        self.assertIn("revised call", stdout.getvalue())
+        self.assertTrue((self.state_dir / "decisions.md").exists())
+
+    def test_rejudge_unknown_id_raises(self):
+        """An unknown posting id fails loudly, writing nothing."""
+        def fake_judge(cfg, postings, resume_text, runner=None):
+            raise AssertionError("must not judge unknown postings")
+        with self.assertRaises(run.RunError):
+            run.cmd_rejudge(str(self.config), self.state_dir, "mock:9",
+                            _judge=fake_judge)
+
+
 if __name__ == "__main__":
     unittest.main()

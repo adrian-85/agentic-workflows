@@ -165,10 +165,58 @@ def _atomic_write(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=1), encoding="utf-8")
 
 
+def cmd_rejudge(config_path: str, state_dir, posting_id: str,
+                _judge=None, _resume=None) -> int:
+    """Re-judge one posting after a criteria correction (SKILL correction
+    loop): append the corrected event, run the judgment session for just
+    this posting under the new criteria_version, re-render decisions.md.
+    """
+    state_dir = Path(state_dir)
+    cfg = load_config(config_path)
+    run_judgment = _judge or judge_mod.run_judgment
+    resume_of = _resume or profile_dump.dump_text
+
+    state = ledger.current_state(state_dir)
+    if posting_id not in state:
+        raise RunError(f"unknown posting_id: {posting_id}")
+    previous = state[posting_id]
+    candidates = _load_candidates(state_dir)
+    if posting_id not in candidates:
+        raise RunError(
+            f"no saved candidate for {posting_id} — run search first")
+    posting, jd_text = candidates[posting_id]
+    posting.jd_text = jd_text
+
+    ledger.append_event(state_dir, {
+        "posting_id": posting_id,
+        "url": previous.get("url", ""),
+        "company": previous.get("company", ""),
+        "title": previous.get("title", ""),
+        "event": "corrected",
+        "decision": previous.get("decision"),
+        "reason": previous.get("reason"),
+        "rationale_short": previous.get("rationale_short", ""),
+        "criteria_version": previous.get("criteria_version"),
+    })
+    judgments = run_judgment(cfg, [posting], resume_of(
+        cfg.relevance_profile_path))
+    judge_mod.record_judgments(judgments, [posting], state_dir, cfg,
+                               "rejudge")
+    run_info = {"run_id": "rejudge", "criteria_version": criteria_hash(cfg),
+                "site_results": [],
+                "queue": {"running": 0, "queued": 0, "outcomes": []}}
+    report_mod.write_decisions_md(ledger.current_state(state_dir), run_info,
+                                  state_dir / "decisions.md")
+    for judgment in judgments:
+        print(f"{posting_id}: {judgment.decision} ({judgment.reason}) — "
+              f"{judgment.rationale_short}")
+    return 0
+
+
 def main(argv=None) -> int:
     """CLI: search | approve."""
     argv = list(sys.argv[1:] if argv is None else argv)
-    if not argv or argv[0] not in ("search", "approve"):
+    if not argv or argv[0] not in ("search", "approve", "rejudge"):
         print(__doc__)
         return 2
     config_path = str(WORKFLOW_ROOT / "config.toml")
@@ -176,6 +224,8 @@ def main(argv=None) -> int:
     if argv[0] == "search":
         sites_path = str(WORKFLOW_ROOT / "sites.toml")
         return cmd_search(config_path, sites_path, state_dir)
+    if argv[0] == "rejudge":
+        return _main_rejudge(argv[1:], config_path, state_dir)
     refs, except_refs = [], []
     remaining = list(argv[1:])
     while remaining:
@@ -189,6 +239,13 @@ def main(argv=None) -> int:
         print("approve needs posting ids or 'all'")
         return 2
     return cmd_approve(config_path, state_dir, refs, except_refs)
+
+
+def _main_rejudge(argv: list[str], config_path: str, state_dir) -> int:
+    if len(argv) != 1:
+        print("usage: run.py rejudge <posting_id>")
+        return 2
+    return cmd_rejudge(config_path, state_dir, argv[0])
 
 
 if __name__ == "__main__":
