@@ -24,18 +24,18 @@ SECOND = make_posting(posting_id="mock:2", url="https://jobs.example.com/2",
                       review_flags=["date-unverified"])
 
 
-# Defaults per parameter — the spec §4 sample values.
-def _valid_judgment(posting_id: str, decision: str = "acceptable",  # pylint: disable=too-many-arguments,too-many-positional-arguments
-                    reason: str = "none", top=120000, annualized=120000,
-                    basis: str = "range_top") -> dict:
-    return {
+def _valid_judgment(posting_id: str, **overrides) -> dict:
+    """A spec §4-shaped judgment; overrides replace whole values."""
+    judgment = {
         "posting_id": posting_id,
-        "decision": decision,
-        "reason": reason,
-        "pay": {"seen": True, "top": top, "annualized": annualized,
-                "basis": basis},
+        "decision": "acceptable",
+        "reason": "none",
+        "pay": {"seen": True, "top": 120000, "annualized": 120000,
+                "basis": "range_top"},
         "rationale_short": "synthetic rationale",
     }
+    judgment.update(overrides)
+    return judgment
 
 
 def _jsonl_stdout(payload) -> str:
@@ -118,7 +118,8 @@ class LintTest(unittest.TestCase):
         """annualized >= preferred but acceptable -> review + note."""
         judgments = judge.validate(json.dumps(
             [_valid_judgment("mock:1", decision="acceptable",
-                             top=200000, annualized=200000)]))
+                             pay={"seen": True, "top": 200000,
+                                  "annualized": 200000, "basis": "range_top"})]))
         linted = judge.lint(judgments, CFG)
         self.assertEqual(linted[0].decision, "review")
         self.assertIsNotNone(linted[0].lint_note)
@@ -127,7 +128,8 @@ class LintTest(unittest.TestCase):
         """annualized below acceptable but acceptable -> review + note."""
         judgments = judge.validate(json.dumps(
             [_valid_judgment("mock:1", decision="acceptable",
-                             top=80000, annualized=80000)]))
+                             pay={"seen": True, "top": 80000,
+                                  "annualized": 80000, "basis": "range_top"})]))
         linted = judge.lint(judgments, CFG)
         self.assertEqual(linted[0].decision, "review")
         self.assertIsNotNone(linted[0].lint_note)
@@ -137,7 +139,8 @@ class LintTest(unittest.TestCase):
         judgments = judge.validate(json.dumps(
             [_valid_judgment("mock:1", decision="excluded",
                              reason="not_relevant",
-                             top=300000, annualized=300000)]))
+                             pay={"seen": True, "top": 300000,
+                                  "annualized": 300000, "basis": "range_top"})]))
         linted = judge.lint(judgments, CFG)
         self.assertEqual(linted[0].decision, "excluded")
         self.assertIsNone(linted[0].lint_note)

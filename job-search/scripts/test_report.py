@@ -10,29 +10,29 @@ from test_helpers import make_config
 CFG = make_config()
 
 
-# One parameter per varied event field.
-def _event(posting_id, event="judged", decision="acceptable",  # pylint: disable=too-many-arguments,too-many-positional-arguments
-           reason="none", rationale="synthetic rationale",
-           title="Staff Engineer in Test"):
-    return {
+def _event(posting_id, **overrides) -> dict:
+    """A ledger-event-shaped dict; overrides replace whole values."""
+    event = {
         "posting_id": posting_id,
         "url": f"https://jobs.example.com/{posting_id}",
         "company": "Example Corp",
-        "title": title,
-        "event": event,
-        "decision": decision,
-        "reason": reason,
-        "rationale_short": rationale,
+        "title": "Staff Engineer in Test",
+        "event": "judged",
+        "decision": "acceptable",
+        "reason": "none",
+        "rationale_short": "synthetic rationale",
         "criteria_version": "abc123def456",
     }
+    event.update(overrides)
+    return event
 
 
 STATE = {
     "mock:1": _event("mock:1", decision="preferred",
-                     rationale="preferred-tier rationale"),
+                     rationale_short="preferred-tier rationale"),
     "mock:2": _event("mock:2", decision="acceptable"),
     "mock:3": _event("mock:3", decision="review",
-                     rationale="unclear relevance"),
+                     rationale_short="unclear relevance"),
     "mock:4": _event("mock:4", decision="excluded", reason="not_relevant"),
     "mock:5": _event("mock:5", decision="excluded", reason="ethics"),
     "mock:6": _event("mock:6", decision="unacceptable",

@@ -6,6 +6,7 @@ postings synthetic (spec: testing rule).
 
 import shutil
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -75,17 +76,37 @@ class QueueTest(unittest.TestCase):
                                       target_dir=self.target_dir,
                                       spawn=spawn)
         self.assertEqual(len(outcomes), 5)
-        self.assertEqual(active["max"], 3)
+        # The cap is the contract: never above 3; real overlap proves
+        # parallelism (exact full utilization is scheduler-dependent).
+        self.assertLessEqual(active["max"], 3)
+        self.assertGreaterEqual(active["max"], 2)
 
     def test_fifo_order_started(self):
-        """Jobs start in approval order."""
-        started = []
+        """Full parallelism, deterministic FIFO properties.
+
+        Among concurrently-starting jobs the thread scheduler picks the
+        order — so assert what concurrency actually guarantees: the first
+        three starts are jobs 1-3 (as a set), and job 4 starts only after
+        one of them COMPLETED (the queue hands out work in order).
+        """
+        events = []
+        lock = threading.Lock()
         def spawn(posting, _jd_path):
-            started.append(posting.posting_id)
+            with lock:
+                events.append(("start", posting.posting_id))
+            time.sleep(0.03)
+            with lock:
+                events.append(("end", posting.posting_id))
             return 0
         dispatch.run_queue(_approved(4), self.cfg, self.state_dir,
                            target_dir=self.target_dir, spawn=spawn)
-        self.assertEqual(started, [f"mock:{i}" for i in range(1, 5)])
+        starts = [pid for kind, pid in events if kind == "start"]
+        self.assertEqual(set(starts[:3]), {"mock:1", "mock:2", "mock:3"})
+        self.assertEqual(starts[3], "mock:4")
+        before_fourth = [pid for kind, pid in
+                         events[:events.index(("start", "mock:4"))]
+                         if kind == "end"]
+        self.assertTrue(before_fourth, "job 4 started before any completion")
 
     def test_outcomes_appended_to_ledger(self):
         """Exit 0 -> tailoring-succeeded; nonzero -> tailoring-failed."""

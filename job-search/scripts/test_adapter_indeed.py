@@ -136,6 +136,7 @@ class AuthIsolationTest(unittest.TestCase):
                          url="https://dead.example.com/search",
                          adapter="indeed-curlfeed", auth="curl-feed")
         adapters.register("mock", _MockOk())
+        self.addCleanup(adapters.REGISTRY.pop, "mock", None)
         def base_get(url, headers=None, data=None):
             del headers, data
             if "dead.example.com" in url:
@@ -143,8 +144,9 @@ class AuthIsolationTest(unittest.TestCase):
             return serve_fixture("greenhouse_sample.json", requests)(url)
         report = fetch.fetch_all(
             [dead_site, ok_site], make_config(), Path(tempfile.mkdtemp()),
-            http_get=base_get, sleep=lambda _s: None,
-            auth_dir=_auth_dir_with_dead_exports())
+            seams=fetch.FetchSeams(http_get=base_get,
+                                   sleep=lambda _s: None,
+                                   auth_dir=_auth_dir_with_dead_exports()))
         self.assertFalse(report.site_results[0].ok)
         self.assertIn("Dead Board", report.site_results[0].error)
         self.assertTrue(report.site_results[1].ok)

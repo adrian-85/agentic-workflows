@@ -86,23 +86,26 @@ _WITHIN_WINDOW_EXACT = ("just now", "today", "just posted",
 _RELATIVE_RE = re.compile(r"^(\d+)\+?\s*(minute|hour|day)s?\s+ago$")
 
 
-# One parameter per Posting field — the card shape is the schema.
-def card_posting(source: str, ext_id: str, url: str, jd_url: str,  # pylint: disable=too-many-arguments,too-many-positional-arguments
-                 company: str, title: str, location: str,
-                 date_confidence: str) -> Posting:
-    """Posting from a parsed card: no timestamp, no pay (agent reads JD)."""
+_CARD_REQUIRED_FIELDS = ("url", "jd_url", "company", "title", "location",
+                        "date_confidence")
+
+
+def card_posting(source: str, ext_id: str, **fields) -> Posting:
+    """Posting from a parsed card: no timestamp, no pay (agent reads JD).
+
+    fields carries the card's per-posting values (url, jd_url, company,
+    title, location, date_confidence); everything else is card-shaped.
+    """
+    missing = [name for name in _CARD_REQUIRED_FIELDS if name not in fields]
+    if missing:
+        raise ValueError(f"card_posting missing fields: {missing}")
     return Posting(
         posting_id=canonical_id(source, ext_id),
         source=source,
-        url=url,
-        jd_url=jd_url,
-        company=company,
-        title=title,
-        location=location,
         posted_at=None,
-        date_confidence=date_confidence,
         pay_raw=None,
         fetched_at=datetime.now(timezone.utc),
+        **fields,
     )
 
 

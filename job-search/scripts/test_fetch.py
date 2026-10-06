@@ -75,10 +75,13 @@ class FetchAllTest(unittest.TestCase):
 
     def _fetch(self, sites, adapter, cfg=None):
         adapters.register("mock", adapter)
+        self.addCleanup(adapters.REGISTRY.pop, "mock", None)
         return fetch.fetch_all(
             sites, cfg or _cfg(), self.state_dir,
-            http_get=lambda url, **kw: fetch.HttpResponse(200, ""),
-            sleep=self.sleeps.append,
+            seams=fetch.FetchSeams(
+                http_get=lambda url, **kw: fetch.HttpResponse(200, ""),
+                sleep=self.sleeps.append,
+            ),
         )
 
     def test_fetch_all_applies_applied_exclusion(self):
@@ -136,13 +139,16 @@ class FetchAllTest(unittest.TestCase):
     def test_site_error_isolates(self):
         """One failing site never aborts the run or its neighbors."""
         adapters.register("mock", MockAdapter(postings=[_posting()]))
+        self.addCleanup(adapters.REGISTRY.pop, "mock", None)
         adapters.register("broken", MockAdapter(error=RuntimeError("boom")))
+        self.addCleanup(adapters.REGISTRY.pop, "broken", None)
         report = fetch.fetch_all(
             [_site(name="Broken", adapter="broken", url="https://b.example/?remote=1"),
              _site(name="Ok")],
             _cfg(), self.state_dir,
-            http_get=lambda url, **kw: fetch.HttpResponse(200, ""),
-            sleep=self.sleeps.append)
+            seams=fetch.FetchSeams(
+                http_get=lambda url, **kw: fetch.HttpResponse(200, ""),
+                sleep=self.sleeps.append))
         self.assertEqual([r.ok for r in report.site_results],
                          [False, True])
         self.assertIn("boom", report.site_results[0].error)
@@ -178,10 +184,10 @@ class FetchAllTest(unittest.TestCase):
         report = self._fetch([_site()], MockAdapter(postings=[
             _posting(),
             _posting(posting_id="mock:2", url="https://jobs.example.com/2"),
-        ]), cfg=_cfg(request_delay_seconds=0.05))
+        ]), cfg=_cfg(request_delay_seconds=5.0))
         self.assertEqual(len(report.candidates), 2)
         self.assertGreaterEqual(len(self.sleeps), 1)
-        self.assertTrue(all(amount > 0 for amount in self.sleeps))
+        self.assertTrue(all(0 < amount <= 5.0 for amount in self.sleeps))
 
 
 class LoadSitesTest(unittest.TestCase):
