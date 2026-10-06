@@ -38,8 +38,8 @@ def make_posting(**overrides) -> Posting:
 def make_config(**overrides) -> config.Config:
     """Synthetic config with test defaults; overrides applied on top."""
     values = {
-        "preferred_min": 185000,
-        "acceptable_min": 100000,
+        "preferred_min": 200000,
+        "acceptable_min": 90000,
         "relevance_profile_path": "/tmp/example-resume.docx",
         "relevance_domains": "example domains",
         "ethics_rule": "example rule",

@@ -14,7 +14,7 @@ import judge
 import ledger
 from test_helpers import make_config, make_posting
 
-CFG = make_config(preferred_min=185000, acceptable_min=100000,
+CFG = make_config(preferred_min=200000, acceptable_min=90000,
                   ethics_rule="example ethics rule",
                   relevance_domains="example relevance domains")
 POSTING = make_posting(jd_text="Example Corp SDET role owning CI/CD quality.")
@@ -57,8 +57,8 @@ class BuildPromptTest(unittest.TestCase):
         """Thresholds, ethics text, decision/reason enums all present."""
         prompt = judge.build_judge_prompt(
             CFG, [POSTING], "resume text")
-        self.assertIn("185000", prompt)
-        self.assertIn("100000", prompt)
+        self.assertIn("200000", prompt)
+        self.assertIn("90000", prompt)
         self.assertIn("2080", prompt)
         self.assertIn("example ethics rule", prompt)
         self.assertIn("example relevance domains", prompt)

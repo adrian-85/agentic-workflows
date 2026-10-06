@@ -9,7 +9,7 @@ from pay import parse_pay, tier
 from test_helpers import make_config
 
 
-def _cfg(preferred_min: int = 185000, acceptable_min: int = 100000):
+def _cfg(preferred_min: int = 200000, acceptable_min: int = 90000):
     """Pay-test config with explicit thresholds."""
     return make_config(preferred_min=preferred_min,
                        acceptable_min=acceptable_min)
@@ -79,12 +79,12 @@ class TierTest(unittest.TestCase):
 
     def test_tier_boundaries(self):
         """preferred at/above preferred_min; acceptable at acceptable_min."""
-        cfg = _cfg(preferred_min=185000, acceptable_min=100000)
-        self.assertEqual(tier(185000, cfg), "preferred")
+        cfg = _cfg(preferred_min=200000, acceptable_min=90000)
+        self.assertEqual(tier(200000, cfg), "preferred")
         self.assertEqual(tier(250000, cfg), "preferred")
-        self.assertEqual(tier(184999, cfg), "acceptable")
-        self.assertEqual(tier(100000, cfg), "acceptable")
-        self.assertEqual(tier(99999, cfg), "unacceptable")
+        self.assertEqual(tier(189999, cfg), "acceptable")
+        self.assertEqual(tier(90000, cfg), "acceptable")
+        self.assertEqual(tier(89999, cfg), "unacceptable")
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ Claude). Each subdirectory is self-contained — own docs, own scripts.
 | [`writing-skills/`](writing-skills/) | Guidance for authoring, testing, and deploying `SKILL.md` files — TDD applied to process documentation (write a pressure scenario, watch an agent fail without the skill, write the skill, verify compliance). |
 | [`code-simplicity-reviewer/`](code-simplicity-reviewer/) | A skill that reviews code through a minimalism/YAGNI lens: flags unnecessary complexity, redundant code, and premature abstractions. |
 | [`improve/`](improve/) | Self-improvement workflow that mines a session transcript for friction (clarifications, repetition, gaps in the skill file), turns it into evidence-backed suggestions, and implements approved ones in an isolated git worktree across four approval gates — including improving itself. |
+| [`job-search/`](job-search/) | Skill-driven job-search pipeline: fetches configured sites for <24h US-remote postings via platform adapters, classifies by pay/relevance/ethics in one headless judgment session, keeps an append-only disposition ledger, and dispatches approved resume-tailoring runs behind a hard interactive gate. |
 | [`p2p-qa-lab/`](p2p-qa-lab/) | Agentic QA lab for a Purchase-to-Pay API: an **explorer** that autonomously drives a vendor→PO→receipt→invoice→match→approve workflow, an **adversarial** layer that probes financial and security invariants, and a **judge** that emits auditor-style reports (deterministic re-computation anchored, LLM-narrated). |
 
 ## Documentation
@@ -22,6 +23,7 @@ Each component carries its own deep docs — start there:
   format, prerequisites, quick start, judge flags, pre-pass checks, output schema
 - **resume-tailoring** → [`resume-tailoring/README.md`](resume-tailoring/README.md)
   — directory layout, requirements, quick start, resume-format assumptions
+- **job-search** → [`job-search/README.md`](job-search/README.md) — setup, adapters, privacy model
 - **writing-skills** → [`writing-skills/SKILL.md`](writing-skills/SKILL.md)
 - **code-simplicity-reviewer** → [`code-simplicity-reviewer/SKILL.md`](code-simplicity-reviewer/SKILL.md)
 - **improve** → [`improve/README.md`](improve/README.md) — the four hard stops, two-model split, worktree isolation, checkpoint commands
