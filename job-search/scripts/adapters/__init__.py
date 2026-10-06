@@ -35,11 +35,16 @@ def register(name: str, adapter: object) -> None:
 
 
 def get_adapter(name: str) -> object:
-    """Registry lookup, then lazy import of adapters.<name>."""
+    """Registry lookup, then lazy import of adapters/<name>.
+
+    Adapter ids may use dashes in config ("linkedin-guest"); module names
+    use underscores (adapters/linkedin_guest.py).
+    """
     if name in REGISTRY:
         return REGISTRY[name]
+    module_name = f"adapters.{name.replace('-', '_')}"
     try:
-        module = importlib.import_module(f"adapters.{name}")
+        module = importlib.import_module(module_name)
     except ImportError as exc:
         raise AdapterError(f"unknown adapter: {name}") from exc
     _validate(name, module)

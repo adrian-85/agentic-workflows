@@ -7,12 +7,10 @@ Fixture samples are hand-authored to each platform's public JSON shape
 import json
 import unittest
 from datetime import datetime, timezone
-from pathlib import Path
 
 import adapters
 from fetch import HttpResponse, Site
-
-FIXTURES = Path(__file__).resolve().parent / "fixtures"
+from test_helpers import serve_fixture
 GREENHOUSE_SITE = Site(name="Example Corp Greenhouse",
                        url="https://boards.greenhouse.io/examplecorp",
                        adapter="greenhouse")
@@ -21,22 +19,12 @@ ASHBY_SITE = Site(name="Example Corp Ashby",
                   adapter="ashby")
 
 
-def _serve(file_name: str, requests: list):
-    """http_get stub serving a fixture; records requested URLs."""
-    body = (FIXTURES / file_name).read_text(encoding="utf-8")
-    def http_get(url, headers=None, data=None):
-        del headers, data
-        requests.append(url)
-        return HttpResponse(200, body)
-    return http_get
-
-
 class GreenhouseAdapterTest(unittest.TestCase):
     """greenhouse adapter parses the v1 boards API shape."""
 
     def setUp(self):
         self.requests = []
-        self.http_get = _serve("greenhouse_sample.json", self.requests)
+        self.http_get = serve_fixture("greenhouse_sample.json", self.requests)
         self.adapter = adapters.get_adapter("greenhouse")
 
     def test_greenhouse_parses_fixture_postings(self):
@@ -77,7 +65,7 @@ class AshbyAdapterTest(unittest.TestCase):
 
     def setUp(self):
         self.requests = []
-        self.http_get = _serve("ashby_sample.json", self.requests)
+        self.http_get = serve_fixture("ashby_sample.json", self.requests)
         self.adapter = adapters.get_adapter("ashby")
 
     def test_ashby_parses_fixture_postings(self):

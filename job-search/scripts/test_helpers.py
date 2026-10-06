@@ -5,9 +5,13 @@ data in committed test code (spec: testing rule).
 """
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import config
+from fetch import HttpResponse
 from postings import Posting
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 NOW = datetime.now(timezone.utc)
 
@@ -42,3 +46,13 @@ def make_config(**overrides) -> config.Config:
     }
     values.update(overrides)
     return config.Config(**values)
+
+
+def serve_fixture(file_name: str, requests: list):
+    """http_get stub serving a fixture file; records requested URLs."""
+    body = (FIXTURES / file_name).read_text(encoding="utf-8")
+    def http_get(url, headers=None, data=None):
+        del headers, data
+        requests.append(url)
+        return HttpResponse(200, body)
+    return http_get
