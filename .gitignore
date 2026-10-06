@@ -27,6 +27,8 @@ job-search/config.toml
 job-search/sites.toml
 job-search/state/
 job-search/auth/
+job-search/requests/*
+!job-search/requests/README.md
 
 # Local git identity file — do not commit
 .gitconfig
