@@ -1068,8 +1068,15 @@ is present:
   employment-gap rule fires on a shortened timeline), exit non-zero with the
   reason in your final message; the job-search workflow records the job as
   `tailoring-failed` and the user inspects it.
-- The optional external ATS scan (Step 12, `ats_check.py`) is skipped in
-  this mode unless its saved cURL config is already valid.
+- The external ATS scan (Step 12, `ats_check.py`) runs as in an interactive
+  build — it is measurement on the user's own scan service and the approval
+  gate already authorized the build. If it fails (expired session 401/403,
+  network, timeout), do NOT pause or retry-loop: finish the build without
+  the external report, name the missing scan in your final message, and move
+  on. One retry maximum when the failure is clearly transient.
+- Provenance is code-enforced: every `workflow_gate.py` transition under
+  this flag stamps `"unattended": true` into the state sidecar, so any later
+  review of the build sees that approval tokens were agent-supplied.
 
 ## Accuracy: mirror the JD's verbs, but never overclaim
 

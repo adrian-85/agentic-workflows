@@ -470,21 +470,23 @@ class TestPostingUrlGuard(unittest.TestCase):
         self.assertIsNone(ac._posting_url("Principal Software Engineer\n"))
 
 
-class UnattendedRefusalTest(unittest.TestCase):
-    """Unattended runs never submit external scans (code-enforced)."""
+class UnattendedScanTest(unittest.TestCase):
+    """Unattended runs scan (measurement on the user's own service)."""
 
-    def test_scan_refuses_under_unattended_env(self):
-        """RESUME_UNATTENDED=1 makes scan exit non-zero before any network."""
+    def test_scan_proceeds_under_unattended_env(self):
+        """RESUME_UNATTENDED=1 does not block the scan chain (RED: no refusal)."""
         os.environ["RESUME_UNATTENDED"] = "1"
         self.addCleanup(os.environ.pop, "RESUME_UNATTENDED", None)
 
-        def _no_network(*args, **kwargs):
-            raise AssertionError("scan attempted network under unattended env")
+        class _Reached(Exception):
+            """Sentinel: scan() got past any env guard to the chain setup."""
+
+        def _reached(*args, **kwargs):
+            raise _Reached
 
         original = ac._scan_setup
-        ac._scan_setup = _no_network
+        ac._scan_setup = _reached
         self.addCleanup(setattr, ac, "_scan_setup", original)
-        with contextlib.redirect_stdout(io.StringIO()) as out:
-            code = ac.main(["scan", "resume.pdf", "jd_x.txt"])
-        self.assertNotEqual(code, 0)
-        self.assertIn("RESUME_UNATTENDED", out.getvalue())
+        with contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(_Reached):
+                ac.main(["scan", "resume.pdf", "jd_x.txt"])
