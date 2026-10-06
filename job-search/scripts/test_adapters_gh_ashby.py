@@ -80,6 +80,7 @@ class AshbyAdapterTest(unittest.TestCase):
         """List response becomes postings with pay and JD text inline."""
         postings = self.adapter.list_postings(ASHBY_SITE, self.http_get)
         self.assertEqual(len(postings), 3)
+        self.assertNotIn("Office Coordinator", [p.title for p in postings])
         first = postings[0]
         self.assertTrue(first.posting_id.startswith("ashby:"))
         self.assertEqual(first.company, "Examplecorp")
@@ -130,6 +131,11 @@ class AdapterContractTest(unittest.TestCase):
         self.assertTrue(getattr(
             adapters.get_adapter("greenhouse"), "REMOTE_SELF_FILTERED",
             False))
+
+    def test_ashby_self_filters_remote(self):
+        """ashby REMOTE_SELF_FILTERED via structured isRemote field."""
+        self.assertTrue(getattr(
+            adapters.get_adapter("ashby"), "REMOTE_SELF_FILTERED", False))
 
 
 class HtmlToTextTest(unittest.TestCase):

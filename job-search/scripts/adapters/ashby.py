@@ -13,6 +13,7 @@ from postings import Posting, canonical_id
 
 SOURCE = "ashby"
 REMOTE_FILTER_PARAMS = ("location=", "remote")
+REMOTE_SELF_FILTERED = True
 API_BASE = "https://api.ashbyhq.com/posting-api/job-board"
 
 
@@ -39,6 +40,8 @@ def list_postings(site, http_get) -> list[Posting]:
     company = org.replace("-", " ").replace("_", " ").title()
     postings = []
     for job in payload.get("jobs", []):
+        if not _is_remote(job):
+            continue
         posted_at = parse_iso_time(job.get("publishedAt"))
         postings.append(Posting(
             posting_id=canonical_id(SOURCE, str(job["id"])),
@@ -66,6 +69,13 @@ def fetch_jd(site, posting, http_get) -> str:
         if candidate.posting_id == posting.posting_id:
             return candidate.jd_text or ""
     return ""
+
+
+def _is_remote(job) -> bool:
+    """The site's own remote classification: isRemote, location fallback."""
+    if job.get("isRemote") is not None:
+        return bool(job.get("isRemote"))
+    return "remote" in (job.get("location") or "").lower()
 
 
 def _pay_raw(compensation):
