@@ -15,9 +15,9 @@ import json
 import re
 from datetime import datetime, timezone
 from html.parser import HTMLParser
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
-from postings import Posting, canonical_id
+from postings import Posting, canonical_id, is_within_24h
 
 REGISTRY: dict[str, object] = {}
 _CONTRACT_ATTRS = ("list_postings", "fetch_jd", "REMOTE_FILTER_PARAMS")
@@ -160,20 +160,73 @@ def html_to_text(raw: str) -> str:
 
 
 _JSONLD_RE = re.compile(
-    r'<script\b[^>]*type="application/ld\+json"[^>]*>(.*?)</script>',
+    r'<script\b[^>]*application/ld[^>]*>(.*?)</script>',
     re.S)
 
 
-def jsonld_description(raw: str) -> str | None:
-    """schema.org JobPosting description HTML from ld+json blocks."""
+def jsonld_job_posting(raw: str) -> dict | None:
+    """The JobPosting dict from ld+json blocks, or None.
+
+    The type attribute is matched loosely: some sites HTML-encode the
+    plus sign (application/ld&#x2B;json).
+    """
     for match in _JSONLD_RE.finditer(raw):
         try:
             data = json.loads(match.group(1))
         except json.JSONDecodeError:
             continue
         if isinstance(data, dict) and data.get("@type") == "JobPosting":
-            return data.get("description")
+            return data
     return None
+
+
+def jsonld_description(raw: str) -> str | None:
+    """schema.org JobPosting description HTML from ld+json blocks."""
+    description = jsonld_job_posting(raw).get("description")
+    return description if description else None
+
+
+def sitemap_entries(body: str) -> list[tuple[str, str | None]]:
+    """(loc, lastmod) pairs from a sitemap; lastmod None when absent."""
+    entries = re.findall(
+        r'<loc>([^<]+)</loc>\s*(?:<lastmod>([^<]+)</lastmod>)?', body)
+    return [(loc, lastmod or None) for loc, lastmod in entries]
+
+
+def lastmod_time(raw: str | None):
+    """Sitemap lastmod (ISO, maybe date-only) to aware datetime."""
+    parsed = parse_iso_time(raw)
+    if parsed is not None and parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def sitemap_url(site_url: str, path: str = "/sitemap.xml") -> str:
+    """Sitemap URL on the site's own host."""
+    return f"https://{urlsplit(site_url).netloc}{path}"
+
+
+def fresh_sitemap_details(body: str, pattern, now: datetime, http_get):
+    """Yield (match, loc, lastmod, body) for job URLs fresh in the window.
+
+    Sitemap-driven adapters share this shape: the sitemap's lastmod is a
+    cheap freshness pre-filter, then each fresh URL gets one detail
+    fetch. Entries without lastmod are kept; non-200 details are skipped.
+    """
+    for loc, lastmod in sitemap_entries(body):
+        match = pattern.search(loc)
+        if not match:
+            continue
+        modified = lastmod_time(lastmod)
+        if modified is not None and not is_within_24h(modified, now):
+            continue
+        # Sitemap <loc> values may carry literal non-ASCII (IRI); requests
+        # need the percent-encoded form.
+        loc = quote(loc, safe=":/?&=%#")
+        detail = http_get(loc)
+        if detail.status != 200:
+            continue
+        yield match, loc, modified, detail.body
 
 
 def origin_of(url: str) -> str:

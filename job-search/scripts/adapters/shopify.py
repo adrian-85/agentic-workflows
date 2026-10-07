@@ -15,21 +15,18 @@ import html
 import json
 import re
 from datetime import datetime, timezone
-from urllib.parse import urlsplit
 
-from adapters import fetch_detail_body, html_to_text, parse_iso_time
-from postings import Posting, canonical_id, is_within_24h
+from adapters import (fetch_detail_body, fresh_sitemap_details,
+                      html_to_text, sitemap_url)
+from postings import Posting, canonical_id
 
 SOURCE = "shopify"
 REMOTE_FILTER_PARAMS = ("remote", "location=")
 REMOTE_SELF_FILTERED = True
-SITEMAP_PATH = "/careers/sitemap.xml"
 
 _JOB_URL_RE = re.compile(
     r'/careers/(?P<slug>[a-z0-9-]+)_(?P<uuid>[0-9a-f]{8}-[0-9a-f]{4}-'
     r'[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$')
-_SITEMAP_ENTRY_RE = re.compile(
-    r'<loc>([^<]+)</loc>\s*(?:<lastmod>([^<]+)</lastmod>)?')
 _TITLE_RE = re.compile(r"<title>(.*?)</title>", re.S)
 _ENQUEUE_RE = re.compile(
     r'streamController\.enqueue\("((?:[^"\\]|\\.)*)"\)')
@@ -40,30 +37,16 @@ class ShopifyFetchError(RuntimeError):
     """Raised when the sitemap or a detail page is unusable."""
 
 
-def sitemap_url(site_url: str) -> str:
-    """Careers sitemap URL derived from the site's own host."""
-    return f"https://{urlsplit(site_url).netloc}{SITEMAP_PATH}"
-
-
 def list_postings(site, http_get, now=None) -> list[Posting]:
     """Sitemap (lastmod 24h gate) -> detail fetch -> postings."""
     now = now or datetime.now(timezone.utc)
-    response = http_get(sitemap_url(site.url))
+    response = http_get(sitemap_url(site.url, "/careers/sitemap.xml"))
     if response.status != 200:
         raise ShopifyFetchError(f"careers sitemap HTTP {response.status}")
     postings = []
-    for loc, lastmod in _SITEMAP_ENTRY_RE.findall(response.body):
-        match = _JOB_URL_RE.search(loc)
-        if not match:
-            continue
-        posted_at = _lastmod_time(lastmod)
-        if posted_at is not None and not is_within_24h(posted_at, now):
-            continue
-        detail = http_get(loc)
-        if detail.status != 200:
-            continue
-        posting = _posting_from_detail(site, match, loc, detail.body,
-                                       posted_at)
+    for match, loc, posted_at, body in fresh_sitemap_details(
+            response.body, _JOB_URL_RE, now, http_get):
+        posting = _posting_from_detail(site, match, loc, body, posted_at)
         if posting is not None:
             postings.append(posting)
     return postings
@@ -128,11 +111,3 @@ def _chunks_to_text(chunks) -> str | None:
                    and len(element) >= _MIN_JD_CHARS),
                   key=len, default=None)
     return html_to_text(longest) if longest else None
-
-
-def _lastmod_time(raw):
-    """Sitemap lastmod (ISO, maybe date-only) to aware datetime."""
-    parsed = parse_iso_time(raw)
-    if parsed is not None and parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed
