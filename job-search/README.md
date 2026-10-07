@@ -67,7 +67,7 @@ sites.toml → fetch (per-site adapters, polite delays, per-site isolation)
 | `linkedin-guest` | LinkedIn | guest search endpoint; UI URL converted automatically | none (curl-feed fallback) |
 | `indeed-curlfeed` | Indeed | saved-cURL session replay | `curl-feed` |
 | `shopify` | Shopify careers | careers sitemap + turbo-stream detail pages; lastmod gates the 24h window in-adapter | none |
-| `phenom` | Phenom CareerConnect | `/widgets` refineSearch API + embedded jobDetail DDO; URL query params become selected_fields | none |
+| `phenom` | Phenom CareerConnect | `/widgets` refineSearch API + embedded jobDetail DDO; URL query params become selected_fields (facet names vary by tenant, e.g. `remote`, `flexibilityStatus`) | none |
 | `pcsx` | pcsx career sites | `/api/pcsx/search` JSON + schema.org JobPosting detail; URL carries the remote filter | none |
 | `html-generic` | *(reserved)* | agent-extract fallback for unparseable sites | TBD |
 
