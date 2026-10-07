@@ -3,12 +3,11 @@
 # Hard gate for the improve workflow (spec 2026-09-07-pylint-clean-refactor).
 # Scoped by WORKFLOW — the repo is a collection of independent,
 # self-contained workflows that share module basenames (judge.py,
-# config.py, test_helpers.py). Pylint must never analyze two workflows in
-# one invocation: a sibling's module would shadow the other's and emit
-# spurious no-member / no-name-in-module errors. CI therefore lints each
-# top-level folder in its own run (.github/workflows/pylint.yml):
-#   - lint: only the Python files this branch touches, grouped per
-#     touched top-level folder
+# config.py, test_helpers.py), so a change set never spans workflows and
+# CI lints each top-level folder in its own run: a combined pylint run
+# lets a sibling workflow's module shadow another's and emit spurious
+# no-member / no-name-in-module errors (.github/workflows/pylint.yml):
+#   - lint: only the Python files this branch touches
 #   - tests: the FULL suite of each workflow the change set touches
 #   - last check: CI's exact pylint invocation scoped to each touched
 #     top-level folder — cross-file findings (R0801 duplicate-code) only
@@ -177,20 +176,13 @@ verify)
     ensure_pylint
     CHANGED="$(git diff --name-only main...HEAD)"
 
-    echo "== verify-worktree: pylint (changed Python files, per top-level folder) =="
+    echo "== verify-worktree: pylint (changed Python files only) =="
     CHANGED_PY="$(printf '%s\n' "$CHANGED" | grep '\.py$' || true)"
     if [ -z "$CHANGED_PY" ]; then
         echo "no Python files changed — skipping pylint"
     else
-        # Group per top-level folder: linting two workflows' files together
-        # lets a shared module basename (judge.py, test_helpers.py) shadow
-        # the other and emit spurious no-member errors. Matches CI.
-        for dir in $(printf '%s\n' "$CHANGED_PY" | cut -d/ -f1 | sort -u); do
-            files="$(printf '%s\n' "$CHANGED_PY" | grep "^$dir/")"
-            echo "-- [$dir] changed Python files --"
-            printf '%s\n' "$files"
-            pylint $files
-        done
+        echo "$CHANGED_PY"
+        pylint $CHANGED_PY
     fi
     echo "✓ pylint clean"
 

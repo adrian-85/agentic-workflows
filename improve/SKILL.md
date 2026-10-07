@@ -358,16 +358,15 @@ scripts/setup-worktree.sh <workflow-name> [base-path]
 
 ### verify-worktree.sh
 Runs the change set's quality gates inside the worktree: pylint on changed
-Python files (including test files) grouped per top-level folder, the full
-test suite of each touched workflow, and — as the LAST check — CI's exact
-pylint invocation (`pylint $(git ls-files "$project/*.py")`, one run per
-top-level project) scoped to each touched top-level folder. Pylint never
-analyzes two projects in one run: they are independent flat-namespace
-programs sharing module basenames (judge.py, test_helpers.py), so a combined
-run shadows modules and emits spurious no-member errors. Cross-file findings
-(R0801 duplicate-code) only fire when BOTH files are in the analyzed set, so
-changed-file linting alone cannot catch them. On success it records the
-worktree HEAD in the checkpoint state —
+Python files (including test files), the full test suite of each touched
+workflow, and — as the LAST check — CI's exact pylint invocation
+(`pylint $(git ls-files "$project/*.py")`, one run per top-level project)
+scoped to each touched top-level folder. The workflows share module
+basenames (judge.py, test_helpers.py), so a combined pylint run across two
+of them shadows a module and emits spurious no-member errors — hence CI's
+per-project runs. Cross-file findings (R0801 duplicate-code) only fire when
+BOTH files are in the analyzed set, so changed-file linting alone cannot
+catch them. On success it records the worktree HEAD in the checkpoint state —
 this record is what authorizes gate 4. Run it inside the worktree after the
 last commit of a phase.
 
