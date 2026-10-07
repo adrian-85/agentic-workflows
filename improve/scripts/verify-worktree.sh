@@ -95,6 +95,9 @@ run_suite() {
             --ignore=tests/test_dspy_live.py --ignore=tests/test_hacker_live.py \
             --ignore=tests/test_explorer_live.py --ignore=tests/test_report_live.py)
         ;;
+    job-search)
+        (cd job-search/scripts && python3 -m unittest discover)
+        ;;
     *)
         echo "no test suite registered for workflow '$1'" >&2
         return 2
@@ -201,6 +204,14 @@ verify)
         echo "✓ p2p-qa suite green"
     else
         echo "p2p-qa-lab not touched — skipping its suite"
+    fi
+
+    if printf '%s\n' "$CHANGED" | grep -q '^job-search/'; then
+        echo "-- job-search suite --"
+        run_suite job-search
+        echo "✓ job-search suite green"
+    else
+        echo "job-search not touched — skipping its suite"
     fi
 
     echo "== verify-worktree: CI-equivalent pylint per touched folder (LAST check) =="
