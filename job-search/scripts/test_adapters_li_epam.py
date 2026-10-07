@@ -66,11 +66,24 @@ class LinkedInGuestAdapterTest(unittest.TestCase):
         no_time = by_title["Automation Test Architect"]
         self.assertEqual(no_time.date_confidence, "none")
 
-    def test_linkedin_guest_drops_non_remote_locations(self):
+    def test_linkedin_drops_non_remote_locations(self):
         """Locations without Remote never surface."""
         postings = self.adapter.list_postings(LINKEDIN_SITE, self.http_get)
         locations = [p.location for p in postings]
         self.assertTrue(all("Remote" in loc for loc in locations))
+        self.assertNotIn("Hybrid Support Engineer",
+                         [p.title for p in postings])
+
+    def test_linkedin_keywords_carrying_remote_trust_the_search(self):
+        """A saved search whose keywords carry the remote scope IS the
+        site's own remote filter: per-card location checks are skipped."""
+        site = Site(name="LinkedIn Guest",
+                    url=("https://www.linkedin.com/jobs/search-results/"
+                         "?keywords=quality%20engineer%2C%20remote"
+                         "&f_TPR=r86400"),
+                    adapter="linkedin-guest")
+        postings = self.adapter.list_postings(site, self.http_get)
+        self.assertIn("Hybrid Support Engineer", [p.title for p in postings])
 
     def test_linkedin_fetch_jd_returns_description(self):
         """The guest view page's markup div becomes plain JD text."""

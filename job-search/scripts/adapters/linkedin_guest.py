@@ -101,6 +101,11 @@ def _with_start(base_url: str, start: int) -> str:
 def _parse_cards(body: str, site, now) -> list[Posting]:
     """Cards to postings; relative dates and location gate here."""
     del now
+    # A site URL carrying the remote scope (facet or keywords) IS the
+    # site's own remote filter; per-card location checking is for URLs
+    # without one.
+    trust_remote = any(marker in site.url
+                       for marker in REMOTE_FILTER_PARAMS)
     postings = []
     for chunk in body.split(_CARD_SPLIT)[1:]:
         urn = _URN_RE.search(_CARD_SPLIT + chunk)
@@ -108,7 +113,7 @@ def _parse_cards(body: str, site, now) -> list[Posting]:
             continue
         title = _text(_TITLE_RE.search(chunk))
         location = _text(_LOCATION_RE.search(chunk))
-        if "remote" not in location.lower():
+        if not trust_remote and "remote" not in location.lower():
             continue
         time_match = _TIME_RE.search(chunk)
         if time_match is not None:
