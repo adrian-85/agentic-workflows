@@ -35,6 +35,50 @@
       "first_published": "2026-10-05T08:00:00-04:00",
       "company_name": "Example Corp",
       "content": "&lt;p&gt;Onsite role.&lt;/p&gt;"
+    },
+    {
+      "id": 1004,
+      "title": "Platform Engineer",
+      "absolute_url": "https://jobs.example.com/1004",
+      "location": {
+        "name": "Remote, France"
+      },
+      "first_published": "2026-10-06T10:00:00-04:00",
+      "updated_at": "2026-10-06T10:00:00-04:00",
+      "content": "<p>Example Corp platform engineer in France.</p>"
+    },
+    {
+      "id": 1005,
+      "title": "Platform Engineer US",
+      "absolute_url": "https://jobs.example.com/1005",
+      "location": {
+        "name": "Remote, Canada; Remote, United States"
+      },
+      "first_published": "2026-10-06T11:00:00-04:00",
+      "updated_at": "2026-10-06T11:00:00-04:00",
+      "content": "<p>Example Corp platform engineer, US remote.</p>"
+    },
+    {
+      "id": 1006,
+      "title": "London Support Engineer",
+      "absolute_url": "https://jobs.example.com/1006",
+      "location": {
+        "name": "London, UK"
+      },
+      "first_published": "2026-10-06T12:00:00-04:00",
+      "updated_at": "2026-10-06T12:00:00-04:00",
+      "content": "<p>Example Corp London support engineer.</p>"
+    },
+    {
+      "id": 1007,
+      "title": "Renewals Manager EMEA",
+      "absolute_url": "https://jobs.example.com/1007",
+      "location": {
+        "name": "Remote Ireland; Remote, Israel"
+      },
+      "first_published": "2026-10-06T13:00:00-04:00",
+      "updated_at": "2026-10-06T13:00:00-04:00",
+      "content": "<p>Example Corp renewals manager for EMEA.</p>"
     }
   ],
   "meta": {

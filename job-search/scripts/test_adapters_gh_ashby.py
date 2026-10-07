@@ -30,7 +30,7 @@ class GreenhouseAdapterTest(unittest.TestCase):
     def test_greenhouse_parses_fixture_postings(self):
         """List response becomes normalized postings with timestamps."""
         postings = self.adapter.list_postings(GREENHOUSE_SITE, self.http_get)
-        self.assertEqual(len(postings), 2)
+        self.assertEqual(len(postings), 3)  # EMEA renewals leak-case drops
         first = postings[0]
         self.assertEqual(first.posting_id, "greenhouse:1001")
         self.assertEqual(first.company, "Example Corp")
@@ -53,6 +53,18 @@ class GreenhouseAdapterTest(unittest.TestCase):
         titles = [p.title for p in postings]
         self.assertNotIn("Onsite Facilities Coordinator", titles)
         self.assertIn("Staff Software Engineer in Test", titles)
+
+    def test_greenhouse_us_gate(self):
+        """Country-bearing locations gate to US: multi-country locations
+        that include the US stay, non-US-pinned ones drop, bare Remote
+        (no country signal) stays."""
+        postings = self.adapter.list_postings(GREENHOUSE_SITE, self.http_get)
+        titles = [p.title for p in postings]
+        self.assertIn("Platform Engineer US", titles)
+        self.assertIn("Staff Software Engineer in Test", titles)
+        self.assertNotIn("Platform Engineer", titles)
+        self.assertNotIn("London Support Engineer", titles)
+        self.assertNotIn("Renewals Manager EMEA", titles)
 
     def test_greenhouse_fetch_jd_returns_description_text(self):
         """A posting lacking jd_text gets a detail fetch, tags stripped."""
