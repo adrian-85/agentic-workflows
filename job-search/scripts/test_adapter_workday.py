@@ -52,6 +52,24 @@ class WorkdayAdapterTest(unittest.TestCase):
         self.assertIn("/wday/cxs/example/examplecareers/jobs",
                       self.requests[0][0])
 
+    def test_workday_forwards_url_query_params_as_facets(self):
+        """Site URL query params ride into the CXS body as appliedFacets.
+
+        Facet-gated tenants (e.g. Illumina's locations=US - Remote) trust
+        the site-side filter, so the per-posting locationsText remote
+        check is skipped when facets are applied.
+        """
+        site = Site(name="Faceted Corp",
+                    url=("https://example.wd1.myworkdayjobs.com/examplecareers"
+                         "?locations=45f38a85"),
+                    adapter="workday")
+        postings = self.adapter.list_postings(site, self.http_get)
+        body = json.loads(self.requests[0][1])
+        self.assertEqual(body["appliedFacets"], {"locations": ["45f38a85"]})
+        # Facet-guaranteed remote: the "N Locations" card survives.
+        self.assertIn("Multi Location Remote Role",
+                      [p.title for p in postings])
+
     def test_workday_posted_on_relative_dates(self):
         """"Posted Yesterday" and older never pass the strict 24h window."""
         postings = self.adapter.list_postings(WORKDAY_SITE, self.http_get)

@@ -12,8 +12,9 @@ the posting jd-fetch-failed -> review).
 """
 
 import json
+import re
 from datetime import datetime, timezone
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 from adapters import decode_json, html_to_text
 from postings import Posting, canonical_id
@@ -43,7 +44,8 @@ def list_postings(site, http_get) -> list[Posting]:
     """Search the tenant as postings; relative dates gate the 24h window."""
     host, tenant, site_name = _tenant_parts(site.url)
     url = f"https://{host}/wday/cxs/{tenant}/{site_name}/jobs"
-    body = json.dumps({"appliedFacets": {}, "limit": 20, "offset": 0,
+    facets = _applied_facets(site.url)
+    body = json.dumps({"appliedFacets": facets, "limit": 20, "offset": 0,
                        "searchText": ""})
     response = http_get(url, headers={"Content-Type": "application/json"},
                         data=body)
@@ -53,14 +55,14 @@ def list_postings(site, http_get) -> list[Posting]:
     for job in payload.get("jobPostings", []):
         if not _within_window(job.get("postedOn", "")):
             continue
-        if "remote" not in (job.get("locationsText") or "").lower():
+        if not facets and not _is_remote(job):
             continue
         external_path = job.get("externalPath", "")
         postings.append(Posting(
             posting_id=canonical_id(SOURCE, external_path),
             source=SOURCE,
-            url=site.url.rstrip("/") + external_path,
-            jd_url=site.url.rstrip("/") + external_path,
+            url=site.url.rstrip("/").split("?")[0] + external_path,
+            jd_url=site.url.rstrip("/").split("?")[0] + external_path,
             company=site.name,
             title=job.get("title", "untitled"),
             location=job.get("locationsText", ""),
@@ -70,6 +72,16 @@ def list_postings(site, http_get) -> list[Posting]:
             fetched_at=now,
         ))
     return postings
+
+
+def _is_remote(job) -> bool:
+    """Remote marker in the posting's locationsText.
+
+    Skipped when the site URL applies facets: a facet-gated listing is
+    already the site's own remote filter (e.g. Illumina's
+    locations=US - Remote, whose results read "N Locations").
+    """
+    return "remote" in (job.get("locationsText") or "").lower()
 
 
 def fetch_jd(site, posting, http_get) -> str:
@@ -88,6 +100,11 @@ def fetch_jd(site, posting, http_get) -> str:
             f"empty jobPostingInfo for {external_path} "
             "(tenant may bot-gate detail requests)")
     return html_to_text(description)
+
+
+def _applied_facets(site_url: str) -> dict:
+    """Site URL query params become CXS appliedFacets (e.g. locations)."""
+    return {key: [value] for key, value in parse_qsl(urlsplit(site_url).query)}
 
 
 def _within_window(posted_on: str) -> bool:
