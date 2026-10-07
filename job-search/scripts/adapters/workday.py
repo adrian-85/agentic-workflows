@@ -12,7 +12,6 @@ the posting jd-fetch-failed -> review).
 """
 
 import json
-import re
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlsplit
 
