@@ -66,6 +66,7 @@ sites.toml → fetch (per-site adapters, polite delays, per-site isolation)
 | `epam` | EPAM careers | `__NEXT_DATA__` embedded jobs | none |
 | `linkedin-guest` | LinkedIn | guest search endpoint; UI URL converted automatically | none (curl-feed fallback) |
 | `indeed-curlfeed` | Indeed | saved-cURL session replay | `curl-feed` |
+| `shopify` | Shopify careers | careers sitemap + turbo-stream detail pages; lastmod gates the 24h window in-adapter | none |
 | `html-generic` | *(reserved)* | agent-extract fallback for unparseable sites | TBD |
 
 Deferred platforms (no verifiable plain-HTTP contract as of 2026-10-05):
