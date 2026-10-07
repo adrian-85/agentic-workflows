@@ -68,6 +68,7 @@ sites.toml → fetch (per-site adapters, polite delays, per-site isolation)
 | `indeed-curlfeed` | Indeed | saved-cURL session replay | `curl-feed` |
 | `shopify` | Shopify careers | careers sitemap + turbo-stream detail pages; lastmod gates the 24h window in-adapter | none |
 | `phenom` | Phenom CareerConnect | `/widgets` refineSearch API + embedded jobDetail DDO; URL query params become selected_fields | none |
+| `pcsx` | pcsx career sites | `/api/pcsx/search` JSON + schema.org JobPosting detail; URL carries the remote filter | none |
 | `html-generic` | *(reserved)* | agent-extract fallback for unparseable sites | TBD |
 
 Deferred platforms (no verifiable plain-HTTP contract as of 2026-10-05):

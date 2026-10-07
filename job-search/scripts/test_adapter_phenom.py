@@ -12,6 +12,7 @@ from pathlib import Path
 
 import adapters
 from fetch import HttpResponse, Site
+from test_helpers import assert_jd_text
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 NOW = datetime(2026, 10, 7, 12, 0, 0, tzinfo=timezone.utc)
@@ -98,10 +99,7 @@ class PhenomAdapterTest(unittest.TestCase):
     def test_phenom_fetch_jd_from_embedded_ddo(self):
         """JD text comes from the detail page's embedded jobDetail DDO."""
         postings = self._list()
-        text = self.adapter.fetch_jd(SITE, postings[0], self.http_get)
-        self.assertIn("Key Responsibilities", text)
-        self.assertIn("\n", text)
-        self.assertNotIn("<", text)
+        assert_jd_text(self, self.adapter, SITE, postings[0], self.http_get)
 
     def test_phenom_fetch_jd_jsonld_fallback(self):
         """When no embedded DDO exists, the JobPosting ld+json is used."""

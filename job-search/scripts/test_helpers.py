@@ -56,3 +56,12 @@ def serve_fixture(file_name: str, requests: list):
         requests.append(url)
         return HttpResponse(200, body)
     return http_get
+
+
+def assert_jd_text(test_case, adapter, site, posting, http_get):
+    """Assert a fetched JD is plain text with the fixture's marker."""
+    text = adapter.fetch_jd(site, posting, http_get)
+    test_case.assertIn("Key Responsibilities", text)
+    test_case.assertIn("\n", text)
+    test_case.assertNotIn("<", text)
+    return text

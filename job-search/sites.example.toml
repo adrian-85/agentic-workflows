@@ -7,7 +7,7 @@
 #             site returns is trusted as US-remote (spec §4) — a site whose
 #             URL lacks a remote+US filter gets its postings flagged review.
 #   adapter — platform adapter: greenhouse | ashby | workday | shopify |
-#             phenom | eightfold | nextjs-embed | linkedin-guest |
+#             phenom | pcsx | eightfold | nextjs-embed | linkedin-guest |
 #             indeed-curlfeed
 #   auth    — none | curl-feed
 #

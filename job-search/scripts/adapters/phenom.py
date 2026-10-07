@@ -18,7 +18,8 @@ import re
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qsl, urlsplit
 
-from adapters import decode_json, html_to_text
+from adapters import (decode_json, fetch_detail_body, html_to_text,
+                      jsonld_description, origin_of)
 from postings import Posting, canonical_id
 
 SOURCE = "phenom"
@@ -28,8 +29,6 @@ PAGE_SIZE = 100
 
 _PHAPP_RE = re.compile(r"phApp\s*=\s*phApp\s*\|\|\s*(\{.*?\});", re.S)
 _JOB_DETAIL_RE = re.compile(r'"jobDetail"\s*:\s*\{')
-_JSONLD_RE = re.compile(
-    r'<script\b[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S)
 
 
 class PhenomFetchError(RuntimeError):
@@ -72,12 +71,9 @@ def fetch_jd(site, posting, http_get) -> str:
     """JD text from the detail page's JobPosting ld+json description."""
     if posting.jd_text:
         return posting.jd_text
-    response = http_get(posting.jd_url)
-    if response.status != 200:
-        raise PhenomFetchError(
-            f"phenom detail HTTP {response.status} for "
-            f"{posting.posting_id} ({site.name})")
-    return _detail_description(response.body)
+    body = fetch_detail_body(posting, http_get, PhenomFetchError,
+                             f"phenom ({site.name})")
+    return _detail_description(body)
 
 
 def _phapp_config(html: str) -> dict:
@@ -119,7 +115,7 @@ def _refine_body(config: dict, selected: dict, offset: int) -> dict:
 def _to_posting(site, job, now) -> Posting:
     """A refineSearch job to a normalized Posting."""
     req_id = str(job.get("reqId") or job.get("jobId") or "")
-    origin = _origin(site.url)
+    origin = origin_of(site.url)
     prefix = _locale_prefix(site.url)
     title = job.get("title", "untitled")
     detail_url = f"{origin}{prefix}/job/{req_id}/{_slug(title)}"
@@ -161,15 +157,9 @@ def _detail_description(html: str) -> str:
     embedded = _embedded_job_description(html)
     if embedded:
         return html_to_text(embedded)
-    for match in _JSONLD_RE.finditer(html):
-        try:
-            data = json.loads(match.group(1))
-        except json.JSONDecodeError:
-            continue
-        if isinstance(data, dict) and data.get("@type") == "JobPosting":
-            description = data.get("description")
-            if description:
-                return html_to_text(description)
+    description = jsonld_description(html)
+    if description:
+        return html_to_text(description)
     raise PhenomFetchError("no job description on detail page")
 
 
@@ -218,11 +208,6 @@ def _location(job) -> str:
     """Fallback location string from city/state/country."""
     parts = [job.get("city"), job.get("state"), job.get("country")]
     return ", ".join(part for part in parts if part)
-
-
-def _origin(site_url: str) -> str:
-    parts = urlsplit(site_url)
-    return f"{parts.scheme}://{parts.netloc}"
 
 
 def _locale_prefix(site_url: str) -> str:

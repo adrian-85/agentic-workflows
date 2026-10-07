@@ -15,6 +15,7 @@ import json
 import re
 from datetime import datetime, timezone
 from html.parser import HTMLParser
+from urllib.parse import urlsplit
 
 from postings import Posting, canonical_id
 
@@ -156,3 +157,36 @@ def html_to_text(raw: str) -> str:
     lines = (re.sub(r"\s+", " ", line).strip()
              for line in "".join(parser.parts).splitlines())
     return "\n".join(line for line in lines if line)
+
+
+_JSONLD_RE = re.compile(
+    r'<script\b[^>]*type="application/ld\+json"[^>]*>(.*?)</script>',
+    re.S)
+
+
+def jsonld_description(raw: str) -> str | None:
+    """schema.org JobPosting description HTML from ld+json blocks."""
+    for match in _JSONLD_RE.finditer(raw):
+        try:
+            data = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict) and data.get("@type") == "JobPosting":
+            return data.get("description")
+    return None
+
+
+def origin_of(url: str) -> str:
+    """Scheme and host of a site URL."""
+    parts = urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}"
+
+
+def fetch_detail_body(posting, http_get, error_class, label: str) -> str:
+    """GET a posting's detail page, raising error_class on non-200."""
+    response = http_get(posting.jd_url)
+    if response.status != 200:
+        raise error_class(
+            f"{label} detail HTTP {response.status} for "
+            f"{posting.posting_id}")
+    return response.body
