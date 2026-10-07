@@ -76,6 +76,17 @@ class PcsxAdapterTest(unittest.TestCase):
         self.assertEqual(first.url,
                          "https://careers.example.com/careers/job/893397923700")
 
+    def test_pcsx_drops_non_remote_positions(self):
+        """The site filter is an umbrella on some tenants (Dexcom
+        remote_local): only positions whose own locations carry the
+        Remote marker survive."""
+        postings = self._list()
+        self.assertNotIn("Old Posting", [p.title for p in postings])
+        titles = [p.title for p in postings]
+        self.assertIn("Staff Engineer in Test", titles)
+        self.assertIn("Automation Test Architect", titles)
+        self.assertNotIn("Field Service Technician", titles)
+
     def test_pcsx_fetch_jd_from_jsonld(self):
         """JD text comes from the detail page's JobPosting description."""
         postings = self._list()

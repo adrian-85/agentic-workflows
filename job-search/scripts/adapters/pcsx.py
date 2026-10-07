@@ -40,6 +40,8 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
         if not positions:
             break
         for position in positions:
+            if not _is_remote(position):
+                continue
             if _within_window(position.get("postedTs"), now):
                 postings.append(_to_posting(site, position, now))
         start += len(positions)
@@ -68,6 +70,17 @@ def _page_url(site_url: str, start: int) -> str:
     query["sort_by"] = ["timestamp"]
     return urlunsplit((parts.scheme, parts.netloc, parts.path,
                        urlencode(query, doseq=True), parts.fragment))
+
+
+def _is_remote(position) -> bool:
+    """Position's own locations carry the Remote marker.
+
+    The URL filter is an umbrella on some tenants (Dexcom's
+    remote_local covers city-anchored flexible roles), so the marker in
+    the position's locations list is the per-posting deterministic
+    signal ("Remote - US", "US, TX, Remote", ...).
+    """
+    return "remote" in ", ".join(position.get("locations") or []).lower()
 
 
 def _to_posting(site, position, now) -> Posting:
