@@ -1,4 +1,11 @@
 [tool.pylint]
+# Monorepo lint convention: this single root file is the shared rule set
+# for every top-level project, and CI lints each project in its own pylint
+# invocation (.github/workflows/pylint.yml). The projects are independent
+# flat-namespace programs that share module basenames (judge.py, config.py,
+# test_helpers.py); one combined run lets a sibling's module shadow
+# another's and emits spurious no-member / no-name-in-module errors. A
+# project may add its own .pylintrc later if it ever needs divergent rules.
 reports = "no"
 
 # Wrap at pylint's default 100-char budget — made EXPLICIT so the
@@ -15,11 +22,11 @@ max-line-length = 100
 # non-zero exit" (verified: convention-only file exits 16, clean exits 0).
 fail-on = ["C", "W", "R", "E", "F"]
 
-# Repo-wide convention with written rationale: the resume-tailoring
-# scripts live in a flat namespace and deliberately share underscore-
-# prefixed helpers across sibling modules (their "internal API"). Tests
-# white-box the same helpers. Expected until the API-promotion spec
-# lands; see docs/superpowers/specs/2026-09-07-script-api-promotion-design.md
+# Repo-wide convention with written rationale: the scripts projects live
+# in flat namespaces and deliberately share underscore-prefixed helpers
+# across sibling modules (their "internal API"). Tests white-box the same
+# helpers. Expected until the API-promotion spec lands; see
+# docs/superpowers/specs/2026-09-07-script-api-promotion-design.md
 #
 # wrong-import-position: every flat-namespace script does a
 # sys.path.insert(0, <scripts dir>) bootstrap BEFORE its sibling imports,
