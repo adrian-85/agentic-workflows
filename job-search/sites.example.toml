@@ -7,8 +7,7 @@
 #             site returns is trusted as US-remote (spec §4) — a site whose
 #             URL lacks a remote+US filter gets its postings flagged review.
 #   adapter — platform adapter: greenhouse | ashby | workday | shopify |
-#             phenom | pcsx | eightfold | nextjs-embed | linkedin-guest |
-#             indeed-curlfeed
+#             phenom | pcsx | eightfold | nextjs-embed | linkedin-guest
 #   auth    — none | curl-feed
 #
 # Fictional example entries follow.
@@ -19,10 +18,3 @@ url = "https://boards.greenhouse.io/examplecorp"
 adapter = "greenhouse"
 auth = "none"
 notes = "Placeholder entry. Greenhouse boards need no auth."
-
-[[site]]
-name = "Example Jobs Board"
-url = "https://jobs.example-board.example/jobs?q=test&l=Remote&fromage=1"
-adapter = "indeed-curlfeed"
-auth = "curl-feed"
-notes = "Placeholder entry. curl-feed sites need auth/Example Jobs Board/curl.txt — saved cURL exports from a logged-in browser session (ats_check pattern). fromage=1 is this example board's last-24h filter."

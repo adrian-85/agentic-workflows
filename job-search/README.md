@@ -65,7 +65,6 @@ sites.toml → fetch (per-site adapters, polite delays, per-site isolation)
 | `workday` | Workday tenants | `wday/cxs` search API; relative dates gate the 24h window in-adapter | none |
 | `epam` | EPAM careers | `__NEXT_DATA__` embedded jobs | none |
 | `linkedin-guest` | LinkedIn | guest search endpoint; UI URL converted automatically | none (curl-feed fallback) |
-| `indeed-curlfeed` | Indeed | saved-cURL session replay; **unverified** — Cloudflare/Turnstile-gated (plain request 403s) and the card parser predates the current SPA | `curl-feed` |
 | `shopify` | Shopify careers | careers sitemap + turbo-stream detail pages; lastmod gates the 24h window in-adapter | none |
 | `phenom` | Phenom CareerConnect | `/widgets` refineSearch API + embedded jobDetail DDO; URL query params become selected_fields (facet names vary by tenant, e.g. `remote`, `flexibilityStatus`) | none |
 | `pcsx` | pcsx career sites | `/api/pcsx/search` JSON + schema.org JobPosting detail; URL carries the remote filter | none |
@@ -75,12 +74,6 @@ Deferred platforms (no verifiable plain-HTTP contract as of 2026-10-05):
 widget-gated career portals and client-rendered JS shells with no public
 JSON. Sites on those surface as isolated per-site failures until the
 `html-generic` slot ships.
-
-Indeed (live-probed 2026-10-07) is Cloudflare/Turnstile-gated: the search
-page returns 403 to non-browser clients and its cookies are
-fingerprint-bound and short-lived, so `indeed-curlfeed` cannot be verified
-with a saved cURL and its results are largely duplicative of the direct
-ATS sources above. Skipped unless a headless-browser capture path is added.
 
 Sites whose URL lacks a remote+US filter get their postings flagged
 `review` — the fetch layer never silently trusts an unfiltered site.
@@ -100,7 +93,7 @@ python3 scripts/run.py search
 python3 scripts/run.py approve all --except <posting_id>
 ```
 
-For curl-feed sites (e.g. Indeed): from a logged-in browser session,
+For curl-feed sites: from a logged-in browser session,
 "Copy as cURL" the search request into `auth/<site name>/curl.txt`
 (mode 600; gitignored). On 401/403 the report names the site to re-export.
 

@@ -1,9 +1,9 @@
-"""Auth plumbing + indeed curl-feed adapter tests (all synthetic).
+"""Curl-feed auth plumbing tests (all synthetic).
 
 The curl-export fixture mirrors browser 'Copy as cURL' blocks for a
-fictional board; the search fixture uses Indeed's stable card markers
-(data-jk, jobTitle, companyName, companyLocation, date). No real
-credentials or captured pages (spec: testing rule).
+fictional board; no real credentials or captured pages (spec: testing
+rule). The auth layer serves any session-gated site (e.g. a platform's
+curl-feed fallback), independent of the platform adapter.
 """
 
 import shutil
@@ -69,7 +69,7 @@ class AuthedHttpGetTest(unittest.TestCase):
         (site_dir / "curl.txt").write_text(CURL_EXPORTS, encoding="utf-8")
         self.site = Site(name="Example Jobs Board",
                          url="https://jobs.example-board.example/jobs?q=test",
-                         adapter="indeed-curlfeed", auth="curl-feed")
+                         adapter="mock", auth="curl-feed")
 
     def test_authed_get_replays_headers(self):
         """Saved headers ride along on requests."""
@@ -93,36 +93,6 @@ class AuthedHttpGetTest(unittest.TestCase):
         self.assertEqual(ctx.exception.site_name, "Example Jobs Board")
 
 
-class IndeedAdapterTest(unittest.TestCase):
-    """indeed-curlfeed parses the synthetic search cards."""
-
-    def setUp(self):
-        self.requests = []
-        body = (Path(__file__).resolve().parent / "fixtures"
-                / "indeed_search_sample.html").read_text(encoding="utf-8")
-        def http_get(url, _headers=None, _data=None):
-            self.requests.append(url)
-            return fetch.HttpResponse(200, body)
-        self.http_get = http_get
-        self.adapter = adapters.get_adapter("indeed-curlfeed")
-
-    def test_indeed_parses_search_fixture(self):
-        """Remote-today cards parse; older and onsite cards drop."""
-        site = Site(name="Example Jobs Board",
-                    url="https://jobs.example-board.example/jobs?q=test",
-                    adapter="indeed-curlfeed", auth="curl-feed")
-        postings = self.adapter.list_postings(site, self.http_get)
-        by_title = {p.title: p for p in postings}
-        self.assertIn("Senior Software Engineer in Test", by_title)
-        first = by_title["Senior Software Engineer in Test"]
-        self.assertTrue(first.posting_id.startswith("indeed-curlfeed:"))
-        self.assertEqual(first.company, "Example Corp")
-        self.assertEqual(first.location, "Remote in US")
-        self.assertEqual(first.date_confidence, "url-filter")
-        self.assertNotIn("Quality Assurance Engineer", by_title)
-        self.assertNotIn("Onsite Test Technician", by_title)
-
-
 class AuthIsolationTest(unittest.TestCase):
     """An expired session isolates to its site and names it."""
 
@@ -134,8 +104,8 @@ class AuthIsolationTest(unittest.TestCase):
                        adapter="mock")
         dead_site = Site(name="Dead Board",
                          url="https://dead.example.com/search",
-                         adapter="indeed-curlfeed", auth="curl-feed")
-        adapters.register("mock", _MockOk())
+                         adapter="mock", auth="curl-feed")
+        adapters.register("mock", _MockAdapter())
         self.addCleanup(adapters.REGISTRY.pop, "mock", None)
         def base_get(url, headers=None, data=None):
             del headers, data
@@ -152,13 +122,14 @@ class AuthIsolationTest(unittest.TestCase):
         self.assertTrue(report.site_results[1].ok)
 
 
-class _MockOk:
-    """Minimal mock adapter satisfying the contract."""
+class _MockAdapter:
+    """Minimal adapter that touches http_get to surface auth expiry."""
 
     REMOTE_FILTER_PARAMS = ("remote=",)
 
-    def list_postings(self, _site, _http_get):
-        """Serve a stand-in posting list."""
+    def list_postings(self, site, http_get):
+        """Touch the session, then serve a stand-in posting list."""
+        http_get(site.url)
         return [Posting(posting_id=canonical_id("mock", "1"), source="mock",
                         url="https://ok.example.com/j/1",
                         jd_url="https://ok.example.com/j/1",
@@ -169,8 +140,9 @@ class _MockOk:
                         fetched_at=datetime.now(timezone.utc),
                         jd_text="synthetic jd")]
 
-    def fetch_jd(self, _site, posting, _http_get):
+    def fetch_jd(self, site, posting, http_get):
         """Serve the cached JD."""
+        del site, http_get
         return posting.jd_text or "synthetic jd"
 
 

@@ -97,9 +97,9 @@ def card_posting(source: str, ext_id: str, **fields) -> Posting:
 def relative_within_window(label: str) -> bool:
     """Relative date label inside the strict 24h window.
 
-    Accepts LinkedIn-style ("3 hours ago", "Just now") and Indeed-style
-    ("PostedToday", "Posted 3 days ago") labels; callers may pre-strip a
-    leading "posted".
+    Accepts "3 hours ago" / "Just now" style labels and "Posted"
+    prefixes ("PostedToday", "Posted 3 days ago"); callers may
+    pre-strip a leading "posted".
     """
     text = label.strip().lower().replace("posted", " ").strip()
     if text in _WITHIN_WINDOW_EXACT:

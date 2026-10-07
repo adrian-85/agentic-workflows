@@ -197,9 +197,8 @@ class LoadSitesTest(unittest.TestCase):
         """The committed example parses into Site objects with adapters."""
         example = Path(__file__).resolve().parent.parent / "sites.example.toml"
         sites = fetch.load_sites(str(example))
-        self.assertEqual(len(sites), 2)
-        self.assertEqual({s.adapter for s in sites},
-                         {"greenhouse", "indeed-curlfeed"})
+        self.assertEqual(len(sites), 1)
+        self.assertEqual({s.adapter for s in sites}, {"greenhouse"})
         self.assertTrue(all(s.url.startswith("http") for s in sites))
 
 
