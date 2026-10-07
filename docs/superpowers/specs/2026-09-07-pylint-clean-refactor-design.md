@@ -3,6 +3,15 @@
 **Date**: 2026-09-07
 **Status**: Implemented (2026-09-07, branch pylint-clean-refactor)
 **Author**: Pi Agent (brainstorming session)
+**Amended**: 2026-10-07 — the repo now holds four independent flat-namespace
+projects (`ai-judge`, `job-search`, `p2p-qa-lab`, `resume-tailoring`) that
+share module basenames, so the literal one-shot `pylint $(git ls-files
+'*.py')` no longer works (a sibling's module shadows another's and emits
+spurious `no-member` errors). CI and `verify-worktree.sh` now lint **each
+top-level folder in its own pylint run**; the goal is "every project lints
+clean", not "one combined invocation exits 0". See
+`.github/workflows/pylint.yml` and the `[tool.pylint]` note in
+`pyproject.toml`.
 
 ---
 

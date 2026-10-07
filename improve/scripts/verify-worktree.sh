@@ -2,10 +2,15 @@
 # verify-worktree.sh - Block a worktree merge unless the CHANGE SET passes.
 # Hard gate for the improve workflow (spec 2026-09-07-pylint-clean-refactor).
 # Scoped by WORKFLOW — the repo is a collection of independent,
-# self-contained workflows:
-#   - lint: only the Python files this branch touches
+# self-contained workflows that share module basenames (judge.py,
+# config.py, test_helpers.py). Pylint must never analyze two workflows in
+# one invocation: a sibling's module would shadow the other's and emit
+# spurious no-member / no-name-in-module errors. CI therefore lints each
+# top-level folder in its own run (.github/workflows/pylint.yml):
+#   - lint: only the Python files this branch touches, grouped per
+#     touched top-level folder
 #   - tests: the FULL suite of each workflow the change set touches
-#   - last check: CI's exact pylint command scoped to each touched
+#   - last check: CI's exact pylint invocation scoped to each touched
 #     top-level folder — cross-file findings (R0801 duplicate-code) only
 #     fire when BOTH files are in the analyzed set, so changed-file
 #     linting alone cannot catch them
@@ -172,13 +177,20 @@ verify)
     ensure_pylint
     CHANGED="$(git diff --name-only main...HEAD)"
 
-    echo "== verify-worktree: pylint (changed Python files only) =="
+    echo "== verify-worktree: pylint (changed Python files, per top-level folder) =="
     CHANGED_PY="$(printf '%s\n' "$CHANGED" | grep '\.py$' || true)"
     if [ -z "$CHANGED_PY" ]; then
         echo "no Python files changed — skipping pylint"
     else
-        echo "$CHANGED_PY"
-        pylint $CHANGED_PY
+        # Group per top-level folder: linting two workflows' files together
+        # lets a shared module basename (judge.py, test_helpers.py) shadow
+        # the other and emit spurious no-member errors. Matches CI.
+        for dir in $(printf '%s\n' "$CHANGED_PY" | cut -d/ -f1 | sort -u); do
+            files="$(printf '%s\n' "$CHANGED_PY" | grep "^$dir/")"
+            echo "-- [$dir] changed Python files --"
+            printf '%s\n' "$files"
+            pylint $files
+        done
     fi
     echo "✓ pylint clean"
 
@@ -202,10 +214,10 @@ verify)
     echo "== verify-worktree: CI-equivalent pylint per touched folder (LAST check) =="
     # duplicate-code (R0801) is cross-file: pylint only emits it when BOTH
     # similar files are in the analyzed set, so the changed-files lint above
-    # stays green while CI's full-repo run fails (a real red: gap_queue.py
+    # stays green while CI's full-folder run fails (a real red: gap_queue.py
     # duplicated script_args.sha256_file and only one was in the change set).
-    # Run the exact CI command scoped to each touched top-level folder: same
-    # file-selection semantics as CI, cross-file findings cannot hide. Runs
+    # Run CI's exact invocation scoped to each touched top-level folder: same
+    # per-folder file selection as CI, cross-file findings cannot hide. Runs
     # LAST on purpose — cheap failures surface first and this is the ~30s step.
     for dir in $(printf '%s\n' "$CHANGED" | grep '\.py$' | cut -d/ -f1 | sort -u); do
         # single glob pathspec — adding `-- dir` as a second pathspec ORs
