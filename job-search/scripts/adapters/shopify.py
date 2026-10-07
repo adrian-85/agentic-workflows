@@ -17,7 +17,7 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-from adapters import html_to_text, parse_iso_time
+from adapters import fetch_detail_body, html_to_text, parse_iso_time
 from postings import Posting, canonical_id, is_within_24h
 
 SOURCE = "shopify"
@@ -73,12 +73,9 @@ def fetch_jd(site, posting, http_get) -> str:
     """JD text rides inline from the detail fetch during listing."""
     if posting.jd_text:
         return posting.jd_text
-    detail = http_get(posting.jd_url)
-    if detail.status != 200:
-        raise ShopifyFetchError(
-            f"shopify detail HTTP {detail.status} for "
-            f"{posting.posting_id} ({site.name})")
-    return _jd_text(detail.body) or ""
+    body = fetch_detail_body(posting, http_get, ShopifyFetchError,
+                             f"shopify ({site.name})")
+    return _chunks_to_text(_enqueue_payloads(body)) or ""
 
 
 def _posting_from_detail(site, match, loc, body, posted_at):
@@ -88,7 +85,6 @@ def _posting_from_detail(site, match, loc, body, posted_at):
         return None
     title_match = _TITLE_RE.search(body)
     title = html.unescape(title_match.group(1)).split(" - ")[0].strip()
-    jd_text = _jd_text(body)
     return Posting(
         posting_id=canonical_id(SOURCE, match.group("uuid")),
         source=SOURCE,
@@ -101,7 +97,7 @@ def _posting_from_detail(site, match, loc, body, posted_at):
         date_confidence="timestamp" if posted_at else "none",
         pay_raw=None,
         fetched_at=datetime.now(timezone.utc),
-        jd_text=jd_text,
+        jd_text=_chunks_to_text(chunks),
     )
 
 
@@ -121,28 +117,17 @@ def _enqueue_payloads(body: str) -> list[list]:
 
 def _is_remote(payloads: list[list]) -> bool:
     """True when an isRemote string element is followed by True."""
-    for payload in payloads:
-        for index, element in enumerate(payload[:-1]):
-            if element == "isRemote" and payload[index + 1] is True:
-                return True
-    return False
+    return any(a == "isRemote" and b is True
+               for chunk in payloads for a, b in zip(chunk, chunk[1:]))
 
 
-def _longest_string(body: str) -> str | None:
-    """The JD: the longest string across all turbo-stream chunks."""
-    best = None
-    for payload in _enqueue_payloads(body):
-        for element in payload:
-            if isinstance(element, str) and len(element) >= _MIN_JD_CHARS:
-                if best is None or len(element) > len(best):
-                    best = element
-    return best
-
-
-def _jd_text(body: str) -> str | None:
+def _chunks_to_text(chunks) -> str | None:
     """The JD (plain text): longest turbo-stream string, HTML-stripped."""
-    jd_html = _longest_string(body)
-    return html_to_text(jd_html) if jd_html else None
+    longest = max((element for chunk in chunks for element in chunk
+                   if isinstance(element, str)
+                   and len(element) >= _MIN_JD_CHARS),
+                  key=len, default=None)
+    return html_to_text(longest) if longest else None
 
 
 def _lastmod_time(raw):

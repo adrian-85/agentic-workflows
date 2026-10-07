@@ -77,3 +77,8 @@ def is_within_24h(posted_at: datetime | None, now: datetime) -> bool:
     if posted_at is None:
         return False
     return now - posted_at < timedelta(hours=24)
+
+
+def day_within_window(day, now: datetime) -> bool:
+    """Same window for sites that expose a date but no clock time."""
+    return day is not None and day >= (now - timedelta(hours=24)).date()

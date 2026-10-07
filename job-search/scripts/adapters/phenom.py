@@ -15,12 +15,12 @@ schema.org JobPosting ld+json description.
 
 import json
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlsplit
 
 from adapters import (decode_json, fetch_detail_body, html_to_text,
                       jsonld_description, origin_of)
-from postings import Posting, canonical_id
+from postings import Posting, canonical_id, day_within_window
 
 SOURCE = "phenom"
 REMOTE_FILTER_PARAMS = ("remote", "location", "country")
@@ -68,7 +68,7 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
 
 
 def fetch_jd(site, posting, http_get) -> str:
-    """JD text from the detail page's JobPosting ld+json description."""
+    """JD text from the detail page's embedded jobDetail DDO."""
     if posting.jd_text:
         return posting.jd_text
     body = fetch_detail_body(posting, http_get, PhenomFetchError,
@@ -136,10 +136,7 @@ def _to_posting(site, job, now) -> Posting:
 
 def _within_window(posted_date, now: datetime) -> bool:
     """Day-granular postedDate inside the 24h window (date comparison)."""
-    day = _posted_day(posted_date)
-    if day is None:
-        return False
-    return day >= (now - timedelta(hours=24)).date()
+    return day_within_window(_posted_day(posted_date), now)
 
 
 def _posted_day(raw):
@@ -176,32 +173,11 @@ def _embedded_job_description(html: str) -> str | None:
 
 
 def _json_object_at(text: str, brace: int):
-    """Parse the balanced JSON object that starts at `brace`, or None."""
-    depth = 0
-    in_string = False
-    escaped = False
-    for index in range(brace, len(text)):
-        char = text[index]
-        if in_string:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            continue
-        if char == '"':
-            in_string = True
-        elif char == "{":
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                try:
-                    return json.loads(text[brace:index + 1])
-                except json.JSONDecodeError:
-                    return None
-    return None
+    """Parse the JSON object starting at `brace`, or None."""
+    try:
+        return json.JSONDecoder().raw_decode(text, brace)[0]
+    except json.JSONDecodeError:
+        return None
 
 
 def _location(job) -> str:

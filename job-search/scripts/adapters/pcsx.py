@@ -12,12 +12,12 @@ checks). JD text comes from the detail page's schema.org JobPosting
 ld+json description.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
 from adapters import (decode_json, fetch_detail_body, html_to_text,
                       jsonld_description, origin_of)
-from postings import Posting, canonical_id
+from postings import Posting, canonical_id, day_within_window
 
 SOURCE = "pcsx"
 REMOTE_FILTER_PARAMS = ("filter_work_location_option", "location")
@@ -91,10 +91,7 @@ def _to_posting(site, position, now) -> Posting:
 
 def _within_window(posted_ts, now: datetime) -> bool:
     """Day-granular postedTs inside the 24h window (date comparison)."""
-    day = _posted_day(posted_ts)
-    if day is None:
-        return False
-    return day >= (now - timedelta(hours=24)).date()
+    return day_within_window(_posted_day(posted_ts), now)
 
 
 def _posted_day(posted_ts):

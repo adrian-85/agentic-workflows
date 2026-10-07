@@ -68,12 +68,10 @@ sites.toml → fetch (per-site adapters, polite delays, per-site isolation)
 | `shopify` | Shopify careers | careers sitemap + turbo-stream detail pages; lastmod gates the 24h window in-adapter | none |
 | `phenom` | Phenom CareerConnect | `/widgets` refineSearch API + embedded jobDetail DDO; URL query params become selected_fields (facet names vary by tenant, e.g. `remote`, `flexibilityStatus`) | none |
 | `pcsx` | pcsx career sites | `/api/pcsx/search` JSON + schema.org JobPosting detail; URL carries the remote filter | none |
-| `html-generic` | *(reserved)* | agent-extract fallback for unparseable sites | TBD |
 
 Deferred platforms (no verifiable plain-HTTP contract as of 2026-10-05):
 widget-gated career portals and client-rendered JS shells with no public
-JSON. Sites on those surface as isolated per-site failures until the
-`html-generic` slot ships.
+JSON. Sites on those surface as isolated per-site failures.
 
 Sites whose URL lacks a remote+US filter get their postings flagged
 `review` — the fetch layer never silently trusts an unfiltered site.
