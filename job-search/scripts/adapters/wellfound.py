@@ -16,7 +16,7 @@ import json
 import re
 from datetime import datetime, timezone
 
-from adapters import html_to_text
+from adapters import epoch_time, html_to_text
 from postings import Posting, canonical_id, is_within_24h
 
 SOURCE = "wellfound"
@@ -47,7 +47,7 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
         jobs, companies, served_count = _apollo_page(response.body)
         if page_count is None:
             page_count = served_count
-        if not jobs or (page_count is not None and page > page_count):
+        if not jobs:
             break
         postings.extend(_page_postings(jobs, companies, site, now))
         if page_count is not None and page >= page_count:
@@ -69,7 +69,7 @@ def _page_postings(jobs, companies, site, now):
     """In-window remote postings for one landing page."""
     postings = []
     for job_id, job in jobs.items():
-        posted_at = _live_start(job.get("liveStartAt"))
+        posted_at = epoch_time(job.get("liveStartAt"))
         if posted_at is None or not is_within_24h(posted_at, now):
             continue
         if not job.get("remote"):
@@ -124,10 +124,3 @@ def _apollo_page(body: str):
         elif typename == "Results":
             page_count = record.get("pageCount")
     return jobs, companies, page_count
-
-
-def _live_start(seconds):
-    """liveStartAt (epoch seconds) to an aware datetime, or None."""
-    if not seconds:
-        return None
-    return datetime.fromtimestamp(seconds, timezone.utc)

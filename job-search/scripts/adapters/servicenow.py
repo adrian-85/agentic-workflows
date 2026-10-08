@@ -16,7 +16,8 @@ import re
 from datetime import datetime, timezone
 
 from adapters import (fetch_detail_body, fresh_sitemap_details,
-                      html_to_text, jsonld_job_posting, sitemap_url)
+                      html_to_text, iso_day, jsonld_job_posting,
+                      midnight_utc, sitemap_url)
 from postings import Posting, canonical_id, day_within_window
 
 SOURCE = "servicenow"
@@ -66,7 +67,7 @@ def _keep(job, now) -> bool:
         return False
     if not _in_us(job):
         return False
-    return day_within_window(_posted_day(job.get("datePosted")), now)
+    return day_within_window(iso_day(job.get("datePosted")), now)
 
 
 def _in_us(job) -> bool:
@@ -84,19 +85,10 @@ def _in_us(job) -> bool:
     return False
 
 
-def _posted_day(raw):
-    """The date part of a datePosted value, or None."""
-    if not raw:
-        return None
-    try:
-        return datetime.fromisoformat(raw).date()
-    except ValueError:
-        return None
-
 
 def _to_posting(site, match, loc, job, now) -> Posting:
     """A JobPosting JSON-LD to a normalized Posting."""
-    posted_day = _posted_day(job.get("datePosted"))
+    posted_day = iso_day(job.get("datePosted"))
     location = job.get("jobLocation") or {}
     if isinstance(location, list):
         location = location[0] if location else {}
@@ -110,8 +102,7 @@ def _to_posting(site, match, loc, job, now) -> Posting:
         company=site.name,
         title=job.get("title", "untitled"),
         location=location_name,
-        posted_at=datetime(posted_day.year, posted_day.month, posted_day.day,
-                           tzinfo=timezone.utc) if posted_day else None,
+        posted_at=midnight_utc(posted_day),
         date_confidence="url-filter",
         pay_raw=None,
         fetched_at=now,

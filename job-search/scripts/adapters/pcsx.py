@@ -15,8 +15,8 @@ ld+json description.
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
-from adapters import (decode_json, fetch_detail_body, html_to_text,
-                      jsonld_description, origin_of)
+from adapters import (decode_json, epoch_time, fetch_detail_body,
+                      html_to_text, jsonld_description, origin_of)
 from postings import Posting, canonical_id, day_within_window
 
 SOURCE = "pcsx"
@@ -95,7 +95,7 @@ def _to_posting(site, position, now) -> Posting:
         company=site.name,
         title=position.get("name", "untitled"),
         location=", ".join(position.get("locations") or []),
-        posted_at=_posted_at(position.get("postedTs")),
+        posted_at=epoch_time(position.get("postedTs")),
         date_confidence="url-filter",
         pay_raw=None,
         fetched_at=now,
@@ -104,20 +104,8 @@ def _to_posting(site, position, now) -> Posting:
 
 def _within_window(posted_ts, now: datetime) -> bool:
     """Day-granular postedTs inside the 24h window (date comparison)."""
-    return day_within_window(_posted_day(posted_ts), now)
-
-
-def _posted_day(posted_ts):
-    """The UTC date of an epoch postedTs, or None."""
-    posted_at = _posted_at(posted_ts)
-    return posted_at.date() if posted_at else None
-
-
-def _posted_at(posted_ts):
-    """Epoch postedTs to an aware datetime, or None."""
-    if not posted_ts:
-        return None
-    return datetime.fromtimestamp(posted_ts, timezone.utc)
+    posted_at = epoch_time(posted_ts)
+    return day_within_window(posted_at.date() if posted_at else None, now)
 
 
 def _jsonld_description(html: str) -> str:

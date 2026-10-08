@@ -20,7 +20,7 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
-from adapters import decode_json, html_to_text
+from adapters import decode_json, html_to_text, parse_iso_time
 from postings import Posting, canonical_id, is_within_24h
 
 SOURCE = "workatastartup"
@@ -57,7 +57,7 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
             break
         stop = False
         for hit in hits:
-            posted_at = _posted_at(hit.get("created_at"))
+            posted_at = parse_iso_time(hit.get("created_at"))
             if posted_at is None or not is_within_24h(posted_at, now):
                 stop = True
                 continue
@@ -75,15 +75,6 @@ def fetch_jd(site, posting, http_get) -> str:
     raise WorkAtAStartupFetchError(
         f"no inline JD text for {posting.posting_id}")
 
-
-def _posted_at(raw):
-    """Hit created_at (ISO with Z) to an aware datetime, or None."""
-    if not raw:
-        return None
-    try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except ValueError:
-        return None
 
 
 def _to_posting(site, hit, posted_at, now) -> Posting:

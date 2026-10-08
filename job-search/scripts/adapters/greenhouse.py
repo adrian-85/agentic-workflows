@@ -110,17 +110,11 @@ def _in_us(location_name: str) -> bool:
     return not non_us
 
 
+_US_WORD_RE = re.compile(r"\b(?:us|usa)\b", re.I)
 _US_ABBR_RE = re.compile(
-    r"\b(?:us|usa|dc|d\.c\.|al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|ia|"
+    r"\b(?:dc|d\.c\.|al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|ia|"
     r"ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|"
     r"or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy)\.?\s*$", re.I)
-_NONUS_WORDS = frozenset({
-    "australia", "austria", "brazil", "can", "canada", "china",
-    "emea", "france", "germany", "india", "ireland", "israel",
-    "japan", "ksa", "mexico", "netherlands", "ontario", "poland",
-    "singapore", "south africa", "south korea", "spain", "sweden",
-    "switzerland", "turkey", "uae", "united kingdom", "uk",
-})
 
 
 def _in_us(location_name: str) -> bool:
@@ -128,9 +122,10 @@ def _in_us(location_name: str) -> bool:
 
     Boards segment multi-location names with ';' or '|' (e.g. GitLab's
     "Remote, Canada; Remote, United States"). A segment naming the US
-    ("Remote, United States", "...CA", "...North America") makes the job
-    US-eligible; a segment naming a non-US country drops it; a bare
-    "Remote" carries no country signal and is neutral.
+    ("Remote, United States", "...CA", "US - Remote", "North America")
+    makes the job US-eligible; a segment whose remaining words (after
+    "remote") carry no US token drops it; a bare "Remote" has no country
+    signal and is neutral.
     """
     non_us = False
     for segment in re.split(r"[;|]", location_name):
@@ -139,9 +134,9 @@ def _in_us(location_name: str) -> bool:
             continue
         if "united states" in low or "north america" in low:
             return True
-        if _US_ABBR_RE.search(low):
+        if _US_WORD_RE.search(low) or _US_ABBR_RE.search(low):
             return True
-        if set(re.findall(r"[a-z]+", low)) & _NONUS_WORDS:
+        if any(word != "remote" for word in re.findall(r"[a-z]+", low)):
             non_us = True
     return not non_us
 

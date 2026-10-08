@@ -16,7 +16,7 @@ import json
 import re
 from datetime import datetime, timezone
 
-from adapters import html_to_text
+from adapters import epoch_time, html_to_text
 from postings import Posting, canonical_id, is_within_24h
 
 SOURCE = "hiringcafe"
@@ -60,7 +60,8 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
     postings = []
     for hit in hits:
         v5 = hit.get("v5_processed_job_data") or {}
-        posted_at = _published_at(v5.get("estimated_publish_date_millis"))
+        posted_at = epoch_time(
+            (v5.get("estimated_publish_date_millis") or 0) / 1000)
         if posted_at is None or not is_within_24h(posted_at, now):
             continue
         postings.append(_to_posting(site, hit, v5, posted_at, now))
@@ -91,12 +92,6 @@ def _ssr_hits(body: str) -> list[dict]:
         raise HiringCafeFetchError(
             f"no ssrHits in __NEXT_DATA__: {exc}") from exc
 
-
-def _published_at(millis):
-    """estimated_publish_date_millis to an aware datetime, or None."""
-    if not millis:
-        return None
-    return datetime.fromtimestamp(millis / 1000, timezone.utc)
 
 
 def _to_posting(site, hit, v5, posted_at, now) -> Posting:

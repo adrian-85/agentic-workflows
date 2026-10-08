@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlsplit
 
 from adapters import (decode_json, fetch_detail_body, html_to_text,
-                      jsonld_description, origin_of)
+                      iso_day, jsonld_description, origin_of)
 from postings import Posting, canonical_id, day_within_window
 
 SOURCE = "phenom"
@@ -136,17 +136,7 @@ def _to_posting(site, job, now) -> Posting:
 
 def _within_window(posted_date, now: datetime) -> bool:
     """Day-granular postedDate inside the 24h window (date comparison)."""
-    return day_within_window(_posted_day(posted_date), now)
-
-
-def _posted_day(raw):
-    """The date part of a Phenom postedDate, or None."""
-    if not raw:
-        return None
-    try:
-        return datetime.fromisoformat(raw.replace("+0000", "+00:00")).date()
-    except ValueError:
-        return None
+    return day_within_window(iso_day(posted_date), now)
 
 
 def _detail_description(html: str) -> str:

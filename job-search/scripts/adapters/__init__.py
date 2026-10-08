@@ -72,6 +72,26 @@ def parse_iso_time(raw):
         return None
 
 
+def iso_day(raw):
+    """The date part of an ISO timestamp or date, or None."""
+    parsed = parse_iso_time(raw)
+    return parsed.date() if parsed else None
+
+
+def epoch_time(seconds):
+    """Epoch seconds to an aware datetime, or None."""
+    if not seconds:
+        return None
+    return datetime.fromtimestamp(seconds, timezone.utc)
+
+
+def midnight_utc(day):
+    """A date to midnight UTC, or None."""
+    if day is None:
+        return None
+    return datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+
+
 _WITHIN_WINDOW_EXACT = ("just now", "today", "just posted",
                         "less than a minute ago")
 _RELATIVE_RE = re.compile(r"^(\d+)\+?\s*(minute|hour|day)s?\s+ago$")
@@ -186,14 +206,14 @@ def jsonld_description(raw: str) -> str | None:
     return description if description else None
 
 
-def sitemap_entries(body: str) -> list[tuple[str, str | None]]:
+def _sitemap_entries(body: str) -> list[tuple[str, str | None]]:
     """(loc, lastmod) pairs from a sitemap; lastmod None when absent."""
     entries = re.findall(
         r'<loc>([^<]+)</loc>\s*(?:<lastmod>([^<]+)</lastmod>)?', body)
     return [(loc, lastmod or None) for loc, lastmod in entries]
 
 
-def lastmod_time(raw: str | None):
+def _lastmod_time(raw: str | None):
     """Sitemap lastmod (ISO, maybe date-only) to aware datetime."""
     parsed = parse_iso_time(raw)
     if parsed is not None and parsed.tzinfo is None:
@@ -213,11 +233,11 @@ def fresh_sitemap_details(body: str, pattern, now: datetime, http_get):
     cheap freshness pre-filter, then each fresh URL gets one detail
     fetch. Entries without lastmod are kept; non-200 details are skipped.
     """
-    for loc, lastmod in sitemap_entries(body):
+    for loc, lastmod in _sitemap_entries(body):
         match = pattern.search(loc)
         if not match:
             continue
-        modified = lastmod_time(lastmod)
+        modified = _lastmod_time(lastmod)
         if modified is not None and not is_within_24h(modified, now):
             continue
         # Sitemap <loc> values may carry literal non-ASCII (IRI); requests

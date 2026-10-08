@@ -12,9 +12,10 @@ Employment type is never a gate (spec: no schedule checks).
 """
 
 import re
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
-from adapters import fetch_detail_body, html_to_text, jsonld_job_posting
+from adapters import (fetch_detail_body, html_to_text,
+                      iso_day, jsonld_job_posting, midnight_utc)
 from postings import Posting, canonical_id, day_within_window
 
 SOURCE = "progressive"
@@ -47,7 +48,7 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
             break
         stop = False
         for url, job_id, title, middle, card_date in cards:
-            card_day = _posted_day(card_date)
+            card_day = iso_day(card_date)
             if not day_within_window(card_day, now):
                 stop = True
                 continue
@@ -59,7 +60,7 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
                 company=site.name,
                 title=title,
                 location=_location(middle),
-                posted_at=_posted_at(card_day),
+                posted_at=midnight_utc(card_day),
                 date_confidence="url-filter",
                 pay_raw=None,
                 fetched_at=now,
@@ -82,20 +83,6 @@ def fetch_jd(site, posting, http_get) -> str:
             f"{posting.posting_id} ({site.name})")
     return html_to_text(job.get("description") or "")
 
-
-def _posted_day(raw):
-    """Card date (ISO date) to a date, or None."""
-    try:
-        return date.fromisoformat(raw)
-    except (TypeError, ValueError):
-        return None
-
-
-def _posted_at(day):
-    """Card date as midnight UTC (day-granular site data), or None."""
-    if day is None:
-        return None
-    return datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
 
 
 def _location(middle: str) -> str:
