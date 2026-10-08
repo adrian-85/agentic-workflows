@@ -7,7 +7,8 @@
 #             site returns is trusted as US-remote (spec §4) — a site whose
 #             URL lacks a remote+US filter gets its postings flagged review.
 #   adapter — platform adapter: greenhouse | ashby | workday | shopify |
-#             phenom | pcsx | servicenow | hiringcafe | linkedin-guest
+#             phenom | pcsx | servicenow | hiringcafe | workatastartup | wellfound |
+#             linkedin-guest
 #   auth    — none | curl-feed
 #
 # Fictional example entries follow.

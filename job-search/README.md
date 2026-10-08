@@ -70,6 +70,8 @@ sites.toml → fetch (per-site adapters, polite delays, per-site isolation)
 | `pcsx` | pcsx career sites | `/api/pcsx/search` JSON + schema.org JobPosting detail; URL carries the remote filter, plus a per-posting Remote marker self-filter (some tenants' filters are umbrellas) | none |
 | `servicenow` | ServiceNow careers | careers sitemap + JobPosting JSON-LD detail (TELECOMMUTE + US self-filtered; datePosted gates the 24h window in-adapter) | none |
 | `hiringcafe` | HiringCafe classic view | `__NEXT_DATA__` SSR hits; searchState carries US+Remote, publish-date gates the 24h window, structured yearly pay becomes pay_raw | none |
+| `wellfound` | Wellfound location landing | Apollo cache (JobListingSearchResult) with per-posting remote bool, compensation, and liveStartAt epoch gate | none |
+| `workatastartup` | Y Combinator Work at a Startup | Algolia search (secured key rides in the site URL, ~daily rotation); remote:yes + US + created_at enforced by the adapter, JD inline | none |
 
 Deferred platforms (no verifiable plain-HTTP contract as of 2026-10-05):
 widget-gated career portals and client-rendered JS shells with no public

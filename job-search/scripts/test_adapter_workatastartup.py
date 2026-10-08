@@ -11,7 +11,6 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qs
-from urllib.parse import parse_qs
 
 import adapters
 from fetch import HttpResponse, Site
