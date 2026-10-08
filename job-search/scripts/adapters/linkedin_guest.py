@@ -14,7 +14,7 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
-from adapters import (card_posting, html_to_text,
+from adapters import (AdapterFetchError, card_posting, html_to_text,
                       relative_within_window)
 from postings import Posting
 
@@ -43,8 +43,6 @@ _VIEW_LINK_RE = re.compile(r'href="(https://www\.linkedin\.com/jobs/view/'
 _TAG_RE = re.compile(r"<[^>]+>")
 
 
-class LinkedInFetchError(RuntimeError):
-    """Raised when the guest endpoint or view page is unusable."""
 
 
 def guest_search_url(site_url: str) -> str:
@@ -65,7 +63,7 @@ def list_postings(site, http_get) -> list[Posting]:
         url = _with_start(base_url, page * 10)
         response = http_get(url)
         if response.status != 200:
-            raise LinkedInFetchError(f"guest search HTTP {response.status}")
+            raise AdapterFetchError(f"guest search HTTP {response.status}")
         batch = _parse_cards(response.body, site, now)
         if not batch:
             break
@@ -79,11 +77,11 @@ def fetch_jd(site, posting, http_get) -> str:
     ext_id = posting.posting_id.split(":", 1)[1]
     response = http_get(f"https://www.linkedin.com/jobs/view/{ext_id}")
     if response.status != 200:
-        raise LinkedInFetchError(f"guest view HTTP {response.status}")
+        raise AdapterFetchError(f"guest view HTTP {response.status}")
     match = re.search(
         r'show-more-less-html__markup[^>]*>(.*?)</div>', response.body, re.S)
     if not match:
-        raise LinkedInFetchError(
+        raise AdapterFetchError(
             f"no description markup in view page for {ext_id}")
     return html_to_text(match.group(1))
 

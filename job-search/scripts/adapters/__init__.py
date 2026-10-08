@@ -31,6 +31,10 @@ class AdapterError(Exception):
     """Unknown or contract-violating adapter."""
 
 
+class AdapterFetchError(RuntimeError):
+    """Raised when an adapter's upstream fetch or parse is unusable."""
+
+
 def register(name: str, adapter: object) -> None:
     """Register an adapter object (tests) — real ones self-register by file."""
     REGISTRY[name] = adapter
@@ -131,14 +135,14 @@ def relative_within_window(label: str) -> bool:
     return False
 
 
-def decode_json(response, what: str, error_class):
-    """Decode a JSON body, raising error_class on non-200 or bad JSON."""
+def decode_json(response, what: str):
+    """Decode a JSON body, raising AdapterFetchError on failure."""
     if response.status != 200:
-        raise error_class(f"{what}: HTTP {response.status}")
+        raise AdapterFetchError(f"{what}: HTTP {response.status}")
     try:
         return json.loads(response.body)
     except json.JSONDecodeError as exc:
-        raise error_class(f"{what}: bad JSON: {exc}") from exc
+        raise AdapterFetchError(f"{what}: bad JSON: {exc}") from exc
 
 
 class _TextExtractor(HTMLParser):
@@ -200,12 +204,6 @@ def jsonld_job_posting(raw: str) -> dict | None:
     return None
 
 
-def jsonld_description(raw: str) -> str | None:
-    """schema.org JobPosting description HTML from ld+json blocks."""
-    description = jsonld_job_posting(raw).get("description")
-    return description if description else None
-
-
 def _sitemap_entries(body: str) -> list[tuple[str, str | None]]:
     """(loc, lastmod) pairs from a sitemap; lastmod None when absent."""
     entries = re.findall(
@@ -249,17 +247,36 @@ def fresh_sitemap_details(body: str, pattern, now: datetime, http_get):
         yield match, loc, modified, detail.body
 
 
+def detail_jsonld_jd(site, posting, http_get, what: str) -> str:
+    """JD text from a posting's detail page JobPosting JSON-LD."""
+    if posting.jd_text:
+        return posting.jd_text
+    body = fetch_detail_body(posting, http_get, f"{what} ({site.name})")
+    job = jsonld_job_posting(body)
+    if job is None:
+        raise AdapterFetchError(
+            f"no JobPosting JSON-LD for {posting.posting_id} ({site.name})")
+    return html_to_text(job.get("description") or "")
+
+
 def origin_of(url: str) -> str:
     """Scheme and host of a site URL."""
     parts = urlsplit(url)
     return f"{parts.scheme}://{parts.netloc}"
 
 
-def fetch_detail_body(posting, http_get, error_class, label: str) -> str:
-    """GET a posting's detail page, raising error_class on non-200."""
+def fetch_detail_body(posting, http_get, label: str) -> str:
+    """GET a posting's detail page, raising AdapterFetchError on non-200."""
     response = http_get(posting.jd_url)
     if response.status != 200:
-        raise error_class(
+        raise AdapterFetchError(
             f"{label} detail HTTP {response.status} for "
             f"{posting.posting_id}")
     return response.body
+
+
+def inline_jd(posting) -> str:
+    """JD text that always rides inline from the list fetch."""
+    if posting.jd_text:
+        return posting.jd_text
+    raise AdapterFetchError(f"no inline JD text for {posting.posting_id}")

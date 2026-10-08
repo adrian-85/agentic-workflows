@@ -14,8 +14,8 @@ Employment type is never a gate (spec: no schedule checks).
 import re
 from datetime import datetime, timezone
 
-from adapters import (fetch_detail_body, html_to_text,
-                      iso_day, jsonld_job_posting, midnight_utc)
+from adapters import (AdapterFetchError, detail_jsonld_jd,
+                      iso_day, midnight_utc)
 from postings import Posting, canonical_id, day_within_window
 
 SOURCE = "progressive"
@@ -30,8 +30,6 @@ _CARD_RE = re.compile(
     r'<time datetime="(?P<date>\d{4}-\d{2}-\d{2})">', re.S)
 
 
-class ProgressiveFetchError(RuntimeError):
-    """Raised when the search page or a detail page is unusable."""
 
 
 def list_postings(site, http_get, now=None) -> list[Posting]:
@@ -41,7 +39,7 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
     for page in range(1, MAX_PAGES + 1):
         response = http_get(f"{site.url}?{SORT_BY_DATE}&page={page}")
         if response.status != 200:
-            raise ProgressiveFetchError(
+            raise AdapterFetchError(
                 f"progressive search HTTP {response.status}")
         cards = _CARD_RE.findall(response.body)
         if not cards:
@@ -71,17 +69,8 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
 
 
 def fetch_jd(site, posting, http_get) -> str:
-    """JD text from the detail page's JobPosting JSON-LD description."""
-    if posting.jd_text:
-        return posting.jd_text
-    body = fetch_detail_body(posting, http_get, ProgressiveFetchError,
-                             f"progressive ({site.name})")
-    job = jsonld_job_posting(body)
-    if job is None:
-        raise ProgressiveFetchError(
-            f"no JobPosting JSON-LD on detail page for "
-            f"{posting.posting_id} ({site.name})")
-    return html_to_text(job.get("description") or "")
+    """JD text from the detail page's JobPosting JSON-LD."""
+    return detail_jsonld_jd(site, posting, http_get, "progressive")
 
 
 

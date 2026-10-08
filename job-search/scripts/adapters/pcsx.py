@@ -15,8 +15,8 @@ ld+json description.
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
-from adapters import (decode_json, epoch_time, fetch_detail_body,
-                      html_to_text, jsonld_description, origin_of)
+from adapters import (decode_json, detail_jsonld_jd, epoch_time,
+                      origin_of)
 from postings import Posting, canonical_id, day_within_window
 
 SOURCE = "pcsx"
@@ -24,8 +24,6 @@ REMOTE_FILTER_PARAMS = ("filter_work_location_option", "location")
 REMOTE_SELF_FILTERED = True
 
 
-class PcsxFetchError(RuntimeError):
-    """Raised when the search API or a detail page is unusable."""
 
 
 def list_postings(site, http_get, now=None) -> list[Posting]:
@@ -34,7 +32,7 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
     postings, start = [], 0
     while True:
         response = http_get(_page_url(site.url, start))
-        payload = decode_json(response, "pcsx search", PcsxFetchError)
+        payload = decode_json(response, "pcsx search")
         data = payload.get("data") or {}
         positions = data.get("positions") or []
         if not positions:
@@ -54,12 +52,8 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
 
 
 def fetch_jd(site, posting, http_get) -> str:
-    """JD text from the detail page's JobPosting ld+json description."""
-    if posting.jd_text:
-        return posting.jd_text
-    body = fetch_detail_body(posting, http_get, PcsxFetchError,
-                             f"pcsx ({site.name})")
-    return _jsonld_description(body)
+    """JD text from the detail page's JobPosting JSON-LD."""
+    return detail_jsonld_jd(site, posting, http_get, "pcsx")
 
 
 def _page_url(site_url: str, start: int) -> str:
@@ -106,11 +100,3 @@ def _within_window(posted_ts, now: datetime) -> bool:
     """Day-granular postedTs inside the 24h window (date comparison)."""
     posted_at = epoch_time(posted_ts)
     return day_within_window(posted_at.date() if posted_at else None, now)
-
-
-def _jsonld_description(html: str) -> str:
-    """JobPosting description HTML (ld+json) converted to plain text."""
-    description = jsonld_description(html)
-    if description:
-        return html_to_text(description)
-    raise PcsxFetchError("no JobPosting ld+json description on detail page")

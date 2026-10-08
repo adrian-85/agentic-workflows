@@ -9,7 +9,7 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-from adapters import decode_json, html_to_text, parse_iso_time
+from adapters import AdapterFetchError, decode_json, html_to_text, parse_iso_time
 from postings import Posting, canonical_id
 
 SOURCE = "greenhouse"
@@ -18,8 +18,6 @@ REMOTE_SELF_FILTERED = True
 API_BASE = "https://boards-api.greenhouse.io/v1/boards"
 
 
-class GreenhouseFetchError(RuntimeError):
-    """Raised when the boards API answers non-200 or bad JSON."""
 
 
 def board_token(url: str) -> str:
@@ -28,7 +26,7 @@ def board_token(url: str) -> str:
     if "boards" in segments:
         return segments[segments.index("boards") + 1]
     if not segments:
-        raise GreenhouseFetchError(f"no board token in url: {url}")
+        raise AdapterFetchError(f"no board token in url: {url}")
     return segments[0]
 
 
@@ -36,8 +34,7 @@ def list_postings(site, http_get) -> list[Posting]:
     """List the board's jobs as normalized postings with inline JD text."""
     token = board_token(site.url)
     response = http_get(f"{API_BASE}/{token}/jobs?content=true")
-    payload = decode_json(response, f"greenhouse board {token}",
-                          GreenhouseFetchError)
+    payload = decode_json(response, f"greenhouse board {token}")
     now = datetime.now(timezone.utc)
     postings = []
     for job in payload.get("jobs", []):
@@ -72,8 +69,7 @@ def fetch_jd(site, posting, http_get) -> str:
     token = board_token(site.url)
     ext_id = posting.posting_id.split(":", 1)[1]
     response = http_get(f"{API_BASE}/{token}/jobs/{ext_id}")
-    job = decode_json(response, f"greenhouse job {ext_id}",
-                      GreenhouseFetchError)
+    job = decode_json(response, f"greenhouse job {ext_id}")
     return _content_text(job.get("content"))
 
 

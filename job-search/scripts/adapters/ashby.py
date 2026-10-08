@@ -8,7 +8,7 @@ the list request.
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-from adapters import decode_json, parse_iso_time
+from adapters import AdapterFetchError, decode_json, parse_iso_time
 from postings import Posting, canonical_id
 
 SOURCE = "ashby"
@@ -17,8 +17,6 @@ REMOTE_SELF_FILTERED = True
 API_BASE = "https://api.ashbyhq.com/posting-api/job-board"
 
 
-class AshbyFetchError(RuntimeError):
-    """Raised when the posting API answers non-200 or bad JSON."""
 
 
 def org_from_url(url: str) -> str:
@@ -27,7 +25,7 @@ def org_from_url(url: str) -> str:
     if "job-board" in segments:
         return segments[segments.index("job-board") + 1]
     if not segments:
-        raise AshbyFetchError(f"no org slug in url: {url}")
+        raise AdapterFetchError(f"no org slug in url: {url}")
     return segments[0]
 
 
@@ -35,7 +33,7 @@ def list_postings(site, http_get) -> list[Posting]:
     """List the org's jobs as postings with pay_raw and inline JD text."""
     org = org_from_url(site.url)
     response = http_get(f"{API_BASE}/{org}?includeCompensation=true")
-    payload = decode_json(response, f"ashby board {org}", AshbyFetchError)
+    payload = decode_json(response, f"ashby board {org}")
     now = datetime.now(timezone.utc)
     company = org.replace("-", " ").replace("_", " ").title()
     postings = []

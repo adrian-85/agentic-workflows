@@ -18,8 +18,8 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlsplit
 
-from adapters import (decode_json, fetch_detail_body, html_to_text,
-                      iso_day, jsonld_description, origin_of)
+from adapters import (AdapterFetchError, decode_json, fetch_detail_body,
+                      html_to_text, iso_day, jsonld_job_posting, origin_of)
 from postings import Posting, canonical_id, day_within_window
 
 SOURCE = "phenom"
@@ -31,8 +31,6 @@ _PHAPP_RE = re.compile(r"phApp\s*=\s*phApp\s*\|\|\s*(\{.*?\});", re.S)
 _JOB_DETAIL_RE = re.compile(r'"jobDetail"\s*:\s*\{')
 
 
-class PhenomFetchError(RuntimeError):
-    """Raised when the search page, widget API, or detail is unusable."""
 
 
 def list_postings(site, http_get, now=None) -> list[Posting]:
@@ -40,11 +38,11 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
     now = now or datetime.now(timezone.utc)
     page = http_get(site.url)
     if page.status != 200:
-        raise PhenomFetchError(f"search page HTTP {page.status}")
+        raise AdapterFetchError(f"search page HTTP {page.status}")
     config = _phapp_config(page.body)
     endpoint = config.get("widgetApiEndpoint")
     if not endpoint:
-        raise PhenomFetchError("no widgetApiEndpoint in phApp config")
+        raise AdapterFetchError("no widgetApiEndpoint in phApp config")
     selected = _selected_fields(site.url)
     postings, offset = [], 0
     while True:
@@ -52,8 +50,7 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
         response = http_get(endpoint, headers={"Content-Type":
                                                "application/json"},
                             data=json.dumps(body))
-        payload = decode_json(response, "phenom refineSearch",
-                              PhenomFetchError)
+        payload = decode_json(response, "phenom refineSearch")
         jobs = (payload.get("refineSearch", {}).get("data") or {}).get("jobs")
         if not jobs:
             break
@@ -71,7 +68,7 @@ def fetch_jd(site, posting, http_get) -> str:
     """JD text from the detail page's embedded jobDetail DDO."""
     if posting.jd_text:
         return posting.jd_text
-    body = fetch_detail_body(posting, http_get, PhenomFetchError,
+    body = fetch_detail_body(posting, http_get,
                              f"phenom ({site.name})")
     return _detail_description(body)
 
@@ -80,11 +77,11 @@ def _phapp_config(html: str) -> dict:
     """Parsed phApp config object from the search page."""
     match = _PHAPP_RE.search(html)
     if not match:
-        raise PhenomFetchError("no phApp config found on search page")
+        raise AdapterFetchError("no phApp config found on search page")
     try:
         return json.loads(match.group(1))
     except json.JSONDecodeError as exc:
-        raise PhenomFetchError(f"bad phApp JSON: {exc}") from exc
+        raise AdapterFetchError(f"bad phApp JSON: {exc}") from exc
 
 
 def _selected_fields(site_url: str) -> dict:
@@ -144,10 +141,10 @@ def _detail_description(html: str) -> str:
     embedded = _embedded_job_description(html)
     if embedded:
         return html_to_text(embedded)
-    description = jsonld_description(html)
-    if description:
-        return html_to_text(description)
-    raise PhenomFetchError("no job description on detail page")
+    job = jsonld_job_posting(html)
+    if job and job.get("description"):
+        return html_to_text(job["description"])
+    raise AdapterFetchError("no job description on detail page")
 
 
 def _embedded_job_description(html: str) -> str | None:

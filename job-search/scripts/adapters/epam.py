@@ -10,6 +10,7 @@ import json
 import re
 from datetime import datetime, timezone
 
+from adapters import AdapterFetchError
 from postings import Posting, canonical_id
 
 SOURCE = "epam"
@@ -22,22 +23,20 @@ NEXT_DATA_RE = re.compile(
 JOBS_URL = "https://careers.epam.com/jobs/"
 
 
-class EpamFetchError(RuntimeError):
-    """Raised when the page or its embedded JSON is unusable."""
 
 
 def list_postings(site, http_get) -> list[Posting]:
     """Parse the embedded jobs list into gated postings."""
     response = http_get(site.url)
     if response.status != 200:
-        raise EpamFetchError(f"epam page HTTP {response.status}")
+        raise AdapterFetchError(f"epam page HTTP {response.status}")
     match = NEXT_DATA_RE.search(response.body)
     if not match:
-        raise EpamFetchError("no __NEXT_DATA__ on page")
+        raise AdapterFetchError("no __NEXT_DATA__ on page")
     try:
         payload = json.loads(match.group(1))
     except json.JSONDecodeError as exc:
-        raise EpamFetchError(f"bad __NEXT_DATA__: {exc}") from exc
+        raise AdapterFetchError(f"bad __NEXT_DATA__: {exc}") from exc
     jobs = (payload.get("props", {}).get("pageProps", {})
             .get("jobs", {}).get("jobs", []))
     postings = []

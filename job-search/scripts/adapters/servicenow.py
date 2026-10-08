@@ -15,9 +15,9 @@ is why the sitemap drives the window. Employment type is never a gate.
 import re
 from datetime import datetime, timezone
 
-from adapters import (fetch_detail_body, fresh_sitemap_details,
-                      html_to_text, iso_day, jsonld_job_posting,
-                      midnight_utc, sitemap_url)
+from adapters import (AdapterFetchError, detail_jsonld_jd,
+                      fresh_sitemap_details, html_to_text,
+                      iso_day, jsonld_job_posting, midnight_utc, sitemap_url)
 from postings import Posting, canonical_id, day_within_window
 
 SOURCE = "servicenow"
@@ -27,8 +27,6 @@ REMOTE_SELF_FILTERED = True
 _JOB_URL_RE = re.compile(r"/jobs/(?P<id>\d+)/")
 
 
-class ServiceNowFetchError(RuntimeError):
-    """Raised when the sitemap or a detail page is unusable."""
 
 
 def list_postings(site, http_get, now=None) -> list[Posting]:
@@ -36,7 +34,7 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
     now = now or datetime.now(timezone.utc)
     response = http_get(sitemap_url(site.url))
     if response.status != 200:
-        raise ServiceNowFetchError(f"careers sitemap HTTP {response.status}")
+        raise AdapterFetchError(f"careers sitemap HTTP {response.status}")
     postings = []
     for match, loc, _modified, body in fresh_sitemap_details(
             response.body, _JOB_URL_RE, now, http_get):
@@ -48,17 +46,8 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
 
 
 def fetch_jd(site, posting, http_get) -> str:
-    """JD text rides inline from the detail fetch during listing."""
-    if posting.jd_text:
-        return posting.jd_text
-    body = fetch_detail_body(posting, http_get, ServiceNowFetchError,
-                             f"servicenow ({site.name})")
-    job = jsonld_job_posting(body)
-    if job is None:
-        raise ServiceNowFetchError(
-            f"no JobPosting JSON-LD on detail page for "
-            f"{posting.posting_id} ({site.name})")
-    return html_to_text(job.get("description") or "")
+    """JD text from the detail page's JobPosting JSON-LD."""
+    return detail_jsonld_jd(site, posting, http_get, "servicenow")
 
 
 def _keep(job, now) -> bool:

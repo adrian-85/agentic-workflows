@@ -15,7 +15,7 @@ import json
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlsplit
 
-from adapters import decode_json, html_to_text
+from adapters import AdapterFetchError, decode_json, html_to_text
 from postings import Posting, canonical_id
 
 SOURCE = "workday"
@@ -24,8 +24,6 @@ REMOTE_SELF_FILTERED = True
 WITHIN_WINDOW_MARKERS = ("posted today", "just posted")
 
 
-class WorkdayFetchError(RuntimeError):
-    """Raised when the cxs API answers non-200, bad JSON, or empty detail."""
 
 
 def _tenant_parts(url: str) -> tuple[str, str, str]:
@@ -35,7 +33,7 @@ def _tenant_parts(url: str) -> tuple[str, str, str]:
     tenant = host.split(".")[0]
     segments = [seg for seg in parts.path.split("/") if seg]
     if not segments:
-        raise WorkdayFetchError(f"no site segment in url: {url}")
+        raise AdapterFetchError(f"no site segment in url: {url}")
     return host, tenant, segments[0]
 
 
@@ -48,7 +46,7 @@ def list_postings(site, http_get) -> list[Posting]:
                        "searchText": ""})
     response = http_get(url, headers={"Content-Type": "application/json"},
                         data=body)
-    payload = decode_json(response, "workday search", WorkdayFetchError)
+    payload = decode_json(response, "workday search")
     now = datetime.now(timezone.utc)
     postings = []
     for job in payload.get("jobPostings", []):
@@ -90,12 +88,11 @@ def fetch_jd(site, posting, http_get) -> str:
     url = f"https://{host}/wday/cxs/{tenant}/{site_name}{external_path}"
     response = http_get(url, headers={"Content-Type": "application/json"},
                         data="{}")
-    payload = decode_json(response, f"workday job {external_path}",
-                          WorkdayFetchError)
+    payload = decode_json(response, f"workday job {external_path}")
     info = payload.get("jobPostingInfo") or {}
     description = info.get("jobDescription")
     if not description:
-        raise WorkdayFetchError(
+        raise AdapterFetchError(
             f"empty jobPostingInfo for {external_path} "
             "(tenant may bot-gate detail requests)")
     return html_to_text(description)

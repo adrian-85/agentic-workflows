@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 import adapters
-from adapters.workday import WorkdayFetchError
+from adapters import AdapterFetchError
 from fetch import HttpResponse, Site
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -102,7 +102,7 @@ class WorkdayAdapterTest(unittest.TestCase):
         def empty_get(url, headers=None, data=None):
             del url, headers, data
             return HttpResponse(200, empty)
-        with self.assertRaises(WorkdayFetchError):
+        with self.assertRaises(AdapterFetchError):
             self.adapter.fetch_jd(WORKDAY_SITE, postings[0], empty_get)
 
     def test_workday_remote_self_filtered_satisfies_guard(self):

@@ -16,7 +16,8 @@ import json
 import re
 from datetime import datetime, timezone
 
-from adapters import epoch_time, html_to_text
+from adapters import (AdapterFetchError, epoch_time, html_to_text,
+                      inline_jd)
 from postings import Posting, canonical_id, is_within_24h
 
 SOURCE = "wellfound"
@@ -28,8 +29,6 @@ _NEXT_DATA_RE = re.compile(
     r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S)
 
 
-class WellfoundFetchError(RuntimeError):
-    """Raised when the landing page or its cache is unusable."""
 
 
 def list_postings(site, http_get, now=None) -> list[Posting]:
@@ -41,7 +40,7 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
     while page <= MAX_PAGES:
         response = http_get(f"{site.url}?page={page}")
         if response.status != 200:
-            raise WellfoundFetchError(
+            raise AdapterFetchError(
                 f"wellfound landing HTTP {response.status} "
                 f"(page {page}, {site.name})")
         jobs, companies, served_count = _apollo_page(response.body)
@@ -58,11 +57,8 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
 
 def fetch_jd(site, posting, http_get) -> str:
     """JD text rides inline from the Apollo cache during listing."""
-    del site, http_get  # the landing cache carries the full description
-    if posting.jd_text:
-        return posting.jd_text
-    raise WellfoundFetchError(
-        f"no inline JD text for {posting.posting_id}")
+    del site, http_get
+    return inline_jd(posting)
 
 
 def _page_postings(jobs, companies, site, now):
@@ -103,12 +99,12 @@ def _apollo_page(body: str):
     """
     match = _NEXT_DATA_RE.search(body)
     if not match:
-        raise WellfoundFetchError("no __NEXT_DATA__ island on landing page")
+        raise AdapterFetchError("no __NEXT_DATA__ island on landing page")
     try:
         data = json.loads(match.group(1))["props"]["pageProps"][
             "apolloState"]["data"]
     except (json.JSONDecodeError, KeyError) as exc:
-        raise WellfoundFetchError(f"bad Apollo cache: {exc}") from exc
+        raise AdapterFetchError(f"bad Apollo cache: {exc}") from exc
     jobs, companies, page_count = {}, {}, None
     for key, record in data.items():
         if not isinstance(record, dict):

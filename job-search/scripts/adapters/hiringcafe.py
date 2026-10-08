@@ -16,7 +16,8 @@ import json
 import re
 from datetime import datetime, timezone
 
-from adapters import epoch_time, html_to_text
+from adapters import (AdapterFetchError, epoch_time, html_to_text,
+                      inline_jd)
 from postings import Posting, canonical_id, is_within_24h
 
 SOURCE = "hiringcafe"
@@ -44,8 +45,6 @@ _NEXT_DATA_RE = re.compile(
     r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S)
 
 
-class HiringCafeFetchError(RuntimeError):
-    """Raised when the classic page or its data island is unusable."""
 
 
 def list_postings(site, http_get, now=None) -> list[Posting]:
@@ -53,7 +52,7 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
     now = now or datetime.now(timezone.utc)
     response = http_get(site.url, headers=dict(_BROWSER_HEADERS))
     if response.status != 200:
-        raise HiringCafeFetchError(
+        raise AdapterFetchError(
             f"hiringcafe classic HTTP {response.status} for {site.name} "
             "(Cloudflare edge challenge — browser headers required)")
     hits = _ssr_hits(response.body)
@@ -70,26 +69,23 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
 
 def fetch_jd(site, posting, http_get) -> str:
     """JD text rides inline from the SSR hit during listing."""
-    del site, http_get  # the classic page carries everything inline
-    if posting.jd_text:
-        return posting.jd_text
-    raise HiringCafeFetchError(
-        f"no inline JD text for {posting.posting_id}")
+    del site, http_get
+    return inline_jd(posting)
 
 
 def _ssr_hits(body: str) -> list[dict]:
     """The classic page's SSR hit list from its __NEXT_DATA__ island."""
     match = _NEXT_DATA_RE.search(body)
     if not match:
-        raise HiringCafeFetchError("no __NEXT_DATA__ island on classic page")
+        raise AdapterFetchError("no __NEXT_DATA__ island on classic page")
     try:
         data = json.loads(match.group(1))
     except json.JSONDecodeError as exc:
-        raise HiringCafeFetchError(f"bad __NEXT_DATA__ JSON: {exc}") from exc
+        raise AdapterFetchError(f"bad __NEXT_DATA__ JSON: {exc}") from exc
     try:
         return data["props"]["pageProps"]["ssrHits"]
     except (KeyError, TypeError) as exc:
-        raise HiringCafeFetchError(
+        raise AdapterFetchError(
             f"no ssrHits in __NEXT_DATA__: {exc}") from exc
 
 

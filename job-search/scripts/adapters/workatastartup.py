@@ -20,7 +20,8 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
-from adapters import decode_json, html_to_text, parse_iso_time
+from adapters import (decode_json, html_to_text, inline_jd,
+                      parse_iso_time)
 from postings import Posting, canonical_id, is_within_24h
 
 SOURCE = "workatastartup"
@@ -32,8 +33,6 @@ HITS_PER_PAGE = 100
 MAX_PAGES = 10
 
 
-class WorkAtAStartupFetchError(RuntimeError):
-    """Raised when the Algolia search is unusable."""
 
 
 def list_postings(site, http_get, now=None) -> list[Posting]:
@@ -49,8 +48,7 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
             site.url,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             data=body)
-        payload = decode_json(response, "workatastartup search",
-                              WorkAtAStartupFetchError)
+        payload = decode_json(response, "workatastartup search")
         result = payload["results"][0]
         hits = result.get("hits") or []
         if not hits:
@@ -69,11 +67,8 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
 
 def fetch_jd(site, posting, http_get) -> str:
     """JD text rides inline from the Algolia hit during listing."""
-    del site, http_get  # the search hit carries the full description
-    if posting.jd_text:
-        return posting.jd_text
-    raise WorkAtAStartupFetchError(
-        f"no inline JD text for {posting.posting_id}")
+    del site, http_get
+    return inline_jd(posting)
 
 
 

@@ -16,7 +16,7 @@ import json
 import re
 from datetime import datetime, timezone
 
-from adapters import (fetch_detail_body, fresh_sitemap_details,
+from adapters import (AdapterFetchError, fetch_detail_body, fresh_sitemap_details,
                       html_to_text, sitemap_url)
 from postings import Posting, canonical_id
 
@@ -33,8 +33,6 @@ _ENQUEUE_RE = re.compile(
 _MIN_JD_CHARS = 80
 
 
-class ShopifyFetchError(RuntimeError):
-    """Raised when the sitemap or a detail page is unusable."""
 
 
 def list_postings(site, http_get, now=None) -> list[Posting]:
@@ -42,7 +40,7 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
     now = now or datetime.now(timezone.utc)
     response = http_get(sitemap_url(site.url, "/careers/sitemap.xml"))
     if response.status != 200:
-        raise ShopifyFetchError(f"careers sitemap HTTP {response.status}")
+        raise AdapterFetchError(f"careers sitemap HTTP {response.status}")
     postings = []
     for match, loc, posted_at, body in fresh_sitemap_details(
             response.body, _JOB_URL_RE, now, http_get):
@@ -56,7 +54,7 @@ def fetch_jd(site, posting, http_get) -> str:
     """JD text rides inline from the detail fetch during listing."""
     if posting.jd_text:
         return posting.jd_text
-    body = fetch_detail_body(posting, http_get, ShopifyFetchError,
+    body = fetch_detail_body(posting, http_get,
                              f"shopify ({site.name})")
     return _chunks_to_text(_enqueue_payloads(body)) or ""
 
