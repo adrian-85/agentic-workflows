@@ -15,9 +15,9 @@ is why the sitemap drives the window. Employment type is never a gate.
 import re
 from datetime import datetime, timezone
 
-from adapters import (AdapterFetchError, detail_jsonld_jd,
-                      fresh_sitemap_details, html_to_text,
-                      iso_day, jsonld_job_posting, midnight_utc, sitemap_url)
+from adapters import (detail_jsonld_jd, fetch_body,
+                      fresh_sitemap_details, html_to_text, iso_day,
+                      jsonld_job_posting, midnight_utc, sitemap_url)
 from postings import Posting, canonical_id, day_within_window
 
 SOURCE = "servicenow"
@@ -32,12 +32,11 @@ _JOB_URL_RE = re.compile(r"/jobs/(?P<id>\d+)/")
 def list_postings(site, http_get, now=None) -> list[Posting]:
     """Sitemap (lastmod pre-filter) -> detail JSON-LD -> postings."""
     now = now or datetime.now(timezone.utc)
-    response = http_get(sitemap_url(site.url))
-    if response.status != 200:
-        raise AdapterFetchError(f"careers sitemap HTTP {response.status}")
+    sitemap = fetch_body(sitemap_url(site.url), http_get,
+                         f"servicenow sitemap ({site.name})")
     postings = []
     for match, loc, _modified, body in fresh_sitemap_details(
-            response.body, _JOB_URL_RE, now, http_get):
+            sitemap, _JOB_URL_RE, now, http_get):
         job = jsonld_job_posting(body)
         if job is None or not _keep(job, now):
             continue

@@ -16,7 +16,7 @@ import json
 import re
 from datetime import datetime, timezone
 
-from adapters import (AdapterFetchError, fetch_detail_body, fresh_sitemap_details,
+from adapters import (fetch_body, fetch_detail_body, fresh_sitemap_details,
                       html_to_text, sitemap_url)
 from postings import Posting, canonical_id
 
@@ -38,12 +38,11 @@ _MIN_JD_CHARS = 80
 def list_postings(site, http_get, now=None) -> list[Posting]:
     """Sitemap (lastmod 24h gate) -> detail fetch -> postings."""
     now = now or datetime.now(timezone.utc)
-    response = http_get(sitemap_url(site.url, "/careers/sitemap.xml"))
-    if response.status != 200:
-        raise AdapterFetchError(f"careers sitemap HTTP {response.status}")
+    sitemap = fetch_body(sitemap_url(site.url, "/careers/sitemap.xml"), http_get,
+                         f"shopify sitemap ({site.name})")
     postings = []
     for match, loc, posted_at, body in fresh_sitemap_details(
-            response.body, _JOB_URL_RE, now, http_get):
+            sitemap, _JOB_URL_RE, now, http_get):
         posting = _posting_from_detail(site, match, loc, body, posted_at)
         if posting is not None:
             postings.append(posting)

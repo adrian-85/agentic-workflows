@@ -15,7 +15,7 @@ ld+json description.
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
-from adapters import (decode_json, detail_jsonld_jd, epoch_time,
+from adapters import (detail_jsonld_jd, epoch_time, fetch_json,
                       origin_of)
 from postings import Posting, canonical_id, day_within_window
 
@@ -31,8 +31,8 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
     now = now or datetime.now(timezone.utc)
     postings, start = [], 0
     while True:
-        response = http_get(_page_url(site.url, start))
-        payload = decode_json(response, "pcsx search")
+        payload = fetch_json(_page_url(site.url, start), http_get,
+                             "pcsx search")
         data = payload.get("data") or {}
         positions = data.get("positions") or []
         if not positions:

@@ -18,8 +18,9 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlsplit
 
-from adapters import (AdapterFetchError, decode_json, fetch_detail_body,
-                      html_to_text, iso_day, jsonld_job_posting, origin_of)
+from adapters import (AdapterFetchError, fetch_body, fetch_detail_body,
+                      fetch_json, html_to_text, iso_day,
+                      jsonld_job_posting, origin_of)
 from postings import Posting, canonical_id, day_within_window
 
 SOURCE = "phenom"
@@ -36,10 +37,8 @@ _JOB_DETAIL_RE = re.compile(r'"jobDetail"\s*:\s*\{')
 def list_postings(site, http_get, now=None) -> list[Posting]:
     """phApp config -> /widgets refineSearch -> postings within window."""
     now = now or datetime.now(timezone.utc)
-    page = http_get(site.url)
-    if page.status != 200:
-        raise AdapterFetchError(f"search page HTTP {page.status}")
-    config = _phapp_config(page.body)
+    body = fetch_body(site.url, http_get, f"phenom search page ({site.name})")
+    config = _phapp_config(body)
     endpoint = config.get("widgetApiEndpoint")
     if not endpoint:
         raise AdapterFetchError("no widgetApiEndpoint in phApp config")
@@ -47,10 +46,9 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
     postings, offset = [], 0
     while True:
         body = _refine_body(config, selected, offset)
-        response = http_get(endpoint, headers={"Content-Type":
-                                               "application/json"},
-                            data=json.dumps(body))
-        payload = decode_json(response, "phenom refineSearch")
+        payload = fetch_json(endpoint, http_get, "phenom refineSearch",
+                             headers={"Content-Type": "application/json"},
+                             data=json.dumps(body))
         jobs = (payload.get("refineSearch", {}).get("data") or {}).get("jobs")
         if not jobs:
             break

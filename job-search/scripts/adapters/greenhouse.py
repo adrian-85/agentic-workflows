@@ -9,7 +9,7 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-from adapters import AdapterFetchError, decode_json, html_to_text, parse_iso_time
+from adapters import AdapterFetchError, fetch_json, html_to_text, parse_iso_time
 from postings import Posting, canonical_id
 
 SOURCE = "greenhouse"
@@ -33,8 +33,8 @@ def board_token(url: str) -> str:
 def list_postings(site, http_get) -> list[Posting]:
     """List the board's jobs as normalized postings with inline JD text."""
     token = board_token(site.url)
-    response = http_get(f"{API_BASE}/{token}/jobs?content=true")
-    payload = decode_json(response, f"greenhouse board {token}")
+    payload = fetch_json(f"{API_BASE}/{token}/jobs?content=true",
+                         http_get, f"greenhouse board {token}")
     now = datetime.now(timezone.utc)
     postings = []
     for job in payload.get("jobs", []):
@@ -68,8 +68,8 @@ def fetch_jd(site, posting, http_get) -> str:
         return posting.jd_text
     token = board_token(site.url)
     ext_id = posting.posting_id.split(":", 1)[1]
-    response = http_get(f"{API_BASE}/{token}/jobs/{ext_id}")
-    job = decode_json(response, f"greenhouse job {ext_id}")
+    job = fetch_json(f"{API_BASE}/{token}/jobs/{ext_id}", http_get,
+                     f"greenhouse job {ext_id}")
     return _content_text(job.get("content"))
 
 

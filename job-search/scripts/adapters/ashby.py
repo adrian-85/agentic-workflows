@@ -8,7 +8,7 @@ the list request.
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-from adapters import AdapterFetchError, decode_json, parse_iso_time
+from adapters import AdapterFetchError, fetch_json, parse_iso_time
 from postings import Posting, canonical_id
 
 SOURCE = "ashby"
@@ -32,8 +32,8 @@ def org_from_url(url: str) -> str:
 def list_postings(site, http_get) -> list[Posting]:
     """List the org's jobs as postings with pay_raw and inline JD text."""
     org = org_from_url(site.url)
-    response = http_get(f"{API_BASE}/{org}?includeCompensation=true")
-    payload = decode_json(response, f"ashby board {org}")
+    payload = fetch_json(f"{API_BASE}/{org}?includeCompensation=true",
+                         http_get, f"ashby board {org}")
     now = datetime.now(timezone.utc)
     company = org.replace("-", " ").replace("_", " ").title()
     postings = []

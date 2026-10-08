@@ -16,8 +16,8 @@ import json
 import re
 from datetime import datetime, timezone
 
-from adapters import (AdapterFetchError, epoch_time, html_to_text,
-                      inline_jd)
+from adapters import (AdapterFetchError, epoch_time, fetch_body,
+                      html_to_text, inline_jd)
 from postings import Posting, canonical_id, is_within_24h
 
 SOURCE = "hiringcafe"
@@ -50,12 +50,11 @@ _NEXT_DATA_RE = re.compile(
 def list_postings(site, http_get, now=None) -> list[Posting]:
     """Classic view -> ssrHits -> postings inside the strict 24h window."""
     now = now or datetime.now(timezone.utc)
-    response = http_get(site.url, headers=dict(_BROWSER_HEADERS))
-    if response.status != 200:
-        raise AdapterFetchError(
-            f"hiringcafe classic HTTP {response.status} for {site.name} "
-            "(Cloudflare edge challenge — browser headers required)")
-    hits = _ssr_hits(response.body)
+    # A 403 here is Cloudflare's edge challenge (browser headers above).
+    body = fetch_body(site.url, http_get,
+                      f"hiringcafe classic ({site.name})",
+                      headers=dict(_BROWSER_HEADERS))
+    hits = _ssr_hits(body)
     postings = []
     for hit in hits:
         v5 = hit.get("v5_processed_job_data") or {}

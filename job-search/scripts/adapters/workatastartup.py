@@ -20,8 +20,7 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
-from adapters import (decode_json, html_to_text, inline_jd,
-                      parse_iso_time)
+from adapters import fetch_json, html_to_text, inline_jd, parse_iso_time
 from postings import Posting, canonical_id, is_within_24h
 
 SOURCE = "workatastartup"
@@ -44,11 +43,10 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
                             "filters": FILTERS})
         body = json.dumps({"requests": [{"indexName": INDEX_NAME,
                                          "params": params}]})
-        response = http_get(
-            site.url,
+        payload = fetch_json(
+            site.url, http_get, "workatastartup search",
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             data=body)
-        payload = decode_json(response, "workatastartup search")
         result = payload["results"][0]
         hits = result.get("hits") or []
         if not hits:

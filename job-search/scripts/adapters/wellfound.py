@@ -16,8 +16,8 @@ import json
 import re
 from datetime import datetime, timezone
 
-from adapters import (AdapterFetchError, epoch_time, html_to_text,
-                      inline_jd)
+from adapters import (AdapterFetchError, epoch_time, fetch_body,
+                      html_to_text, inline_jd)
 from postings import Posting, canonical_id, is_within_24h
 
 SOURCE = "wellfound"
@@ -38,12 +38,9 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
     page = 1
     page_count = None
     while page <= MAX_PAGES:
-        response = http_get(f"{site.url}?page={page}")
-        if response.status != 200:
-            raise AdapterFetchError(
-                f"wellfound landing HTTP {response.status} "
-                f"(page {page}, {site.name})")
-        jobs, companies, served_count = _apollo_page(response.body)
+        body = fetch_body(f"{site.url}?page={page}", http_get,
+                          f"wellfound landing page {page} ({site.name})")
+        jobs, companies, served_count = _apollo_page(body)
         if page_count is None:
             page_count = served_count
         if not jobs:

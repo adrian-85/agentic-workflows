@@ -135,12 +135,18 @@ def relative_within_window(label: str) -> bool:
     return False
 
 
-def decode_json(response, what: str):
-    """Decode a JSON body, raising AdapterFetchError on failure."""
+def fetch_body(url, http_get, what: str, headers=None, data=None) -> str:
+    """Fetch a URL, requiring HTTP 200; returns the body text."""
+    response = http_get(url, headers=headers, data=data)
     if response.status != 200:
         raise AdapterFetchError(f"{what}: HTTP {response.status}")
+    return response.body
+
+
+def fetch_json(url, http_get, what: str, headers=None, data=None):
+    """Fetch a URL, requiring HTTP 200, and decode its JSON body."""
     try:
-        return json.loads(response.body)
+        return json.loads(fetch_body(url, http_get, what, headers, data))
     except json.JSONDecodeError as exc:
         raise AdapterFetchError(f"{what}: bad JSON: {exc}") from exc
 
@@ -266,13 +272,9 @@ def origin_of(url: str) -> str:
 
 
 def fetch_detail_body(posting, http_get, label: str) -> str:
-    """GET a posting's detail page, raising AdapterFetchError on non-200."""
-    response = http_get(posting.jd_url)
-    if response.status != 200:
-        raise AdapterFetchError(
-            f"{label} detail HTTP {response.status} for "
-            f"{posting.posting_id}")
-    return response.body
+    """GET a posting's detail page, requiring HTTP 200."""
+    return fetch_body(posting.jd_url, http_get,
+                      f"{label} detail for {posting.posting_id}")
 
 
 def inline_jd(posting) -> str:

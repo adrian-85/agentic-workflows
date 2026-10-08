@@ -15,7 +15,7 @@ import json
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlsplit
 
-from adapters import AdapterFetchError, decode_json, html_to_text
+from adapters import AdapterFetchError, fetch_json, html_to_text
 from postings import Posting, canonical_id
 
 SOURCE = "workday"
@@ -44,9 +44,9 @@ def list_postings(site, http_get) -> list[Posting]:
     facets = _applied_facets(site.url)
     body = json.dumps({"appliedFacets": facets, "limit": 20, "offset": 0,
                        "searchText": ""})
-    response = http_get(url, headers={"Content-Type": "application/json"},
-                        data=body)
-    payload = decode_json(response, "workday search")
+    payload = fetch_json(url, http_get, "workday search",
+                         headers={"Content-Type": "application/json"},
+                         data=body)
     now = datetime.now(timezone.utc)
     postings = []
     for job in payload.get("jobPostings", []):
@@ -86,9 +86,9 @@ def fetch_jd(site, posting, http_get) -> str:
     host, tenant, site_name = _tenant_parts(site.url)
     external_path = posting.posting_id.split(":", 1)[1]
     url = f"https://{host}/wday/cxs/{tenant}/{site_name}{external_path}"
-    response = http_get(url, headers={"Content-Type": "application/json"},
-                        data="{}")
-    payload = decode_json(response, f"workday job {external_path}")
+    payload = fetch_json(url, http_get, f"workday job {external_path}",
+                         headers={"Content-Type": "application/json"},
+                         data="{}")
     info = payload.get("jobPostingInfo") or {}
     description = info.get("jobDescription")
     if not description:

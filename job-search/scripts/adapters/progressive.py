@@ -14,8 +14,7 @@ Employment type is never a gate (spec: no schedule checks).
 import re
 from datetime import datetime, timezone
 
-from adapters import (AdapterFetchError, detail_jsonld_jd,
-                      iso_day, midnight_utc)
+from adapters import detail_jsonld_jd, fetch_body, iso_day, midnight_utc
 from postings import Posting, canonical_id, day_within_window
 
 SOURCE = "progressive"
@@ -37,11 +36,9 @@ def list_postings(site, http_get, now=None) -> list[Posting]:
     now = now or datetime.now(timezone.utc)
     postings = []
     for page in range(1, MAX_PAGES + 1):
-        response = http_get(f"{site.url}?{SORT_BY_DATE}&page={page}")
-        if response.status != 200:
-            raise AdapterFetchError(
-                f"progressive search HTTP {response.status}")
-        cards = _CARD_RE.findall(response.body)
+        body = fetch_body(f"{site.url}?{SORT_BY_DATE}&page={page}", http_get,
+                          f"progressive search page {page} ({site.name})")
+        cards = _CARD_RE.findall(body)
         if not cards:
             break
         stop = False

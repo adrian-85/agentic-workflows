@@ -14,7 +14,8 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
-from adapters import (AdapterFetchError, card_posting, html_to_text,
+from adapters import (AdapterFetchError, card_posting, fetch_body,
+                      html_to_text,
                       relative_within_window)
 from postings import Posting
 
@@ -61,10 +62,8 @@ def list_postings(site, http_get) -> list[Posting]:
     postings: list[Posting] = []
     for page in range(MAX_PAGES):
         url = _with_start(base_url, page * 10)
-        response = http_get(url)
-        if response.status != 200:
-            raise AdapterFetchError(f"guest search HTTP {response.status}")
-        batch = _parse_cards(response.body, site, now)
+        body = fetch_body(url, http_get, f"linkedin guest search ({site.name})")
+        batch = _parse_cards(body, site, now)
         if not batch:
             break
         postings.extend(batch)
@@ -73,13 +72,11 @@ def list_postings(site, http_get) -> list[Posting]:
 
 def fetch_jd(site, posting, http_get) -> str:
     """Fetch the guest view page and extract the description markup."""
-    del site
     ext_id = posting.posting_id.split(":", 1)[1]
-    response = http_get(f"https://www.linkedin.com/jobs/view/{ext_id}")
-    if response.status != 200:
-        raise AdapterFetchError(f"guest view HTTP {response.status}")
+    body = fetch_body(f"https://www.linkedin.com/jobs/view/{ext_id}",
+                      http_get, f"linkedin guest view ({site.name})")
     match = re.search(
-        r'show-more-less-html__markup[^>]*>(.*?)</div>', response.body, re.S)
+        r'show-more-less-html__markup[^>]*>(.*?)</div>', body, re.S)
     if not match:
         raise AdapterFetchError(
             f"no description markup in view page for {ext_id}")

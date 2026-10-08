@@ -10,7 +10,7 @@ import json
 import re
 from datetime import datetime, timezone
 
-from adapters import AdapterFetchError
+from adapters import AdapterFetchError, fetch_body
 from postings import Posting, canonical_id
 
 SOURCE = "epam"
@@ -27,10 +27,8 @@ JOBS_URL = "https://careers.epam.com/jobs/"
 
 def list_postings(site, http_get) -> list[Posting]:
     """Parse the embedded jobs list into gated postings."""
-    response = http_get(site.url)
-    if response.status != 200:
-        raise AdapterFetchError(f"epam page HTTP {response.status}")
-    match = NEXT_DATA_RE.search(response.body)
+    body = fetch_body(site.url, http_get, f"epam page ({site.name})")
+    match = NEXT_DATA_RE.search(body)
     if not match:
         raise AdapterFetchError("no __NEXT_DATA__ on page")
     try:
